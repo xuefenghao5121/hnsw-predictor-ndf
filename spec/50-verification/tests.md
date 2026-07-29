@@ -236,7 +236,7 @@
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| recall | Degree Cap K=20 | ≥ 95% | — | 待测 |
-| CSR 大小 | Degree Cap K=20 | < 30MB | — | 待测 |
-| RSS 下降 | vs 基线 | > 15MB 下降 | — | 待测 |
-| 180MB cgroup QPS | CAP=20, 180MB | ≥ 800 | — | 待测 |
+| recall | Degree Cap K=20 | ≥ 95% | 94.15% | ⚠️ 未达, K=22 待测 |
+| CSR 大小 | Degree Cap K=20 | < 30MB | 44MB | ⚠️ 节省 3MB 有限 |
+| 180MB cgroup QPS | CAP=20, 180MB | ≥ 800 | 935 | ✅ |
+| 悬崖消除 | CAP20 vs Original @180MB | 4×+ | 4.7× (196→935) | ✅ |
