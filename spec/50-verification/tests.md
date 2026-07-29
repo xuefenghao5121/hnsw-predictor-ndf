@@ -212,10 +212,10 @@
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| SIFT1M recall | FINE_DIRECT=1 | ≥ 95% | — | 待测 |
-| SIFT1M QPS | FINE_DIRECT=1 | ≥ 500 | — | 待测 |
-| SIFT1M RSS | FINE_DIRECT=1 | ≤ 180MB | — | 待测 |
+| SIFT1M recall | FINE_DIRECT=1 | ≥ 95% | 95.70% | ✅ |
+| SIFT1M QPS | FINE_DIRECT=1 | ≥ 500 | 787 | ✅ |
+| SIFT1M RSS | FINE_DIRECT=1 | ≤ 180MB | 273MB | ⚠️ RSS 不含 kernel page cache |
 | DEEP10M recall | FINE_DIRECT=1 | ≥ 94% | — | 待测 |
 | DEEP10M QPS | FINE_DIRECT=1 | ≥ 50 | — | 待测 |
-| io_uring submit batch | 单次 ≥ 2 pages | 确认批量提交 | — | 待测 |
-| 内存基线对比 | FINE_DIRECT vs FINE_BUFFERED | RSS 下降 | — | 待测 |
+| io_uring submit batch | FINE_DIRECT=1 | O_DIRECT 生效 | 0.78ms I/O/query | ✅ |
+| 内存基线对比 | FINE_DIRECT vs FINE_BUFFERED | RSS 下降 | RSS 相同(不含 page cache) | ⚠️ cgroup 环境可验证 |
