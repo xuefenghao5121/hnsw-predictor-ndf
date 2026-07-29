@@ -225,6 +225,15 @@ void DiskHNSW::loadPQCodes(const std::string& pq_path) {
 
     pq_enabled_ = true;
 
+    // DEC-034: 释放上层精确向量 (PQ 已可用, 改用 ADC 距离)
+    static const bool kUpperPQ = !std::getenv("DISABLE_UPPER_PQ");  // 默认开启, DISABLE_UPPER_PQ=1 关闭
+    if (kUpperPQ && !graph_.upper_vectors.empty()) {
+        size_t upper_count = graph_.upper_vectors.size();
+        size_t upper_mb = (uint64_t)upper_count * graph_.dim * sizeof(float) / (1024 * 1024);
+        graph_.upper_vectors.clear();
+        std::cout << "  [UpperPQ] Freed " << upper_count << " exact vectors (" << upper_mb << "MB) — using PQ ADC instead" << std::endl;
+    }
+
     size_t codebook_mb = codebook_size * sizeof(float) / (1024 * 1024);
     size_t codes_mb = n * M / (1024 * 1024);
     std::cout << "  PQ codebook: " << codebook_mb << " MB" << std::endl;
@@ -343,34 +352,36 @@ float DiskHNSW::pqDistance(const float* query, uint32_t node_id_new) const {
 uint32_t DiskHNSW::greedyDescent(const float* query) {
     uint32_t currObj = graph_.entry_point;
 
+    // DEC-034: PQ codes for upper layer — avoid exact L2, save RSS
+    bool use_pq = pq_enabled_ && graph_.upper_vectors.empty();
+    if (use_pq) buildPqDistTable(query);  // compute LUT once for entire descent
+
     // 从最高层逐层下降到 Layer 1
-    // 在每一层，遍历当前节点的邻居，如果有更近的就移动过去
     for (int level = graph_.max_level; level > 0; level--) {
         bool changed = true;
         while (changed) {
             changed = false;
-
-            // 获取当前节点在本层的邻居列表（old_id空间）
-            // 检查该节点是否有上层邻居
-            if (graph_.levels[currObj] < level) {
-                // 当前节点不在这一层，无法继续
-                // 这种情况不应该发生（贪心下降保证当前节点在该层存在）
-                break;
-            }
+            if (graph_.levels[currObj] < level) break;
 
             const auto& neighbors = graph_.upper_adjacency[currObj][level];
 
-            // 当前节点到query的距离 (使用 upper_vectors)
-            const float* currVec = graph_.upper_vectors[currObj].data();
-            float curDist = l2Distance(query, currVec);
+            float curDist;
+            if (use_pq) {
+                curDist = pqDistance(query, old_to_new_[currObj]);
+            } else {
+                const float* currVec = graph_.upper_vectors[currObj].data();
+                curDist = l2Distance(query, currVec);
+            }
 
-            // 遍历邻居，寻找更近的
             for (uint32_t neighbor : neighbors) {
                 if (neighbor >= graph_.num_nodes) continue;
-
-                const float* neighborVec = graph_.upper_vectors[neighbor].data();
-                float d = l2Distance(query, neighborVec);
-
+                float d;
+                if (use_pq) {
+                    d = pqDistance(query, old_to_new_[neighbor]);
+                } else {
+                    const float* neighborVec = graph_.upper_vectors[neighbor].data();
+                    d = l2Distance(query, neighborVec);
+                }
                 if (d < curDist) {
                     curDist = d;
                     currObj = neighbor;
@@ -380,7 +391,7 @@ uint32_t DiskHNSW::greedyDescent(const float* query) {
         }
     }
 
-    return currObj;  // 返回old_id
+    return currObj;
 }
 
 // ============================================================
