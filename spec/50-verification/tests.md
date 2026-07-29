@@ -187,3 +187,22 @@
 |------|------|------|------|------|
 | 热态无效 | DW=1 | 无效果 | converge=0 | 已知限制 |
 | 冷态无效 | EVICT+DW | 无效果 | converge=0 | 正式放弃 |
+
+### VER-018: Page Shuffle 页聚类质量 {#VER-018}
+<!-- ndf: kind=verif verifies=DEC-018 -->
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| 页内邻居对 | greedy 策略 | ≥ 60% | 77.1% | ✅ |
+| Recall 保持 | shuffled vs original (hot) | 95.70% ± 0.1pp | 95.70% | ✅ |
+| Recall 保持 | shuffled vs original (cold) | 95.70% ± 0.1pp | 95.70% | ✅ |
+| 冷态 QPS | shuffled vs original (cold) | ≥ original QPS | 820 vs 803 | ✅ |
+| 工具耗时 | 1M vectors | < 5s | 1.65s | ✅ |
+
+### DEC-025: Page Shuffle + Page Search 组合
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| recall | shuffled+PS (cold) | ≥ 96% | 96.05% | ✅ |
+| QPS vs PS only | shuffled+PS vs PS | ≥ PS QPS | 797 vs 789 | ✅ |
+| SLA 全部达标 | shuffled+PS (cold) | recall ≥ 95%, QPS ≥ 500 | 96.05%, 797 | ✅ |

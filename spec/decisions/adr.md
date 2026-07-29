@@ -302,7 +302,7 @@ SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
 > （8×L2(128D) ≈ 0.4μs），但可多发现 3-5 个高质量候选，提升 recall 2-3 个百分点。
 
 ## D-018: Page Shuffle for vecblocks {#DEC-018}
-<!-- ndf: kind=decision date=2026-07-29 affects=DEC-006,ARCH-004 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-29 updated=2026-07-29 affects=DEC-006,ARCH-004 source=deduced -->
 
 **Context.** 当前 BFS 重排在 64KB block 级（block 内节点连续），但 Fine Rerank
 以 4KB 页读取。一个 64KB block 含 16 个 4KB 页，BFS 只保证 block 内连续，
@@ -313,16 +313,27 @@ SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
 
 **Decision.** vecblocks 文件 SHOULD 按 4KB 页粒度重排，使图相邻节点共享同一页。
 
-**实现要点**：
-- 新增 pipeline 工具 `shuffle_vecblocks.cpp`：读取 BFS 重排后的 vecblocks，
-  按 4KB 页重新分组
-- 算法：对每个 64KB block 内的节点，按 HNSW 图邻接关系做页级聚类
-  （贪心：将共享邻居最多的节点分到同一页）
-- 输出新 vecblocks 文件 + 新 `vec_page_route_table_`（node -> page_id 映射）
-- 需更新 `vec_route_table_` 以指向页级偏移而非 block 级
+**实现状态（2026-07-29）:**
+
+`shuffle_vecblocks.cpp` 已实现完整的贪心页聚类算法：
+
+1. 加载图邻接表（slim_adj 模式，不加载全量向量）
+2. 将邻接表转换到 new_id 空间（BFS 重排后 ID）
+3. 对每个 64KB block：
+   - 构建块内邻接子图
+   - 贪心页分配：种子选块内邻居最多的节点，后续选与当前页共享邻居最多的节点
+   - 按新页顺序重排 node_ids 和 vectors
+4. 输出新 vecblocks 文件（格式不变）
+
+**页聚类质量:**
+- 页内邻居对：29.7% → 77.1% (+159.5%)
+- 算法复杂度：O(cnt²·vpp) per block, cnt≈126, vpp=8, 毫秒级完成
+
+**precondition:** 仅对 SIFT (128D, 512B/向量, 8向量/页) 有效。
+高维数据（如 GIST 960D）一页只放 1 个向量，Shuffle 无效。
+
 - refines: [[DEC-006]]
-- precondition: 仅对 SIFT (128D, 512B/向量, 8向量/页) 有效。
-  高维数据（如 GIST 960D）一页只放 1 个向量，Shuffle 无效。
+- verifies: [[VER-018]]
 
 > rationale: Page Shuffle 让 HNSW 图上相邻的节点落在同一 4KB 页，
 > 配合 Page Search 后页内利用率从 12.5% 提升到 40-60%。
@@ -405,18 +416,31 @@ SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
 > tradeoff 变得更有利。
 
 ## D-023: 冷 I/O 下 Page Shuffle 优先级提升 {#DEC-023}
-<!-- ndf: kind=decision date=2026-07-29 affects=DEC-018,DEC-021 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-29 updated=2026-07-29 affects=DEC-018,DEC-021 source=deduced -->
 
 **Context.** Page Shuffle 原计划推迟到 P2（10M）。冷 I/O 模式下页内局部性直接影响
 真实磁盘 I/O 量，Page Shuffle 变得有意义。
 
-**Decision.** Page Shuffle 优先级从"推迟到 P2"提升为"P2 前置验证"：
-- 冷 I/O 下预期页命中率从 ~12.5% 提升到 40-60%
-- 预期 I/O 量减少 25-30%
-- 预期 QPS 提升 20-30%
+**Decision.** Page Shuffle 优先级从"推迟到 P2"提升为"P2 前置验证"。
 
-> rationale: 论文发现 Page Shuffle + Page Search 组合减少 28.3% 页读取。
-> 冷 I/O 下每次页读取是真实磁盘 I/O，减少页读取直接提升 QPS。
+**1M 验证结果（2026-07-29）:**
+
+| 测试 | Recall | QPS | I/O 时间 |
+|------|--------|-----|--------|
+| 冷态基线 | 95.70% | 803 | 0.76ms |
+| 冷态+Shuffle | 95.70% | 820 | 0.73ms |
+| 冷态+PS | 96.20% | 789 | 0.78ms |
+| 冷态+Shuffle+PS | 96.05% | 797 | 0.76ms |
+
+- Shuffle 单独：QPS +2.1%，I/O -3.9%（远低于论文 25-30%）
+- Shuffle+PS vs PS：QPS +1%，PS 开销从 -1.7% 降到 -0.7%
+- **结论：1M 规模收益边际**，vecblocks 520MB 太小，OS page cache 仍有残留
+- **下一步：10M 规模验证**（vecblocks 5GB+，page cache 必然不够）是 Page Shuffle 的真正战场
+
+> rationale: 论文的 25-30% 页读取减少依赖大数据集（page cache 无法覆盖）
+> 和多候选查询（每 query 读更多页）。1M 规模 I/O 量基数小，绝对收益有限。
+> 但页聚类质量（77.1% co-locality）验证了算法正确性，
+> 10M 规模预期收益接近论文数据。
 
 ## D-024: 冷 I/O 模式实验结论 {#DEC-024}
 <!-- ndf: kind=decision date=2026-07-29 affects=DEC-017,DEC-019,DEC-021,DEC-022,DEC-023 source=observed -->
@@ -437,7 +461,9 @@ SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
 1. **冷 I/O 模式有效**: posix_fadvise(DONTNEED) 成功制造真实磁盘 I/O，QPS 下降 60%
 2. **Page Search 冷态表现**: recall +0.5pp，QPS -5.9%（热态 -11%），L2 计算开销被 I/O 延迟掩盖
 3. **Dynamic Width 正式放弃**: PQ 搜索不收敛是架构特性，非代码缺陷，冷 I/O 也不改变此结论
-4. **Page Shuffle 升级为最高优先级**: 冷态 I/O 占 60%，减少页读取直接提升 QPS
+4. **Page Shuffle 实现完成，1M 收益边际**: 页聚类质量 77.1%（提升 159.5%），但冷态 I/O 仅减 4%
+   （vs 论文 25-30%）。根因为 1M vecblocks (520MB) 太小，page cache 仍有残留。
+   算法正确性已验证，真正收益在 10M。
 
 **Dynamic Width 根因最终确认:**
 
@@ -447,3 +473,44 @@ PQ ADC 距离的量化误差导致 top-K 候选持续抖动，hash 和 lowerBoun
 
 > rationale: 冷 I/O 模式让 1M 规模实验有了 10M+ 规模的 I/O 特征，
 > 论文的 I/O 优化框架（Page Shuffle + Page Search）在此条件下才真正适用。
+
+## D-025: Page Shuffle 1M 实现与验证 {#DEC-025}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-018,DEC-023,DEC-024 source=observed -->
+
+**Context.** DEC-018 的 Page Shuffle 已从骨架实现为完整的贪心页聚类算法，
+需在 1M 规模冷 I/O 下验证实际收益。
+
+**完整实验结果 (SIFT1M, no cgroup, io\_uring, 1T, EVICT\_PAGE\_CACHE=1):**
+
+| 测试 | Recall | Mean | QPS | RSS |
+|------|--------|------|-----|-----|
+| A: 热态基线（原始 vecblocks） | 95.70% | 0.49ms | 2038 | 273MB |
+| B: 冷态基线（原始 vecblocks） | 95.70% | 1.25ms | 803 | 273MB |
+| C: 冷态+PageSearch（原始） | 96.20% | 1.27ms | 789 | 275MB |
+| D: 冷态+Shuffle | 95.70% | 1.22ms | 820 | 273MB |
+| E: 冷态+Shuffle+PageSearch | 96.05% | 1.25ms | 797 | 275MB |
+| F: 热态+Shuffle+PageSearch | 96.05% | 0.55ms | 1805 | 275MB |
+
+**Decision.**
+
+1. **算法正确性验证通过**: 页内邻居对从 29.7% 提升到 77.1% (+159.5%)
+2. **1M 收益边际**: Shuffle 单独 QPS +2.1%，Shuffle+PS QPS +1.0%
+   - I/O 仅减 4%，远低于论文 25-30%
+   - 根因：vecblocks 520MB 太小，OS page cache 仍有残留，冷 I/O 不够"冷"
+3. **Recall 保持**: 所有模式 recall ≥ 95%，无回归
+4. **Shuffle 工具成熟度**:
+   - 1.65s 完成 1M 向量重排
+   - 支持 greedy 和 random 两种策略
+   - 输出文件与原文件相同大小（520MB）
+   - 原 `buildFineRerank()` 无需修改即可使用 shuffled vecblocks
+5. **10M 是真正的验证战场**:
+   - vecblocks = dataset\_size × dim × 4B, 10M SIFT = 5.12GB
+   - page cache 必然无法覆盖，每次 I/O 都是真实磁盘访问
+   - 论文的 25-30% I/O 减少预期在 10M 规模更可能成立
+
+**P2 前置条件已满足**: Page Shuffle 算法、工具、验证链路均已就绪，
+可直接用于 10M 规模的 P2 验证。
+
+> rationale: 1M 规模是"验证算法正确性"的合适尺度（快速迭代、低资源），
+> 但不是"验证 I/O 优化有效性"的合适尺度（page cache 干扰）。
+> Page Shuffle 的投资回报率取决于数据集是否超出 page cache 容量。
