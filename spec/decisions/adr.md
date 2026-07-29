@@ -752,3 +752,25 @@ QPS 出现 10× 断崖（1,973 → 196），OS 在页面驱逐和 LRU 管理上�
 > rationale: 不放弃 page cache 的好处（批量预取、跨 query 复用），
 > 同时避免 page cache 颠簸的代价（LRU 维护 + 无效驱逐）。
 > 类似于 CPU cache 的"non-temporal"访存指令——读一次就过，别占 cache line。
+
+## D-032: 10× QPS 悬崖根因——Cgroup Memory Reclaim 非 I/O 瓶颈 {#DEC-032}
+<!-- ndf: kind=decision date=2026-07-30 affects=DEC-031,CON-007 source=observed -->
+
+**Context.** 尝试 FINE_FADVISE/FINE_DIRECT/降缓存来消除 180MB cgroup 的 10x QPS 悬崖，均失败。
+
+| 方案 | 180MB QPS | 效果 |
+|------|-----------|------|
+| FINE_BUFFERED (基线) | 196 | — |
+| + FINE_FADVISE | 163 | ❌ |
+| FINE_DIRECT | 188 | ❌ |
+
+**根因:** cgroup memory.max 被触发 59,773+ 次 → OS memory reclaim 消耗大量 CPU。
+这不是 I/O 瓶颈，是 reclaim 瓶颈。
+
+**Decision.**
+1. 10x 悬崖是 cgroup 硬限制的必然结果
+2. 缓解: 用 memory.high (软限制) 而非 memory.max (硬限制)；给 page cache 留 RSS + 2x 工作集
+3. 代码层面: 压缩 CSR 图、上层 PQ 编码 → reduce process RSS
+4. 任何 I/O 优化在 reclaim 风暴面前无效
+
+> rationale: 这不是 I/O 问题，是 memory provisioning 问题。

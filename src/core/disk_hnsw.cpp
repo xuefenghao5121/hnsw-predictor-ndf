@@ -1923,6 +1923,28 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 }
             }
             }  // end pread else
+
+            // DEC-031: 页面级驱逐 — FINE_FADVISE=1 时在精排完成后驱逐刚读过的页面
+            // 消除 page cache 颠簸: 主动告诉 OS 这些页是 read-once, 不占 cache
+            static const bool kFineFadvise = std::getenv("FINE_FADVISE") && std::atoi(std::getenv("FINE_FADVISE")) != 0;
+            static const bool kFineBufferedInner = std::getenv("FINE_BUFFERED") && std::atoi(std::getenv("FINE_BUFFERED")) != 0;
+            if (kFineFadvise && kFineBufferedInner && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
+                // 排序去重后的 page 号, 合并为连续 range 以减少 syscall 次数
+                std::vector<uint32_t> pgv(pages_needed.begin(), pages_needed.end());
+                std::sort(pgv.begin(), pgv.end());
+                size_t i = 0;
+                while (i < pgv.size()) {
+                    uint32_t range_start = pgv[i];
+                    uint32_t range_end = range_start;
+                    while (i + 1 < pgv.size() && pgv[i + 1] == range_end + 1) {
+                        range_end = pgv[++i];
+                    }
+                    off_t off = (off_t)range_start << 12;
+                    size_t len = (range_end - range_start + 1) * 4096;
+                    posix_fadvise(vec_blocks_fd_, off, (off_t)len, POSIX_FADV_DONTNEED);
+                    i++;
+                }
+            }
         } else {
         // ---- 块粒度精排 (原路径) ----
         // 收集 miss 的 blocks, 一次性提交 io_uring 并行读 (NVMe 队列深度掩盖 I/O 延迟)
