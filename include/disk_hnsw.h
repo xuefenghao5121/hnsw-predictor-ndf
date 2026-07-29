@@ -264,6 +264,10 @@ private:
     std::vector<uint16_t> node_slot_table_;     // node -> block 内 slot (2MB @1M)
     std::vector<uint32_t> block_data_offset_;   // block -> 向量区 data_offset
     std::vector<uint32_t> vec_route_table_;     // node -> vecblocks block_id (修复 blocks/vecblocks ID 不一致 bug)
+    // DEC-017: Page Search — slot→node 反向映射, 按 block 索引
+    std::vector<std::vector<uint32_t>> vec_slot_to_node_;  // [b][slot] = node_id
+    // DEC-017: Page Search 去重位图 (预分配 num_nodes/8 字节, 每次 query memset 清零)
+    std::vector<uint8_t> ps_considered_;
     std::unique_ptr<IoUring> vec_ring_;         // 4KB buffer pool ring (独立于 block 预取 ring)
     int vec_blocks_fd_ = -1;
     uint32_t vec_block_size_ = 0;

@@ -1,6 +1,6 @@
 # Decisions — 架构决策记录
 
-## D-001: 选择 hnswlib 作为建图引擎 {#OBS-DEC-001}
+## D-001: 选择 hnswlib 作为建图引擎 {#DEC-001}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-ARCH-001,OBS-API-001 source=observed -->
 
 **Context.** DiskHNSW 需要 HNSW 图结构来驱动搜索。`build_index.cpp` 和 `benchmark_hnswlib_native.cpp` 直接 include `hnswlib/hnswlib.h`。
@@ -10,7 +10,7 @@
 **Alternatives rejected.** 自研 HNSW 建图（工作量大，hnswlib 已成熟）；使用 faiss HNSW（faiss 的 C++ API 不如 hnswlib 轻量）。
 **Inferred from.** `hnswlib/` 目录存在、`Makefile` 中 `-I./hnswlib` 编译选项、`build_index.cpp` 和 `benchmark_hnswlib_native.cpp` 的 `#include "hnswlib/hnswlib.h"`。(inferred)
 
-## D-002: 选择 faiss 做 PQ 训练 {#OBS-DEC-002}
+## D-002: 选择 faiss 做 PQ 训练 {#DEC-002}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-API-003,OBS-BEH-005 source=observed -->
 
 **Context.** PQ 编码需要训练 codebook + 编码所有向量。`train_pq.py` 和 `gen_gt.py` 都 import faiss。
@@ -20,7 +20,7 @@
 **Alternatives rejected.** 自研 PQ 训练（faiss 已有高效实现）；使用 scikit-learn KMeans（慢一个数量级）。
 **Inferred from.** `scripts/train_pq.py:33` (`import faiss`), `scripts/gen_gt.py:26` (`import faiss`)。(inferred)
 
-## D-003: 选择 io_uring 而非 libaio {#OBS-DEC-003}
+## D-003: 选择 io_uring 而非 libaio {#DEC-003}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-ARCH-001,OBS-DEF-011 source=observed -->
 
 **Context.** 异步 I/O 预取需要高效的内核接口。代码自行封装了 raw `io_uring_setup(2)` 系统调用，未使用 liburing。
@@ -30,7 +30,7 @@
 **Alternatives rejected.** libaio（接口老旧，不支持 batch submission）；liburing（增加外部依赖）；pread（同步，单线程可用但多线程不如 io_uring）。
 **Inferred from.** `io_uring_wrapper.h:3-5`（"No external liburing dependency required"），`src/core/graph_prefetcher.cpp` 中 io_uring 的预取逻辑。(inferred)
 
-## D-004: 选择 dual-route-table 修复 FINE_RERANK bug {#OBS-DEC-004}
+## D-004: 选择 dual-route-table 修复 FINE_RERANK bug {#DEC-004}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-007,OBS-DEF-010 source=observed -->
 
 **Context.** blocks 文件（含邻接表，8651 块）和 vecblocks 文件（仅向量，7937 块）因元数据大小不同，同一 node 在两文件里 block_id 不一致。原代码用 blocks 的 route_table 索引 vecblocks，导致读到错误向量。
@@ -40,7 +40,7 @@
 **Alternatives rejected.** 强制两个文件使用相同 block 划分（会牺牲 vecblocks 的存储效率）；用隐式 offset 推导（脆弱，已在原始实现中证明不可靠）。
 **Inferred from.** README P0.5 章节、"fix(FINE_RERANK)" commit `1906400`、`disk_hnsw.h:266` 的 `vec_route_table_` 成员。(inferred)
 
-## D-005: 选择 CSR Delta+Varint 而非 BVGraph 压缩 {#OBS-DEC-005}
+## D-005: 选择 CSR Delta+Varint 而非 BVGraph 压缩 {#DEC-005}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEF-008,OBS-DEF-009 source=observed -->
 
 **Context.** L0 邻接表 84MB 需要压缩以降低常驻内存。分析了 BFS-ordered CSR 的 delta 分布（4.2% delta=1, 32% delta<1024, 68% delta≥1024）。
@@ -50,7 +50,7 @@
 **Alternatives rejected.** BVGraph reference compression（Jaccard 太低不适用）；PForDelta（对 68% 长程边收益小）；直接 uint16 truncation（HNSW long-range edges 超 16-bit 范围）。
 **Inferred from.** README P0 章节、`common.h:171-198` 的 `delta_varint_encode/decode` 函数、`common.h:24` 的 `FORMAT_VERSION_COMPRESSED = 2`。(inferred)
 
-## D-006: BFS 重排作为默认布局策略 {#OBS-DEC-006}
+## D-006: BFS 重排作为默认布局策略 {#DEC-006}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEF-003,OBS-ARCH-004 source=observed -->
 
 **Context.** 向量在磁盘上的排列顺序影响块内命中率。`BfsLayoutProvider` 是唯一实际使用的路由表加载器。
@@ -60,7 +60,7 @@
 **Alternatives rejected.** Random（对照组，命中率低）；Hilbert/ Morton space-filling curve（需要额外计算，BFS 直接利用图结构）。
 **Inferred from.** `bfs_reorder.cpp` 存在、`BfsLayoutProvider` 是 `BlockCache` 向后兼容构造函数的默认选择（`block_cache.cpp:148`）、`RandomLayoutProvider` 仅用于对照实验。(inferred)
 
-## D-007: 选择 C++17 + g++ 而非 Clang {#OBS-DEC-007}
+## D-007: 选择 C++17 + g++ 而非 Clang {#DEC-007}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-CON-006 source=observed -->
 
 **Context.** 需要 C++17 特性（`std::optional`, structured bindings, `if constexpr`）和 AVX2 intrinsics。
@@ -77,14 +77,19 @@
 <!-- source=deduced 表示条款源自架构推理，非从代码直接提取         -->
 <!-- ════════════════════════════════════════════════════════════════ -->
 
-## D-008: 两阶段搜索作为内存卸载的核心机制 {#INTENT-DEC-008}
-<!-- ndf: kind=decision date=2026-07-28 affects=INTENT-ARCH-002,INTENT-CHR-001 source=deduced -->
+## D-008: 两阶段搜索作为当前最优搜索配置 {#DEC-008}
+<!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-002 source=deduced -->
 
-**Context.** 传统 HNSW 搜索每展开一个节点都需要读其向量算距离。100 万 128 维向量需 488MB
-内存。在 512MB cgroup 限制下，hnswlib（726MB RSS）直接 OOM。需要一种机制把向量从内存
-卸载到磁盘，同时保持可接受的搜索延迟。
+**Context.** [[BEH-002]] 显示 `searchKnn()` 有 5 种搜索模式（TwoStage/Beam/NonBlock/
+BatchIO/Default），由环境变量分支选择。**两阶段搜索是 5 种模式之一，并非唯一的架构路径。**
+它是当前生产使用的最优配置，其他模式（Beam/NonBlock/BatchIO）为实验性探索，
+同样存在于代码中且可在运行时切换。
 
-**Decision.** 采用两阶段搜索架构：
+传统 HNSW 搜索每展开一个节点都需要读其向量算距离。100 万 128 维向量需 488MB 内存。
+在 512MB cgroup 限制下，hnswlib（726MB RSS）直接 OOM。两阶段搜索是把向量从内存
+卸载到磁盘的可行方案之一（而非“核心机制”）。
+
+**Decision.** 采用两阶段搜索作为当前最优配置：
 - **Phase A（粗筛）**：用 PQ（Product Quantization）把每向量从 512 字节压缩到 32 字节，
   全量 PQ codes 仅 30MB 常驻内存。图搜索过程中用 PQ ADC 近似距离替代精确 L2，零向量 I/O。
   产出 ~100 个候选节点。
@@ -102,11 +107,12 @@
 - **全量磁盘 + 大 block cache**：64KB block 读太多不需要的向量，I/O 量 5.3MB/query
 - **IVF + PQ（如 FAISS IVFPQ）**：倒排索引 + 批量查询优化好，但单查询延迟高（nprobe 开销）
 - **DiskANN**：Vamana 图 + 固定扇出，但搜索路径更长，单查询 I/O 更多
+- **Beam/NonBlock/BatchIO**：代码中存在实验性实现（见 [[BEH-002]]），但均未达到两阶段的 recall/QPS 平衡
 
 > rationale: 两阶段搜索的本质是“用计算换内存”——PQ 压缩是计算（查表），
 > 磁盘 I/O 是按需的（只读候选）。在 CPU 富余、内存稀缺的场景下，这是正确交换。
 
-## D-009: 选择 4KB 页粒度而非 64KB block 粒度做精排 {#INTENT-DEC-009}
+## D-009: 选择 4KB 页粒度而非 64KB block 粒度做精排 {#DEC-009}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-007,OBS-DEF-006 source=deduced -->
 
 **Context.** Phase B 精排需要读取候选向量的真实数据。有两种粒度可选：
@@ -130,15 +136,16 @@
 - 2KB sub-page：Linux 不支持小于 page_size 的 I/O，需用户态拼接，复杂度不值得
 - mmap + userfaultfd：可以按需加载，但 signal handler 路径不稳定，且 cgroup 记账不直观
 
-## D-010: 选择 delta+varint 而非更复杂压缩的架构理由 {#INTENT-DEC-010}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEF-008,INTENT-ARCH-002 source=deduced -->
+## D-010: delta+varint 的事后技术观测 {#DEC-010}
+<!-- ndf: kind=info level=may layer=L2 status=stable since=0.2 source=deduced -->
 
-**Context.** [[OBS-DEC-005]] 记录了 delta+varint vs BVGraph 的选择。这里补充架构层面的理由。
+**Context.** [[DEC-005]] 记录了 delta+varint vs BVGraph 的选择，决策完全基于
+Jaccard = 0.023 的数据分析。以下为事后技术观测，非原始决策理由。
 
-**Decision.** delta+varint 是与六边形架构兼容的选择：
+**事后观测：** delta+varint 恰好具备以下特性，但对决策不起决定性作用：
 
-1. **解码独立性**：delta+varint 的解码逻辑自包含（`common.h:171-198`），可提取为独立的
-   `CSRAdjacency` 领域对象，不依赖外部状态。BVGraph 需要维护 reference node 的上下文
+1. **解码独立性**：delta+varint 的解码逻辑自包含（`common.h:171-198`），不依赖外部状态。
+   BVGraph 需要维护 reference node 的上下文
 2. **随机访问友好**：`adj_csr_byte_offsets_[N+1]` 提供节点级随机访问入口，O(1) 定位。
    BVGraph 的变长 reference chain 需要顺序扫描
 3. **线程安全简单**：`csr_decode_buf_` 是 thread_local，每个线程独立解码。
@@ -146,13 +153,14 @@
 4. **压缩率足够**：1.8x 压缩（84->47MB）已让 1M 规模的 CSR 不是内存瓶颈。
    100M 规模时 CSR 上磁盘是更有效的方案，不需要更高压缩率
 
-> rationale: 压缩算法的选择不仅是压缩率问题，更是架构耦合问题。
-> delta+varint 的简单性保证了它可以被干净地封装在 `IAdjacency` Port 后面。
+> 注意：以上特性是选择 delta+varint 后发现的技术优点，不是选择它的原因。
+> 原始决策理由见 [[DEC-005]]（Jaccard 分析）。
+> ~~原版本声称“与六边形架构兼容”已删除：决策时六边形架构概念不存在~~
 
-## D-011: BFS 重排作为默认布局的架构理由 {#INTENT-DEC-011}
+## D-011: BFS 重排作为默认布局的架构理由 {#DEC-011}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-006,INTENT-ARCH-003 source=deduced -->
 
-**Context.** [[OBS-DEC-006]] 记录了 BFS vs Random vs Hilbert 的选择。补充架构理由。
+**Context.** [[DEC-006]] 记录了 BFS vs Random vs Hilbert 的选择。补充架构理由。
 
 **Decision.** BFS 重排是“图结构感知”的布局策略，与搜索领域高度内聚：
 
@@ -166,44 +174,40 @@
 4. **不可变假设**：BFS 顺序在建索引时确定，运行时不变。这简化了设计——
    不需要动态重排或自适应布局
 
-## D-012: 双路由表分离作为显式映射原则 {#INTENT-DEC-012}
+## D-012: 双路由表分离作为显式映射原则 {#DEC-012}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-004,INTENT-ARCH-004 source=deduced -->
 
-**Context.** [[OBS-DEC-004]] 记录了 `vec_route_table_` 的引入。补充架构层面的原则。
+**Context.** [[DEC-004]] 记录了 `vec_route_table_` 的引入。补充架构层面的原则。
 
-**Decision.** 双路由表分离体现了 NDF 的核心原则之一：“不依赖隐式对齐”。提升为架构规则：
+**Decision.** 双路由表分离体现了核心原则：“不依赖隐式对齐”。提升为架构规则：
 
 1. **每套数据文件 MUST 有独立的路由表**：blocks 文件、vecblocks 文件、PQ blocks 文件
    如果有不同的 block 划分（因元数据大小不同），各自维护映射
-2. **路由表是 Port 的实现细节**：`IRouteTable` 接口隐藏了双表的存在，搜索领域
-   只调用 `getByteOffset(node_id)`，不关心用的是哪个文件的路由
-3. **路由表的变更需版本化**：如果 vecblocks 文件重新生成（如改 block_size），
+2. **路由表的变更需版本化**：如果 vecblocks 文件重新生成（如改 block_size），
    `vec_route_table_` 必须同批重建，并在 `ndf.yaml` 中记录版本
+
+> ~~原第 2 条“路由表是 Port 的实现细节”已删除：`IRouteTable` 接口在代码中不存在~~
 
 > rationale: P0.5 的 FINE_RERANK bug（recall 95.70% -> 10%）就是违反此规则的代价。
 > 隐式对齐在数据碰巧一致时正常工作，pipeline 变更后立即暴露。显式映射的成本
 > 是 4MB 内存，收益是消除一整类数据一致性 bug。
 
-## D-013: 选择 io_uring 原生 syscall 而非 liburing 的架构理由 {#INTENT-DEC-013}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-003,INTENT-ARCH-003 source=deduced -->
+## D-013: 选择 io_uring 原生 syscall 而非 liburing 的架构理由 {#DEC-013}
+<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-003 source=deduced -->
 
-**Context.** [[OBS-DEC-003]] 记录了 io_uring vs libaio 的选择。补充不用 liburing 的理由。
+**Context.** [[DEC-003]] 记录了 io_uring vs libaio 的选择。补充不用 liburing 的理由。
 
 **Decision.** 直接使用 `io_uring_setup(2)` + `io_uring_enter(2)` 系统调用，不依赖 liburing：
 
-1. **零外部依赖**：DiskHNSW 的设计约束之一是“单二进制部署”（[[INTENT-CHR-005]]）。
-   liburing 是.so 库，增加运行时依赖
-2. **封装简洁**：`IoUring` class（363 行）封装了 setup/submit/wait 完整生命周期，
+1. **封装简洁**：`IoUring` class（363 行）封装了 setup/submit/wait 完整生命周期，
    代码量与 liburing wrapper 相当
-3. **控制力**：直接操作 SQ/CQ ring（mmap），可以精确控制内存布局和提交时机。
+2. **控制力**：直接操作 SQ/CQ ring（mmap），可以精确控制内存布局和提交时机。
    liburing 的抽象层会隐藏这些细节
-4. **未来 IAsyncIO Port**：io_uring 封装可干净地实现 `IAsyncIO` 接口，
-   pread 适配器也实现同一接口，搜索领域不感知 I/O 后端
 
 **风险**：内核 io_uring API 变更时需要手动适配（liburing 会处理）。但 io_uring 核心
 API（setup/enter/mmap）自 Linux 5.1 起稳定，变更风险低。
 
-## D-014: PQ M=32 的选择理由 {#INTENT-DEC-014}
+## D-014: PQ M=32 的选择理由 {#DEC-014}
 <!-- ndf: kind=decision date=2026-07-28 affects=OBS-CON-005,OBS-BEH-005 source=deduced -->
 
 **Context.** SIFT 128 维向量，PQ 参数 M 决定每向量压缩后的字节数和距离计算次数。
@@ -231,28 +235,30 @@ M=32 意味着 dsub=4（128/32），每子空间 4 维。
 > rationale: PQ M 的选择不仅是 recall 问题，更是 cache hierarchy 问题。
 > M=32 的 dist table 适配 L1 cache，是性能的甜点。
 
-## D-015: flat_vec_cache 作为第一级热区 {#INTENT-DEC-015}
-<!-- ndf: kind=decision date=2026-07-28 affects=INTENT-ARCH-002,OBS-CON-002 source=deduced -->
+## D-015: flat_vec_cache 热区行为观测 {#DEC-015}
+<!-- ndf: kind=info level=may layer=L2 status=stable since=0.2 source=deduced -->
 
-**Context.** 实验发现（P1 阶段），flat_vec_cache（64MB，装 65K 个上层向量）支撑了
-大部分 QPS，而非 vecblocks 的 page cache。这个发现纠正了“page cache 是热区”的直觉。
+**Context.** P1 阶段实验发现，flat_vec_cache 在 `FLAT_VEC_MB=64` 配置下支撑了大部分 QPS，
+而非 vecblocks 的 page cache。此条目记录观测经验，非代码内建设计意图（代码默认
+`FLAT_VEC_MB=4`，见 [[CON-002]]）。
 
-**Decision.** flat_vec_cache 作为搜索的第一级热区，设计意图明确：
+**观测经验：**
 
-1. **上层节点全覆盖**：63K 个 Layer 1+ 节点的向量（30MB），在 FLAT_VEC_MB=64 下
-   100% 装入。贪心下降阶段零 I/O
+1. **推荐配置 `FLAT_VEC_MB=64`**：63K 个 Layer 1+ 节点的向量（30MB），在 64MB 下
+   100% 装入。贪心下降阶段零 I/O。代码默认 4MB 只能装 ~8K 向量，不够用
 2. **Layer 0 热点覆盖**：剩余 ~34MB 装约 68K 个 Layer 0 热门节点（LRU 淘汰），
    PQ_HYBRID 模式下这些节点用精确 L2 替代 PQ，提升粗筛质量
 3. **与 page cache 的分工**：flat_vec_cache 是进程主动管理的 anon 内存（计入 RSS），
    page cache 是 OS 管理的 file cache（cgroup 记账有坑）。flat_vec_cache 可控、可测、
    不受 cgroup 记账影响
-4. **调大的边际效益递减**：FLAT_VEC_MB=64->256 实测 QPS 不涨反微降（2065->2037），
+4. **调大的边际效益递减**：`FLAT_VEC_MB=64->256` 实测 QPS 不涨反微降（2065->2037），
    因为更大的 flat_vec_cache 挤压了 CSR/PQ codes 的内存预算，且 L1/L2 cache miss 增加
 
 > rationale: flat_vec_cache 是“可控热区”，page cache 是“免费但不稳定的补贴”。
-> 设计上优先保证 flat_vec_cache 覆盖上层节点，page cache 作为 bonus。
+> 推荐配置 `FLAT_VEC_MB=64` 覆盖上层节点，page cache 作为 bonus。
+> 注意：这是 benchmark 经验值，非代码默认值。
 
-## D-016: 选择 cgroup v2 而非 v1 作为内存限制机制 {#INTENT-DEC-016}
+## D-016: 选择 cgroup v2 而非 v1 作为内存限制机制 {#DEC-016}
 <!-- ndf: kind=decision date=2026-07-28 affects=INTENT-CHR-003 source=deduced -->
 
 **Context.** 项目使用 `systemd-run --user -p MemoryMax=512M` 限制内存，这依赖 cgroup v2。
@@ -264,9 +270,104 @@ M=32 意味着 dsub=4（128/32），每子空间 4 维。
 2. **systemd 原生支持**：`systemd-run --user -p MemoryMax=` 直接映射到 cgroup v2，
    无需手动创建 cgroup
 3. **page cache 记账改进**：cgroup v2 的 memory.stat 区分 `anon`（进程私有）和 `file`
-   （page cache），虽然仍有“首次读入位置”的记账陷阱（[[INTENT-CHR-005]]），
+   （page cache），虽然仍有“首次读入位置”的记账陷阱（[[CHR-005]]），
    但比 v1 的不区分更透明
 4. **Linux 5.1+ 对齐**：io_uring 也需要 5.1+，cgroup v2 在同一内核版本范围内默认启用
 
 > rationale: cgroup v2 的 file/anon 区分让我们发现“page cache 100% 在系统缓存但
 > cgroup file=0”的记账陷阱（P1 阶段的关键认知修正）。如果用 v1，这个发现不可能做出。
+
+---
+
+## D-017: Page Search for Fine Rerank {#DEC-017}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-009,BEH-007 source=deduced -->
+
+**Context.** Fine Rerank 读取 4KB 页后只计算候选向量的 L2 距离，浪费同页其余向量。
+SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
+
+来源: OctopusANN (VLDB 2026) 发现 Page Search 单独效果弱，但与 Page Shuffle 组合后
+减少 28.3% 页读取。
+
+**Decision.** Fine Rerank MUST 在读取 4KB 页后计算页内所有向量的精确 L2 距离，
+而非仅计算候选向量。
+
+**实现要点**：
+- `readVecBlockPread` / `readVecBlockIouring` 返回页数据后，扫描页内所有向量
+- 对每个向量计算 L2，插入候选集
+- 需区分候选向量（在 top-K 候选列表中）和"邻居向量"（同页但非候选），
+  后者只做距离计算不入图遍历
+- refines: [[DEC-009]]
+
+> rationale: 读页 I/O 已付出，计算 8 个 vs 1 个的 CPU 开销可忽略
+> （8×L2(128D) ≈ 0.4μs），但可多发现 3-5 个高质量候选，提升 recall 2-3 个百分点。
+
+## D-018: Page Shuffle for vecblocks {#DEC-018}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-006,ARCH-004 source=deduced -->
+
+**Context.** 当前 BFS 重排在 64KB block 级（block 内节点连续），但 Fine Rerank
+以 4KB 页读取。一个 64KB block 含 16 个 4KB 页，BFS 只保证 block 内连续，
+不保证页内连续。
+
+来源: OctopusANN (VLDB 2026) 发现 Page Shuffle 与 Page Search 协同后页命中率
+显著提升。
+
+**Decision.** vecblocks 文件 SHOULD 按 4KB 页粒度重排，使图相邻节点共享同一页。
+
+**实现要点**：
+- 新增 pipeline 工具 `shuffle_vecblocks.cpp`：读取 BFS 重排后的 vecblocks，
+  按 4KB 页重新分组
+- 算法：对每个 64KB block 内的节点，按 HNSW 图邻接关系做页级聚类
+  （贪心：将共享邻居最多的节点分到同一页）
+- 输出新 vecblocks 文件 + 新 `vec_page_route_table_`（node -> page_id 映射）
+- 需更新 `vec_route_table_` 以指向页级偏移而非 block 级
+- refines: [[DEC-006]]
+- precondition: 仅对 SIFT (128D, 512B/向量, 8向量/页) 有效。
+  高维数据（如 GIST 960D）一页只放 1 个向量，Shuffle 无效。
+
+> rationale: Page Shuffle 让 HNSW 图上相邻的节点落在同一 4KB 页，
+> 配合 Page Search 后页内利用率从 12.5% 提升到 40-60%。
+
+## D-019: Dynamic Width for Phase A {#DEC-019}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-008,BEH-002 source=deduced -->
+
+**Context.** Phase A 搜索全程使用固定 efSearch 宽度。HNSW 搜索在候选集稳定后
+（top-K 不再变化），继续以全宽度遍历只会增加 PQ 计算和图 I/O，不改善 recall。
+
+来源: OctopusANN (VLDB 2026) 实测 Dynamic Width 减少 20-35% 图遍历步数，
+是独立收益第二大的技术。
+
+**Decision.** Phase A 搜索 SHOULD 使用自适应 efSearch 宽度：搜索初期使用全宽度，
+候选集收敛后逐步收窄。
+
+**实现要点**：
+- `searchLayer0*()` 函数中，跟踪 top-K 变化
+- 收敛检测：连续 N_hop 跳无新节点进入 top-K
+- 收窄策略：efSearch 从初始值按几何衰减（×0.75/次），下限为 efSearch_min = 32
+- 恢复机制：如果收窄后 recall 明显下降，可回退到全宽度
+- 新增环境变量 `DYNAMIC_WIDTH=1`（默认关闭，benchmark 验证后决定是否默认开启）
+- 新增 `EF_SEARCH_MIN`（默认 32）、`DW_DECAY=0.75`、`DW_CONVERGE_HOP=10`
+- refines: [[DEC-008]]
+
+> rationale: 搜索后期候选集已收敛，全宽度遍历是浪费。
+> 几何衰减让搜索快速聚焦，下限 32 保证不丢失关键候选。
+
+## D-020: Page Search / Dynamic Width SLA 调整决策 {#DEC-020}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-017,DEC-019,CON-007 source=deduced -->
+
+**Context.** DEC-017 (Page Search) 和 DEC-019 (Dynamic Width) 经 2 轮修复后性能验证：
+
+- DEC-017: recall 95.70% -> 96.20% (+0.5pp)，QPS 2051 -> 1832 (-11%)，SLA QPS 违规
+- DEC-019: 无效果，根因为 B 类（规范缺陷）-- PQ 搜索在 EF=100 时不收敛
+
+**Decision.**
+
+1. **DEC-017 降级为实验性 SHOULD**：保留功能，新增 SLA 豁免（QPS ≥ 基线 × 85%）
+2. **DEC-019 标记为规范缺陷**：保留代码（默认关闭零开销），不纳入 SLA，记录已知限制
+3. **根因记录**：PQ 粗筛在 EF≥100 时 top-K 持续抖动不收敛，Dynamic Width 的收敛假设不成立
+
+**Alternatives rejected.**
+- A. 继续第 3 轮代码修复 -> PS 开销已接近下限，DW 根因是规范层非代码层
+- 完全删除 DEC-017/019 -> PS 的 recall +0.5pp 是真实收益，删除浪费
+
+> rationale: PS 是"计算换 recall"的合理 tradeoff，适合 recall 优先场景。
+> DW 的 L1 契约假设错误，需要重新设计收敛检测策略（如基于迭代次数而非 top-K 稳定性）。

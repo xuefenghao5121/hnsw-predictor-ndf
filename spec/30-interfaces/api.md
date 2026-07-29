@@ -1,6 +1,6 @@
 # Interfaces — 端点、入参、出参
 
-## CLI 入口 {#OBS-API-001}
+## CLI 入口 {#API-001}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ### benchmark_diskhnsw
@@ -37,6 +37,11 @@ Environment variables (全部可选):
   PROFILE_TS       — 1=输出两阶段计时
   PROFILE_FINE     — 1=输出 fine rerank 细粒度计时
   PREFETCH_SW      — 0=关闭软件预取
+      PAGE_SEARCH      — 1=Fine Rerank 页内全向量扫描 (DEC-017)
+      DYNAMIC_WIDTH    — 1=Phase A 自适应 efSearch 宽度 (DEC-019)
+      DW_CONVERGE_HOP  — Dynamic Width 收敛跳数 (默认 10)
+      DW_DECAY         — Dynamic Width 衰减率 (默认 0.75)
+      EF_SEARCH_MIN    — Dynamic Width 最小 efSearch (默认 32)
 ```
 
 ### benchmark_hnswlib_native
@@ -54,7 +59,7 @@ Usage: ./build/test_disk_hnsw <index> <graph> <bfs> <blocks> <route> <data> <que
        [--layout=bfs|random] [--policy=lru|lfu|lru-k]
 ```
 
-## Data Pipeline CLI {#OBS-API-002}
+## Data Pipeline CLI {#API-002}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ### build_index
@@ -103,7 +108,7 @@ Usage: ./build/prune_graph <graph.bin> <output.bin> <strategy> <R_max>
   strategy: degree_cap | mrng
 ```
 
-## Python Scripts {#OBS-API-003}
+## Python Scripts {#API-003}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ### train_pq.py
@@ -131,7 +136,7 @@ Usage: bash scripts/compare_benchmark.sh
   MEM=512M THREADS=4 K=10 EF=50 NQ=200 RUNS=3 bash scripts/compare_benchmark.sh
 ```
 
-## 二进制文件格式 {#OBS-API-004}
+## 二进制文件格式 {#API-004}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ### Graph Structure (MAGIC_GRAPH = 0x47524148)
@@ -235,7 +240,7 @@ Offset   Size   Field
 Per record: dim(int32) + dim * float32
 ```
 
-## DiskHNSW Public API {#OBS-API-005}
+## DiskHNSW Public API {#API-005}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ```cpp
@@ -262,7 +267,7 @@ class DiskHNSW {
 };
 ```
 
-## BlockCache Public API {#OBS-API-006}
+## BlockCache Public API {#API-006}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
 ```cpp
@@ -304,3 +309,54 @@ class BlockCache {
   double hitRate();
 };
 ```
+
+## 实验性环境变量 (DEC-017, DEC-019) {#API-007}
+<!-- ndf: kind=req level=should layer=L1 status=draft since=0.2 source=deduced -->
+
+### PAGE_SEARCH (DEC-017)
+
+| 属性 | 值 |
+|------|-----|
+| 类型 | `int` (0 或 1) |
+| 默认值 | `0` (关闭) |
+| 取值 | `0`=仅计算候选向量 L2；`1`=扫描 4KB 页内全部向量 |
+| 前置条件 | `FINE_RERANK=1` + `VEC_BLOCKS_PATH` 已设置 |
+| 副作用 | 增加 `vec_slot_to_node_` 反向映射内存 (~4MB @1M nodes) |
+| 对应代码 | `disk_hnsw.cpp:1736` `kPageSearch`, `disk_hnsw.cpp:1757` `pageSearchScan()` |
+
+### DYNAMIC_WIDTH (DEC-019)
+
+| 属性 | 值 |
+|------|-----|
+| 类型 | `int` (0 或 1) |
+| 默认值 | `0` (关闭) |
+| 取值 | `0`=固定 efSearch；`1`=自适应衰减 |
+| 前置条件 | `TWO_STAGE=1` + PQ 已加载 |
+| 适用函数 | `searchLayer0()` (其它变体暂不适用) |
+
+### DW_CONVERGE_HOP
+
+| 属性 | 值 |
+|------|-----|
+| 类型 | `int` (正整型) |
+| 默认值 | `10` |
+| 取值范围 | `[5, 100]` (建议) |
+| 含义 | 连续 N 跳 top-3 candidate 无变化触发宽度衰减 |
+
+### DW_DECAY
+
+| 属性 | 值 |
+|------|-----|
+| 类型 | `double` (浮点) |
+| 默认值 | `0.75` |
+| 取值范围 | `(0, 1.0)` |
+| 含义 | 几何衰减因子，`new_ef = max(EF_SEARCH_MIN, current_ef * DW_DECAY)` |
+
+### EF_SEARCH_MIN
+
+| 属性 | 值 |
+|------|-----|
+| 类型 | `int` (正整型) |
+| 默认值 | `32` |
+| 取值范围 | `[k, ef_search]` (不低于 k) |
+| 含义 | 衰减下限，保证最小候选集大小 |

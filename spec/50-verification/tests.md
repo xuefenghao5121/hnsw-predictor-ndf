@@ -1,6 +1,6 @@
 # Verification — 测试用例与断言条件
 
-## 测试套件结构 {#OBS-VER-001}
+## 测试套件结构 {#VER-001}
 <!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed -->
 
 | 测试 | 文件 | 覆盖范围 | 断言类型 |
@@ -9,7 +9,7 @@
 | DiskHNSW 集成测试 | `test_disk_hnsw.cpp` | recall 一致性、搜索正确性、可插拔策略 | recall 比较 |
 | PQ 搜索质量 | `test_pq_search_quality.cpp` | PQ ADC 距离 vs 真实 L2、recall@10 | 手动检查输出 |
 
-## test_block_cache 断言提取 {#OBS-VER-002}
+## test_block_cache 断言提取 {#VER-002}
 <!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-009,OBS-BEH-010 -->
 
 ### test_basic_loading (`test_block_cache.cpp:91-106`)
@@ -41,7 +41,7 @@
 - [ ] BlockCache 返回的邻居列表 MUST 与 graph.bin 原始数据一致
 - [ ] 对所有节点 (0..N-1) 验证上述一致性
 
-## test_disk_hnsw 断言提取 {#OBS-VER-003}
+## test_disk_hnsw 断言提取 {#VER-003}
 <!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-001,OBS-BEH-003 -->
 
 ### recall 一致性 (`test_disk_hnsw.cpp`)
@@ -60,7 +60,7 @@
 - [ ] `--layout=bfs|random` MUST 创建对应的 LayoutProvider
 - [ ] `--policy=lru|lfu|lru-k` MUST 创建对应的 ReplacementPolicy
 
-## benchmark 正确性条件 {#OBS-VER-004}
+## benchmark 正确性条件 {#VER-004}
 <!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-013 -->
 
 ### recall 计算 (`benchmark_diskhnsw.cpp`)
@@ -83,7 +83,7 @@
 - [ ] 两者 MUST 经过相同的 warmup（CPU 升频 + page cache 预热 + 全 query 预跑）
 - [ ] MUST 多轮取峰值 QPS（排除调频抖动）
 
-## PQ 质量自检 {#OBS-VER-005}
+## PQ 质量自检 {#VER-005}
 <!-- ndf: kind=verif level=should layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-005 -->
 
 ### train_pq.py 自检 (`train_pq.py:122-138`)
@@ -97,3 +97,68 @@
 - [ ] 对前 5 个 query，打印 PQ 距离 vs 真实 L2 距离
 - [ ] 计算 recall@10 并输出
 - [ ] GT 的 true_dist 和 pq_dist MUST 同时打印用于人工对比
+
+## DEC-017 Page Search 验证 {#VER-006}
+<!-- ndf: kind=verif level=must layer=L3 status=draft since=0.2 verifies=BEH-014,BEH-014-L2 -->
+
+### 功能验证 (benchmark 手工执行)
+
+- [ ] `PAGE_SEARCH=1` 时 recall@10 MUST ≥ 95%（基线 95.70%）
+  - 测试命令: `TWO_STAGE=1 FINE_RERANK=1 PAGE_SEARCH=1 VEC_BLOCKS_PATH=... PQ_CODES_PATH=... FLAT_VEC_MB=64 REFINE_EF=100 CACHE_MB=32 ./build/benchmark_diskhnsw ...`
+  - 验证方式: benchmark 输出中的 `Recall:` 值
+
+### 性能验证
+
+- [ ] `PAGE_SEARCH=1` 时 QPS SHOULD ≥ 基线 QPS × 0.90（10% 容忍区间）
+  - 理由: 页内 8 个向量 L2 的 CPU 开销 (~0.4μs/page) 应被 I/O 已付出的收益抵消
+  - 当前状态 (2026-07-29): **违规** — 实测 QPS -19%（2067 → 1670），待优化
+  - 优化方向: 仅扫描包含至少 1 个候选的页（减少零收益页的扫描）
+
+### 反向映射正确性
+
+- [ ] `vec_slot_to_node_` MUST 在 `buildFineRerank()` 中与 `node_slot_table_` 保持一致
+  - 不变量: `vec_slot_to_node_[b][node_slot_table_[nid]] == nid`（对于属于 block b 的 nid）
+  - 验证方式: 遍历所有 nid，验证双向映射一致性
+
+### 空状态验证
+
+- [ ] `PAGE_SEARCH=0` (默认) 时 `pageSearchScan()` MUST 不执行任何扫描
+- [ ] `pageSearchScan()` 的页号计算 MUST 正确跳过文件头区域 (pg_off < 4096)
+
+## DEC-019 Dynamic Width 验证 {#VER-007}
+<!-- ndf: kind=verif level=must layer=L3 status=draft since=0.2 verifies=BEH-015,BEH-015-L2 -->
+
+### 功能验证
+
+- [ ] `DYNAMIC_WIDTH=1` 时 recall@10 MUST ≥ 95%
+  - 当前状态 (2026-07-29): **通过** — recall 不变（ef=50 时收敛检测未触发，行为等同基线）
+
+### 收敛触发验证
+
+- [ ] 在 `REFINE_EF=200` 场景下，`DYNAMIC_WIDTH=1` SHOULD 在搜索后半段触发至少 1 次宽度衰减
+  - 当前状态 (2026-07-29): **未验证** — EF=50 搜索步数少，hash 变化频繁，收敛阈值未触发
+  - 验证方式: 添加临时 `fprintf(stderr, "[DW] converge=%zu ef=%zu\n", ...)` 日志观察
+
+### 性能验证
+
+- [ ] `DYNAMIC_WIDTH=1` 时 QPS SHOULD ≥ 基线 QPS
+  - 理由: 衰减逻辑的 hash 计算和条件判断开销应 <1% QPS
+  - 当前状态 (2026-07-29): **通过** — 无衰减触发，QPS 无变化
+
+### 裁剪正确性
+
+- [ ] 宽度衰减 MUST 正确更新 `lowerBound`:
+  - 裁剪后 `lowerBound = top_candidates.top().first`
+  - 裁剪后 `dw_effective_ef = new_ef`
+  - 收敛计数 MUST 重置为 0
+
+- [ ] `EF_SEARCH_MIN` MUST 保护下限:
+  - `dw_effective_ef` MUST NOT 低于 `EF_SEARCH_MIN`
+  - 当 `dw_effective_ef <= EF_SEARCH_MIN` 时，收敛检测跳过
+
+### 空状态验证
+
+- [ ] `DYNAMIC_WIDTH=0` (默认) 时：
+  - `dw_converge_count` 永远为 0
+  - 无 hash 计算开销
+  - `top_candidates` 使用原始 `ef`，无裁剪

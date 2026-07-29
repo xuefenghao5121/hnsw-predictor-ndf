@@ -33,10 +33,11 @@ $(BUILD_DIR)/test_disk_hnsw: src/test/test_disk_hnsw.cpp $(CORE_SRC) $(HEADERS) 
 $(BUILD_DIR)/test_pq_search_quality: src/test/test_pq_search_quality.cpp $(CORE_SRC) $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ src/test/test_pq_search_quality.cpp $(CORE_SRC) $(LDFLAGS)
 
-# 数据准备工具 (Step 1-5)
+# 数据准备工具 (Step 1-5) + DEC-018 Page Shuffle
 PIPELINE = $(BUILD_DIR)/build_index $(BUILD_DIR)/extract_graph $(BUILD_DIR)/bfs_reorder \
            $(BUILD_DIR)/write_blocks $(BUILD_DIR)/write_blocks_veconly \
-           $(BUILD_DIR)/write_pq_blocks $(BUILD_DIR)/gen_route $(BUILD_DIR)/verify
+           $(BUILD_DIR)/write_pq_blocks $(BUILD_DIR)/gen_route $(BUILD_DIR)/verify \
+           $(BUILD_DIR)/prune_graph $(BUILD_DIR)/shuffle_vecblocks
 
 # benchmark
 BENCH = $(BUILD_DIR)/benchmark_diskhnsw $(BUILD_DIR)/benchmark_hnswlib_native
