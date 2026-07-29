@@ -673,3 +673,51 @@ DEEP10M (10M): PQ[80%] + 图[13%] + I/O[7%]   → Page Shuffle 无效
 > I/O 优化技术（Page Shuffle/Search）的物理价值需要 I/O 占比 >30%
 > 才能体现——这可能在 100M+ 规模才满足。
 > 10M 规模是"优化 PQ 计算"和"控制内存压力"的战场。
+
+## D-030: O_DIRECT io_uring 取代 Page Cache 的零缓存 I/O 架构 {#DEC-030}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-009,DEC-027,ARCH-003 source=deduced -->
+
+**Context.** 当前 FINE_RERANK 在 `FINE_BUFFERED=1` 模式下依赖 OS page cache 提供
+4KB 页的快速访问。虽然热态下 QPS 达到 2080，但 page cache 消耗 100-200MB 内存。
+
+如果不使用 page cache（`O_DIRECT`），当前 `pread` 路径每页需要真实磁盘 I/O
+（~50μs/page），导致 QPS 大幅下降。但 io_uring 的批量提交 + O_DIRECT 可以
+显著降低 per-I/O 开销。
+
+HELMSMAN 论文验证了"用户态 I/O + 批量提交"可达 85% SSD 带宽，远高于内核单次
+I/O 的 26-59%。我们虽无独立 NVMe 设备无法使用 SPDK，但 io_uring 的 `IORING_SETUP_IOPOLL`
+驱动轮询模式 + `O_DIRECT` 同样可以绕过 kernel block layer 的部分开销。
+
+**Decision.**
+
+1. **新增 `FINE_DIRECT=1` 环境变量**：FINE_RERANK 路径使用 `io_uring` + `O_DIRECT`
+   替代 `pread` + page cache。默认关闭，作为 opt-in 实验性特性。
+
+2. **批量 I/O 提交优化**：
+   - Fine Rerank 收集所有候选的 4KB 页号 → 批量去重
+   - 单次 `submitReadNF` 提交所有 unique 页的读取请求
+   - io_uring 在 kernel 内部批量处理 NVMe 命令队列
+   - 预期 latency：单页 30-50μs，批量 200 页 ~5-10ms（并行化）
+
+3. **内存收益**：
+   - 释放 page cache 占用的 100-200MB
+   - RSS 273MB → 目标 150-180MB
+   - 代价：冷启动每 query 需要真实磁盘 I/O
+
+4. **接口设计**：
+   - 在 `buildFineRerank()` 中根据 `FINE_DIRECT` 选择 fd 打开模式
+   - `FINE_DIRECT=1` → `open(O_RDONLY | O_DIRECT)` + io_uring
+   - `FINE_DIRECT=0`（默认）→ 保持现有 `FINE_BUFFERED` / `O_DIRECT` 逻辑
+
+5. **渐进路线**：
+   - Phase A: io_uring O_DIRECT 替代 page cache（当前可实现）
+   - Phase B: 如果有多余 NVMe 设备，迁移到 SPDK（P3 规模）
+
+- refines: [[DEC-009]]
+- depends-on: [[DEC-027]]
+- verifies: [[VER-030]]
+
+> rationale: io_uring + O_DIRECT 是"没有 SPDK 时的最佳选择"。
+> 虽然比 SPDK 慢 15-25%，但无需额外硬件，可以在同一台机器上实现
+> "page cache 零依赖"，将内存从 273MB 压到 180MB 以下。
+> 与 HELMSMAN 的 I/O 优化思路一脉相承：批量提交、绕过中间层、直接打盘。

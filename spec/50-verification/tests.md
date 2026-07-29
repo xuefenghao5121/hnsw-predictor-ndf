@@ -206,3 +206,16 @@
 | recall | shuffled+PS (cold) | ≥ 96% | 96.05% | ✅ |
 | QPS vs PS only | shuffled+PS vs PS | ≥ PS QPS | 797 vs 789 | ✅ |
 | SLA 全部达标 | shuffled+PS (cold) | recall ≥ 95%, QPS ≥ 500 | 96.05%, 797 | ✅ |
+
+### VER-030: O_DIRECT io_uring 零 Page Cache I/O {#VER-030}
+<!-- ndf: kind=verif verifies=DEC-030 -->
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| SIFT1M recall | FINE_DIRECT=1 | ≥ 95% | — | 待测 |
+| SIFT1M QPS | FINE_DIRECT=1 | ≥ 500 | — | 待测 |
+| SIFT1M RSS | FINE_DIRECT=1 | ≤ 180MB | — | 待测 |
+| DEEP10M recall | FINE_DIRECT=1 | ≥ 94% | — | 待测 |
+| DEEP10M QPS | FINE_DIRECT=1 | ≥ 50 | — | 待测 |
+| io_uring submit batch | 单次 ≥ 2 pages | 确认批量提交 | — | 待测 |
+| 内存基线对比 | FINE_DIRECT vs FINE_BUFFERED | RSS 下降 | — | 待测 |
