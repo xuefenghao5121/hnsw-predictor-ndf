@@ -774,3 +774,26 @@ QPS 出现 10× 断崖（1,973 → 196），OS 在页面驱逐和 LRU 管理上�
 4. 任何 I/O 优化在 reclaim 风暴面前无效
 
 > rationale: 这不是 I/O 问题，是 memory provisioning 问题。
+
+## D-033: CSR 图裁剪 (Degree Cap) — 压缩进程基址内存 {#DEC-033}
+<!-- ndf: kind=decision date=2026-07-30 affects=DEC-032,ARCH-004,CON-007 source=deduced -->
+
+**Context.** 进程 RSS 101MB 中 CSR 邻接表占 47MB。降低 RSS 是消除 cgroup reclaim
+悬崖的最直接手段——每减少 1MB 进程内存，page cache 多 1MB 空间。
+
+**Decision.** 对 HNSW 图实施 Degree Cap 裁剪：
+- L0 每节点最多保留 K 条边（K = 16/20/24）
+- 保留 angle-wise 最分散的邻居（MRNG 启发式）
+- 预期：CSR 47MB → 25-35MB（K=16 → 47%，K=20 → 56%）
+
+**实现**：已有 `prune_graph.cpp` 工具，含 Degree Cap + MRNG 两种策略
+- 输入：graph + bfs → 输出：裁剪后的 graph
+- 需重新生成 vecblocks + route table + PQ codes
+
+**验证**：180MB cgroup 下 QPS 需 ≥ 800
+
+- verifies: [[VER-033]]
+
+> rationale: 图裁剪是投入产出比最高的内存压缩手段——
+> 1 行代码不改（工具已有），直接见效。
+

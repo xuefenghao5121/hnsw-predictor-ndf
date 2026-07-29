@@ -230,3 +230,13 @@
 | 180MB cgroup QPS | FINE_ADVISE, 180MB cgroup | ≥ 500 | — | 待测 |
 | posix_fadvise 开销 | per-query syscall count | < 3 syscalls | — | 待测 |
 | 悬崖消除 | 180MB FINE_ADVISE vs baseline | QPS 10× 改善 | — | 待测 |
+
+### VER-033: CSR 图裁剪内存压缩 {#VER-033}
+<!-- ndf: kind=verif verifies=DEC-033 -->
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| recall | Degree Cap K=20 | ≥ 95% | — | 待测 |
+| CSR 大小 | Degree Cap K=20 | < 30MB | — | 待测 |
+| RSS 下降 | vs 基线 | > 15MB 下降 | — | 待测 |
+| 180MB cgroup QPS | CAP=20, 180MB | ≥ 800 | — | 待测 |
