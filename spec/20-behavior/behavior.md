@@ -293,3 +293,19 @@ benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
    - 入口: `searchKnn()` → `kTwoStage` 分支 → `searchLayer0(entryNewId, query, ef_coarse, visited)` → 收敛检测在 while 末尾
    - 不适用: `searchLayer0Beam/NonBlocking/BatchIO` 的直接调用路径
 
+
+## Page Cache 驱逐行为 {#BEH-016}
+<!-- ndf: kind=req level=L1 status=stable since=0.3 source=deduced -->
+<!-- refines: DEC-021 -->
+
+当 `EVICT_PAGE_CACHE=1` 时，DiskHNSW MUST 在每次 `searchKnn()` 返回前对 vecblocks 文件
+调用 `posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED)`，驱逐整个文件的 page cache。
+
+**L1 契约**：
+- 驱逐目标: 仅 vecblocks fd，MUST NOT 驱逐 blocks_64k（BlockCache 自管理）
+- 时机: 每次查询完成后（return result 前）
+- `EVICT_PAGE_CACHE=0`（默认）时 MUST 零开销
+- 驱逐后下一查询的 Fine Rerank 读取走真实磁盘 I/O
+
+> 实测: 热态 2083 QPS -> 冷态 842 QPS（-60%），I/O 占比 ~60%。
+> 冷态 SLA: QPS ≥ 500（见 [[CON-SLA-010]]）。

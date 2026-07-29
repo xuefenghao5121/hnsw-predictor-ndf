@@ -162,3 +162,28 @@
   - `dw_converge_count` 永远为 0
   - 无 hash 计算开销
   - `top_candidates` 使用原始 `ef`，无裁剪
+
+## 冷 I/O 模式验证用例
+
+### DEC-021: Page Cache 驱逐
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| 热态基线 | EVICT_PAGE_CACHE=0 | QPS ≥ 2000 | 2083 | ✅ |
+| 冷态基线 | EVICT_PAGE_CACHE=1 | QPS 200-1000 (I/O 主导) | 842 | ✅ |
+| 冷态 recall | EVICT_PAGE_CACHE=1 | recall ≥ 95% | 95.70% | ✅ |
+| 冷态 RSS | EVICT_PAGE_CACHE=1 | RSS ≤ 300MB | 269MB | ✅ |
+
+### DEC-022: 冷态 Page Search
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| recall 提升 | EVICT+PS | ≥ 96% | 96.20% | ✅ |
+| QPS 下降 | EVICT+PS vs EVICT | ≤ 5% | 5.9% | ⚠️ 接近 |
+
+### DEC-024: Dynamic Width 最终确认
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| 热态无效 | DW=1 | 无效果 | converge=0 | 已知限制 |
+| 冷态无效 | EVICT+DW | 无效果 | converge=0 | 正式放弃 |

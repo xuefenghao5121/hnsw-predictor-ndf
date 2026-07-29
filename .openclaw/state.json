@@ -1,10 +1,10 @@
 {
   "current_proposal": "null",
   "scenario_type": "feature",
-  "validation_round": 2,
+  "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "passed",
-  "perf_status": "passed_with_sla_adjustment",
-  "last_activity": "2026-07-29T16:50:00Z"
+  "perf_status": "passed",
+  "last_activity": "2026-07-29T18:29:00Z"
 }

@@ -2150,6 +2150,12 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     // 热度评价器: 查询结束
     if (heat_evaluator_) heat_evaluator_->onQueryEnd();
 
+    // DEC-021: Page Cache 驱逐 — 冷 I/O 模式 (模拟 10M+ 规模无 page cache 条件)
+    static const bool kEvictPageCache = std::getenv("EVICT_PAGE_CACHE") && std::atoi(std::getenv("EVICT_PAGE_CACHE")) != 0;
+    if (kEvictPageCache && vec_blocks_fd_ >= 0) {
+        posix_fadvise(vec_blocks_fd_, 0, 0, POSIX_FADV_DONTNEED);
+    }
+
     return result;
 }
 

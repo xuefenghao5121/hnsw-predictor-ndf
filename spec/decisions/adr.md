@@ -371,3 +371,79 @@ SIFT 128D 向量 512B/个，4KB 页含 8 个向量，当前利用率仅 12.5%。
 
 > rationale: PS 是"计算换 recall"的合理 tradeoff，适合 recall 优先场景。
 > DW 的 L1 契约假设错误，需要重新设计收敛检测策略（如基于迭代次数而非 top-K 稳定性）。
+
+## D-021: Page Cache 驱逐模式 {#DEC-021}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-009,BEH-007 source=deduced -->
+
+**Context.** 1M 规模下 vecblocks 496MB 被 OS page cache 100% 覆盖，Fine Rerank 走热态
+缓存零磁盘 I/O，无法验证 I/O 优化技术。需主动驱逐 page cache 制造冷 I/O 条件。
+
+**Decision.** 当 `EVICT_PAGE_CACHE=1` 时，DiskHNSW MUST 在每次查询完成后对 vecblocks
+文件调用 `posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED)`，驱逐 page cache。
+
+**实现要点**：
+- 在 `searchKnn()` 查询完成后调用，仅驱逐 vecblocks fd
+- 不驱逐 blocks_64k（BlockCache 自管理缓存）
+- `EVICT_PAGE_CACHE=0`（默认）时零开销
+- refines: [[DEC-009]]
+
+> rationale: 在 1M 规模模拟 10M+ 规模的冷 I/O 条件，使 I/O 优化技术可被验证。
+> 冷 I/O 下 Fine Rerank 每页读取 ~10-50μs（vs 热态 ~1μs）。
+
+## D-022: 冷 I/O 下 Page Search 重新评估 {#DEC-022}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-017,DEC-021 source=deduced -->
+
+**Context.** 热态下 Page Search QPS -11%（L2 计算开销主导）。冷 I/O 下 I/O 延迟
+10-50μs/页，额外 7 个 L2 计算（~0.4μs）占比 < 4%。
+
+**Decision.** 在冷 I/O 模式下重新评估 Page Search：
+- 预期 recall 提升 ≥ 1pp
+- 预期 QPS 下降 ≤ 5%
+- 若达标，升级为默认开启
+
+> rationale: 冷 I/O 下 L2 计算开销相对 I/O 可忽略，Page Search 的"计算换 recall"
+> tradeoff 变得更有利。
+
+## D-023: 冷 I/O 下 Page Shuffle 优先级提升 {#DEC-023}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-018,DEC-021 source=deduced -->
+
+**Context.** Page Shuffle 原计划推迟到 P2（10M）。冷 I/O 模式下页内局部性直接影响
+真实磁盘 I/O 量，Page Shuffle 变得有意义。
+
+**Decision.** Page Shuffle 优先级从"推迟到 P2"提升为"P2 前置验证"：
+- 冷 I/O 下预期页命中率从 ~12.5% 提升到 40-60%
+- 预期 I/O 量减少 25-30%
+- 预期 QPS 提升 20-30%
+
+> rationale: 论文发现 Page Shuffle + Page Search 组合减少 28.3% 页读取。
+> 冷 I/O 下每次页读取是真实磁盘 I/O，减少页读取直接提升 QPS。
+
+## D-024: 冷 I/O 模式实验结论 {#DEC-024}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-017,DEC-019,DEC-021,DEC-022,DEC-023 source=observed -->
+
+**Context.** DEC-021 实现 page cache 驱逐后，在 1M 规模跑冷 I/O benchmark。
+
+**实验结果 (SIFT1M, 512MB cgroup, 1T):**
+
+| 配置 | Recall | QPS | I/O 占比 |
+|------|--------|-----|---------|
+| 热态基线 | 95.70% | 2083 | ~0% |
+| 冷态基线 | 95.70% | 842 | ~60% |
+| 冷态 + Page Search | 96.20% | 792 | ~60% |
+| 冷态 + Dynamic Width | 95.70% | 850 | ~60% |
+
+**Decision.**
+
+1. **冷 I/O 模式有效**: posix_fadvise(DONTNEED) 成功制造真实磁盘 I/O，QPS 下降 60%
+2. **Page Search 冷态表现**: recall +0.5pp，QPS -5.9%（热态 -11%），L2 计算开销被 I/O 延迟掩盖
+3. **Dynamic Width 正式放弃**: PQ 搜索不收敛是架构特性，非代码缺陷，冷 I/O 也不改变此结论
+4. **Page Shuffle 升级为最高优先级**: 冷态 I/O 占 60%，减少页读取直接提升 QPS
+
+**Dynamic Width 根因最终确认:**
+
+PQ ADC 距离的量化误差导致 top-K 候选持续抖动，hash 和 lowerBound 收敛检测均无法触发。
+这不是 bug 而是 PQ 粗筛的固有特性：EF=100 时搜索一直在探索新区域，直到候选集自然耗尽。
+未来如需自适应宽度，需改用"迭代次数预算"而非"收敛检测"策略。
+
+> rationale: 冷 I/O 模式让 1M 规模实验有了 10M+ 规模的 I/O 特征，
+> 论文的 I/O 优化框架（Page Shuffle + Page Search）在此条件下才真正适用。

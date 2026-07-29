@@ -116,3 +116,19 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 **不纳入 SLA 考核**。代码保留默认关闭（`DYNAMIC_WIDTH=0`），零开销。
 
 未来方向：如果 REFINE_EF 降到 30-50，或改用精确距离搜索，DW 可能生效。
+
+## 冷 I/O 模式 SLA {#CON-SLA-010}
+<!-- ndf: kind=constraint level=L1 status=draft since=0.3 source=deduced -->
+<!-- refines: DEC-021 -->
+
+当 `EVICT_PAGE_CACHE=1` 时：
+- Recall SLA 不变（≥ 95%）
+- QPS SLA 放宽为 ≥ 500（冷 I/O 条件下 QPS 自然下降）
+- RSS SLA 不变（≤ 300MB）
+
+| 参数 | 默认值 | 环境变量 | 说明 |
+|------|--------|---------|------|
+| Page Cache 驱逐开关 | `0` (关) | `EVICT_PAGE_CACHE` | 1=每次查询后 posix_fadvise(DONTNEED) 驱逐 vecblocks |
+
+> rationale: 冷 I/O 下 Fine Rerank 每页读取 ~10-50μs（vs 热态 ~1μs），
+> QPS 下降是预期行为。QPS ≥ 500 对应 < 2ms/query，仍为交互式可用。

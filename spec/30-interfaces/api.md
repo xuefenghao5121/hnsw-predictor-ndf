@@ -360,3 +360,9 @@ class BlockCache {
 | 默认值 | `32` |
 | 取值范围 | `[k, ef_search]` (不低于 k) |
 | 含义 | 衰减下限，保证最小候选集大小 |
+
+## 冷 I/O 模式环境变量
+
+| 环境变量 | 类型 | 默认值 | 取值范围 | 说明 | 关联条款 |
+|----------|------|--------|---------|------|---------|
+| `EVICT_PAGE_CACHE` | int | 0 | 0/1 | 1=每次查询后 posix_fadvise(DONTNEED) 驱逐 vecblocks page cache | [[DEC-021]] [[BEH-016]] |
