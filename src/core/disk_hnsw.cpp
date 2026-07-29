@@ -401,9 +401,6 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                         std::vector<std::pair<float, uint32_t>>,
                         std::greater<std::pair<float, uint32_t>>> candidate_set;  // 最小堆
 
-    // DEC-019: Dynamic Width — mutable efSearch for convergence-driven decay
-    size_t current_ef = ef;
-
     // 距离计算 helper: PQ 模式用 ADC, 否则用精确 L2
     auto computeNeighborDist = [&](uint32_t neighborId, const float* neighborVec) -> float {
         if (pq_enabled_) {
@@ -443,27 +440,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
         return e ? std::atoi(e) : 0;
     }();
 
-    // DEC-019: Dynamic Width — 收敛检测与 efSearch 自适应衰减
-    static const bool kDynamicWidth = std::getenv("DYNAMIC_WIDTH") && std::atoi(std::getenv("DYNAMIC_WIDTH")) != 0;
-    static const int kDwConvergeHop = [](){
-        const char* e = std::getenv("DW_CONVERGE_HOP"); return e ? std::atoi(e) : 10; }();
-    static const double kDwDecay = [](){
-        const char* e = std::getenv("DW_DECAY"); return e ? std::atof(e) : 0.75; }();
-    static const size_t kEfSearchMin = [](){
-        const char* e = std::getenv("EF_SEARCH_MIN"); return e ? (size_t)std::atoi(e) : 32; }();
-    size_t dw_effective_ef = current_ef;       // 当前有效 efSearch (Dynamic Width 衰减起点)
-    size_t dw_converge_count = 0;       // 连续收敛计数
-    // 用 top-K+1 个 node_id 的 checksum 检测 top_candidates 组成是否变化
-    uint64_t dw_prev_topk_hash = 0;
-    float    dw_prev_lowerbound = -1.0f; // DEC-019: lowerBound 收敛检测 (per-query, -1=sentinel)
-    size_t   dw_iter_count = 0;          // DEC-019 DBG: 每 query 迭代计数
-    size_t   dw_hash_ok = 0, dw_lb_ok = 0; // DEC-019 DBG: 稳定性计数
-
     while (!candidate_set.empty()) {
-        dw_iter_count++;
         auto [candidateDist, candidateId] = candidate_set.top();
 
-        if (candidateDist > lowerBound && top_candidates.size() == current_ef) {
+        if (candidateDist > lowerBound && top_candidates.size() == ef) {
             break;
         }
         candidate_set.pop();
@@ -555,20 +535,20 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                 if (pq_enabled_) {
                     // PQ 模式: 不需要向量, 直接算 ADC 距离
                     float dist = pqDistance(query, nid);
-                    if (top_candidates.size() < current_ef || lowerBound > dist) {
+                    if (top_candidates.size() < ef || lowerBound > dist) {
                         candidate_set.emplace(dist, nid);
                         top_candidates.emplace(dist, nid);
-                        if (top_candidates.size() > current_ef) top_candidates.pop();
+                        if (top_candidates.size() > ef) top_candidates.pop();
                         if (!top_candidates.empty()) lowerBound = top_candidates.top().first;
                     }
                 } else if (cache_->isInCache(nblock)) {
                     const float* nvec = cache_->getNodeVector(nid);
                     if (!nvec) continue;
                     float dist = l2Distance(query, nvec);
-                    if (top_candidates.size() < current_ef || lowerBound > dist) {
+                    if (top_candidates.size() < ef || lowerBound > dist) {
                         candidate_set.emplace(dist, nid);
                         top_candidates.emplace(dist, nid);
-                        if (top_candidates.size() > current_ef) top_candidates.pop();
+                        if (top_candidates.size() > ef) top_candidates.pop();
                         if (!top_candidates.empty()) lowerBound = top_candidates.top().first;
                     }
                 } else {
@@ -583,20 +563,20 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                 for (const auto& pn : pending_neighbors) {
                     if (pq_enabled_) {
                         float dist = pqDistance(query, pn.neighborId);
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) top_candidates.pop();
+                            if (top_candidates.size() > ef) top_candidates.pop();
                             if (!top_candidates.empty()) lowerBound = top_candidates.top().first;
                         }
                     } else {
                         const float* nvec = cache_->getNodeVector(pn.neighborId);
                         if (!nvec) continue;
                         float dist = l2Distance(query, nvec);
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) top_candidates.pop();
+                            if (top_candidates.size() > ef) top_candidates.pop();
                             if (!top_candidates.empty()) lowerBound = top_candidates.top().first;
                         }
                     }
@@ -694,10 +674,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                     if (!nvec && nBlock) nvec = nBlock->getVector(neighborId);  // block cache
                 }
                 float dist = nvec ? l2Distance(query, nvec) : pqDistance(query, neighborId);
-                if (top_candidates.size() < current_ef || lowerBound > dist) {
+                if (top_candidates.size() < ef || lowerBound > dist) {
                     candidate_set.emplace(dist, neighborId);
                     top_candidates.emplace(dist, neighborId);
-                    if (top_candidates.size() > current_ef) {
+                    if (top_candidates.size() > ef) {
                         top_candidates.pop();
                     }
                     if (!top_candidates.empty()) {
@@ -706,7 +686,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                     // 投机预取: top_candidates 的 miss blocks 周期性提交, I/O 被后续搜索掩盖
                     // (候选直接服务 Phase B 精排, accuracy 远高于 1-hop 预取)
                     static const bool kSpecPf = std::getenv("SPEC_PREFETCH") && std::atoi(std::getenv("SPEC_PREFETCH")) != 0;
-                    if (kSpecPf && graph_prefetch_enabled_ && graph_prefetcher_ && top_candidates.size() == current_ef) {
+                    if (kSpecPf && graph_prefetch_enabled_ && graph_prefetcher_ && top_candidates.size() == ef) {
                         if (++spec_pf_counter_ >= 16) {
                             spec_pf_counter_ = 0;
                             auto tc_copy = top_candidates;
@@ -730,10 +710,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
 
                 float dist = l2Distance(query, neighborVec);
 
-                if (top_candidates.size() < current_ef || lowerBound > dist) {
+                if (top_candidates.size() < ef || lowerBound > dist) {
                     candidate_set.emplace(dist, neighborId);
                     top_candidates.emplace(dist, neighborId);
-                    if (top_candidates.size() > current_ef) {
+                    if (top_candidates.size() > ef) {
                         top_candidates.pop();
                     }
                     if (!top_candidates.empty()) {
@@ -759,10 +739,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                 for (const auto& pn : pending_neighbors) {
                     if (pq_enabled_) {
                         float dist = pqDistance(query, pn.neighborId);
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) {
+                            if (top_candidates.size() > ef) {
                                 top_candidates.pop();
                             }
                             if (!top_candidates.empty()) {
@@ -777,10 +757,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
 
                         float dist = l2Distance(query, neighborVec);
 
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) {
+                            if (top_candidates.size() > ef) {
                                 top_candidates.pop();
                             }
                             if (!top_candidates.empty()) {
@@ -794,10 +774,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                 for (const auto& pn : pending_neighbors) {
                     if (pq_enabled_) {
                         float dist = pqDistance(query, pn.neighborId);
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) {
+                            if (top_candidates.size() > ef) {
                                 top_candidates.pop();
                             }
                             if (!top_candidates.empty()) {
@@ -810,10 +790,10 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
 
                         float dist = l2Distance(query, neighborVec);
 
-                        if (top_candidates.size() < current_ef || lowerBound > dist) {
+                        if (top_candidates.size() < ef || lowerBound > dist) {
                             candidate_set.emplace(dist, pn.neighborId);
                             top_candidates.emplace(dist, pn.neighborId);
-                            if (top_candidates.size() > current_ef) {
+                            if (top_candidates.size() > ef) {
                                 top_candidates.pop();
                             }
                             if (!top_candidates.empty()) {
@@ -823,57 +803,6 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                     }
                 }
             }
-        }
-        // DEC-019: Dynamic Width — 每轮迭代末尾的收敛检测与宽度衰减
-        // (必须放在 while 循环内部, 否则只在搜索结束后执行一次, 无效果)
-        //
-        // 策略: 迭代预算衰减 (非收敛检测)。HNSW best-first 搜索在 EF=100 时
-        // lowerBound 持续下降直到最后 5-10 步, 传统的收敛检测 (hash/lowerBound 稳定)
-        // 在 ~100 步搜索中几乎不可触发。改用简单预算: 搜索进行到 ef/2 后逐步衰减 efSearch,
-        // 减少后期候选维护成本。REFINE_EF=500+ 时收益更显著。
-        //
-        if (kDynamicWidth && dw_effective_ef > kEfSearchMin) {
-            size_t decay_start = ef / 2;  // 从搜索中点开始衰减
-            // DEC-019 DBG: 首次进入 decay 区时打印
-            static size_t dw_dbg_entered = 0;
-            if (dw_iter_count == decay_start && dw_dbg_entered < 3) {
-                fprintf(stderr, "[DW] entering decay zone: iter=%zu ef=%zu threshold=%zu\n",
-                        dw_iter_count, dw_effective_ef,
-                        std::max((size_t)2, std::min((size_t)kDwConvergeHop, ef / 16)));
-                dw_dbg_entered++;
-            }
-            if (dw_iter_count >= decay_start) {
-                // 每 converge_threshold 步衰减一次
-                size_t converge_threshold = std::max((size_t)2, std::min((size_t)kDwConvergeHop, ef / 16));
-                dw_converge_count++;
-                if (dw_converge_count >= converge_threshold) {
-                    size_t new_ef = std::max(kEfSearchMin,
-                        (size_t)((double)dw_effective_ef * kDwDecay));
-                    if (new_ef < dw_effective_ef && new_ef < top_candidates.size()) {
-                        while (top_candidates.size() > new_ef) top_candidates.pop();
-                        if (!top_candidates.empty()) lowerBound = top_candidates.top().first;
-                        static size_t dw_total_triggers = 0;
-                        dw_total_triggers++;
-                        if (dw_total_triggers <= 5 || dw_total_triggers % 50 == 0) {
-                            fprintf(stderr, "[DW] budget-trigger #%zu iter=%zu: ef %zu→%zu (budget mode)\n",
-                                    dw_total_triggers, dw_iter_count, dw_effective_ef, new_ef);
-                        }
-                    }
-                    dw_effective_ef = new_ef;
-                    dw_converge_count = 0;
-                }
-            }
-        }
-    }
-
-    // DEC-019 DBG: 每 query 输出迭代统计 (前 5 个 query 或每 50 个)
-    if (kDynamicWidth) {
-        static size_t dw_query_count = 0;
-        dw_query_count++;
-        if (dw_query_count <= 5 || dw_query_count % 50 == 0) {
-            fprintf(stderr, "[DW] query #%zu: iter=%zu ef=%zu/%zu converge=%zu hash_ok=%zu lb_ok=%zu\n",
-                    dw_query_count, dw_iter_count, dw_effective_ef, ef,
-                    dw_converge_count, dw_hash_ok, dw_lb_ok);
         }
     }
 
@@ -1761,71 +1690,15 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             // FINE_PREAD=1 时用 pread 替代 io_uring (线程安全, 多线程必须开启)
             static const bool kFinePread = std::getenv("FINE_PREAD") && std::atoi(std::getenv("FINE_PREAD")) != 0;
             static const bool kProfFine = std::getenv("PROFILE_FINE") && std::atoi(std::getenv("PROFILE_FINE")) != 0;
-            // DEC-017: Page Search — 读 4KB 页后扫描页内所有向量 (默认关闭)
-            static const bool kPageSearch = std::getenv("PAGE_SEARCH") && std::atoi(std::getenv("PAGE_SEARCH")) != 0;
             static double pf_collect = 0, pf_submit = 0, pf_first = 0, pf_iorest = 0, pf_compute = 0;
             static long pf_pages = 0, pf_cached = 0, pf_iters = 0, pf_n = 0;
-            // DEC-017: Page Search 统计
-            static long ps_extra_considered = 0, ps_extra_hits = 0;
             auto tf0 = std::chrono::high_resolution_clock::now();
 
             std::priority_queue<std::pair<float, uint32_t>> refined;
-            // DEC-017: Page Search — 位图去重 (预分配成员, memset 清零, O(1) 无 hash)
-            if (kPageSearch && !ps_considered_.empty()) {
-                std::memset(ps_considered_.data(), 0, ps_considered_.size());
-            }
             auto consider = [&](uint32_t nid, const float* vec) {
-                if (kPageSearch) {
-                    uint8_t& byte = ps_considered_[nid >> 3];
-                    uint8_t mask = (uint8_t)(1 << (nid & 7));
-                    if (byte & mask) return;
-                    byte |= mask;
-                }
                 float d = l2Distance(query, vec);
                 if (refined.size() < k) refined.emplace(d, nid);
                 else if (d < refined.top().first) { refined.pop(); refined.emplace(d, nid); }
-            };
-            // DEC-017: Page Search — 扫描页内所有向量并计算 L2
-            // 页号 pg 对应的 vecblock block_id 和 block 内向量起始 slot 由调用方计算
-            auto pageSearchScan = [&](uint32_t pg, const char* page_data, size_t page_len) {
-                if (!kPageSearch) return;
-                // 计算该页所属的 vecblock 和 slot 范围
-                uint64_t pg_off = (uint64_t)pg << 12;
-                if (pg_off < 4096) return;  // 文件头区域
-                uint64_t blk_off = pg_off - 4096;
-                uint32_t b = (uint32_t)(blk_off / vec_block_size_);
-                if (b >= vec_slot_to_node_.size()) return;
-                uint32_t blk_data_off = block_data_offset_[b];
-                uint64_t blk_start = 4096ull + (uint64_t)b * vec_block_size_ + blk_data_off;
-                if (pg_off < blk_start) return;
-                uint64_t byte_in_vectors = pg_off - blk_start;
-                uint32_t slot_size = dim_ * sizeof(float);
-                uint32_t first_slot = (uint32_t)(byte_in_vectors / slot_size);
-                uint32_t slots_in_page = (uint32_t)(page_len / slot_size);
-                uint32_t max_slot = (uint32_t)vec_slot_to_node_[b].size();
-                for (uint32_t s = first_slot; s < first_slot + slots_in_page && s < max_slot; s++) {
-                    uint32_t nid = vec_slot_to_node_[b][s];
-                    uint8_t& byte = ps_considered_[nid >> 3];
-                    if (byte & ((uint8_t)(1 << (nid & 7)))) continue;
-                    // DEC-017 FIX: 用绝对文件偏移计算页内偏移, 而非 (s-first_slot)*slot_size。
-                    // 前者在 data_offset 非 slot_size 对齐时 (如 520) 会截断余数, 读到错误浮点。
-                    uint64_t slot_file_off = blk_start + (uint64_t)s * slot_size;
-                    int64_t rel_off = (int64_t)slot_file_off - (int64_t)pg_off;
-                    if (rel_off < 0 || (size_t)(rel_off + slot_size) > page_len) continue;
-                    const float* vec = reinterpret_cast<const float*>(page_data + rel_off);
-                    // DEC-017 DBG: 首次调用时打印对齐信息, 验证偏移修复
-                    static int ps_dbg_count = 0;
-                    if (ps_dbg_count < 3) {
-                        uint32_t old_byte_off = (s - first_slot) * slot_size;
-                        fprintf(stderr, "[PS] pg=%u b=%u s=%u data_off=%u old_bo=%u new_bo=%ld fixed=%s\n",
-                                pg, b, s, blk_data_off, old_byte_off, rel_off,
-                                (old_byte_off != (uint32_t)rel_off) ? "YES" : "no");
-                        ps_dbg_count++;
-                    }
-                    consider(nid, vec);
-                    cache_->putFlatVector(nid, vec);
-                    ps_extra_considered++;
-                }
             };
 
             // 收集 miss 候选的 4KB 页 (注意: data_offset=520 非512对齐, slot%8==6 的向量跨页!)
@@ -1869,15 +1742,6 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     auto buf = std::make_unique<char[]>(4096);
                     ssize_t r = pread(vec_blocks_fd_, buf.get(), 4096, (off_t)pg << 12);
                     if (r == 4096) page_cache[pg] = std::move(buf);
-                }
-                // DEC-017: Page Search — 扫描每页内所有向量
-                if (kPageSearch) {
-                    for (uint32_t pg : pages_needed) {
-                        auto it = page_cache.find(pg);
-                        if (it != page_cache.end()) {
-                            pageSearchScan(pg, it->second.get(), 4096);
-                        }
-                    }
                 }
                 auto tp1 = std::chrono::high_resolution_clock::now();
                 char tmp_vec_pread[512];
@@ -2007,17 +1871,6 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 cache_->putFlatVector(c.nid, vec);  // 回填热向量 cache, Phase A hybrid 用
             }
 
-            // DEC-017: Page Search — io_uring 路径: 扫描已读页内所有向量
-            if (kPageSearch) {
-                std::set<uint32_t> scanned_pages;
-                for (const auto& c : io_cands) {
-                    if (scanned_pages.count(c.page0)) continue;
-                    scanned_pages.insert(c.page0);
-                    const char* p0 = getPagePtr(c.page0);
-                    if (p0) pageSearchScan(c.page0, p0, 4096);
-                }
-            }
-
             // 释放 buffer (合并读两个页条目指向同一 buf, 去重)
             {
                 int last_buf = -1;
@@ -2046,15 +1899,9 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 pf_n++;
                 if (pf_n % 200 == 0) {
                     fprintf(stderr,
-                        "[PROFILE_FINE] n=%ld collect=%.0f loop+syscall=%.0f+%.0f io_1st=%.0f io_rest=%.0f compute=%.0f | pages=%.1f cached=%.1f iters=%.1f",
+                        "[PROFILE_FINE] n=%ld collect=%.0f loop+syscall=%.0f+%.0f io_1st=%.0f io_rest=%.0f compute=%.0f | pages=%.1f cached=%.1f iters=%.1f\n",
                         pf_n, pf_collect/pf_n, (pf_submit-pf_syscall)/pf_n, pf_syscall/pf_n, pf_first/pf_n, pf_iorest/pf_n, pf_compute/pf_n,
                         (double)pf_pages/pf_n, (double)pf_cached/pf_n, (double)pf_iters/pf_n);
-                    // DEC-017: Page Search 统计
-                    if (kPageSearch && ps_extra_considered > 0) {
-                        fprintf(stderr, " | ps_extra=%.1f ps_hits=%.1f",
-                                (double)ps_extra_considered/pf_n, (double)ps_extra_hits/pf_n);
-                    }
-                    fprintf(stderr, "\n");
                 }
             }
 
@@ -2149,12 +1996,6 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
 
     // 热度评价器: 查询结束
     if (heat_evaluator_) heat_evaluator_->onQueryEnd();
-
-    // DEC-021: Page Cache 驱逐 — 冷 I/O 模式 (模拟 10M+ 规模无 page cache 条件)
-    static const bool kEvictPageCache = std::getenv("EVICT_PAGE_CACHE") && std::atoi(std::getenv("EVICT_PAGE_CACHE")) != 0;
-    if (kEvictPageCache && vec_blocks_fd_ >= 0) {
-        posix_fadvise(vec_blocks_fd_, 0, 0, POSIX_FADV_DONTNEED);
-    }
 
     return result;
 }
@@ -2254,9 +2095,6 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
     vec_route_table_.assign(num_nodes, 0);
     block_data_offset_.assign(num_blocks, 0);
 
-    // DEC-017: Page Search — 构建 slot→node_id 反向映射
-    vec_slot_to_node_.resize(num_blocks);
-
     // 每 block 读 header(16B) + node_ids(4B×cnt), 建 slot 表
     std::vector<char> buf(4096);
     auto t0 = std::chrono::high_resolution_clock::now();
@@ -2273,8 +2111,6 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
         const uint32_t* ids = reinterpret_cast<const uint32_t*>(buf.data() + 16);
         uint32_t max_cnt = (4096 - 16) / 4;
         if (cnt > max_cnt) { close(fd); return false; }  // 超出 4KB 窗口(cnt≤126 不会发生)
-        // DEC-017: 保存 slot→node_id 反向映射
-        vec_slot_to_node_[b].assign(ids, ids + cnt);
         for (uint32_t i = 0; i < cnt; i++) {
             if (ids[i] < num_nodes) {
                 node_slot_table_[ids[i]] = (uint16_t)i;
@@ -2292,9 +2128,6 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
         return false;
     }
     vec_blocks_fd_ = fd;
-
-    // DEC-017: 预分配 Page Search 去重位图 (num_nodes bits, 每次 query memset 清零)
-    ps_considered_.resize((num_nodes + 7) / 8, 0);
 
     auto t1 = std::chrono::high_resolution_clock::now();
     double ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
