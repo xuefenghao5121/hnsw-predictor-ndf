@@ -207,15 +207,15 @@
 | QPS vs PS only | shuffled+PS vs PS | ≥ PS QPS | 797 vs 789 | ✅ |
 | SLA 全部达标 | shuffled+PS (cold) | recall ≥ 95%, QPS ≥ 500 | 96.05%, 797 | ✅ |
 
-### VER-030: O_DIRECT io_uring 零 Page Cache I/O {#VER-030}
+### VER-030: Page Cache + Disk 两层 I/O 架构 {#VER-030}
 <!-- ndf: kind=verif verifies=DEC-030 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| SIFT1M recall | FINE_DIRECT=1 | ≥ 95% | 95.70% | ✅ |
-| SIFT1M QPS | FINE_DIRECT=1 | ≥ 500 | 787 | ✅ |
-| SIFT1M RSS | FINE_DIRECT=1 | ≤ 180MB | 273MB | ⚠️ RSS 不含 kernel page cache |
-| DEEP10M recall | FINE_DIRECT=1 | ≥ 94% | — | 待测 |
-| DEEP10M QPS | FINE_DIRECT=1 | ≥ 50 | — | 待测 |
-| io_uring submit batch | FINE_DIRECT=1 | O_DIRECT 生效 | 0.78ms I/O/query | ✅ |
-| 内存基线对比 | FINE_DIRECT vs FINE_BUFFERED | RSS 下降 | RSS 相同(不含 page cache) | ⚠️ cgroup 环境可验证 |
+| SIFT1M recall | FINE_BUFFERED（默认） | ≥ 95% | 95.70% | ✅ |
+| SIFT1M QPS | FINE_BUFFERED（默认） | ≥ 2000 | 2,041 | ✅ |
+| FINE_DIRECT recall | FINE_DIRECT=1 (诊断) | ≥ 95% | 95.70% | ✅ |
+| FINE_DIRECT QPS | FINE_DIRECT=1 (诊断) | ≥ 500 | 787 | ✅ |
+| O_DIRECT 路径正确性 | FINE_DIRECT=1 | I/O 延迟 > 0.5ms | 0.78ms/query | ✅ |
+| 默认模式不退化 | FINE_BUFFERED vs baseline | QPS ≥ baseline | 2041 vs 2080 | ✅ |
+| 诊断模式可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |

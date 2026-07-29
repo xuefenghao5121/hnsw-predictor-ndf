@@ -1689,7 +1689,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             // ---- 4KB 页粒度精排: cache hit 取向量, miss 按 4KB 页读 ----
             // FINE_PREAD=1 时用 pread 替代 io_uring (线程安全, 多线程必须开启)
             static const bool kFinePread = std::getenv("FINE_PREAD") && std::atoi(std::getenv("FINE_PREAD")) != 0;
-            // FINE_DIRECT=1 强制使用 io_uring 路径 (O_DIRECT, 绕过 page cache, DEC-030)
+            // FINE_DIRECT=1: O_DIRECT 诊断模式, 绕过 page cache (DEC-030, 仅用于 benchmark)
             static const bool kFineDirect = std::getenv("FINE_DIRECT") && std::atoi(std::getenv("FINE_DIRECT")) != 0;
             static const bool kProfFine = std::getenv("PROFILE_FINE") && std::atoi(std::getenv("PROFILE_FINE")) != 0;
             static double pf_collect = 0, pf_submit = 0, pf_first = 0, pf_iorest = 0, pf_compute = 0;
@@ -2071,9 +2071,15 @@ DiskHNSW::batchSearch(const std::vector<float>& queries, size_t k, size_t batch_
 // ============================================================
 bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_nodes) {
     // 懒构建: node→slot 表 + block→data_offset 表 + 4KB io_uring
-    // FINE_DIRECT=1 时用 O_DIRECT + io_uring 绕过 page cache (DEC-030)
+    //
+    // 默认架构 (FINE_BUFFERED=1): BlockCache(内存) → Page Cache(OS免费缓存) → NVMe(磁盘)
+    //   - pread 走 page cache, OS 自动管理冷热分层
+    //   - 热数据零 I/O, 冷数据自动驱逐, 无需显式管理
+    //
+    // 诊断模式 (FINE_DIRECT=1): O_DIRECT 绕过 page cache
+    //   - 用于冷 I/O 基准测试、内存受限 benchmark、模拟更大规模
+    //   - 不推荐生产使用 — 放弃免费的 OS 缓存层
     static const bool kFineDirect = std::getenv("FINE_DIRECT") && std::atoi(std::getenv("FINE_DIRECT")) != 0;
-    // FINE_BUFFERED=1 时用 buffered I/O 吃 page cache (热区页零 I/O)
     static const bool kFineBuffered = std::getenv("FINE_BUFFERED") && std::atoi(std::getenv("FINE_BUFFERED")) != 0;
     int fd = -1;
     if (kFineDirect) {
@@ -2081,13 +2087,11 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
         if (fd < 0) {
             std::cerr << "[FineRerank] O_DIRECT open failed, fallback" << std::endl;
             fd = open(blocks_path.c_str(), O_RDONLY);
-            std::cerr << "[FineRerank] direct I/O mode (O_DIRECT, bypass page cache)" << std::endl;
-        } else {
-            std::cerr << "[FineRerank] direct I/O mode (O_DIRECT, bypass page cache)" << std::endl;
         }
+        std::cerr << "[FineRerank] direct I/O mode (O_DIRECT, bypass page cache) - diagnostic only" << std::endl;
     } else if (kFineBuffered) {
         fd = open(blocks_path.c_str(), O_RDONLY);
-        std::cerr << "[FineRerank] buffered mode (page cache)" << std::endl;
+        std::cerr << "[FineRerank] buffered mode (page cache + disk, recommended)" << std::endl;
     }
     if (fd < 0) fd = open(blocks_path.c_str(), O_RDONLY | O_DIRECT);
     if (fd < 0) fd = open(blocks_path.c_str(), O_RDONLY);  // fallback buffered
