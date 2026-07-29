@@ -713,3 +713,42 @@ O_DIRECT + io_uring 可以绕过 page cache 做真实磁盘 I/O 对照。
 > 正确的架构不是"page cache vs O_DIRECT"的二选一，
 > 而是默认用 page cache，O_DIRECT 作为可控的诊断工具。
 > 这与 HELMSMAN 的思路一致：利用系统已有的能力，而不是重建一切。
+
+## D-031: 页面级驱逐——消除 Page Cache 颠簸引起的 QPS 悬崖 {#DEC-031}
+<!-- ndf: kind=decision date=2026-07-30 affects=DEC-030 source=observed -->
+
+**Context.** Cgroup 内存限制扫描发现：page cache 可用空间低于工作集时，
+QPS 出现 10× 断崖（1,973 → 196），OS 在页面驱逐和 LRU 管理上消耗大量 CPU。
+这比直接用 O_DIRECT 还差（787 vs 196 QPS）。
+
+用户期望：page cache 不足时应优雅退化，而非断崖。
+
+**Decision.**
+
+1. **在 Fine Rerank 完成后，批量驱逐本次查询刚读过的页面**：
+   - 收集 fine rerank 读取的所有 page 号（已在上层收集，现成可用）
+   - 排序去重 → 合并相邻页为 range
+   - 对每个 range 调用 `posix_fadvise(fd, start, len, POSIX_FADV_DONTNEED)`
+   - 效果：只驱逐 read-once 数据，保留跨 query 复用的热页
+
+2. **启用方式**：`FINE_FADVISE=1` 环境变量（默认关闭，需与 FINE_BUFFERED 配合）
+   - 与 FINE_DIRECT 互斥（一个有 page cache，一个没有）
+   - 推荐搭配：`FINE_BUFFERED=1 FINE_FADVISE=1`（有 page cache，用完即弃）
+
+3. **预期效果**：
+   - 256MB cgroup：几乎无影响（page cache 充足，驱逐是 no-op）
+   - 180MB cgroup：QPS 196 → 500+（消除颠簸，变成干净磁盘 I/O）
+   - 成本：每 query 1-3 次 posix_fadvise 系统调用（<10μs）
+
+4. **与 FINE_DIRECT 对比**：
+   | 模式 | 如何读 | 如何释放 | 适用场景 |
+   |------|--------|---------|---------|
+   | FINE_BUFFERED | pread → page cache | OS 自动 LRU | 内存充足 |
+   | FINE_DIRECT | O_DIRECT io_uring | 不占用 cache | 极端受限 |
+   | FINE_BUFFERED+FINE_FADVISE | pread → page cache | 主动 page 级驱逐 | 内存紧张(新) |
+
+- verifies: [[VER-031]]
+
+> rationale: 不放弃 page cache 的好处（批量预取、跨 query 复用），
+> 同时避免 page cache 颠簸的代价（LRU 维护 + 无效驱逐）。
+> 类似于 CPU cache 的"non-temporal"访存指令——读一次就过，别占 cache line。

@@ -219,3 +219,14 @@
 | O_DIRECT 路径正确性 | FINE_DIRECT=1 | I/O 延迟 > 0.5ms | 0.78ms/query | ✅ |
 | 默认模式不退化 | FINE_BUFFERED vs baseline | QPS ≥ baseline | 2041 vs 2080 | ✅ |
 | 诊断模式可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
+
+### VER-031: 页面级驱逐消除 Cgroup 颠簸 {#VER-031}
+<!-- ndf: kind=verif verifies=DEC-031 -->
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| recall 不变 | FINE_BUFFERED+FINE_FADVISE | 95.70% | — | 待测 |
+| 256MB cgroup QPS | FINE_ADVISE, 256MB cgroup | ~2,000 | — | 待测 |
+| 180MB cgroup QPS | FINE_ADVISE, 180MB cgroup | ≥ 500 | — | 待测 |
+| posix_fadvise 开销 | per-query syscall count | < 3 syscalls | — | 待测 |
+| 悬崖消除 | 180MB FINE_ADVISE vs baseline | QPS 10× 改善 | — | 待测 |
