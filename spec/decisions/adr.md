@@ -625,3 +625,51 @@ PQ ADC 距离的量化误差导致 top-K 候选持续抖动，hash 和 lowerBoun
 > rationale: HELMSMAN 的成功经验表明"自适应比固定好"，
 > 但我们的搜索架构不同（图 vs 聚类），不能直接照搬。
 > 先收集 10M 规模的 query 难度分布数据，再设计适配的学习式剪枝方案。
+
+## D-029: DEEP10M 瓶颈转移——P2 路线图重新校准 {#DEC-029}
+<!-- ndf: kind=decision date=2026-07-29 affects=DEC-018,DEC-022,DEC-023,DEC-026,P2 source=observed -->
+
+**Context.** DEEP10M (96D, 9.99M) 冷 I/O 6 组 benchmark 完成。
+预期：Page Shuffle + Page Search 在冷 I/O 下减少 25-30% I/O。
+实际：I/O 占比仅 7%（vs SIFT1M 的 60%），两者均无效。
+
+**实测瓶颈分析:**
+
+```
+SIFT1M (1M):  PQ[10%] + 图[30%] + I/O[60%]  → Page Shuffle 有效
+DEEP10M (10M): PQ[80%] + 图[13%] + I/O[7%]   → Page Shuffle 无效
+```
+
+| 指标 | SIFT1M | DEEP10M | 说明 |
+|------|--------|---------|------|
+| 热态 QPS | 2038 | 74.9 | PQ 计算主导 |
+| 冷态 QPS | 803 | 69.8 | I/O 仅增 1ms |
+| I/O 占比 | 60% | 7% | 瓶颈转移 |
+| Page Shuffle gain | +2.1% | ~0% | 优化了错误瓶颈 |
+| Page Search recall | +0.5pp | +0.05pp | 10 向量/页已饱和 |
+
+**Decision.**
+
+1. **P2 I/O 优化策略降级**:
+   - Page Shuffle (DEC-018) 在 I/O 非瓶颈规模下不产生收益，保留算法但标记为 P3 技术
+   - Page Search (DEC-017) 在 ≥10 向量/页的维度下无增益，功能保留但关闭默认推荐
+
+2. **P2 真正瓶颈识别**:
+   - **PQ 计算**: M=32×256 centroids 的 ADC 距离占 ~80% query 时间
+   - **内存压力**: CSR 邻接表 1.2GB，无法在 1GB cgroup 运行
+   - **图遍历**: ~13% query 时间，仍有优化空间
+
+3. **P2 目标重新校准**:
+   - Recall ≥94%（接受 M=32 PQ 的固有精度上限）
+   - QPS 目标从 >500 调整为按比例缩放（4T 预期 ~300 QPS）
+   - 内存目标从 1GB cgroup 放宽到 3GB+
+
+4. **P2 新优化方向**:
+   - **PQ SIMD 加速**: AVX2/VNNI 批量 ADC 距离计算
+   - **PQ 量化压缩**: M=24 (dsub=4) 在 92% recall 下的性能 tradeoff
+   - **图遍历优化**: 更激进的软件预取 + 搜索剪枝
+
+> rationale: DEEP10M 揭示了与 SIFT1M 本质不同的瓶颈模式。
+> I/O 优化技术（Page Shuffle/Search）的物理价值需要 I/O 占比 >30%
+> 才能体现——这可能在 100M+ 规模才满足。
+> 10M 规模是"优化 PQ 计算"和"控制内存压力"的战场。
