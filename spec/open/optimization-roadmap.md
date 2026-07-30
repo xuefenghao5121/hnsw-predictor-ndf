@@ -1,51 +1,44 @@
-# 优化路线图 v1.0
+# 优化路线图 v2.0 (P2 更新)
 
-> 基准: SIFT1M 2,041 QPS (1T) / 95.70% recall / 273MB RSS
+> 基准: SIFT1M 2,067 QPS (1T) / 95.70% recall / 269MB RSS
+> 基准: DEEP10M 590 QPS (1T) / 2,340 QPS (12T) / 95.15% recall / 1,612MB RSS (2GB cgroup)
 > 日期: 2026-07-30
-> 关联: DEC-032, CON-007, ARCH-004
+> 关联: DEC-034, DEC-035, DEC-036, DEC-037, DEC-038
 
-## 目标
+## P2 完成状态
 
-在 page cache + disk 两层架构下，消除 cgroup 紧时的 10× QPS 悬崖，
-使 150-180MB cgroup 下 QPS 保持在 1,000+。
+| # | 优化项 | 预期 | 实际 | 状态 | 条款 |
+|---|--------|------|------|------|------|
+| P0 | CSR 图裁剪 (Degree Cap) | RSS -22MB | recall -0.7pp, 不值 | ❌ 负结果 | DEC-038 |
+| P1 | VisitedList uint32->uint8 | - | **2x QPS** | ✅ 最大收益 | DEC-034 |
+| P2 | FINE_PREAD 修复 | - | recall 70%->95% | ✅ 关键修复 | DEC-035 |
+| P3 | PQ dsub=3 SIMD | +20-50% QPS | +5% QPS | ✅ 小幅 | DEC-036 |
 
-## 根因确认
-
-```
-cgroup reclaim 风暴 = 10× QPS 悬崖
-    ↑
-process RSS 101MB + page cache working set 24MB = 125MB base
-cgroup 180MB - 125MB = 55MB 余量 → 刚好卡在边界
-    ↑
-需要: process RSS < 70MB + page cache 余量 > 50MB
-```
-
-## 优化矩阵
-
-| # | 优化项 | RSS 节省 | QPS 影响 | 复杂度 | 优先级 | 条款 |
-|---|--------|---------|---------|--------|--------|------|
-| P0 | CSR 图裁剪 (Degree Cap) | -22MB | ±0% | 低 (已有工具) | 🔴 | DEC-033 |
-| P1 | Upper Layer PQ 编码 | -28MB | -5% | 中 | 🟡 | DEC-034 |
-| P2 | PQ SIMD ADC 加速 | 0 | +20-50% | 中 | 🟢 | DEC-035 |
-| P3 | Adaptive REFINE_EF | 0 | +10-20% | 高 | ⚪ | DEC-028 |
-
-## 预期效果
+## P2 最终成绩
 
 ```
-Current (273MB RSS): 180MB cgroup → 196 QPS 😱
-P0 only (251MB RSS): 180MB cgroup → 800+ QPS ✅
-P0+P1 (223MB RSS): 150MB cgroup → 1,000+ QPS ✅
-P0+P1+P2: DEEP10M QPS 75 → 200+ ✅
+DEEP10M (10M, 96D), 2GB cgroup, T=12:
+  Recall: 95.15% ✅
+  QPS:    2,340  ✅ (目标 >500)
+  RSS:    1,612MB (2GB cgroup)
+  vs hnswlib: 3.7x 内存节省, hnswlib OOM@2GB
 ```
 
-## 实施顺序
+## P3 路线图 (100M 规模)
 
-```
-P0 (CSR 裁剪) → 180MB cgroup 验证 → 立即益
-    ↓
-P1 (Upper PQ) → 150MB cgroup 验证 → 进一步
-    ↓
-P2 (SIMD PQ)  → DEEP10M 验证 → QPS boost
-    ↓
-P3 (Adaptive) → profiling → 未来
-```
+| # | 优化项 | 目标 | 复杂度 | 优先级 | 条款 |
+|---|--------|------|--------|--------|------|
+| P3-1 | CSR 上磁盘 + 分页加载 | CSR 不占内存 | 高 | 🔴 | - |
+| P3-2 | 1-hop CSR 预取 | 掩盖 CSR I/O | 中 | 🔴 | - |
+| P3-3 | PQ codes mmap | -304MB RSS | 低 | 🟡 | - |
+| P3-4 | 图裁剪 R_max=16-20 | 减 CSR 磁盘 I/O | 低 (已有工具) | 🟡 | DEC-038 保留 |
+| P3-5 | SPDK 评估 | I/O 带宽 | 高 | ⚪ | DEC-027 |
+
+## 关键教训
+
+1. **隐藏瓶颈 > 显式瓶颈**: VisitedList 分配 (隐藏) 比 PQ 计算 (显式 80%) 影响更大
+2. **规模改变瓶颈**: 1M I/O 主导 -> 10M PQ 计算主导 -> 100M CSR 内存主导
+3. **cgroup RSS ≠ 真实内存**: 无 cgroup RSS 2422MB 含大量 page cache,
+   cgroup 回收后仅 941MB
+4. **io_uring 不总可靠**: 大候选量时丢提交, pread 更稳定
+5. **图裁剪规模相关**: 1M 有效 (减 page cache 颠簸), 10M 无效 (CSR 非瓶颈)

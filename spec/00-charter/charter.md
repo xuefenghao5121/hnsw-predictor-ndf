@@ -60,14 +60,15 @@ DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标:
 <!-- ndf: kind=arch level=may layer=L0 status=exploratory since=0.2 source=deduced -->
 
 > ⚠️ **探索性设想标签**：本条款无设计文档或代码支撑，仅为方向性思考。
-> P0-P1 已完成并验证；P2-P5 均为未落地的规划构想，不构成规范性承诺。
+> P0-P2 已完成并验证；P3-P5 为未落地的规划构想，不构成规范性承诺。
 
 DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 
 - **P0-P1（已完成 ✅）**：1M 规模下验证内存卸载 + 压缩 + 图裁剪的可行性与边界
-- **P2（下一步构想）**：10M 规模验证--这是"内存受限磁盘搜索"叙事的关键战场。
-  vecblocks 5GB 超出任何合理 page cache，冷 I/O 成为主导因素。
-  hnswlib 需 7GB 会 OOM，DiskHNSW 目标在 1GB cgroup 下 recall≥95% / QPS>500
+- **P2（已完成 ✅, 2026-07-30）**：10M 规模验证。DEEP10M 95.15% recall / 2340 QPS (12T) / 2GB cgroup。
+  hnswlib 需 ~6GB OOM@2GB，DiskHNSW 3.7x 内存节省。
+  瓶颈从 I/O 转移到 PQ 计算 (80%)，VisitedList 优化带来 2x QPS。
+  1GB cgroup 物理不可行 (核心数据 1.3GB)，最小可行 1.8GB。
 - **P3（构想）**：100M 规模--CSR varint 4.7GB 也需上磁盘，引入 CSR 分页 + 1-hop 预取
 - **P4-P5（探索性构想）**：分级存储、硬件亲和（NUMA/SPDK/GPU/PMEM）。这些方向当前
   无代码或设计支撑，仅为探索性路线设想
@@ -75,8 +76,8 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 每个阶段的核心验证：**"给定内存预算 M，DiskHNSW 能跑多大规模的向量搜索？"**
 
 > rationale: 1M 规模下宿主机 page cache 能装下全部 496MB 向量数据，
-> 掩盖了磁盘 I/O 优化的真实价值。只有在 vecblocks 超出 page cache 的规模下，
-> 两阶段搜索 + 4KB 页精排 + io_uring 预取的架构优势才会显现。
+> 掩盖了磁盘 I/O 优化的真实价值。10M 规模验证了瓶颈转移 (I/O -> PQ 计算)。
+> 100M 规模 CSR 内存将成为新瓶颈，需要新的架构决策。
 
 ## 设计约束(推断) {#CHR-005}
 <!-- ndf: kind=constraint level=should layer=L0 status=stable since=0.2 source=deduced -->
