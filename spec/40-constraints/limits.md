@@ -132,3 +132,23 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 
 > rationale: 冷 I/O 下 Fine Rerank 每页读取 ~10-50μs（vs 热态 ~1μs），
 > QPS 下降是预期行为。QPS ≥ 500 对应 < 2ms/query，仍为交互式可用。
+
+## 诚实 I/O 基准协议 {#CON-HONEST-002}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.5 source=deduced -->
+<!-- refines: DEC-030, DEC-039 -->
+
+性能基准测试 MUST 至少报告两组数据：
+1. **Buffered**: `FINE_BUFFERED=1`（含 page cache）
+2. **Direct**: `FINE_DIRECT=1`（O_DIRECT，无 page cache）
+
+两组模式 MUST 在同一 cgroup 限制下运行。Buffered 模式下，page cache 计入
+cgroup 内存使用，运行过程中峰值内存（anon + file）MUST NOT 超过 cgroup 限制。
+
+报告 MUST 标注测量模式。仅报告 Buffered 模式数字时 MUST 附带声明：
+"此数字在 cgroup 限制内运行，page cache 与匿名内存共享内存预算"。
+
+> rationale: cgroup v2 的 memory.max 同时限制匿名内存和 page cache。Buffered
+> 模式是生产推荐路径，page cache 是 OS 免费提供的冷热分层，但它消耗的是
+> cgroup 内存预算，不是无限制的白嫖。O_DIRECT 模式消除 page cache 后，
+> 测量的是纯匿名内存 + 真实磁盘 I/O 的性能，代表最差情况。
+> 关联提案: proposal-odirect-benchmark.md
