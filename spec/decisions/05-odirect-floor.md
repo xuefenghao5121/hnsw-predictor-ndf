@@ -184,6 +184,13 @@ QPS 提升 ~30%。
 
 **实现复杂度**: 中等。需修改 Fine Rerank 路径，增加候选排序和合并逻辑。
 
+**进展 (2026-07-31)**：
+- **v1 pread 路径已交付**（[[BEH-017]]）：SIFT1M O_DIRECT 1T 实测 **+6–9%** QPS
+  （EF=100: 110.9→118.2），**低于**初估 +30%。根因：逐页 syscall 开销主导。
+- SLA 锚定实测：[[CON-SLA-012]] QPS ≥ 115（pread only）。
+- **v2 io_uring 路径未交付**：预期更高收益，方案见 `spec/open/proposal-read-coalescing-v2.md`
+  （Pending）；在实测前 MUST NOT 把 v2 数字写入 must SLA。
+
 ### 方向 2: I/O 与计算流水线 (I/O Pipelining) ★★ 高优先级
 
 **问题**: 当前 Fine Rerank 是串行的：收集所有候选 -> 批量读 I/O -> 计算距离。

@@ -1,11 +1,11 @@
 {
-  "current_proposal": "proposal-ndf-tree-split.md",
-  "scenario_type": "refactor",
+  "current_proposal": "proposal-read-coalescing-v2.md",
+  "scenario_type": "feature",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "pending",
-  "perf_status": "pending",
-  "last_activity": "2026-07-31T21:35:00Z",
-  "notes": "NDF tree split by subsystem Implemented"
+  "pending_decision": "waiting_for_user_review_v2",
+  "validation_status": "v1_pread_ndf_aligned",
+  "perf_status": "v1:+6-9%_sla>=115_v2:pending",
+  "last_activity": "2026-07-31T22:20:00Z",
+  "notes": "NDF review fixes applied: BEH-017 pread-only, CON-SLA-012 no aspirational v2 must"
 }

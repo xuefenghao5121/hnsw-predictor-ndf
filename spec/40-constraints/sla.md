@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
@@ -92,3 +92,22 @@ SIFT1M、512MB cgroup、`FINE_DIRECT=1`（Honest / O_DIRECT）下：
 Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-SLA-010]] 为准，MUST NOT 用本条款覆盖。
 
 > rationale: 双轨 SLA——不静默删除 Buffered 数字；Honest 下限取自 O_DIRECT 实测并留安全余量。
+
+## Read Coalescing SLA {#CON-SLA-012}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.6 source=deduced -->
+<!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,BEH-017 -->
+
+当 `READ_COALESCE=1 FINE_DIRECT=1 FINE_PREAD=1`（O_DIRECT + **pread v1**）时：
+
+| 指标 | 下限 | 实测锚点 (2026-07-31) |
+|------|------|----------------------|
+| QPS (1T, SIFT1M, REFINE_EF=100) | ≥ 115 | 118.2 |
+| Recall@10 | ≥ 95% | 95.75% |
+
+`READ_COALESCE=0` 时，所有现有 SLA（含 [[CON-SLA-011]]）不受影响。
+
+io_uring 路径（`FINE_PREAD=0`）的 coalescing SLA **尚未确立**（无实测）；aspirational
+目标只存在于 `spec/open/proposal-read-coalescing-v2.md`，MUST NOT 当作本条款 must。
+
+> rationale: SLA 只锚定已测路径。v1 pread 收益 +6–9%，下限取 118 附近留余量；
+> 不得把未交付的 v2 预期 (+30–50% / ≥160) 写进 must。
