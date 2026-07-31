@@ -1,7 +1,7 @@
 # Decisions — 架构决策记录
 
 ## D-001: 选择 hnswlib 作为建图引擎 {#DEC-001}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-ARCH-001,OBS-API-001 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=ARCH-001,API-001 source=observed -->
 
 **Context.** DiskHNSW 需要 HNSW 图结构来驱动搜索。`build_index.cpp` 和 `benchmark_hnswlib_native.cpp` 直接 include `hnswlib/hnswlib.h`。
 
@@ -11,7 +11,7 @@
 **Inferred from.** `hnswlib/` 目录存在、`Makefile` 中 `-I./hnswlib` 编译选项、`build_index.cpp` 和 `benchmark_hnswlib_native.cpp` 的 `#include "hnswlib/hnswlib.h"`。(inferred)
 
 ## D-002: 选择 faiss 做 PQ 训练 {#DEC-002}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-API-003,OBS-BEH-005 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=API-003,BEH-005 source=observed -->
 
 **Context.** PQ 编码需要训练 codebook + 编码所有向量。`train_pq.py` 和 `gen_gt.py` 都 import faiss。
 
@@ -21,7 +21,7 @@
 **Inferred from.** `scripts/train_pq.py:33` (`import faiss`), `scripts/gen_gt.py:26` (`import faiss`)。(inferred)
 
 ## D-003: 选择 io_uring 而非 libaio {#DEC-003}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-ARCH-001,OBS-DEF-011 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=ARCH-001,DEF-011 source=observed -->
 
 **Context.** 异步 I/O 预取需要高效的内核接口。代码自行封装了 raw `io_uring_setup(2)` 系统调用，未使用 liburing。
 
@@ -31,7 +31,7 @@
 **Inferred from.** `io_uring_wrapper.h:3-5`（"No external liburing dependency required"），`src/core/graph_prefetcher.cpp` 中 io_uring 的预取逻辑。(inferred)
 
 ## D-004: 选择 dual-route-table 修复 FINE_RERANK bug {#DEC-004}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-007,OBS-DEF-010 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=BEH-007,DEF-010 source=observed -->
 
 **Context.** blocks 文件（含邻接表，8651 块）和 vecblocks 文件（仅向量，7937 块）因元数据大小不同，同一 node 在两文件里 block_id 不一致。原代码用 blocks 的 route_table 索引 vecblocks，导致读到错误向量。
 
@@ -41,7 +41,7 @@
 **Inferred from.** README P0.5 章节、"fix(FINE_RERANK)" commit `1906400`、`disk_hnsw.h:266` 的 `vec_route_table_` 成员。(inferred)
 
 ## D-005: 选择 CSR Delta+Varint 而非 BVGraph 压缩 {#DEC-005}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEF-008,OBS-DEF-009 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=DEF-008,DEF-009 source=observed -->
 
 **Context.** L0 邻接表 84MB 需要压缩以降低常驻内存。分析了 BFS-ordered CSR 的 delta 分布（4.2% delta=1, 32% delta<1024, 68% delta≥1024）。
 
@@ -51,7 +51,7 @@
 **Inferred from.** README P0 章节、`common.h:171-198` 的 `delta_varint_encode/decode` 函数、`common.h:24` 的 `FORMAT_VERSION_COMPRESSED = 2`。(inferred)
 
 ## D-006: BFS 重排作为默认布局策略 {#DEC-006}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEF-003,OBS-ARCH-004 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=DEF-003,ARCH-004 source=observed -->
 
 **Context.** 向量在磁盘上的排列顺序影响块内命中率。`BfsLayoutProvider` 是唯一实际使用的路由表加载器。
 
@@ -61,7 +61,7 @@
 **Inferred from.** `bfs_reorder.cpp` 存在、`BfsLayoutProvider` 是 `BlockCache` 向后兼容构造函数的默认选择（`block_cache.cpp:148`）、`RandomLayoutProvider` 仅用于对照实验。(inferred)
 
 ## D-007: 选择 C++17 + g++ 而非 Clang {#DEC-007}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-CON-006 source=observed -->
+<!-- ndf: kind=decision date=2026-07-28 affects=CON-006 source=observed -->
 
 **Context.** 需要 C++17 特性（`std::optional`, structured bindings, `if constexpr`）和 AVX2 intrinsics。
 
@@ -73,12 +73,12 @@
 ---
 
 <!-- ════════════════════════════════════════════════════════════════ -->
-<!-- INTENT- 条款：基于全局理解的选型理由补充                    -->
+<!-- deduced 条款：基于全局理解的选型理由补充                    -->
 <!-- source=deduced 表示条款源自架构推理，非从代码直接提取         -->
 <!-- ════════════════════════════════════════════════════════════════ -->
 
 ## D-008: 两阶段搜索作为当前最优搜索配置 {#DEC-008}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-002 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=BEH-002 source=deduced -->
 
 **Context.** [[BEH-002]] 显示 `searchKnn()` 有 5 种搜索模式（TwoStage/Beam/NonBlock/
 BatchIO/Default），由环境变量分支选择。**两阶段搜索是 5 种模式之一，并非唯一的架构路径。**
@@ -113,7 +113,7 @@ BatchIO/Default），由环境变量分支选择。**两阶段搜索是 5 种模
 > 磁盘 I/O 是按需的（只读候选）。在 CPU 富余、内存稀缺的场景下，这是正确交换。
 
 ## D-009: 选择 4KB 页粒度而非 64KB block 粒度做精排 {#DEC-009}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-BEH-007,OBS-DEF-006 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=BEH-007,DEF-006 source=deduced -->
 
 **Context.** Phase B 精排需要读取候选向量的真实数据。有两种粒度可选：
 - 按 64KB block 读（BlockCache 已有的机制）
@@ -158,7 +158,7 @@ Jaccard = 0.023 的数据分析。以下为事后技术观测，非原始决策�
 > ~~原版本声称“与六边形架构兼容”已删除：决策时六边形架构概念不存在~~
 
 ## D-011: BFS 重排作为默认布局的架构理由 {#DEC-011}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-006,INTENT-ARCH-003 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=DEC-006,ARCH-005 source=deduced -->
 
 **Context.** [[DEC-006]] 记录了 BFS vs Random vs Hilbert 的选择。补充架构理由。
 
@@ -175,7 +175,7 @@ Jaccard = 0.023 的数据分析。以下为事后技术观测，非原始决策�
    不需要动态重排或自适应布局
 
 ## D-012: 双路由表分离作为显式映射原则 {#DEC-012}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-004,INTENT-ARCH-004 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=DEC-004,ARCH-007 source=deduced -->
 
 **Context.** [[DEC-004]] 记录了 `vec_route_table_` 的引入。补充架构层面的原则。
 
@@ -193,7 +193,7 @@ Jaccard = 0.023 的数据分析。以下为事后技术观测，非原始决策�
 > 是 4MB 内存，收益是消除一整类数据一致性 bug。
 
 ## D-013: 选择 io_uring 原生 syscall 而非 liburing 的架构理由 {#DEC-013}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-DEC-003 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=DEC-003 source=deduced -->
 
 **Context.** [[DEC-003]] 记录了 io_uring vs libaio 的选择。补充不用 liburing 的理由。
 
@@ -208,7 +208,7 @@ Jaccard = 0.023 的数据分析。以下为事后技术观测，非原始决策�
 API（setup/enter/mmap）自 Linux 5.1 起稳定，变更风险低。
 
 ## D-014: PQ M=32 的选择理由 {#DEC-014}
-<!-- ndf: kind=decision date=2026-07-28 affects=OBS-CON-005,OBS-BEH-005 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=CON-005,BEH-005 source=deduced -->
 
 **Context.** SIFT 128 维向量，PQ 参数 M 决定每向量压缩后的字节数和距离计算次数。
 M=32 意味着 dsub=4（128/32），每子空间 4 维。
@@ -259,7 +259,7 @@ M=32 意味着 dsub=4（128/32），每子空间 4 维。
 > 注意：这是 benchmark 经验值，非代码默认值。
 
 ## D-016: 选择 cgroup v2 而非 v1 作为内存限制机制 {#DEC-016}
-<!-- ndf: kind=decision date=2026-07-28 affects=INTENT-CHR-003 source=deduced -->
+<!-- ndf: kind=decision date=2026-07-28 affects=CHR-006 source=deduced -->
 
 **Context.** 项目使用 `systemd-run --user -p MemoryMax=512M` 限制内存，这依赖 cgroup v2。
 
@@ -559,7 +559,12 @@ PQ ADC 距离的量化误差导致 top-K 候选持续抖动，hash 和 lowerBoun
 > 而是"什么规模切换到什么方法"的路线图问题。
 
 ## D-027: 用户态 I/O 在大规模时的必要性评估 {#DEC-027}
-<!-- ndf: kind=decision date=2026-07-29 source=deduced derived-from=REF-HELMSMAN,DEC-009 -->
+<!-- ndf: kind=decision date=2026-07-29 status=superseded-by=DEC-030 source=deduced derived-from=REF-HELMSMAN,DEC-009 -->
+
+> **Status:** `superseded-by=DEC-030`（2026-07-31 NDF hygiene）。
+> 本决策第 3 点“当前不引入 O_DIRECT”已被 [[DEC-030]]（FINE_DIRECT 诊断）、
+> [[DEC-039]] / [[DEC-057]]（诚实基准）取代。SPDK / P3 评估意图由 DEC-030 §4 继承。
+> 下文保留为历史上下文，不再作为现行 I/O 真相源。
 
 **Context.** HELMSMAN 论文验证了内核 I/O 栈（含 io_uring）仅利用 SSD 带宽的
 26-59%，而 SPDK 用户态 I/O 可达 85%（Gen4）和 70%（Gen5）。
@@ -659,8 +664,9 @@ DEEP10M (10M): PQ[80%] + 图[13%] + I/O[7%]   → Page Shuffle 无效
    - **内存压力**: CSR 邻接表 1.2GB，无法在 1GB cgroup 运行
    - **图遍历**: ~13% query 时间，仍有优化空间
 
-3. **P2 目标重新校准**:
-   - Recall ≥94%（接受 M=32 PQ 的固有精度上限）
+3. **P2 目标重新校准**（**P2 过渡验收**，不覆盖 Charter ≥95% SoT）:
+   - Recall ≥94% 作为 P2 阶段过渡验收下限（接受 M=32 PQ 固有精度上限）；
+     生产 / Charter / CON 仍以 ≥**95%** 为 SoT（见 [[CHR-006]]、[[CHR-007]]）
    - QPS 目标从 >500 调整为按比例缩放（4T 预期 ~300 QPS）
    - 内存目标从 1GB cgroup 放宽到 3GB+
 

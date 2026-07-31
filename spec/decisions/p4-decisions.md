@@ -2,12 +2,12 @@
 
 > 日期: 2026-07-31
 > 关联: DEC-030 (O_DIRECT 诊断模式), DEC-039 (诚实协议)
-> 验证报告: spec/open/validation-odirect-20260731.md
+> 验证报告: spec/archive/2026-07/validation-odirect-20260731.md
 
 ---
 
 ## D-057: O_DIRECT 诚实基准测试 - Page Cache 水分量化 {#DEC-057}
-<!-- ndf: kind=decision date=2026-07-31 affects=DEC-030,DEC-039,CHR-003,CON-HONEST-002 source=observed -->
+<!-- ndf: kind=decision date=2026-07-31 affects=DEC-030,DEC-039,CHR-006,CON-HONEST-002 source=observed -->
 
 **Context.** DEC-039 确立了诚实协议 (drop_caches + posix_fadvise), 但只解决查询间
 page cache 复用。CON-HONEST-002 要求同时报告 Buffered 和 O_DIRECT 两组数字。

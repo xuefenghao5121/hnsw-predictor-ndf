@@ -34,16 +34,19 @@ DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数�
 ---
 
 <!-- ════════════════════════════════════════════════════════════════ -->
-<!-- INTENT- 条款:基于 README、代码结构和性能数据的推断性规范   -->
+<!-- deduced 条款:基于 README、代码结构和性能数据的推断性规范   -->
 <!-- source=deduced 表示条款源自全局理解,非从单一代码实体提取 -->
 <!-- ════════════════════════════════════════════════════════════════ -->
-<!-- INTENT-CHR-001 和 INTENT-CHR-002 已删除（裁决：文档意淫，无部署/用户数据支撑） -->
+<!-- 原 CHR 用户/部署意图条款已删除（裁决：文档意淫，无部署/用户数据支撑） -->
 <!-- ════════════════════════════════════════════════════════════════ -->
 
-## 关键性能承诺 {#CHR-003}
+## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011 -->
 
-DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标:
+DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）：
+
+### Buffered（`FINE_BUFFERED=1`，生产推荐）
 
 | 指标 | 值 | 条件 | 验证方式 |
 |------|-----|------|----------|
@@ -53,11 +56,22 @@ DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标:
 | RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
 | 内存节省 | ≥ 2.5x | vs hnswlib 726MB | 对比测试 |
 
+### Honest / O_DIRECT（`FINE_DIRECT=1`，诚实下限）
+
+| 指标 | 值 | 条件 | 验证方式 |
+|------|-----|------|----------|
+| Recall@10 | ≥ 95% | 512MB cgroup | benchmark vs GT |
+| QPS (单线程) | ≥ 100 | 512MB cgroup（实测 2026-07-31: 130） | benchmark |
+| QPS (4 线程) | ≥ 400 | 512MB cgroup（实测 2026-07-31: 502） | benchmark |
+| RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
+
+仅报告 Buffered 数字时 MUST 附带声明：page cache 与匿名内存共享 cgroup 预算（[[CON-HONEST-002]]）。
+
 > rationale: 95% recall 是生产可接受的最低召回率阈值;
-> 2000 QPS 是单线程交互式搜索的可用阈值(<0.5ms 延迟)。
+> Buffered 2000 QPS 是交互式可用阈值; Honest 下限锚定 O_DIRECT 实测，消除无模式 QPS 双重真相。
 
 ## 演进路线意图（探索性设想） {#CHR-004}
-<!-- ndf: kind=arch level=may layer=L0 status=exploratory since=0.2 source=deduced -->
+<!-- ndf: kind=arch level=may layer=L0 status=draft since=0.2 source=deduced -->
 
 > ⚠️ **探索性设想标签**：本条款无设计文档或代码支撑，仅为方向性思考。
 > P0-P2 已完成并验证；P3-P5 为未落地的规划构想，不构成规范性承诺。
@@ -82,7 +96,7 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 ## 设计约束(推断) {#CHR-005}
 <!-- ndf: kind=constraint level=should layer=L0 status=stable since=0.2 source=deduced -->
 
-除 [[CHR-004]] 的硬约束外,以下软约束指导设计决策:
+除 [[CHR-007]] 的硬约束外,以下软约束指导设计决策:
 
 1. ~~**零外部运行时依赖**~~（已删除：裁决--伪约束，非主动设计，是 hnswlib header-only 特性的副产物）
 2. **Linux 优先**:不追求跨平台,利用 io_uring、O_DIRECT、cgroup v2 等 Linux 特有能力
@@ -90,7 +104,7 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 4. **离线索引构建**:搜索是在线路径,索引构建是离线 batch。不追求在线插入性能
 5. **可测量性**:每个优化 SHOULD 有 benchmark 数据支撑。未达预期的优化（如 `FINE_MERGE`、`SPEC_PREFETCH`）默认关闭并记录原因。这是理想目标而非强制纪律--代码中无机制阻止无 benchmark 的合入
 
-## 设计约束 {#CHR-004}
+## 设计约束 {#CHR-007}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.1 source=observed -->
 
 1. 常驻内存 MUST ≤ cgroup MemoryMax(典型 512MB)

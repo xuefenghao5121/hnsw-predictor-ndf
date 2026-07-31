@@ -10,7 +10,7 @@
 | PQ 搜索质量 | `test_pq_search_quality.cpp` | PQ ADC 距离 vs 真实 L2、recall@10 | 手动检查输出 |
 
 ## test_block_cache 断言提取 {#VER-002}
-<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-009,OBS-BEH-010 -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=BEH-009,BEH-010 -->
 
 ### test_basic_loading (`test_block_cache.cpp:91-106`)
 
@@ -42,7 +42,7 @@
 - [ ] 对所有节点 (0..N-1) 验证上述一致性
 
 ## test_disk_hnsw 断言提取 {#VER-003}
-<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-001,OBS-BEH-003 -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=BEH-001,BEH-003 -->
 
 ### recall 一致性 (`test_disk_hnsw.cpp`)
 
@@ -61,7 +61,7 @@
 - [ ] `--policy=lru|lfu|lru-k` MUST 创建对应的 ReplacementPolicy
 
 ## benchmark 正确性条件 {#VER-004}
-<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-013 -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.1 source=observed verifies=BEH-013 -->
 
 ### recall 计算 (`benchmark_diskhnsw.cpp`)
 
@@ -84,7 +84,7 @@
 - [ ] MUST 多轮取峰值 QPS（排除调频抖动）
 
 ## PQ 质量自检 {#VER-005}
-<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.1 source=observed verifies=OBS-BEH-005 -->
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.1 source=observed verifies=BEH-005 -->
 
 ### train_pq.py 自检 (`train_pq.py:122-138`)
 
@@ -99,7 +99,7 @@
 - [ ] GT 的 true_dist 和 pq_dist MUST 同时打印用于人工对比
 
 ## DEC-017 Page Search 验证 {#VER-006}
-<!-- ndf: kind=verif level=must layer=L3 status=draft since=0.2 verifies=BEH-014,BEH-014-L2 -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.2 verifies=BEH-014,BEH-014-L2 -->
 
 ### 功能验证 (benchmark 手工执行)
 
@@ -126,7 +126,7 @@
 - [ ] `pageSearchScan()` 的页号计算 MUST 正确跳过文件头区域 (pg_off < 4096)
 
 ## DEC-019 Dynamic Width 验证 {#VER-007}
-<!-- ndf: kind=verif level=must layer=L3 status=draft since=0.2 verifies=BEH-015,BEH-015-L2 -->
+<!-- ndf: kind=verif level=may layer=L3 status=deprecated since=0.2 verifies=BEH-015,BEH-015-L2 -->
 
 ### 功能验证
 
@@ -165,23 +165,26 @@
 
 ## 冷 I/O 模式验证用例
 
-### DEC-021: Page Cache 驱逐
+### Page Cache 驱逐 {#VER-021}
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.3 verifies=BEH-016,CON-SLA-010 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| 热态基线 | EVICT_PAGE_CACHE=0 | QPS ≥ 2000 | 2083 | ✅ |
+| 热态基线 | EVICT_PAGE_CACHE=0 | Buffered QPS ≥ 2000 | 2083 | ✅ |
 | 冷态基线 | EVICT_PAGE_CACHE=1 | QPS 200-1000 (I/O 主导) | 842 | ✅ |
 | 冷态 recall | EVICT_PAGE_CACHE=1 | recall ≥ 95% | 95.70% | ✅ |
 | 冷态 RSS | EVICT_PAGE_CACHE=1 | RSS ≤ 300MB | 269MB | ✅ |
 
-### DEC-022: 冷态 Page Search
+### 冷态 Page Search {#VER-022}
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.3 verifies=BEH-014,CON-SLA-008 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
 | recall 提升 | EVICT+PS | ≥ 96% | 96.20% | ✅ |
 | QPS 下降 | EVICT+PS vs EVICT | ≤ 5% | 5.9% | ⚠️ 接近 |
 
-### DEC-024: Dynamic Width 最终确认
+### Dynamic Width 最终确认 {#VER-024}
+<!-- ndf: kind=verif level=may layer=L3 status=deprecated since=0.3 verifies=BEH-015,DEC-024 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -189,7 +192,7 @@
 | 冷态无效 | EVICT+DW | 无效果 | converge=0 | 正式放弃 |
 
 ### VER-018: Page Shuffle 页聚类质量 {#VER-018}
-<!-- ndf: kind=verif verifies=DEC-018 -->
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.3 verifies=DEC-018 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -199,7 +202,8 @@
 | 冷态 QPS | shuffled vs original (cold) | ≥ original QPS | 820 vs 803 | ✅ |
 | 工具耗时 | 1M vectors | < 5s | 1.65s | ✅ |
 
-### DEC-025: Page Shuffle + Page Search 组合
+### Page Shuffle + Page Search 组合 {#VER-025}
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.3 verifies=BEH-014,CON-SLA-010 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -207,21 +211,27 @@
 | QPS vs PS only | shuffled+PS vs PS | ≥ PS QPS | 797 vs 789 | ✅ |
 | SLA 全部达标 | shuffled+PS (cold) | recall ≥ 95%, QPS ≥ 500 | 96.05%, 797 | ✅ |
 
-### VER-030: Page Cache + Disk 两层 I/O 架构 {#VER-030}
-<!-- ndf: kind=verif verifies=DEC-030 -->
+### VER-030: Page Cache + Disk 两层 I/O / 诚实双轨 {#VER-030}
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-030,CON-HONEST-002,CON-SLA-011,CHR-006 -->
+
+> **双轨说明**：早期诊断行曾报 FINE_DIRECT≈787 QPS（半暖/不同协议）。
+> 2026-07-31 诚实 O_DIRECT（drop_caches + `FINE_DIRECT=1`）锚点为 **130 QPS (1T)** /
+> **502 QPS (4T)**（见 `archive/2026-07/validation-odirect-20260731.md`）。
+> Honest 期望值 MUST 对齐 [[CON-SLA-011]]，不得再用 787 作为 Honest SoT。
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| SIFT1M recall | FINE_BUFFERED（默认） | ≥ 95% | 95.70% | ✅ |
-| SIFT1M QPS | FINE_BUFFERED（默认） | ≥ 2000 | 2,041 | ✅ |
-| FINE_DIRECT recall | FINE_DIRECT=1 (诊断) | ≥ 95% | 95.70% | ✅ |
-| FINE_DIRECT QPS | FINE_DIRECT=1 (诊断) | ≥ 500 | 787 | ✅ |
-| O_DIRECT 路径正确性 | FINE_DIRECT=1 | I/O 延迟 > 0.5ms | 0.78ms/query | ✅ |
-| 默认模式不退化 | FINE_BUFFERED vs baseline | QPS ≥ baseline | 2041 vs 2080 | ✅ |
+| Buffered recall | FINE_BUFFERED=1 | ≥ 95% | 95.70% | ✅ |
+| Buffered QPS (1T) | FINE_BUFFERED=1 | ≥ 2000 ([[CHR-006]] Buffered) | 2450 (2026-07-31) / 2041 (早期) | ✅ |
+| Honest recall | FINE_DIRECT=1 | ≥ 95% | 95.70% | ✅ |
+| Honest QPS (1T) | FINE_DIRECT=1 | ≥ 100 ([[CON-SLA-011]]) | **130** (2026-07-31) | ✅ |
+| Honest QPS (4T) | FINE_DIRECT=1 | ≥ 400 ([[CON-SLA-011]]) | **502** (2026-07-31) | ✅ |
+| O_DIRECT 路径正确性 | FINE_DIRECT=1 | I/O 主导延迟 | 7.69ms/query (1T) | ✅ |
+| 默认模式不退化 | FINE_BUFFERED vs 历史基线 | QPS ≥ 2000 | 2450 / 2041 | ✅ |
 | 诊断模式可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
 
 ### VER-031: 页面级驱逐消除 Cgroup 颠簸 {#VER-031}
-<!-- ndf: kind=verif verifies=DEC-031 -->
+<!-- ndf: kind=verif level=should layer=L3 status=draft since=0.4 verifies=DEC-031 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -232,11 +242,11 @@
 | 悬崖消除 | 180MB FINE_ADVISE vs baseline | QPS 10× 改善 | — | 待测 |
 
 ### VER-033: CSR 图裁剪内存压缩 {#VER-033}
-<!-- ndf: kind=verif verifies=DEC-033 -->
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.4 verifies=DEC-033 -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| recall | Degree Cap K=20 | ≥ 95% | 94.15% | ⚠️ 未达, K=22 待测 |
+| recall | Degree Cap K=20 | ≥ 95% (Charter SoT) | 94.15% | ⚠️ 未达, K=22 待测 |
 | CSR 大小 | Degree Cap K=20 | < 30MB | 44MB | ⚠️ 节省 3MB 有限 |
 | 180MB cgroup QPS | CAP=20, 180MB | ≥ 800 | 935 | ✅ |
 | 悬崖消除 | CAP20 vs Original @180MB | 4×+ | 4.7× (196→935) | ✅ |

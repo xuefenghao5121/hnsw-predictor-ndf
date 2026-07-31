@@ -1,3 +1,6 @@
+> Status: superseded-by=DEC-030,DEC-057 (archived 2026-07-31)
+> Note: FINE_DIRECT diagnostic + honest bench replaced zero-page-cache production push.
+
 # Proposal: O_DIRECT io_uring 零 Page Cache 架构 {#PROP-DIRECT-IO}
 
 > 关联决策: DEC-030

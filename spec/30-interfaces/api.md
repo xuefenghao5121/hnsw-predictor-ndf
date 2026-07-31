@@ -174,16 +174,28 @@ Offset   Size   Field
 4096+BS  block_size  Block[1]
 ...
 
-Per Block:
+Per Block (标准 BlockHeader, 24B):
   0        4      block_id
   4        4      node_count
   8        4      data_offset
   12       4      adj_offset
-  16       1      flags (bit0: delta_varint, bit1: vec_only)
+  16       1      flags (bit0: delta_varint；bit1 在标准头中不作为 VecOnly 判定依据)
   17       7      reserved_pad
   24       var    node_ids[count]
   data_off var    vectors[count*dim]
   adj_off  var    adjacency lists
+
+Per Block (VecOnlyHeader, 16B) — `write_blocks_veconly` / Fine Rerank 向量块:
+  0        4      block_id
+  4        4      node_count
+  8        4      data_offset
+  12       4      flags (u32；bit1 = FLAG_VEC_ONLY=0x02 MUST 置位)
+  16       var    node_ids + vectors（无邻接表）
+
+> L1 澄清（原 CONFLICT-001）: VecOnly 与标准 Block **不是**同一 header。
+> 判定 MUST 先按 VecOnlyHeader 在 offset 12 读 `flags:u32` 检测 `FLAG_VEC_ONLY`；
+> 未置位时再按标准 BlockHeader 解析。禁止仅依赖标准头 offset 16 的 `flags:u8`
+> 或把标准头 `adj_offset` 低位误当作 VecOnly 标志（见 [[BEH-009]]）。
 ```
 
 ### Route Table (MAGIC_ROUTE = 0x524F5554)
@@ -311,7 +323,7 @@ class BlockCache {
 ```
 
 ## 实验性环境变量 (DEC-017, DEC-019) {#API-007}
-<!-- ndf: kind=req level=should layer=L1 status=draft since=0.2 source=deduced -->
+<!-- ndf: kind=req level=should layer=L1 status=stable since=0.2 source=deduced -->
 
 ### PAGE_SEARCH (DEC-017)
 

@@ -1,7 +1,9 @@
+> Status: Resolved on 2026-07-31 — SoT is ARCH-007 tech-debt row (NDF hygiene)
+
 # Conflict: BLOCKS_FILE_HEADER_SIZE 语义不一致
 
 ## 发现 {#CONFLICT-002}
-<!-- ndf: kind=info layer=L2 status=draft since=0.1 source=observed -->
+<!-- ndf: kind=info layer=L2 status=resolved since=0.1 source=observed -->
 
 **冲突描述**: `BLOCKS_FILE_HEADER_SIZE` 定义为 `4096`（`common.h:31`），注释为 "Blocks 文件头部保留大小（4096 字节，O_DIRECT 对齐）。实际 BlocksFileHeader 只有 16 字节，但文件中保留 4096 字节"。
 

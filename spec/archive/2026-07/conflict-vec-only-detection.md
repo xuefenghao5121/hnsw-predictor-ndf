@@ -1,7 +1,9 @@
+> Status: Resolved on 2026-07-31 — elevated into BEH-009 / API-004 (NDF hygiene)
+
 # Conflict: FLAG_VEC_ONLY 定义位置与使用不一致
 
 ## 发现 {#CONFLICT-001}
-<!-- ndf: kind=info layer=L2 status=draft since=0.1 source=observed -->
+<!-- ndf: kind=info layer=L2 status=resolved since=0.1 source=observed -->
 
 **冲突描述**: `FLAG_VEC_ONLY = 0x02` 在 `common.h:79` 定义为 BlockHeader flags 字段的位标志。但在 `block_cache.cpp:401-403` 的 `parseBlock()` 中，用 `uint32_t` 读取 base+12 处的 flags 字段并检查 `FLAG_VEC_ONLY` 位：
 

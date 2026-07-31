@@ -1,7 +1,8 @@
 # Proposal: SLA 调整 -- Page Search / Dynamic Width 降级为实验性功能
 
 > 提案日期: 2026-07-29
-> Status: Pending
+> Status: Implemented on 2026-07-31
+> Note: clauses already in 40-constraints/; archived by NDF hygiene
 > 关联: proposal-fine-rerank-io-optimization.md, perf-20260729.md
 
 ## 背景

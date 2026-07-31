@@ -40,6 +40,7 @@ DiskHNSW 搜索 MUST 遵循以下状态转移：
 
 ## Layer 0 搜索核心循环 {#BEH-003}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 所有 `searchLayer0*` 变体 MUST 使用相同的核心循环结构（`disk_hnsw.cpp:390-820`）：
 
@@ -60,6 +61,7 @@ while candidate_set not empty:
 
 ## 贪心下降 {#BEH-004}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 `greedyDescent()` (`disk_hnsw.cpp:343-384`) MUST:
 1. 从 `entry_point` 开始，从 `max_level` 向下到 Layer 1
@@ -69,6 +71,7 @@ while candidate_set not empty:
 
 ## PQ 距离计算 {#BEH-005}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 `pqDistance()` (`disk_hnsw.cpp:301-337`) MUST 分两条路径：
 
@@ -82,6 +85,7 @@ while candidate_set not empty:
 
 ## PQ 距离表构建 {#BEH-006}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-005 -->
 
 `buildPqDistTable()` (`disk_hnsw.cpp:244-299`) MUST 分支：
 - **`dsub == 4`**: AVX2 路径，一次处理 2 个 centroid (8 floats)，用 `_mm256_sub_ps` + `_mm256_mul_ps` + `_mm_hadd_ps` 水平加法
@@ -90,6 +94,7 @@ while candidate_set not empty:
 
 ## Fine Rerank 4KB 页计算 {#BEH-007}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 Fine Rerank (`disk_hnsw.cpp:1688-1913`) MUST 按以下公式计算 vecblocks 文件偏移：
 
@@ -104,6 +109,7 @@ cross = (oip + dim * sizeof(float)) > 4096  // 跨页检测
 
 ## 邻接表访问策略 {#BEH-008}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 `getInMemNeighbors()` (`disk_hnsw.h:333`) MUST 分三条路径：
 
@@ -113,18 +119,35 @@ cross = (oip + dim * sizeof(float)) > 4096  // 跨页检测
 2. **BlockCache fallback**: `CachedBlock::getNeighbors()`
 
 ## Block 解析分支 {#BEH-009}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
+<!-- ndf: depends-on=API-004 -->
+
+`BlockCache::parseBlock()` (`block_cache.cpp:395-557`) MUST 按下列 **L1 判定契约** 分支
+（原 CONFLICT-001 提升；布局见 [[API-004]]）：
+
+1. **VecOnly 判定（先于标准头）**：按 VecOnlyHeader 在 offset 12 读取 `flags:u32`；
+   若 `(flags & FLAG_VEC_ONLY) != 0`，则 MUST 按 Vec-only 格式解析
+   （16B header + node_ids + vectors，无邻接表）。
+2. **标准 / PQ 格式（VecOnly 未置位后）**：
+   - **PQ 模式**（`data_offset == 0`）：BlockHeader + node_ids + adj_lists，无向量
+   - **标准格式**（`data_offset > 0`）：
+     - 压缩格式（`FLAG_NEIGHBOR_DELTA_VARINT`）：解码 delta+varint 邻居
+     - 原始格式：uint32 数组邻居
+
+> rationale: 标准 BlockHeader 的 `flags:u8` 位于 offset 16；若误用 offset 12 的
+> `adj_offset` 低位检测 `FLAG_VEC_ONLY`，存在把普通块误判为 VecOnly 的理论风险。
+> 现行实现以 VecOnlyHeader 语义做先检后解析；长期 MAY 引入独立 magic 进一步硬化。
+
+### Block 解析机制 {#BEH-009-L2}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-009 -->
 
-`BlockCache::parseBlock()` (`block_cache.cpp:395-557`) MUST 检测并分支：
-
-1. **Vec-only 格式**（`FLAG_VEC_ONLY` 位设置）：16B header + node_ids + vectors，无邻接表
-2. **PQ 模式**（`data_offset == 0`）：BlockHeader + node_ids + adj_lists，无向量
-3. **标准格式**（`data_offset > 0`）：
-   - 压缩格式（`FLAG_NEIGHBOR_DELTA_VARINT`）：解码 delta+varint 邻居
-   - 原始格式：uint32 数组邻居
+机制细节（observed）：`parseBlock()` 先 `memcpy` offset 12 的 u32 做 VecOnly 检测，
+未命中再按 24B BlockHeader 继续解析邻接/向量区。
 
 ## 缓存替换状态转移 {#BEH-010}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 BlockCache MUST 在缓存满时通过以下流程淘汰：
 
@@ -156,6 +179,7 @@ getBlockByNodeId / getBlockById:
 
 ## 跨页向量拼接 {#BEH-011}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-007 -->
 
 当向量跨越 4KB 页边界时（`slot % 8 == 6`，SIFT dim=128, data_offset=520），Fine Rerank MUST：
 1. 从 page0 读取 `4096 - oip` 字节
@@ -165,11 +189,13 @@ getBlockByNodeId / getBlockById:
 
 ## 投机预取节流 {#BEH-012}
 <!-- ndf: kind=req level=may layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 `SPEC_PREFETCH=1` 时，PQ 模式下每 16 个 top_candidates 更新触发一次投机预取（`disk_hnsw.cpp:688-705`）：收集当前 top_candidates 中不在缓存的 blocks，批量提交 io_uring 预取。使用 `spec_pf_counter_` 节流。
 
 ## QPS/Recall/RSS 指标提取 {#BEH-013}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
+<!-- ndf: refines=BEH-001 -->
 
 benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
 1. Warmup: CPU spin + 全 query 预跑一轮
@@ -179,8 +205,8 @@ benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
 5. 多轮取峰值（排除调频噪声）
 
 ## Page Search 行为 {#BEH-014}
-<!-- ndf: kind=req level=L1 status=draft since=0.2 source=deduced -->
-<!-- refines: DEC-017 -->
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.2 source=deduced -->
+<!-- ndf: refines=BEH-001 depends-on=DEC-017 -->
 
 当 `PAGE_SEARCH=1` 时，Fine Rerank MUST 在读取每个 4KB 页后，扫描页内所有向量计算精确 L2 距离并插入候选集。
 
@@ -193,8 +219,8 @@ benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
 > 当前状态: recall +0.5pp (96.20%), QPS -11% (1832). 降级为实验性 SHOULD, 见 [[DEC-020]] [[CON-SLA-008]].
 
 ### Page Search 扫描实现 {#BEH-014-L2}
-<!-- ndf: kind=req level=L2 status=draft since=0.2 source=observed -->
-<!-- refines: BEH-014 -->
+<!-- ndf: kind=req level=must layer=L2 status=stable since=0.2 source=observed -->
+<!-- ndf: refines=BEH-014 -->
 
 `pageSearchScan(pg, page_data, page_len)` 在 `disk_hnsw.cpp:1757` 中定义，MUST 按以下步骤扫描页内所有向量：
 
@@ -236,22 +262,25 @@ benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
    - `PROFILE_FINE=1` 时额外输出 `ps_extra` (每 query 额外考虑向量数) 和 `ps_hits` (命中 top-K 数)
 
 ## Dynamic Width 行为 {#BEH-015}
-<!-- ndf: kind=req level=L1 status=draft since=0.2 source=deduced -->
-<!-- refines: DEC-019 -->
+<!-- ndf: kind=req level=may layer=L1 status=deprecated since=0.2 source=deduced -->
+<!-- ndf: refines=BEH-001 depends-on=DEC-019,DEC-024 -->
+
+> **Deprecated:** [[DEC-024]] 正式放弃 Dynamic Width（PQ 粗筛不收敛为架构特性）。
+> 代码默认 `DYNAMIC_WIDTH=0`，保留实现供实验，不纳入 SLA。
 
 当 `DYNAMIC_WIDTH=1` 时，Phase A 搜索 MUST 使用自适应 efSearch 宽度：搜索初期使用全宽度，候选集收敛后逐步收窄。
 
-**L1 契约**：
+**L1 契约**（历史；现行默认关闭）：
 - 收敛检测: 连续 `DW_CONVERGE_HOP` 跳 top-K 无变化时触发收窄
 - 收窄策略: efSearch 按几何衰减 `× DW_DECAY`，下限 `EF_SEARCH_MIN`
 - `DYNAMIC_WIDTH=0`（默认）时 MUST 使用固定 efSearch，行为与基线完全一致
 - 收窄后 MUST 更新 lowerBound 并裁剪 top_candidates
 
-> 当前状态: 实现完成但性能验证无效果（EF=50 搜索路径短，收敛阈值未触发），待更大 EF 场景验证。
+> 当前状态: 实现完成但性能验证无效果；已 deprecated。
 
 ### Dynamic Width 收敛检测实现 {#BEH-015-L2}
-<!-- ndf: kind=req level=L2 status=draft since=0.2 source=observed -->
-<!-- refines: BEH-015 -->
+<!-- ndf: kind=req level=may layer=L2 status=deprecated since=0.2 source=observed -->
+<!-- ndf: refines=BEH-015 -->
 
 收敛检测与宽度衰减在 `searchLayer0()` 的 while 循环末尾 (`disk_hnsw.cpp:826-848`) 执行：
 
@@ -295,8 +324,8 @@ benchmark MUST 在 `benchmark_diskhnsw.cpp` 中：
 
 
 ## Page Cache 驱逐行为 {#BEH-016}
-<!-- ndf: kind=req level=L1 status=stable since=0.3 source=deduced -->
-<!-- refines: DEC-021 -->
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.3 source=deduced -->
+<!-- ndf: refines=BEH-001 depends-on=DEC-021 -->
 
 当 `EVICT_PAGE_CACHE=1` 时，DiskHNSW MUST 在每次 `searchKnn()` 返回前对 vecblocks 文件
 调用 `posix_fadvise(fd, 0, 0, POSIX_FADV_DONTNEED)`，驱逐整个文件的 page cache。

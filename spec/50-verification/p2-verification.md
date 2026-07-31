@@ -1,7 +1,9 @@
 # P2 DEEP10M 验证用例
 
+> Note: 表中 ≥94% 行为 **P2 过渡验收**（[[DEC-029]]）；Charter / CON SoT 仍为 ≥95%（[[CHR-006]]）。
+
 ## VER-034: VisitedList uint32 -> uint8 {#VER-034}
-<!-- ndf: kind=verif verifies=DEC-034 source=observed -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-034 source=observed -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -12,20 +14,20 @@
 | 内存节省 (T=20) | VisitedList 总量 | ≤ 200MB | 200MB (vs 800MB) | ✅ |
 
 ## VER-035: FINE_PREAD io_uring bug 修复 {#VER-035}
-<!-- ndf: kind=verif verifies=DEC-035 source=observed -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-035,BEH-001 source=observed -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| io_uring EF=200 | FINE_PREAD=0 | 94.20% | 94.20% | ✅ (正常) |
-| io_uring EF=300 | FINE_PREAD=0 | ≥94% | 88.40% | ❌ (bug) |
-| io_uring EF=400 | FINE_PREAD=0 | ≥94% | 70.80% | ❌ (bug) |
-| pread EF=200 | FINE_PREAD=1 | 94.20% | 94.20% | ✅ |
-| pread EF=300 | FINE_PREAD=1 | ≥95% | 95.15% | ✅ |
-| pread EF=400 | FINE_PREAD=1 | ≥95% | 95.55% | ✅ |
+| io_uring EF=200 | FINE_PREAD=0 | 94.20% (P2 过渡) | 94.20% | ✅ (正常) |
+| io_uring EF=300 | FINE_PREAD=0 | ≥94% (P2 过渡) | 88.40% | ❌ (bug) |
+| io_uring EF=400 | FINE_PREAD=0 | ≥94% (P2 过渡) | 70.80% | ❌ (bug) |
+| pread EF=200 | FINE_PREAD=1 | 94.20% (P2 过渡) | 94.20% | ✅ |
+| pread EF=300 | FINE_PREAD=1 | ≥95% (Charter SoT) | 95.15% | ✅ |
+| pread EF=400 | FINE_PREAD=1 | ≥95% (Charter SoT) | 95.55% | ✅ |
 | 多线程安全 | FINE_PREAD=1, T=12 | recall 不变 | 95.15% | ✅ |
 
 ## VER-036: PQ dsub=3 SIMD {#VER-036}
-<!-- ndf: kind=verif verifies=DEC-036 source=observed -->
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.4 verifies=DEC-036,BEH-006 source=observed -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -34,7 +36,7 @@
 | QPS 提升 (T=12) | EF=300, T=12 | ≥ 0% | +1.4% (480->487) | ✅ |
 
 ## VER-037: DEEP10M cgroup 内存 {#VER-037}
-<!-- ndf: kind=verif verifies=DEC-037 source=observed -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-037,CHR-006 source=observed -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -49,14 +51,14 @@
 | hnswlib 2GB ef=200 | ef=200, 200q | OOM | SIGKILL | ✅ (DiskHNSW 优势) |
 
 ## VER-038: 图裁剪 10M 负结果 {#VER-038}
-<!-- ndf: kind=verif verifies=DEC-038 source=observed -->
+<!-- ndf: kind=verif level=should layer=L3 status=stable since=0.4 verifies=DEC-038 source=observed -->
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
-| R_max=24 recall | EF=300 | ≥95% | 94.90% | ⚠️ -0.25pp |
+| R_max=24 recall | EF=300 | ≥95% (Charter) / P2 过渡可接受 ≥94% | 94.90% | ⚠️ -0.25pp vs Charter |
 | R_max=24 recall | EF=400 | ≥95% | 95.30% | ✅ (需更高 EF) |
 | R_max=24 CSR | - | <591MB | 522MB (-69MB) | ✅ |
 | R_max=24 QPS | EF=300 | ≥590 | 624 (+6%) | ✅ |
-| R_max=20 recall | EF=300 | ≥94% | 94.45% | ⚠️ -0.7pp |
+| R_max=20 recall | EF=300 | ≥94% (P2 过渡) | 94.45% | ⚠️ -0.7pp vs Charter |
 | R_max=20 CSR | - | <522MB | 481MB (-110MB) | ✅ |
 | 结论 | - | 不合入主线 | recall 损失 > QPS 收益 | ✅ 决策 |

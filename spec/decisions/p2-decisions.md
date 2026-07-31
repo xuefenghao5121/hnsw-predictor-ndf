@@ -98,7 +98,7 @@ PQ distance lookup 是每邻居一次 (O(M) = 32 lookups)。
 > 这是 profiling 误导的典型案例--PQ 80% 包含了等待内存分配的 idle 时间。
 
 ## D-037: DEEP10M cgroup 内存目标重新校准 {#DEC-037}
-<!-- ndf: kind=decision date=2026-07-30 affects=CHR-003,CHR-004,CON-007 source=observed -->
+<!-- ndf: kind=decision date=2026-07-30 affects=CHR-006,CHR-004,CON-007 source=observed -->
 
 **Context.** CHR-004 设想 P2 在 1GB cgroup 下运行。实测发现 1GB 物理不可行:
 
@@ -157,3 +157,26 @@ PQ distance lookup 是每邻居一次 (O(M) = 32 lookups)。
 > 1M: 减少 RSS (page cache 颠簸) > 减少 QPS 损失
 > 10M: 维持 recall > 减少 RSS (cgroup 足够大)
 > 100M: 减少 CSR 磁盘 I/O > 维持 recall (CSR 不再常驻内存)
+
+## D-039: 诚实 I/O 测量协议 {#DEC-039}
+<!-- ndf: kind=decision date=2026-07-30 status=stable since=0.4 affects=DEC-021,DEC-030,CON-HONEST-002 source=deduced -->
+
+**Context.** 仅报告 Buffered QPS 会把 OS page cache 收益计入产品性能，
+造成 cgroup 预算与真实 I/O 成本失真。查询间 `drop_caches` /
+`posix_fadvise(DONTNEED)` 只能消除跨 query 复用；查询内 I/O 仍可走 page cache。
+
+**Decision.**
+
+1. 基准测试 MUST 支持诚实测量路径：
+   - **半诚实**：`drop_caches` + 可选 `FINE_FADVISE` / `EVICT_PAGE_CACHE`（查询间驱逐）
+   - **完全诚实**：`FINE_DIRECT=1`（O_DIRECT，查询内绕过 page cache）
+2. 性能报告 MUST 至少给出 Buffered 与 Direct 两组数字，或明确标注单模式及其局限
+   （契约化见 [[CON-HONEST-002]]）。
+3. 本协议的执行证据与水分量化见 [[DEC-057]]；O_DIRECT 诊断模式定位见 [[DEC-030]]。
+
+**Alternatives rejected.**
+- 只报 Buffered：违反诚实协议，掩盖 page cache 水分
+- 废弃 Buffered：page cache 在 cgroup 内合法，仍为生产推荐路径
+
+> rationale: 诚实协议先于 O_DIRECT 水分量化落盘；`DEC-039` 填补
+> `DEC-038`→`DEC-057` 间被多处引用却缺失的决策正文（见 adr-ndf-hygiene）。

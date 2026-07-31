@@ -63,3 +63,28 @@ LEB128 无符号整数变长编码 (`common.h:143-167`)。Delta+Varint 组合：
 <!-- ndf: kind=def layer=L2 status=stable since=0.1 source=observed -->
 
 Linux 5.1+ 内核异步 I/O 接口。`IoUring` 类 (`io_uring_wrapper.h`) 通过 `io_uring_setup(2)` + `mmap` SQ/CQ ring + `io_uring_enter(2)` 实现零外部依赖的异步 I/O。
+
+## DEF: Page Search {#DEF-012}
+<!-- ndf: kind=def layer=L1 status=stable since=0.2 source=deduced -->
+
+Fine Rerank 的 opt-in 扩展：读取每个 4KB 页后，扫描页内全部向量做精确 L2（不仅候选）。由 `PAGE_SEARCH=1` 开启；契约见 [[BEH-014]]，SLA 豁免见 [[CON-SLA-008]]。
+
+## DEF: Dynamic Width {#DEF-013}
+<!-- ndf: kind=def layer=L1 status=deprecated since=0.2 source=deduced -->
+
+Phase A 自适应 efSearch：收敛后几何衰减宽度。由 `DYNAMIC_WIDTH=1` 开启。[[DEC-024]] 已正式放弃（PQ 粗筛不收敛）；见 [[BEH-015]]（deprecated）。
+
+## DEF: FINE_DIRECT {#DEF-014}
+<!-- ndf: kind=def layer=L1 status=stable since=0.4 source=deduced -->
+
+环境变量 / 打开模式：`FINE_DIRECT=1` 时 vecblocks 以 `O_DIRECT` 读取，绕过 OS page cache。定位为诚实基准 / 诊断路径（[[DEC-030]]），非默认生产推荐。
+
+## DEF: Honest I/O {#DEF-015}
+<!-- ndf: kind=def layer=L1 status=stable since=0.4 source=deduced -->
+
+诚实测量协议：基准 MUST 报告 Buffered（`FINE_BUFFERED=1`）与 Direct（`FINE_DIRECT=1`）两组数据，或明确标注单模式局限。契约 [[CON-HONEST-002]]；决策 [[DEC-039]]；下限 [[CON-SLA-011]]。
+
+## DEF: cgroup MemoryMax {#DEF-016}
+<!-- ndf: kind=def layer=L1 status=stable since=0.2 source=deduced -->
+
+Linux cgroup v2 的 `memory.max`：同时限制匿名内存与 page cache（file）。DiskHNSW 部署与基准 MUST 在给定 MemoryMax 下运行；Buffered 模式的 page cache 计入同一预算（见 [[CON-HONEST-002]]）。
