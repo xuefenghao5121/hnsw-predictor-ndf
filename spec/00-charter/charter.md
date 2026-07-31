@@ -1,9 +1,14 @@
 # Charter - 系统目标与范围
 
 ## 系统目标 {#CHR-001}
-<!-- ndf: kind=arch level=L0 layer=L0 status=stable since=0.1 source=observed -->
+<!-- ndf: kind=arch level=must layer=L0 status=stable since=0.1 source=observed -->
+<!-- ndf: depends-on=DEC-059 -->
 
 DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数据,实现与全内存 HNSW 可比的向量搜索召回率(≥95%),同时将常驻内存控制在限额内。
+
+cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；可用 page cache
+预算 = limit − RSS。默认搜索路径可为 Buffered；**优化与诚实验收的性能地板**以
+O_DIRECT（`FINE_DIRECT=1`）为准（[[DEC-059]]）。
 
 **核心业务实体(从代码强行归纳):**
 
@@ -42,11 +47,15 @@ DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数�
 
 ## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
-<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011 -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,DEC-059 -->
 
-DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）：
+DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
 
-### Buffered（`FINE_BUFFERED=1`，生产推荐）
+**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化优先级与诚实验收地板**以
+O_DIRECT（`FINE_DIRECT=1`）为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]]
+（非本条款 must 数字）。
+
+### Buffered（`FINE_BUFFERED=1`，生产默认）
 
 | 指标 | 值 | 条件 | 验证方式 |
 |------|-----|------|----------|
@@ -56,7 +65,9 @@ DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按
 | RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
 | 内存节省 | ≥ 2.5x | vs hnswlib 726MB | 对比测试 |
 
-### Honest / O_DIRECT（`FINE_DIRECT=1`，诚实下限）
+Buffered 模式下 page cache 与匿名内存共享 cgroup 预算，运行过程中峰值内存（anon + file）MUST NOT 超过 cgroup 限制。
+
+### Honest / O_DIRECT（`FINE_DIRECT=1`，性能地板）
 
 | 指标 | 值 | 条件 | 验证方式 |
 |------|-----|------|----------|
@@ -69,6 +80,7 @@ DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按
 
 > rationale: 95% recall 是生产可接受的最低召回率阈值;
 > Buffered 2000 QPS 是交互式可用阈值; Honest 下限锚定 O_DIRECT 实测，消除无模式 QPS 双重真相。
+> 抬高 O_DIRECT 地板的 aspirational 目标不属于本 must 条款，见 [[DEC-060]]。
 
 ## 演进路线意图（探索性设想） {#CHR-004}
 <!-- ndf: kind=arch level=may layer=L0 status=draft since=0.2 source=deduced -->
@@ -83,11 +95,14 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
   hnswlib 需 ~6GB OOM@2GB，DiskHNSW 3.7x 内存节省。
   瓶颈从 I/O 转移到 PQ 计算 (80%)，VisitedList 优化带来 2x QPS。
   1GB cgroup 物理不可行 (核心数据 1.3GB)，最小可行 1.8GB。
-- **P3（构想）**：100M 规模--CSR varint 4.7GB 也需上磁盘，引入 CSR 分页 + 1-hop 预取
+- **P3（进行中）**：O_DIRECT 地板优化 + 大规模验证（战略见 [[DEC-059]]，
+  路线图见 [[DEC-060]]）。随规模增大 page cache 对 vecblocks 覆盖率趋近于 0，
+  O_DIRECT 成为多数查询的真实路径。aspirational QPS 目标不构成本条款 must。
 - **P4-P5（探索性构想）**：分级存储、硬件亲和（NUMA/SPDK/GPU/PMEM）。这些方向当前
   无代码或设计支撑，仅为探索性路线设想
 
 每个阶段的核心验证：**"给定内存预算 M，DiskHNSW 能跑多大规模的向量搜索？"**
+关键约束：RSS + page_cache ≤ M（cgroup v2 memory.max 同时限制匿名内存和 file cache）。
 
 > rationale: 1M 规模下宿主机 page cache 能装下全部 496MB 向量数据，
 > 掩盖了磁盘 I/O 优化的真实价值。10M 规模验证了瓶颈转移 (I/O -> PQ 计算)。

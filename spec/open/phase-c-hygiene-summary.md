@@ -7,9 +7,9 @@
 
 | 文件 | 变更 |
 |------|------|
-| `spec/50-verification/tests.md` | OBS-* → BEH-*；冷 I/O 补 VER-021/022/024/025；VER-030 双轨对齐 CON-SLA-011；元数据补齐 |
-| `spec/50-verification/p2-verification.md` | VER 元数据；P2 过渡 vs Charter 95% 标注 |
-| `spec/20-behavior/behavior.md` | BEH-003…013 `refines`；禁止 `refines=DEC-*`；BEH-016 元数据 |
+| `spec/50-verification/acceptance.md` | OBS-* → BEH-*；冷 I/O 补 VER-021/022/024/025；VER-030 双轨对齐 CON-SLA-011；元数据补齐 |
+| `spec/50-verification/acceptance-p2.md` | VER 元数据；P2 过渡 vs Charter 95% 标注 |
+| `spec/20-behavior/*.md` | BEH-003…013 `refines`；禁止 `refines=DEC-*`；BEH-016 元数据 |
 | `spec/00-charter/glossary.md` | DEF-012…016（Page Search / DW / FINE_DIRECT / Honest I/O / MemoryMax） |
 
 ## must 级 L1 VER 覆盖

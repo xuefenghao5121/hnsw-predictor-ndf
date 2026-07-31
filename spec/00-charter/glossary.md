@@ -76,8 +76,12 @@ Phase A 自适应 efSearch：收敛后几何衰减宽度。由 `DYNAMIC_WIDTH=1`
 
 ## DEF: FINE_DIRECT {#DEF-014}
 <!-- ndf: kind=def layer=L1 status=stable since=0.4 source=deduced -->
+<!-- ndf: depends-on=DEC-059 -->
 
-环境变量 / 打开模式：`FINE_DIRECT=1` 时 vecblocks 以 `O_DIRECT` 读取，绕过 OS page cache。定位为诚实基准 / 诊断路径（[[DEC-030]]），非默认生产推荐。
+环境变量 / 打开模式：`FINE_DIRECT=1` 时 vecblocks 以 `O_DIRECT` 读取，绕过 OS page cache。
+定位为**性能地板与优化基座**（[[DEC-059]]），并用于诚实基准的 Direct 组（[[CON-HONEST-002]]）。
+默认生产打开仍可为 Buffered；大规模 / 预算耗尽时 O_DIRECT 是多数查询的真实路径。
+（旧「诊断/测试模式」叙事见已 superseded 的 [[DEC-030]]。）
 
 ## DEF: Honest I/O {#DEF-015}
 <!-- ndf: kind=def layer=L1 status=stable since=0.4 source=deduced -->
@@ -88,3 +92,13 @@ Phase A 自适应 efSearch：收敛后几何衰减宽度。由 `DYNAMIC_WIDTH=1`
 <!-- ndf: kind=def layer=L1 status=stable since=0.2 source=deduced -->
 
 Linux cgroup v2 的 `memory.max`：同时限制匿名内存与 page cache（file）。DiskHNSW 部署与基准 MUST 在给定 MemoryMax 下运行；Buffered 模式的 page cache 计入同一预算（见 [[CON-HONEST-002]]）。
+
+## DEF: O_DIRECT 地板优化 {#DEF-017}
+<!-- ndf: kind=def layer=L1 status=stable since=0.6 source=deduced -->
+
+O_DIRECT 模式下的真实磁盘 I/O 性能是 DiskHNSW 的性能地板（[[DEC-059]]）。优化目标是减少 I/O 次数、增大粒度、批量化、I/O 与计算重叠，以抬高无缓存时的 QPS 地板。具体方案见 [[DEC-060]]。
+
+## DEF: Page Cache 受限加速 {#DEF-018}
+<!-- ndf: kind=def layer=L1 status=stable since=0.6 source=deduced -->
+
+在 cgroup 预算内（`memory.max ≥ RSS + page_cache`）自然填充 page cache，热数据自动被缓存。可用预算 = cgroup_limit - RSS，随数据规模增大对 vecblocks 的覆盖率趋近于 0。Page cache 是有限加成，不是性能基座（[[DEC-059]]）。

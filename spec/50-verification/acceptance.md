@@ -212,12 +212,12 @@
 | SLA 全部达标 | shuffled+PS (cold) | recall ≥ 95%, QPS ≥ 500 | 96.05%, 797 | ✅ |
 
 ### VER-030: Page Cache + Disk 两层 I/O / 诚实双轨 {#VER-030}
-<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-030,CON-HONEST-002,CON-SLA-011,CHR-006 -->
+<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-059,CON-HONEST-002,CON-SLA-011,CHR-006 -->
 
-> **双轨说明**：早期诊断行曾报 FINE_DIRECT≈787 QPS（半暖/不同协议）。
+> **双轨说明**：早期半暖路径曾报 FINE_DIRECT≈787 QPS（不同协议，非 Honest SoT）。
 > 2026-07-31 诚实 O_DIRECT（drop_caches + `FINE_DIRECT=1`）锚点为 **130 QPS (1T)** /
 > **502 QPS (4T)**（见 `archive/2026-07/validation-odirect-20260731.md`）。
-> Honest 期望值 MUST 对齐 [[CON-SLA-011]]，不得再用 787 作为 Honest SoT。
+> Honest 期望值 MUST 对齐 [[CON-SLA-011]]；战略 SoT 为 [[DEC-059]]（非已 superseded 的 DEC-030）。
 
 | 用例 | 配置 | 预期 | 实测 | 判定 |
 |------|------|------|------|------|
@@ -226,9 +226,9 @@
 | Honest recall | FINE_DIRECT=1 | ≥ 95% | 95.70% | ✅ |
 | Honest QPS (1T) | FINE_DIRECT=1 | ≥ 100 ([[CON-SLA-011]]) | **130** (2026-07-31) | ✅ |
 | Honest QPS (4T) | FINE_DIRECT=1 | ≥ 400 ([[CON-SLA-011]]) | **502** (2026-07-31) | ✅ |
-| O_DIRECT 路径正确性 | FINE_DIRECT=1 | I/O 主导延迟 | 7.69ms/query (1T) | ✅ |
-| 默认模式不退化 | FINE_BUFFERED vs 历史基线 | QPS ≥ 2000 | 2450 / 2041 | ✅ |
-| 诊断模式可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
+| O_DIRECT 地板路径正确 | FINE_DIRECT=1 | I/O 主导延迟 | 7.69ms/query (1T) | ✅ |
+| 默认 Buffered 不退化 | FINE_BUFFERED vs 历史基线 | QPS ≥ 2000 | 2450 / 2041 | ✅ |
+| O_DIRECT 稳定可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
 
 ### VER-031: 页面级驱逐消除 Cgroup 颠簸 {#VER-031}
 <!-- ndf: kind=verif level=should layer=L3 status=draft since=0.4 verifies=DEC-031 -->

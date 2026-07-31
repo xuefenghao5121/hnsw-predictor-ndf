@@ -4,6 +4,45 @@ layers: {L0: intent, L1: contract, L2: mechanism, L3: executable}
 source: observed
 description: |
   DiskHNSW — 内存受限环境下的磁盘向量搜索系统。
-  从 C++ 源码、Python 脚本、Shell pipeline 和测试代码中机械提取的规范性描述。
   source=observed 表示条款直接源自代码实体，非从设计文档推断。
   OBS-/INTENT- 前缀已废除；历史对照见 archive/2026-07/comparison.md。
+
+# archive/ 不在 NDF 核心树中；本仓库扩展为冷存储（非 SoT）。
+# 现行契约仅以 00–50、decisions/、open/（Pending）为准。
+archive:
+  path: archive/
+  role: cold-storage
+  sot: false
+  note: |
+    Implemented 提案、历史 validation/perf、已关闭 CONFLICT 迁入此处。
+    Agent MUST NOT 将 archive/ 正文当作现行 must 契约；以 status=superseded
+    留在 decisions/ 的条款为准。
+
+layout:
+  00-charter: [charter.md, glossary.md]
+  10-architecture: [modules.md]
+  20-behavior:
+    search.md: [BEH-001..006, BEH-008]
+    fine-rerank.md: [BEH-007, BEH-011, BEH-014]
+    cache.md: [BEH-009, BEH-010]
+    prefetch.md: [BEH-012]
+    metrics.md: [BEH-013]
+    io-modes.md: [BEH-015, BEH-016]
+  30-interfaces:
+    cli.md: [API-001..003]
+    formats.md: [API-004]
+    cxx-api.md: [API-005..006]
+    env.md: [API-007..008]
+  40-constraints:
+    constants.md: [CON-001..007]
+    sla.md: [CON-SLA-*, CON-HONEST-002]
+  50-verification: [acceptance.md, acceptance-p2.md]
+  decisions:
+    01-foundation.md: [DEC-001..016]
+    02-fine-rerank-experiments.md: [DEC-017..025]
+    03-scale-and-io.md: [DEC-026..033]
+    04-p2.md: [DEC-034..039]
+    05-odirect-floor.md: [DEC-057..060]
+    adr-ndf-hygiene.md: [DEC-HYGIENE-001]
+  open: "Pending proposals / unanswered Q / active CONFLICT only"
+  archive: "cold storage; not SoT"

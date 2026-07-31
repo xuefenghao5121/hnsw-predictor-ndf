@@ -1,11 +1,11 @@
 {
-  "current_proposal": "proposal-ndf-hygiene.md",
+  "current_proposal": "proposal-ndf-tree-split.md",
   "scenario_type": "refactor",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "pending",
   "perf_status": "pending",
-  "last_activity": "2026-07-31T16:05:00Z",
-  "notes": "NDF hygiene Implemented; phase C done in-repo (ACP resume blocked)"
+  "last_activity": "2026-07-31T21:35:00Z",
+  "notes": "NDF tree split by subsystem Implemented"
 }
