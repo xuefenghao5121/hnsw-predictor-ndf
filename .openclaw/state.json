@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "proposal-ndf-index-tool.md",
+  "scenario_type": "process",
+  "track": "process",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-01T14:50:00Z",
-  "notes": "AGENTS.md aligned to CHR-008 dual-track (poc|promote|process). POC NDF still uncommitted."
+  "last_activity": "2026-08-01T14:55:00Z",
+  "notes": "ndf_index tool landed; INDEX.md+graph.json generated. Awaiting commit if desired."
 }

@@ -18,6 +18,18 @@
 
 检索：`rg '\{#DEC-059\}' spec/` 或 `rg '\{#BEH-014\}' spec/20-behavior/`。
 
+**审核跳转（推荐）**：
+
+```bash
+python3 tools/ndf/ndf_index.py index                 # 生成 INDEX.md + graph.json
+python3 tools/ndf/ndf_index.py impact BEH-018        # 依赖/反向链接闭包
+python3 tools/ndf/ndf_index.py diff HEAD~1           # 本次 diff 触及的 ID + impact
+python3 tools/ndf/ndf_index.py validate              # 断链 [[ID]]
+```
+
+工具在 `tools/ndf/`（审核 harness），**不**放在产品 `scripts/` 下。
+打开 [`INDEX.md`](INDEX.md) 按前缀点击条款；SoT 仍是各目录 Markdown，INDEX/graph 为生成物。
+
 ## 探索 vs 主线（摘要）
 
 ```text

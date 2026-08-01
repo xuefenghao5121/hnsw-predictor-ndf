@@ -1,22 +1,35 @@
 ---
 name: ndf-workflow
-description: 严格按照NDF规范执行开发任务，包括提案、落地、验证等标准流程。
-user-invocable: true
+description: 按 AGENTS.md 与 CHR-008 双轨执行 NDF 提案、落地、POC/晋升与验证。
+disable-model-invocation: false
 ---
 # NDF 规范开发流程
 
-你是一名严格遵循 NDF (Normative Description Format) 规范的开发指挥。
+你是严格遵循 NDF 的开发指挥。**权威操作手册是仓库根目录 `AGENTS.md`**；流程契约见
+[[CHR-008]] / [[BEH-018]]…[[BEH-020]]。本 skill 不得与之矛盾。
 
 ## 核心原则
-1.  **先提案，后行动**：任何代码变更前，必须在 `spec/open/` 下生成 `proposal-*.md` 文件。
-2.  **确认后落地**：提案必须经过用户确认，才能将内容剪切到 `spec/` 的固定目录。
-3.  **验证闭环**：代码变更后，必须触发编译和性能验证，失败则进入修复闭环。
+1. **先提案，后行动**：Trunk `src/` 或 stable 契约变更前，必须有 `spec/open/proposal-*.md`。
+2. **双轨**：探索 → `poc/<topic>/` + draft；晋升 → stable + 干净合入 `src/`。
+3. **确认后落地**：用户「已确认」后写入；「已审核」后再委派实现。
+4. **验证闭环**：仅 promote/bug/refactor/rollback 等 Trunk 路径必须编译（及适用时性能）验证。
 
-## 标准工作流
-1.  **接收需求**：理解用户意图。
-2.  **生成提案**：创建 `proposal-*.md`，包含新增或修改的 L1 条款。
-3.  **等待确认**：输出 "提案已生成，请确认"。
-4.  **执行落地**：用户确认后，将提案内容剪切到固定目录。
-5.  **委派编码**：通过 ACP 向 Claude Code 发送指令。
-6.  **触发验证**：自动执行编译和性能验证。
-7.  **处理闭环**：若验证失败，分析根因并启动修复流程。
+## 标准工作流（按 track）
+1. **接收需求** → 判定 `track: poc | promote | process | bug | …`
+2. **生成提案**（头部标明 track）
+3. **等待「已确认」**
+4. **按 track 落地**（OpenClaw 写入，不要求人工剪切）
+5. **等待「已审核」**
+6. **poc** → 委派改 `poc/` only；**promote** → 委派 `src/` → 编译 → 性能；**process** → 结束
+7. 失败走场景7；负结果走 BEH-020
+
+不确定时：**默认先 poc**。
+
+## 人工审核辅助
+```bash
+python3 tools/ndf/ndf_index.py index
+python3 tools/ndf/ndf_index.py impact BEH-018
+python3 tools/ndf/ndf_index.py diff HEAD~1
+python3 tools/ndf/ndf_index.py validate
+```
+见 `spec/INDEX.md`（生成物）、`spec/graph.json`；实现位于 `tools/ndf/`（非 `scripts/`）。

@@ -66,3 +66,12 @@ layout:
   open: "Pending proposals / unanswered Q / active CONFLICT only"
   archive: "cold storage; not SoT"
   poc: "repo-root ../poc/; exploration; not SoT"
+
+# Review surface (generated; not normative prose). Tooling outside product scripts/
+tooling:
+  ndf_index: tools/ndf/ndf_index.py
+  outputs: [INDEX.md, graph.json]
+  note: |
+    INDEX/graph are generated for human jump/impact review. SoT remains 00-50 + decisions.
+    Implementation is under tools/ndf/ (harness), not scripts/ (data pipeline).
+
