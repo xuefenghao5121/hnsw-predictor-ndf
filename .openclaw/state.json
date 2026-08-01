@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-buffered-primary-plan-a.md",
-  "scenario_type": "process",
-  "track": "process",
+  "current_proposal": "null",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_review",
+  "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-01T20:25:00Z",
-  "notes": "Plan A landed: DEC-062 Buffered-primary; synced CHR-001/006 CON-HONEST-002 BEH-021 CON-SLA-013; io-pipelining r3 + NOTES §7; goal-clarification → spec/archive/2026-08/; AGENTS/BEH-018/CLAUDE.md hygiene for early-src mistake. Next after 已审核: poc R0 Buffered baseline."
+  "last_activity": "2026-08-01T21:10:00Z",
+  "notes": "R0 baseline completed. Buffered 1T=2128.6 QPS / 4T=6696.5 QPS (CHR-006 aligned). O_DIRECT 1T=843.6 QPS; 4T has thread-safety bug (FINE_PREAD+FINE_DIRECT conflict). v1 invalidated root causes all fixed. Next: R1 pipe_ring_ L5 only."
 }
