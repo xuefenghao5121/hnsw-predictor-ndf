@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-POC-001`
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
@@ -98,3 +98,11 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 <!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,BEH-017 -->
 
 > **Deprecated (2026-07-31):** 代码已回退，SLA 不再生效。见 [[BEH-017]] 和 [[DEC-061]]。
+
+## POC 不纳入生产 SLA {#CON-POC-001}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.7 source=deduced -->
+<!-- ndf: refines=CHR-008 depends-on=BEH-018,ARCH-008 -->
+
+`poc/` 与 draft 探索条款下的 QPS/Recall 数字 MUST NOT 自动成为 [[CHR-006]] /
+[[CON-SLA-011]] 等 Trunk SLA 的一部分。相对对比实验若基线协议不同于诚实锚点，
+MUST 在 DEC/提案中标注口径（同 [[DEC-061]]）。

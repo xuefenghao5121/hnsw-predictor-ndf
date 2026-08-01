@@ -110,3 +110,15 @@ O_DIRECT 模式下的真实磁盘 I/O 性能是 DiskHNSW 的性能地板（[[DEC
 
 Fine Rerank 候选页按 coalesce block（默认 64KB）分组：密集 block 一次大读，稀疏仍 4KB。
 由 `READ_COALESCE=1` 开启；环境变量不再生效。
+
+## DEF: POC（概念验证） {#DEF-020}
+<!-- ndf: kind=def layer=L1 status=stable since=0.7 source=deduced -->
+
+针对单一探索主题（通常对应一个 `proposal-*` / DEC 方向）的**可丢弃**实现与测量集合。
+POC 的目标是产生证据（正/负），不是扩展生产 API 表面。承载面见 [[ARCH-008]]；纪律见 [[BEH-018]]。
+
+## DEF: 晋升（Promote） {#DEF-021}
+<!-- ndf: kind=def layer=L1 status=stable since=0.7 source=deduced -->
+
+将 POC 中**已证实有效**的最小变更集，经提案确认后写入固定目录（stable 契约）并合入 `src/`
+的过程。晋升 MUST 可追溯到证据与 DEC/提案 ID。闸门见 [[BEH-019]]。

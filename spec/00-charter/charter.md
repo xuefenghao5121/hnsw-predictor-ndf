@@ -126,3 +126,18 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 2. 搜索召回率 MUST ≥ 95% (Recall@10 on SIFT1M)
 3. 所有数据准备步骤 MUST 用同一套 base 数据(graph/PQ/GT 共享 node id 空间)
 4. vecblocks 与 route table MUST 配套生成,不可跨版本混用
+
+## 探索与晋升双轨 {#CHR-008}
+<!-- ndf: kind=arch level=must layer=L0 status=stable since=0.7 source=deduced -->
+<!-- ndf: depends-on=BEH-018,BEH-019,BEH-020,ARCH-008 -->
+
+DiskHNSW 的规范与代码演进 MUST 区分：
+
+1. **探索轨（POC）**：验证某优化/机制是否成立；允许失败与回退（[[DEF-020]]）。
+2. **主线轨（Trunk）**：已证明有效、纳入产品行为与 SLA 的实现（[[DEF-021]]）。
+
+探索轨产物 MUST NOT 被默认当作 Trunk SoT；负结果 MUST 以决策记录关闭，不得靠
+「静默删条款却留主线代码」或「删代码却留 stable must」维持表面一致。
+
+反面教材：Read Coalescing 过早合入 Trunk 后证伪，见 [[DEC-061]]。
+流程细则见 [[BEH-018]]…[[BEH-020]]；目录边界见 [[ARCH-008]]。

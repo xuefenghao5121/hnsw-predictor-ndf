@@ -207,3 +207,16 @@ graph TD
 
 > rationale: [[ARCH-002]] 确认当前无 #include 循环,但 `friend class`
 > 是语义上的反向耦合。未来拆分 God Class 时需一并处理。
+
+## `models/` 与 `poc/` 边界 {#ARCH-008}
+<!-- ndf: kind=arch level=must layer=L1 status=stable since=0.7 source=deduced -->
+<!-- ndf: refines=CHR-008 depends-on=DEF-020,DEF-021 -->
+
+1. `spec/models/` MUST 只承载 NDF L3 **参考模型**（可重复、可测试、由条款 `model=` 引用）。
+2. 探索性生产路径改动（如 Fine Rerank I/O 实验）MUST 落在仓库根目录 `poc/<topic>/`
+   （或专用 `poc/<topic>` git 分支），MUST NOT 伪装为 `spec/models/` 参考模型。
+3. `poc/` MUST 在 `ndf.yaml` 中声明为 **非 SoT**（与 `archive/` 同类：`sot: false`）。
+4. 允许在 `spec/models/poc-notes/` 仅存放**与参考模型对照的算法草稿**；不得在此提交
+   链入生产二进制的主路径补丁。
+
+> rationale: NDF `models/` 是金标，不是实验沙箱。误用会导致 Agent 把 POC 当 must 实现依据。

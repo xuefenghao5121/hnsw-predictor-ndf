@@ -18,6 +18,22 @@ archive:
     Agent MUST NOT 将 archive/ 正文当作现行 must 契约；以 status=superseded
     留在 decisions/ 的条款为准。
 
+# POC 探索轨：非 SoT。晋升前不得当作 BEH/API/CON must 的实现依据。
+poc:
+  path: ../poc/
+  role: exploration
+  sot: false
+  note: |
+    仓库根 poc/<topic>/；见 ARCH-008 / BEH-018…020 / CON-POC-001。
+
+# L3 参考模型：金标，禁止存放生产路径实验补丁。
+models:
+  path: models/
+  role: L3-reference
+  sot: true
+  note: |
+    仅 NDF 参考模型；探索见仓库根 poc/。
+
 layout:
   00-charter: [charter.md, glossary.md]
   10-architecture: [modules.md]
@@ -28,6 +44,7 @@ layout:
     prefetch.md: [BEH-012]
     metrics.md: [BEH-013]
     io-modes.md: [BEH-015, BEH-016]
+    process.md: [BEH-018..020]
   30-interfaces:
     cli.md: [API-001..003]
     formats.md: [API-004]
@@ -35,7 +52,7 @@ layout:
     env.md: [API-007..008, API-009(deprecated)]
   40-constraints:
     constants.md: [CON-001..007]
-    sla.md: [CON-SLA-*, CON-HONEST-002]
+    sla.md: [CON-SLA-*, CON-HONEST-002, CON-POC-001]
   50-verification: [acceptance.md, acceptance-p2.md]
   decisions:
     01-foundation.md: [DEC-001..016]
@@ -44,5 +61,8 @@ layout:
     04-p2.md: [DEC-034..039]
     05-odirect-floor.md: [DEC-057..061]
     adr-ndf-hygiene.md: [DEC-HYGIENE-001]
+    adr-poc-track.md: [ADR-POC-001]
+  models: [README.md]
   open: "Pending proposals / unanswered Q / active CONFLICT only"
   archive: "cold storage; not SoT"
+  poc: "repo-root ../poc/; exploration; not SoT"
