@@ -44,6 +44,12 @@ L1/L2/L3: CPU Cache (~30MB L3, 单次计算)
 
 ### ✅ R0 基线（2026-08-01，诚实 cgroup）
 
+> ⚠️ **cgroup page cache 审计修正**：cat 预热在父 cgroup 执行，page cache 未计入子 cgroup。
+> drop_caches 冷启动后 cgroup 真正生效（memory.peak=512MB, max_events≈2000），
+> 但 QPS 无差异（热集 < page cache 预算）。详见 [[DEC-063]]。
+>
+> 以下 QPS 数字在「热态」和「冷态」下一致（偏差 <2%），均为有效测量。
+
 **环境**: SIFT1M, 512MB cgroup (systemd-run --user --scope, MemoryMax=512M), 200 queries, k=10, ef=100, REFINE_EF=100
 
 **通用 env**: TWO_STAGE=1, PQ_HYBRID=1, FINE_RERANK=1, CACHE_MB=32, FLAT_VEC_MB=64, PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin, VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin
@@ -79,10 +85,11 @@ v1 作废根因（全部已修复）：
 
 - [x] **R0 Buffered** ✅ (2026-08-01)
 - [x] **R0 O_DIRECT 辅组** ✅ (1T; 4T 待修线程安全)
-- [ ] R1–R4 Buffered 主表；O_DIRECT 辅表
-- [ ] 完善 pipe_ring_ page->buf_idx（O_DIRECT 命中）
+- [x] **R1–R4 SIFT1M 主表** ✅ (2026-08-01) -> **负结果**，详见 [[DEC-063]]
+- [ ] R0-R4 DEEP10M 验证（I/O bound 场景）
+- [ ] 修复 O_DIRECT 4T 线程安全（`FINE_PREAD+FINE_DIRECT` 条件冲突）
+- [ ] 修复 4T `pipe_piped_pages_` 竞争（改 thread_local）
 - [ ] PROFILE_PIPE 统计
-- [ ] 修复 O_DIRECT 4T 线程安全（process/bug 提案）
 
 ## §7 POC 基线纪律（强制）
 

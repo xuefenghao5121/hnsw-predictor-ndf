@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-01T21:10:00Z",
-  "notes": "R0 baseline completed. Buffered 1T=2128.6 QPS / 4T=6696.5 QPS (CHR-006 aligned). O_DIRECT 1T=843.6 QPS; 4T has thread-safety bug (FINE_PREAD+FINE_DIRECT conflict). v1 invalidated root causes all fixed. Next: R1 pipe_ring_ L5 only."
+  "last_activity": "2026-08-01T23:15:00Z",
+  "notes": "SIFT1M pipelining 证伪 (DEC-063). R0-R4 负结果, drop_caches 验证确认. cgroup page cache 审计完成 (cat 预热偷内存但不影响 QPS). 转向 DEEP10M 验证: 3.7GB vecblocks, 10% page cache 覆盖率, I/O bound. 需修 O_DIRECT 4T 线程安全 + pipe_piped_pages_ thread_local."
 }
