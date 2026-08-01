@@ -1,12 +1,11 @@
 {
-  "current_proposal": "proposal-ndf-index-tool.md",
-  "scenario_type": "process",
-  "track": "process",
+  "current_proposal": "null",
+  "scenario_type": "null",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
-  "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-01T14:55:00Z",
-  "notes": "ndf_index tool landed; INDEX.md+graph.json generated. Awaiting commit if desired."
+  "validation_status": "null",
+  "perf_status": "null",
+  "last_activity": "2026-08-01T14:15:00Z",
+  "notes": "DEC-061: Read Coalescing terminated; BEH-017/API-009/CON-SLA-012/VER-017 deprecated; next focus DEC-060 direction 2 (I/O Pipelining)"
 }

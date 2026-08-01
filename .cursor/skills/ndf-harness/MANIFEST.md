@@ -15,7 +15,7 @@
 | `AGENTS.md` | OpenClaw | Cursor 脚手架 → 人工定稿 | 大脑操作手册 |
 | `skills/ndf-workflow/` | OpenClaw | Cursor 脚手架 → 人工定稿 | 本地 NDF Workflow 技能 |
 | `.claude/CLAUDE.md` | Claude Code | Cursor 脚手架 → 人工定稿 | 编码禁区与可写范围 |
-| `.openclaw/state.json` | OpenClaw | OpenClaw 运行时 | 不由本 skill 生成正文 |
+| `.openclaw/state.json` | OpenClaw | **仅 OpenClaw** | 项目进展；Cursor/ndf-harness **禁止写入** |
 | `poc/**` | 探索轨 | OpenClaw 指挥 / Claude 实现 | 非 SoT |
 
 ## 生成任务类型

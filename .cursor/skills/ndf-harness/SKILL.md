@@ -87,3 +87,5 @@ Harness task:
 - 用本 skill 直接改 `src/` / 跑产品 benchmark
 - 静默覆盖已有人工定稿的 `AGENTS.md` / `CLAUDE.md`（必须 diff 提示）
 - 在 stub 阶段写入 stable must SLA 或虚构 ACP session 行为
+- **改写 `.openclaw/state.json`**：该文件只记录 OpenClaw 指挥的**项目进展**（提案/track/验证）；
+  Cursor 侧 NDF 维护（INDEX、harness、提示脚手架）**不得**写入，OpenClaw 不感知此类工作

@@ -84,7 +84,10 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 
 ## 3. 状态
 
-存储在 `.openclaw/state.json`。建议字段：
+存储在 `.openclaw/state.json`。**仅记录本代理指挥的项目进展**（当前提案、track、验证轮次等）。
+Cursor 侧 NDF 维护（INDEX/`tools/ndf`/harness skill）MUST NOT 改写本文件。
+
+建议字段：
 
 ```json
 {
