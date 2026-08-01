@@ -3,12 +3,12 @@
 > 条款索引: `DEC-063`
 > 关联: `DEC-060`（方向 2）、`DEC-062`、`BEH-021`、`BEH-022`、`BEH-023`、`CON-SLA-013`、`CON-POC-001`
 
-## D-063: SIFT1M 规模 I/O Pipelining 负结果 - 转向 DEEP10M 验证 {#DEC-063}
+## D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 正结果 {#DEC-063}
 <!-- ndf: kind=decision date=2026-08-01 affects=DEC-060,BEH-021,BEH-022,BEH-023,CON-SLA-013 source=observed -->
 <!-- ndf: depends-on=DEC-062,CON-HONEST-002,CON-POC-001 -->
 
 **Context.** DEC-060 方向 2（I/O Pipelining）在 `poc/io-pipelining/` 中实现并验证。
-本决策记录 SIFT1M 规模下的负结果及根因分析。
+本决策记录 SIFT1M 规模下的负结果、DEEP10M 规模下的正结果，以及 cgroup page cache 审计发现。
 
 ### 实现概要
 
@@ -95,9 +95,76 @@ POC v1 smoke test（~24 QPS）作废的 5 个根因：
 **Alternatives rejected.**
 - 直接 deprecated BEH-021/022/023：SIFT1M 不是有效验证场景，负结果不可推广
 - 继续在 SIFT1M 调参：热集 < cache 预算的根本矛盾无法通过参数调整解决
-- 用 EVICT_PAGE_CACHE=1 模拟冷态：flat_vec_cache 吸收热点，无法制造真正冷 I/O
+- 用 EVICT_PAGE_CACHE=1 模拟冷态（SIFT1M）：flat_vec_cache 吸收热点，无法制造真正冷 I/O
+
+### DEEP10M 正结果（2026-08-02）
+
+**环境**: DEEP10M (10M/96dim), 5GB cgroup, 10000 queries, k=10, ef=300, REFINE_EF=300
+**配置**: M=32 PQ (dsub=3), FINE_BUFFERED=1, FINE_PREAD=1, EVICT_PAGE_CACHE=1, CACHE_MB=64, FLAT_VEC_MB=64
+**Binary**: build/benchmark_pipe (POC)
+
+#### 1T 结果（3 轮取均值）
+
+| 轮次 | R0 QPS | R1 QPS (PIPE_FINE=1) | R1 vs R0 | Recall |
+|------|--------|---------------------|----------|--------|
+| Round 1 | 106.8 | 279.0 | +161.5% | 94.85% |
+| Round 2 | 106.6 | 280.4 | +163.0% | 94.85% |
+| Round 3 | 105.8 | 278.6 | +163.3% | 94.85% |
+| **均值** | **106.4** | **279.3** | **+162.6%** | 94.85% |
+
+**关键发现**: pipe_ring_ 几乎完全消除了冷 I/O 惩罚。
+- R0 热态 (200q, 无 EVICT): 283.9 QPS
+- R0 冷态 (10000q, EVICT): 106.4 QPS (I/O 惩罚 2.7x)
+- R1 冷态 (10000q, EVICT+PIPE): 279.3 QPS (vs 热态仅差 1.6%)
+
+pipe_hits=255/query，Phase A 预取的页在 Phase B 命中，I/O 延迟被 Phase A 计算完全隐藏。
+
+#### 4T 结果
+
+| 配置 | 4T QPS | vs 1T | 说明 |
+|------|--------|-------|------|
+| R0 4T | 180.3 | 1.69x | scaling 不理想 |
+| R1 4T | 249.4 | 0.89x ⚠ | 比 1T 还慢！ |
+| R1 vs R0 | +38.3% | - | 远低于 1T 的 +162.6% |
+
+**4T 退化根因**: `pipe_piped_pages_` 和 `pipe_page_bufidx_` 是成员变量（非 thread_local），
+4 线程竞争导致去重失效、重复/遗漏提交。这是**代码 bug，非设计缺陷**。
+修复方案：改为 `thread_local`。
+
+### cgroup page cache 审计发现
+
+| 条件 | QPS | memory.peak | max events | 说明 |
+|------|-----|-------------|-----------|------|
+| cat 预热（父 cgroup） | 2128 | 408MB | 0 | page cache 未计入子 cgroup |
+| drop_caches 冷启动 | 2085 | 512MB | ~2000 | cgroup 真正生效 |
+
+`cat` 预热在父 cgroup 执行，page cache 算在父 cgroup 账上。子 cgroup 访问时不重新记账。
+但实测 QPS 无差异（热集 < page cache 预算）。
+
+### DEEP10M 环境修复记录
+
+1. **GT 文件错误**: `deep10m_gt_k10_fresh.bin` 是自引用 GT（DiskHNSW 生成），非暴力搜索
+   -> 改用 `data/deep10m_gt_k10.bin`（暴力搜索，10000q, k=10）
+2. **PQ M=8 太粗**: recall 52.6% -> M=32 (dsub=3) recall 95.05%
+3. **路由文件错误**: 用了 vecblocks route -> 改用 `deep10m_route_64k.bin`
+4. **FINE_PREAD 必须开**: 不开时走 io_uring 路径，recall 88.4%（可能有 bug）
+5. **cgroup 需 5GB**: RSS 2422MB + graph 加载临时内存 + page cache
+
+**Decision.**
+
+1. **SIFT1M 规模 I/O Pipelining 证伪**：pipe_ring_ / L4 readahead / L1 prefetch 均无收益
+2. **DEEP10M 1T I/O Pipelining 验证通过**：pipe_ring_ +162.6%，几乎消除冷 I/O 惩罚
+3. **BEH-021 保持 draft**：有正结果支撑，不 deprecated；待 4T bug 修复后完整验证
+4. **4T thread-safety bug 记录**：pipe_piped_pages_ / pipe_page_bufidx_ 需改 thread_local
+5. **CON-SLA-013 DEEP10M 1T 目标达成**：R1=279.3 QPS >> 目标 220 QPS (O_DIRECT 辅表)
+
+**后续 POC 步骤:**
+- [ ] 修复 pipe_piped_pages_ / pipe_page_bufidx_ 为 thread_local
+- [ ] 修复 O_DIRECT 4T 线程安全（FINE_PREAD+FINE_DIRECT 条件冲突）
+- [ ] DEEP10M 4T 修复后重测
+- [ ] 若 4T 验证通过 -> 评估 promote 提案
 
 > rationale: SIFT1M（1M/496MB）的 page cache 预算足以覆盖热集，I/O pipelining 的
-> 价值需要在 page cache 覆盖率 < 15% 的场景下验证。DEEP10M（10M/3.7GB）的
-> page cache 覆盖率仅 ~10%，Phase A 持续 ~7ms，是 I/O 重叠的真正战场。
-> 负结果仅限于 SIFT1M 规模，不构成对 pipelining 方向本身的否定。
+> 价值需要在 I/O bound 场景下验证。DEEP10M（10M/3.7GB）+ EVICT_PAGE_CACHE + 10000 queries
+> 制造了真正的 I/O 瓶颈，pipe_ring_ 在此场景下 +162.6%，验证了 DEC-060 方向 2 的设计。
+> 1T 正结果不构成对 4T 的承诺，4T thread-safety bug 是已知代码缺陷，待修复后重测。

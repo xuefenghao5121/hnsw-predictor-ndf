@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-01T20:15:44Z",
+  "generated_at": "2026-08-01T21:25:16Z",
   "clause_count": 157,
   "nodes": {
     "API-001": {
@@ -2577,7 +2577,7 @@
     },
     "DEC-063": {
       "id": "DEC-063",
-      "title": "D-063: SIFT1M 规模 I/O Pipelining 负结果 - 转向 DEEP10M 验证",
+      "title": "D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 正结果",
       "file": "decisions/06-io-pipelining-poc.md",
       "line": 6,
       "kind": "decision",

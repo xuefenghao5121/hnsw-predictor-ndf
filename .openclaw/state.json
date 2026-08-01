@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-01T23:15:00Z",
-  "notes": "SIFT1M pipelining 证伪 (DEC-063). R0-R4 负结果, drop_caches 验证确认. cgroup page cache 审计完成 (cat 预热偷内存但不影响 QPS). 转向 DEEP10M 验证: 3.7GB vecblocks, 10% page cache 覆盖率, I/O bound. 需修 O_DIRECT 4T 线程安全 + pipe_piped_pages_ thread_local."
+  "last_activity": "2026-08-02T00:15:00Z",
+  "notes": "DEEP10M 1T pipelining 验证通过! R1=279.3 QPS vs R0=106.4 (+162.6%), recall 94.85%. SIFT1M 负结果 + DEEP10M 正结果完整记录在 DEC-063. 4T 有 thread-safety bug (pipe_piped_pages_ 非 thread_local), 待修复. 下一步: 修复 4T -> 评估 promote."
 }
