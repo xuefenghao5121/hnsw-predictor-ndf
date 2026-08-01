@@ -29,6 +29,9 @@ thread_local std::vector<uint32_t> DiskHNSW::csr_decode_buf_;
 
 // I/O Pipelining: thread_local pipe_ring_ (BEH-021 draft)
 thread_local std::unique_ptr<IoUring> DiskHNSW::pipe_ring_;
+// DEC-063 4T bug fix: pipe_piped_pages_ / pipe_page_bufidx_ 改为 thread_local
+thread_local std::unordered_set<uint32_t> DiskHNSW::pipe_piped_pages_;
+thread_local std::unordered_map<uint32_t, int> DiskHNSW::pipe_page_bufidx_;
 
 // ============================================================
 // 构造函数（原始接口，向后兼容）

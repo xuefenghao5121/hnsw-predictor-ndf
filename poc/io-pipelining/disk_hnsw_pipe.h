@@ -277,8 +277,9 @@ private:
     static constexpr int kPipeBufCount = 256;    // pipe buffer pool 大小
     int pipe_ring_capacity_ = 0;                 // 可用 buffer 数 (per-thread)
     // per-query 预取状态 (searchLayer0 写入, searchKnn Phase B 读取)
-    std::unordered_set<uint32_t> pipe_piped_pages_;   // 已提交页去重
-    std::unordered_map<uint32_t, int> pipe_page_bufidx_;  // page -> buf_idx
+    // thread_local: 每线程独立，避免多线程竞争 (DEC-063 4T bug 修复)
+    static thread_local std::unordered_set<uint32_t> pipe_piped_pages_;   // 已提交页去重
+    static thread_local std::unordered_map<uint32_t, int> pipe_page_bufidx_;  // page -> buf_idx
     int vec_blocks_fd_ = -1;
     uint32_t vec_block_size_ = 0;
     bool fine_rerank_ok_ = false;
