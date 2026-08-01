@@ -1,11 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
+  "current_proposal": "proposal-io-pipelining.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "null",
-  "perf_status": "null",
-  "last_activity": "2026-08-01T14:15:00Z",
-  "notes": "DEC-061: Read Coalescing terminated; BEH-017/API-009/CON-SLA-012/VER-017 deprecated; next focus DEC-060 direction 2 (I/O Pipelining)"
+  "pending_decision": "waiting_for_user_review",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-01T16:15:00Z",
+  "notes": "r2: unified multi-layer architecture (L5 pipe_ring_ + L4 page cache + L1/L2/L3 CPU cache). BEH-021/022/023, API-010 (4 env vars), CON-SLA-013 landed as draft. Both O_DIRECT and Buffered use pipe_ring_. Next: delegate implementation to Claude Code"
 }

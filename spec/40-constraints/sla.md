@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-POC-001`
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-POC-001`
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
@@ -98,6 +98,34 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 <!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,BEH-017 -->
 
 > **Deprecated (2026-07-31):** 代码已回退，SLA 不再生效。见 [[BEH-017]] 和 [[DEC-061]]。
+
+## I/O Pipelining SLA (探索轨) {#CON-SLA-013}
+<!-- ndf: kind=constraint level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,BEH-021,BEH-022,BEH-023,CON-POC-001 -->
+
+> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（2026-08-01, r2 统一多层架构）。
+> POC 阶段不纳入生产 SLA（[[CON-POC-001]]）。以下为 POC 验证目标，非 must 承诺。
+>
+> 分层验证目标 (R0-R4 逐层叠加):
+>
+> | 轮次 | 配置 | 验证目标 |
+> |------|------|----------|
+> | R0 | 基线 (PIPE_FINE=0) | 锚定基线 QPS/Recall/RSS |
+> | R1 | + L5 only (PIPE_FINE=1) | pipe_ring_ I/O 重叠的独立贡献 |
+> | R2 | + L5 + L1 (PIPE_FINE=1, PIPE_L1=1) | CPU cache 预取的增量 |
+> | R3 | + L5 + L4 (PIPE_FINE=1, PIPE_L4=1) | L4 旁路填充的跨 query 效果 |
+> | R4 | + L5 + L4 + L1 (全开) | 叠加上限 |
+
+| 指标 | 基线 (O_DIRECT) | POC 目标 | 说明 |
+|------|-----------------|----------|------|
+| SIFT1M 1T QPS | 130 | ≥ 140 | L5 I/O 重叠 |
+| SIFT1M 4T QPS | 502 | ≥ 540 | 多线程重叠效果递减 |
+| DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
+| Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
+| RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool (thread_local) |
+
+> 若 POC 验证通过，promote 提案将更新 [[CON-SLA-011]] 的 Honest 下限。
+> 若 POC 负结果，走 [[BEH-020]] 负结果闭环。
 
 ## POC 不纳入生产 SLA {#CON-POC-001}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.7 source=deduced -->

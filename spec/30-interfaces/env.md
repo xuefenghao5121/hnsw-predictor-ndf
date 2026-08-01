@@ -1,6 +1,6 @@
 # Interfaces — 环境变量
 
-> 条款索引: `API-007`, `API-008`, `API-009`
+> 条款索引: `API-007`, `API-008`, `API-009`, `API-010`
 
 ## 实验性环境变量 (DEC-017, DEC-019) {#API-007}
 <!-- ndf: kind=req level=should layer=L1 status=stable since=0.2 source=deduced -->
@@ -60,6 +60,25 @@
 | 环境变量 | 类型 | 默认值 | 取值范围 | 说明 | 关联条款 |
 |----------|------|--------|---------|------|---------|
 | `EVICT_PAGE_CACHE` | int | 0 | 0/1 | 1=每次查询后 posix_fadvise(DONTNEED) 驱逐 vecblocks page cache | [[DEC-021]] [[BEH-016]] |
+
+## I/O Pipelining 环境变量 (探索轨) {#API-010}
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: depends-on=DEC-060,CON-POC-001 -->
+
+> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（2026-08-01, r2）。
+> 行为契约见 [[BEH-021]] / [[BEH-022]] / [[BEH-023]]（接口不反向 depends-on 行为，避免环）。
+
+| 环境变量 | 类型 | 默认值 | 取值范围 | 说明 | 关联条款 |
+|----------|------|--------|---------|------|----------|
+| `PIPE_FINE` | int | 0 | 0/1 | 1=Phase A 期间异步预取 Fine Rerank 候选页 (L5 pipe_ring_) | [[BEH-021]] [[DEC-060]] |
+| `PIPE_THRESHOLD` | int | （未设置时对齐 `REFINE_EF`） | `[k, REFINE_EF]` | 预取触发的最大 rank，仅预取有望进入 Phase B 的候选 | [[BEH-021]] |
+| `PIPE_L1` | int | 0 | 0/1 | 1=开启 L1/L2/L3 CPU cache 向量预取 (_mm_prefetch) | [[BEH-022]] |
+| `PIPE_L4` | int | 0 | 0/1 | 1=开启 L4 page cache 旁路填充 (仅 Buffered 模式) | [[BEH-023]] |
+
+> 前置条件: `TWO_STAGE=1` + `FINE_RERANK=1` + `fine_rerank_ok_` 已初始化  
+> 内存开销: pipe_ring_ buffer pool ~200×4KB = 800KB (thread_local)  
+> 三个开关独立控制，可组合验证各层独立贡献和叠加效果。  
+> `PIPE_THRESHOLD`：环境变量未设置时实现 MUST 使用当前 `REFINE_EF`（或等价精排 ef），而非字面字符串。
 
 ## Read Coalescing 环境变量 (已废弃) {#API-009}
 <!-- ndf: kind=req level=may layer=L1 status=deprecated since=0.6 source=deduced -->

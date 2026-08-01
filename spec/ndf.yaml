@@ -38,7 +38,7 @@ layout:
   00-charter: [charter.md, glossary.md]
   10-architecture: [modules.md]
   20-behavior:
-    search.md: [BEH-001..006, BEH-008]
+    search.md: [BEH-001..006, BEH-008, BEH-021..023(draft)]
     fine-rerank.md: [BEH-007, BEH-011, BEH-014, BEH-017(deprecated)]
     cache.md: [BEH-009, BEH-010]
     prefetch.md: [BEH-012]
@@ -49,10 +49,10 @@ layout:
     cli.md: [API-001..003]
     formats.md: [API-004]
     cxx-api.md: [API-005..006]
-    env.md: [API-007..008, API-009(deprecated)]
+    env.md: [API-007..008, API-009(deprecated), API-010(draft)]
   40-constraints:
     constants.md: [CON-001..007]
-    sla.md: [CON-SLA-*, CON-HONEST-002, CON-POC-001]
+    sla.md: [CON-SLA-*, CON-HONEST-002, CON-POC-001, CON-SLA-013(draft)]
   50-verification: [acceptance.md, acceptance-p2.md]
   decisions:
     01-foundation.md: [DEC-001..016]

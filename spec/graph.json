@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T11:52:45Z",
-  "clause_count": 150,
+  "generated_at": "2026-08-01T13:32:42Z",
+  "clause_count": 155,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -134,7 +134,7 @@
       "id": "API-009",
       "title": "Read Coalescing 环境变量 (已废弃)",
       "file": "30-interfaces/env.md",
-      "line": 64,
+      "line": 83,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -153,6 +153,34 @@
         "BEH-017",
         "DEC-061",
         "VER-017"
+      ]
+    },
+    "API-010": {
+      "id": "API-010",
+      "title": "I/O Pipelining 环境变量 (探索轨)",
+      "file": "30-interfaces/env.md",
+      "line": 64,
+      "kind": "req",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.8",
+      "edges": {
+        "depends-on": [
+          "DEC-060",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "BEH-021",
+        "BEH-022",
+        "BEH-023",
+        "DEC-060"
+      ],
+      "backlinks": [
+        "BEH-021",
+        "BEH-022",
+        "BEH-023"
       ]
     },
     "ARCH-001": {
@@ -327,6 +355,7 @@
         "BEH-015",
         "BEH-016",
         "BEH-017",
+        "BEH-021",
         "VER-003",
         "VER-035"
       ]
@@ -460,7 +489,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 97,
+      "line": 148,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -824,7 +853,87 @@
         "DEC-061"
       ],
       "backlinks": [
-        "CHR-008"
+        "CHR-008",
+        "CON-SLA-013"
+      ]
+    },
+    "BEH-021": {
+      "id": "BEH-021",
+      "title": "I/O Pipelining 行为 (探索轨)",
+      "file": "20-behavior/search.md",
+      "line": 97,
+      "kind": "req",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.8",
+      "edges": {
+        "refines": [
+          "BEH-001"
+        ],
+        "depends-on": [
+          "DEC-060",
+          "API-010",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "CON-POC-001",
+        "DEC-061"
+      ],
+      "backlinks": [
+        "API-010",
+        "BEH-022",
+        "BEH-023",
+        "CON-SLA-013"
+      ]
+    },
+    "BEH-022": {
+      "id": "BEH-022",
+      "title": "L1/L2/L3 CPU Cache 向量预取 (探索轨)",
+      "file": "20-behavior/search.md",
+      "line": 123,
+      "kind": "req",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.8",
+      "edges": {
+        "refines": [
+          "BEH-021"
+        ],
+        "depends-on": [
+          "API-010"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "API-010",
+        "CON-SLA-013"
+      ]
+    },
+    "BEH-023": {
+      "id": "BEH-023",
+      "title": "L4 Page Cache 旁路填充 (探索轨)",
+      "file": "20-behavior/search.md",
+      "line": 135,
+      "kind": "req",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.8",
+      "edges": {
+        "refines": [
+          "BEH-021"
+        ],
+        "depends-on": [
+          "API-010"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "API-010",
+        "CON-SLA-013"
       ]
     },
     "CHR-001": {
@@ -1152,7 +1261,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 102,
+      "line": 130,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1172,7 +1281,11 @@
         "CON-SLA-011",
         "DEC-061"
       ],
-      "backlinks": []
+      "backlinks": [
+        "API-010",
+        "BEH-021",
+        "CON-SLA-013"
+      ]
     },
     "CON-SLA-008": {
       "id": "CON-SLA-008",
@@ -1278,6 +1391,7 @@
         "CON-POC-001",
         "CON-SLA-008",
         "CON-SLA-012",
+        "CON-SLA-013",
         "DEC-061",
         "DEF-015",
         "VER-030"
@@ -1310,6 +1424,35 @@
         "DEC-061",
         "VER-017"
       ]
+    },
+    "CON-SLA-013": {
+      "id": "CON-SLA-013",
+      "title": "I/O Pipelining SLA (探索轨)",
+      "file": "40-constraints/sla.md",
+      "line": 102,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.8",
+      "edges": {
+        "refines": [
+          "CON-SLA-011"
+        ],
+        "depends-on": [
+          "DEC-060",
+          "BEH-021",
+          "BEH-022",
+          "BEH-023",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "CON-POC-001",
+        "CON-SLA-011",
+        "BEH-020"
+      ],
+      "backlinks": []
     },
     "DEC-001": {
       "id": "DEC-001",
@@ -2301,11 +2444,14 @@
       ],
       "backlinks": [
         "API-009",
+        "API-010",
         "BEH-017",
+        "BEH-021",
         "CHR-004",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-012",
+        "CON-SLA-013",
         "DEC-027",
         "DEC-030",
         "DEC-059",
@@ -2346,6 +2492,7 @@
         "BEH-017",
         "BEH-018",
         "BEH-020",
+        "BEH-021",
         "CHR-008",
         "CON-POC-001",
         "CON-SLA-012",
