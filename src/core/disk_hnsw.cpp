@@ -1703,15 +1703,10 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             // FINE_DIRECT=1: O_DIRECT 诚实地板路径 (DEC-059; 旧「诊断」叙事见 superseded DEC-030)
             static const bool kFineDirect = std::getenv("FINE_DIRECT") && std::atoi(std::getenv("FINE_DIRECT")) != 0;
             static const bool kProfFine = std::getenv("PROFILE_FINE") && std::atoi(std::getenv("PROFILE_FINE")) != 0;
-            // BEH-017, API-009, DEC-060: Read Coalescing — 候选页按 64KB block 分组合并读
-            static const bool kReadCoalesce = std::getenv("READ_COALESCE") && std::atoi(std::getenv("READ_COALESCE")) != 0;
-            static const int kCoalesceThreshold = []() { const char* v = std::getenv("READ_COALESCE_THRESHOLD"); return v ? std::atoi(v) : 3; }();
-            static const int kCoalesceSize = []() { const char* v = std::getenv("READ_COALESCE_SIZE"); return v ? std::atoi(v) : 65536; }();
-            static const int kPagesPerCoalBlock = kCoalesceSize / 4096;
+            // DEC-061: Read Coalescing 已终止并回退；pread 仅用于非 O_DIRECT（!kFineDirect）
             static double pf_collect = 0, pf_submit = 0, pf_first = 0, pf_iorest = 0, pf_compute = 0;
             static long pf_pages = 0, pf_cached = 0, pf_iters = 0, pf_n = 0;
             auto tf0 = std::chrono::high_resolution_clock::now();
-
             std::priority_queue<std::pair<float, uint32_t>> refined;
             auto consider = [&](uint32_t nid, const float* vec) {
                 float d = l2Distance(query, vec);
@@ -1751,85 +1746,16 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 if (cross) pages_needed.insert(page0 + 1);
             }
 
-            // kFinePread: pread 路径 (线程安全, 多线程并发用, 兼容 O_DIRECT)
-            // BEH-017, DEC-060: READ_COALESCE 在 pread 路径内做合并读取
-            if (kFinePread) {
+            if (kFinePread && !kFineDirect) {
                 // ---- pread 路径 (线程安全, 多线程并发用) ----
                 auto tp0 = std::chrono::high_resolution_clock::now();
                 std::unordered_map<uint32_t, std::unique_ptr<char[]>> page_cache;
                 page_cache.reserve(pages_needed.size());
-
-                if (kReadCoalesce) {
-                    // BEH-017: Read Coalescing — 候选页按所属 64KB block 分组合并读
-                    // BEH-017.1: 按 block_id = page / (READ_COALESCE_SIZE / 4096) 分组
-                    std::unordered_map<uint32_t, std::vector<uint32_t>> block_groups;
-                    for (uint32_t pg : pages_needed) {
-                        block_groups[pg / kPagesPerCoalBlock].push_back(pg);
-                    }
-                    for (auto& [block_id, pages] : block_groups) {
-                        if (pages.size() >= (size_t)kCoalesceThreshold) {
-                            // BEH-017.2: dense block → 一次 pread READ_COALESCE_SIZE 字节
-                            char* big_buf = nullptr;
-                            if (posix_memalign((void**)&big_buf, 4096, kCoalesceSize) != 0) {
-                                // 对齐分配失败: fallback 逐页 pread
-                                for (uint32_t pg : pages) {
-                                    alignas(4096) char tmp[4096];
-                                    ssize_t r2 = pread(vec_blocks_fd_, tmp, 4096, (off_t)pg << 12);
-                                    if (r2 == 4096) {
-                                        auto page_buf = std::make_unique<char[]>(4096);
-                                        std::memcpy(page_buf.get(), tmp, 4096);
-                                        page_cache[pg] = std::move(page_buf);
-                                    }
-                                }
-                                continue;
-                            }
-                            off_t file_off = (off_t)block_id * kCoalesceSize;
-                            ssize_t r = pread(vec_blocks_fd_, big_buf, kCoalesceSize, file_off);
-                            if (r == kCoalesceSize) {
-                                // BEH-017.4: 合并 buffer 按 4KB 切分 → page_cache[pg]
-                                uint32_t base_pg = block_id * kPagesPerCoalBlock;
-                                for (uint32_t pg : pages) {
-                                    auto page_buf = std::make_unique<char[]>(4096);
-                                    std::memcpy(page_buf.get(), big_buf + (pg - base_pg) * 4096, 4096);
-                                    page_cache[pg] = std::move(page_buf);
-                                }
-                            } else {
-                                // 合并读失败: 逐页 fallback
-                                for (uint32_t pg : pages) {
-                                    alignas(4096) char tmp[4096];
-                                    ssize_t r2 = pread(vec_blocks_fd_, tmp, 4096, (off_t)pg << 12);
-                                    if (r2 == 4096) {
-                                        auto page_buf = std::make_unique<char[]>(4096);
-                                        std::memcpy(page_buf.get(), tmp, 4096);
-                                        page_cache[pg] = std::move(page_buf);
-                                    }
-                                }
-                            }
-                            free(big_buf);
-                        } else {
-                            // BEH-017.3: sparse block → 逐页 4KB pread
-                            for (uint32_t pg : pages) {
-                                alignas(4096) char tmp[4096];  // DEC-060: O_DIRECT 对齐
-                                ssize_t r = pread(vec_blocks_fd_, tmp, 4096, (off_t)pg << 12);
-                                if (r == 4096) {
-                                    auto page_buf = std::make_unique<char[]>(4096);
-                                    std::memcpy(page_buf.get(), tmp, 4096);
-                                    page_cache[pg] = std::move(page_buf);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    // BEH-017.5: READ_COALESCE=0 → 逐页 4KB pread (零额外开销)
-                    for (uint32_t pg : pages_needed) {
-                        auto buf = std::make_unique<char[]>(4096);
-                        ssize_t r = pread(vec_blocks_fd_, buf.get(), 4096, (off_t)pg << 12);
-                        if (r == 4096) page_cache[pg] = std::move(buf);
-                    }
+                for (uint32_t pg : pages_needed) {
+                    auto buf = std::make_unique<char[]>(4096);
+                    ssize_t r = pread(vec_blocks_fd_, buf.get(), 4096, (off_t)pg << 12);
+                    if (r == 4096) page_cache[pg] = std::move(buf);
                 }
-
-                // BEH-017.6: 跨页向量拼接逻辑(BEH-011) MUST NOT 受影响
-                // BEH-017.7: Page Search(BEH-014) MUST 在合并读取的页上正常工作
                 auto tp1 = std::chrono::high_resolution_clock::now();
                 char tmp_vec_pread[512];
                 for (const auto& c : io_cands) {
@@ -1861,9 +1787,8 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     double r = std::chrono::duration<double, std::micro>(tp2 - tp1).count();
                     acc_a += a; acc_wait += w; acc_rerank += r; acc_n++;
                     if (acc_n % 200 == 0) {
-                        const char* iomode = kReadCoalesce ? "coalesce" : "pread";
-                        fprintf(stderr, "[PROFILE_TS] n=%ld PhaseA=%.0fus %s=%.0fus rerank=%.0fus\n",
-                                acc_n, acc_a/acc_n, iomode, acc_wait/acc_n, acc_rerank/acc_n);
+                        fprintf(stderr, "[PROFILE_TS] n=%ld PhaseA=%.0fus pread=%.0fus rerank=%.0fus\n",
+                                acc_n, acc_a/acc_n, acc_wait/acc_n, acc_rerank/acc_n);
                     }
                 }
             } else {

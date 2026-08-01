@@ -1,6 +1,6 @@
 # Behavior — Fine Rerank / Page Search
 
-> 条款索引: `BEH-007`, `BEH-011`, `BEH-014`, `BEH-014-L2`, `BEH-017`, `BEH-017-L2`
+> 条款索引: `BEH-007`, `BEH-011`, `BEH-014`, `BEH-014-L2`, `BEH-017`（deprecated）
 
 ## Fine Rerank 4KB 页计算 {#BEH-007}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
@@ -85,34 +85,17 @@ cross = (oip + dim * sizeof(float)) > 4096  // 跨页检测
    - `PROFILE_FINE=1` 时额外输出 `ps_extra` (每 query 额外考虑向量数) 和 `ps_hits` (命中 top-K 数)
 
 
-## Read Coalescing 行为 {#BEH-017}
-<!-- ndf: kind=req level=must layer=L1 status=stable since=0.6 source=deduced -->
+## Read Coalescing 行为 (已废弃) {#BEH-017}
+<!-- ndf: kind=req level=may layer=L1 status=deprecated since=0.6 source=deduced -->
 <!-- ndf: refines=BEH-001 depends-on=DEC-060,API-009 -->
 
-当 `READ_COALESCE=1` **且** `FINE_PREAD=1` 时，Fine Rerank MUST 对候选页按所属
-block（大小 = `READ_COALESCE_SIZE`）分组，对密集 block（候选页数 ≥
-`READ_COALESCE_THRESHOLD`，默认 3）执行单次大粒度读取，替代多次 4KB 读取。
+> **Deprecated (2026-07-31):** v1 (pread 路径) 实测 +6-9% QPS，v2 (io_uring 路径) 实测 -10~16% QPS。
+> 代码已回退，环境变量 `READ_COALESCE` 不再生效。本条款保留为历史记录。
+> 根因：io_uring 批量并行提交已高效处理 4KB 随机读，合并读取引入冗余 I/O 反而退化。
+> 详细分析见 [[DEC-061]]。
 
-**适用范围（v1 SoT）**：仅 **pread 路径**（`FINE_PREAD=1`）。
-`FINE_PREAD=0`（io_uring）下的合并读取 **不在本条款义务内**；见 Pending 提案
-`spec/open/proposal-read-coalescing-v2.md`。
-
-**L1 契约**：
-1. 候选页 MUST 按 `block_id = page / (READ_COALESCE_SIZE / 4096)` 分组
-2. 同 block 内候选页数 ≥ `READ_COALESCE_THRESHOLD` 时，MUST 一次读取 `READ_COALESCE_SIZE` 字节
-3. 同 block 内候选页数 < threshold 时，MUST 保持逐页 4KB 读取（不合并）
-4. 合并读入的数据 MUST 对后续精排逻辑等价于逐页 4KB 读（跨页拼接 [[BEH-011]]、
-   Page Search [[BEH-014]] MUST NOT 被破坏）
-5. `READ_COALESCE=0`（默认）时 MUST 走原有逐页路径，行为与未引入本特性前一致
-6. 不得因合并读取改变候选集合或 Recall 语义
-
-### Read Coalescing pread 机制 {#BEH-017-L2}
-<!-- ndf: kind=req level=must layer=L2 status=stable since=0.6 source=observed -->
-<!-- ndf: refines=BEH-017 -->
-
-pread 路径实现（`disk_hnsw.cpp`）：密集 block 用 `posix_memalign` 分配对齐 buffer 后
-一次 `pread(READ_COALESCE_SIZE)`，再按 4KB 切分写入 `page_cache[pg]`；稀疏 block 与
-`READ_COALESCE=0` 仍逐页 4KB `pread`。
+当 `READ_COALESCE=1` 时，Fine Rerank 对候选页按所属 block 分组，对密集 block 执行单次
+大粒度读取。**v1 (pread) 有小幅正收益，v2 (io_uring) 负收益，代码已全部回退。**
 
 **v1 实测（pread, SIFT1M, 512MB cgroup, O_DIRECT, 1T）**：
 
@@ -122,5 +105,16 @@ pread 路径实现（`disk_hnsw.cpp`）：密集 block 用 `posix_memalign` 分�
 | 100 | 95.75% | 110.9 | 118.2 | +6.6% |
 | 80 | 94.90% | 133.3 | 141.6 | +6.2% |
 
-> rationale: pread 路径收益 +6–9%，低于 DEC-060 方向1 初估 +30%；根因是逐页
-> syscall 开销仍占主导。抬升地板的下一刀在 io_uring 批量合并（v2 提案），不抬高本条款。
+**v2 实测（io_uring, SIFT1M, 512MB cgroup, O_DIRECT, 1T）**：
+
+| REFINE_EF | Threshold | Recall | 基线 QPS | Coalesce QPS | 变化 |
+|-----------|-----------|--------|---------|-------------|------|
+| 100 | 3 | 95.75% | 802.0 | 724.7 | **-9.6%** |
+| 100 | 5 | 95.75% | 802.0 | 786.5 | -1.9% |
+| 100 | 8 | 95.75% | 802.0 | 783.3 | -2.3% |
+| 200 | 3 | 97.20% | 507.3 | 426.1 | **-16.0%** |
+
+> rationale: v1 pread 路径有 +6-9% 收益（syscall 开销减少），但 pread 路径本身比
+> io_uring 慢 7x。v2 io_uring 路径负收益根因：io_uring 批量并行提交 100 个 4KB SQE，
+> NVMe 并行处理，延迟 ≈ max(单次I/O, 总数据/带宽)。合并 64KB 读取引入冗余数据
+> (3 页 12KB 有效 -> 读 64KB)，SQE 减少的收益 < 冗余 I/O 代价。

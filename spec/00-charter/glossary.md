@@ -103,9 +103,10 @@ O_DIRECT 模式下的真实磁盘 I/O 性能是 DiskHNSW 的性能地板（[[DEC
 
 在 cgroup 预算内（`memory.max ≥ RSS + page_cache`）自然填充 page cache，热数据自动被缓存。可用预算 = cgroup_limit - RSS，随数据规模增大对 vecblocks 的覆盖率趋近于 0。Page cache 是有限加成，不是性能基座（[[DEC-059]]）。
 
-## DEF: Read Coalescing {#DEF-019}
-<!-- ndf: kind=def layer=L1 status=stable since=0.6 source=deduced -->
+## DEF: Read Coalescing (已废弃) {#DEF-019}
+<!-- ndf: kind=def layer=L1 status=deprecated since=0.6 source=deduced -->
+
+> **Deprecated (2026-07-31):** v1 pread +6-9%，v2 io_uring -10~16%，代码已回退。见 [[DEC-061]]。
 
 Fine Rerank 候选页按 coalesce block（默认 64KB）分组：密集 block 一次大读，稀疏仍 4KB。
-由 `READ_COALESCE=1` 开启；**现行契约仅覆盖 pread 路径**（[[BEH-017]] / [[API-009]]）。
-io_uring 扩展为 Pending（`proposal-read-coalescing-v2.md`）。SLA 见 [[CON-SLA-012]]。
+由 `READ_COALESCE=1` 开启；环境变量不再生效。

@@ -230,16 +230,10 @@
 | 默认 Buffered 不退化 | FINE_BUFFERED vs 历史基线 | QPS ≥ 2000 | 2450 / 2041 | ✅ |
 | O_DIRECT 稳定可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
 
-### VER-017: Read Coalescing (pread v1) {#VER-017}
-<!-- ndf: kind=verif level=must layer=L3 status=stable since=0.6 verifies=BEH-017,API-009,CON-SLA-012 -->
+### VER-017: Read Coalescing (已废弃) {#VER-017}
+<!-- ndf: kind=verif level=may layer=L3 status=deprecated since=0.6 verifies=BEH-017,API-009,CON-SLA-012 -->
 
-| 用例 | 配置 | 预期 | 实测 | 判定 |
-|------|------|------|------|------|
-| Recall 不变 | READ_COALESCE=1 FINE_PREAD=1 FINE_DIRECT=1 EF=100 | ≥ 95% | 95.75% | ✅ |
-| QPS SLA | 同上 | ≥ 115 ([[CON-SLA-012]]) | 118.2 | ✅ |
-| 默认关闭 | READ_COALESCE=0 | 行为同基线 | 通过 | ✅ |
-| 跨页/PS 兼容 | COALESCE=1 + 跨页候选 / PAGE_SEARCH | 无回归 | 手工/基准 | ✅ |
-| io_uring 路径 | FINE_PREAD=0 READ_COALESCE=1 | **非本 VER 范围**（v2 Pending） | — | n/a |
+> **Deprecated (2026-07-31):** 代码已回退。v1 pread +6-9%，v2 io_uring -10~16%。见 [[DEC-061]]。
 
 ### VER-031: 页面级驱逐消除 Cgroup 颠簸 {#VER-031}
 <!-- ndf: kind=verif level=should layer=L3 status=draft since=0.4 verifies=DEC-031 -->

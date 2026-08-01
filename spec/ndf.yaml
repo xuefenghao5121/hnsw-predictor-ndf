@@ -23,7 +23,7 @@ layout:
   10-architecture: [modules.md]
   20-behavior:
     search.md: [BEH-001..006, BEH-008]
-    fine-rerank.md: [BEH-007, BEH-011, BEH-014, BEH-017]
+    fine-rerank.md: [BEH-007, BEH-011, BEH-014, BEH-017(deprecated)]
     cache.md: [BEH-009, BEH-010]
     prefetch.md: [BEH-012]
     metrics.md: [BEH-013]
@@ -32,7 +32,7 @@ layout:
     cli.md: [API-001..003]
     formats.md: [API-004]
     cxx-api.md: [API-005..006]
-    env.md: [API-007..009]
+    env.md: [API-007..008, API-009(deprecated)]
   40-constraints:
     constants.md: [CON-001..007]
     sla.md: [CON-SLA-*, CON-HONEST-002]
@@ -42,7 +42,7 @@ layout:
     02-fine-rerank-experiments.md: [DEC-017..025]
     03-scale-and-io.md: [DEC-026..033]
     04-p2.md: [DEC-034..039]
-    05-odirect-floor.md: [DEC-057..060]
+    05-odirect-floor.md: [DEC-057..061]
     adr-ndf-hygiene.md: [DEC-HYGIENE-001]
   open: "Pending proposals / unanswered Q / active CONFLICT only"
   archive: "cold storage; not SoT"
