@@ -96,14 +96,14 @@ while candidate_set not empty:
 
 ## I/O Pipelining 行为 (探索轨) {#BEH-021}
 <!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
-<!-- ndf: refines=BEH-001 depends-on=DEC-060,API-010,CON-POC-001 -->
+<!-- ndf: refines=BEH-001 depends-on=DEC-060,DEC-062,API-010,CON-POC-001 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（2026-08-01, r2 统一多层架构）。
+> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（r3, [[DEC-062]]）。
 > 不得作为生产默认；不纳入 stable must SLA（[[CON-POC-001]]）。
 
 当 `PIPE_FINE=1` 时，`searchLayer0()` 在候选加入 `top_candidates` 时，拟 MUST 异步提交
 对应 4KB vecblocks 页的 io_uring 读取到独立 pipeline ring（`pipe_ring_`）。
-**两种 I/O 模式（O_DIRECT / Buffered）均启用。**
+**两种 I/O 模式（O_DIRECT / Buffered）均启用。** 按 [[DEC-062]]，Buffered 为主验证路径。
 
 **L1 草案契约**：
 1. 预取触发：邻居节点加入 `top_candidates` 且 rank ≤ `PIPE_THRESHOLD` 时提交
@@ -113,6 +113,10 @@ while candidate_set not empty:
 5. `PIPE_FINE=0`（默认）时拟 MUST 零开销，行为与基线完全一致
 6. 跨页向量：cross-page 候选需提交 page0 和 page0+1 两个 SQE
 7. Buffered 模式下 pipe_ring_ 读取自然填充 L4 (page cache)，提供跨 query 缓存
+
+**Buffered 模式下 pipe_ring_ 的核心价值**：主动填充 L4（page cache），而非仅「绕过 L4」。
+pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 page cache 预算，
+减少 Phase B 中 page cache miss 导致的磁盘 I/O 等待（[[DEC-062]]）。
 
 > rationale: Phase A (CPU 密集) 与 Fine Rerank I/O 当前完全串行。pipe_ring_ 是
 > Phase A 期间 I/O 与 CPU 并行的唯一主动机制，两种模式都必须保留。

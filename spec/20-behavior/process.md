@@ -16,8 +16,12 @@
    对应开放提案或 DEC 方向
 5. 多轮深入（v1→v2→…）MUST 在**同一探索主题**下追加证据，优先改 `poc/<topic>/` 与提案，
    而不是反复改写 Trunk 的 stable 条款
+6. **可执行试错 MUST 落在 `poc/<topic>/`**（或专用 POC 分支）；MUST NOT 在探索期直接
+   修改 Trunk `src/` 生产默认路径。若已误改，MUST 按 [[BEH-020]] 或显式 revert /
+   迁出到 `poc/`，并做矫正检查（见 `AGENTS.md` §6.2a）
 
-> rationale: 过早把探索写进 Trunk stable，是 NDF/`src/` 漂移的主因（见 [[DEC-061]]）。
+> rationale: 过早把探索写进 Trunk stable 或直接改 `src/`，是 NDF/`src/` 漂移的主因
+> （样板：[[DEC-061]] Read Coalescing；早期 pipelining 曾误改 `src/` 后迁 `poc/`）。
 
 ## 晋升闸门 {#BEH-019}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.7 source=deduced -->

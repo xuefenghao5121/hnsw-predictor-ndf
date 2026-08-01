@@ -1,9 +1,10 @@
 # Proposal: 项目目标澄清与多层内存优化策略重定位
 
 > track: process
-> 关联: [[CHR-001]]、[[CHR-004]]、[[CHR-006]]、[[DEC-059]]、[[DEC-060]]、[[BEH-021]]、[[BEH-022]]、[[BEH-023]]、[[CON-HONEST-002]]
+> 关联: [[CHR-001]]、[[CHR-004]]、[[CHR-006]]、[[DEC-059]]、[[DEC-060]]、[[DEC-062]]、[[BEH-021]]、[[BEH-022]]、[[BEH-023]]、[[CON-HONEST-002]]
 > 日期: 2026-08-01
-> 状态: Pending
+> Status: **Implemented on 2026-08-01** — 闭合见 `spec/open/proposal-buffered-primary-plan-a.md` + [[DEC-062]]
+> 归档: `spec/archive/2026-08/`（原误放 `spec/open/archive/`）
 
 ## 1. 问题陈述
 

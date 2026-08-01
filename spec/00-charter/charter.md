@@ -2,18 +2,21 @@
 
 ## 系统目标 {#CHR-001}
 <!-- ndf: kind=arch level=must layer=L0 status=stable since=0.1 source=observed -->
-<!-- ndf: depends-on=DEC-059 -->
+<!-- ndf: depends-on=DEC-059,DEC-062 -->
 
 DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数据,实现与全内存 HNSW 可比的向量搜索召回率(≥95%),同时将常驻内存控制在限额内。
 
 cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；可用 page cache
-预算 = limit − RSS。默认搜索路径可为 Buffered；**优化与诚实验收的性能地板**以
-O_DIRECT（`FINE_DIRECT=1`）为准（[[DEC-059]]）。
+预算 = limit − RSS。
 
-**优化主目标**：Buffered 模式（生产默认）是性能优化的主要目标。目标是在诚实 cgroup
-预算下逼近 hnswlib 全内存方案性能。page cache 在预算内是合法的核心加速层。
-O_DIRECT 模式是诚实验收地板和必然磁盘 I/O 的优化路径，两者各有独立优化空间，
-不假设 O_DIRECT 优化成果会自然惠及 Buffered。参见 [[DEC-060]]。
+**优化主目标（[[DEC-062]]）**：Buffered 模式（生产默认，`FINE_BUFFERED=1`）是性能优化的
+主要目标。目标是在诚实 cgroup 预算下逼近 hnswlib 全内存方案性能。page cache 在预算内
+是合法的核心加速层。
+
+**诚实验收地板**：O_DIRECT（`FINE_DIRECT=1`）是无 page cache 补贴时的性能地板，以及
+大规模下必然磁盘 I/O 的独立优化路径。两者各有独立优化空间，不假设 O_DIRECT 优化成果
+会自然惠及 Buffered。双层策略见 [[DEC-059]]（经 [[DEC-062]] 修正优先级叙事）；
+工程路线图见 [[DEC-060]]。
 
 **核心业务实体(从代码强行归纳):**
 
@@ -52,12 +55,13 @@ O_DIRECT 模式是诚实验收地板和必然磁盘 I/O 的优化路径，两者
 
 ## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
-<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,DEC-059 -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,DEC-059,DEC-062 -->
 
 DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
 
-**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化优先级与诚实验收地板**以
-O_DIRECT（`FINE_DIRECT=1`）为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]]
+**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化主目标**为 Buffered（逼近
+hnswlib，见 [[CHR-001]] / [[DEC-062]]）。**诚实验收地板**以 O_DIRECT（`FINE_DIRECT=1`）
+为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]] / [[DEC-062]]
 （非本条款 must 数字）。
 
 ### Buffered（`FINE_BUFFERED=1`，生产默认）

@@ -22,3 +22,6 @@ poc/<topic>/
 
 多轮深入（v1→v2）在**同一** `<topic>/` 追加证据；未晋升前 **禁止** 改写
 `spec/20–50` 的 `status=stable` must，也 **禁止** 把实验默认打开合入 `src/`。
+
+**硬规则**：探索代码 MUST 写在本目录；MUST NOT 先改 Trunk `src/` 再「补 POC」。
+若已误改，按 `AGENTS.md` §6.2a 矫正检查清单处理（[[BEH-018]]）。

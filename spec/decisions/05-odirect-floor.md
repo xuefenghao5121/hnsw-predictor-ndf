@@ -1,6 +1,6 @@
 # Decisions - O_DIRECT 地板 (DEC-057…061)
 
-> 条款索引: `DEC-057`, `DEC-058`, `DEC-059`, `DEC-060`, `DEC-061`
+> 条款索引: `DEC-057`, `DEC-058`, `DEC-059`, `DEC-060`, `DEC-061`, `DEC-062`
 
 ## D-057: O_DIRECT 诚实基准测试 - Page Cache 加速比量化 {#DEC-057}
 <!-- ndf: kind=decision date=2026-07-31 affects=DEC-039,CHR-006,CON-HONEST-002 source=observed -->
@@ -85,6 +85,11 @@ buffer 不满足 O_DIRECT 的 512 字节对齐要求。改用 `posix_memalign` +
 
 ## D-059: 战略重新校准 - O_DIRECT 地板优化 + Page Cache 受限加速 {#DEC-059}
 <!-- ndf: kind=decision date=2026-07-31 affects=CHR-001,CHR-004,CHR-006,DEC-030,DEC-057,CON-HONEST-002 source=deduced -->
+<!-- ndf: amended-by=DEC-062 -->
+
+> **Amendment:** [[DEC-062]](2026-08-01) 修正下文「O_DIRECT = 优化第一优先级」叙事：
+> **Buffered = 生产优化主目标**；O_DIRECT = 诚实验收地板 + 大规模必然磁盘 I/O 路径。
+> cgroup 预算约束与双层机制仍有效；仅优先级/主战场表述被修订。
 
 **Context.** DEC-057 完成了 O_DIRECT 诚实基准测试,量化了 Buffered 与 O_DIRECT
 之间的性能差距(SIFT1M 17-19x, DEEP10M 9x)。DEC-030 将 page cache 定位为
@@ -96,9 +101,10 @@ buffer 不满足 O_DIRECT 的 512 字节对齐要求。改用 `posix_memalign` +
    两者竞争同一块内存。Page cache 不是"免费的白嫖",超了就是超了,一样被 OOM
    kill 或 reclaim。在运行过程中,加载的 page cache 不得使总内存超过 cgroup 限制。
 
-2. **O_DIRECT 是优化基座,不是诊断工具**:之前 DEC-030 将 O_DIRECT 定位为
-   "诊断/测试模式"。重新校准后,O_DIRECT 代表真实磁盘 I/O 的性能地板,
-   是优化的第一优先级。Page cache 在剩余预算内提供有限加速,是第二层。
+2. **O_DIRECT 是诚实地板与必然 I/O 路径,不是诊断工具**（优先级叙事经 [[DEC-062]] 修正）:
+   之前 DEC-030 将 O_DIRECT 定位为"诊断/测试模式"。重新校准后,O_DIRECT 代表
+   真实磁盘 I/O 的性能地板。Page cache 在剩余预算内提供加速。
+   **生产优化主目标**为 Buffered（逼近 hnswlib），见 [[DEC-062]]。
 
 **可用 page cache 预算分析:**
 
@@ -113,12 +119,12 @@ buffer 不满足 O_DIRECT 的 512 字节对齐要求。改用 `posix_memalign` +
 
 **Decision.**
 
-1. **双层优化策略确立**:
-   - **Layer 1 (O_DIRECT 地板优化)**:减少 I/O 次数、增大 I/O 粒度、批量化、
-     I/O 与计算重叠。目标是抬高无缓存时的 QPS 地板。
-   - **Layer 2 (Page Cache 受限加速)**:在 cgroup 预算内自然填充 page cache,
-     热数据自动被缓存。但可用预算有限,不能作为性能基座。
-   - Layer 1 是地基,Layer 2 是有限加成。两者叠加 = cgroup 限制下的最优性能。
+1. **双层优化策略确立**（主战场经 [[DEC-062]] 修订）:
+   - **Layer A (Buffered / page cache 主目标)**: 在 cgroup 预算内最大化有效命中与
+     流水线，逼近 hnswlib（生产优化主战场）。
+   - **Layer B (O_DIRECT 地板)**: 减少无效 I/O、I/O 与计算重叠等；抬高无缓存时的
+     QPS 地板，并优化 miss 路径上的必然磁盘 I/O。
+   - 两者叠加 = cgroup 限制下的最优性能；**不假设** Layer B 成果自动线性惠及 Layer A。
 
 2. **修正 DEC-030 的 page cache 定位**:
    - DEC-030 第 1 点"page cache 是免费的"修正为"page cache 与匿名内存共享
@@ -133,29 +139,28 @@ buffer 不满足 O_DIRECT 的 512 字节对齐要求。改用 `posix_memalign` +
    - DEC-057 的"水分倍数"重新定位为"page cache 加速比",即 Layer 2 对 Layer 1
      的加成倍数。不是"虚假数字",而是"缓存加速的真实效果"
 
-4. **O_DIRECT 优化成为 P3 之前的核心工作**:
+4. **O_DIRECT 地板与 Buffered 主目标并行**（见 [[DEC-060]] / [[DEC-062]]）:
    - 当前 O_DIRECT SIFT1M 1T = 130 QPS (7.7ms/query),其中 ~100 次 4KB 随机读
-   - 优化目标:在不改变 recall 的前提下,将单查询 I/O 次数减半或 I/O 粒度增大
-   - 具体方案见 [[DEC-060]]
+   - 地板优化仍必要；生产路径上 Buffered 逼近 hnswlib 为 P3 主战场
 
 **Alternatives rejected.**
 - 继续将 O_DIRECT 视为诊断工具:低估了其在大规模场景的核心地位
 - 放弃 Buffered 模式:page cache 在预算内仍是合法且有效的加速手段
 - 将 page cache 视为免费资源:违反 cgroup v2 memory.max 同时限制 anon + file 的约束
 
-> rationale: 之前将 O_DIRECT 定位为"诚实基准/诊断工具",是因为在 1M/10M 规模
-> page cache 可覆盖大部分 vecblocks,O_DIRECT 似乎只是"最差情况"。
-> 但用户校准揭示了一个更本质的事实:page cache 预算 = cgroup_limit - RSS,
-> 它不是无限的。随着规模增大,这个预算对 vecblocks 的覆盖率趋近于 0。
-> O_DIRECT 不是"最差情况",而是"大多数情况"。因此 O_DIRECT 优化是性能基座,
-> page cache 是在基座之上的有限加成。
+> rationale: page cache 预算 = cgroup_limit - RSS，不是无限的；大规模下覆盖率趋近 0，
+> O_DIRECT 成为多数真实 miss 路径。[[DEC-062]] 进一步明确：这不意味着生产优化应
+> 以 O_DIRECT 为「第一优先级」——当前产品目标是在诚实预算下逼近全内存性能，
+> 故 Buffered 为主战场，O_DIRECT 为地板与必然 I/O 路径。
 
 ---
 
 ## D-060: I/O 优化方案设计 - 减少 O_DIRECT 路径的磁盘 I/O 开销 {#DEC-060}
 <!-- ndf: kind=decision date=2026-07-31 affects=DEC-009,DEC-017,DEC-018,DEC-030,DEC-059 source=deduced -->
+<!-- ndf: amended-by=DEC-062 -->
 
-**Context.** [[DEC-059]] 确立 O_DIRECT 地板优化为第一优先级。当前 O_DIRECT 性能:
+**Context.** [[DEC-059]] 确立 O_DIRECT 诚实地板；[[DEC-062]] 明确 Buffered 为生产
+优化主目标，O_DIRECT 为地板/必然 I/O 辅助路径。当前 O_DIRECT 性能:
 
 | 规模 | 线程 | QPS | 延迟/query | I/O 量/query |
 |------|------|-----|-----------|-------------|
@@ -335,3 +340,35 @@ PQ 粗筛(Phase A)和 Fine Rerank(Phase B)完全串行。
 > rationale: 这是一个重要的负结果。它证明在 io_uring + NVMe 的组合下,
 > 4KB 随机读已被高效并行化, 传统 "合并 I/O 减少次数" 的优化思路不适用。
 > O_DIRECT 地板优化应转向减少 I/O 需求量 (更少候选/更小读取) 或隐藏 I/O 延迟 (流水线)。
+
+---
+
+## D-062: Buffered 为生产优化主目标 — 修正 DEC-059 优先级叙事 {#DEC-062}
+<!-- ndf: kind=decision date=2026-08-01 affects=DEC-059,DEC-060,CHR-001,CHR-006,CON-HONEST-002,CON-SLA-013,BEH-021 source=deduced -->
+
+**Context.** [[DEC-059]] 正确确立了：(1) page cache 与 RSS 共享 cgroup 预算；
+(2) O_DIRECT 不是诊断玩具，而是诚实地板与大规模 miss 路径。但「O_DIRECT =
+优化第一优先级」被过度解读：I/O Pipelining POC 与部分 SoT 条文把 O_DIRECT 当作
+主优化战场，Buffered 沦为「page cache 已够、不必优化」的附属，偏离
+[[CHR-001]]「在受限内存下逼近全内存 HNSW」的产品目标。
+
+**Decision.**
+
+1. **Buffered = 生产优化主目标**：默认路径 `FINE_BUFFERED=1`；在诚实 cgroup 预算内
+   逼近 hnswlib；page cache 是合法核心加速层（非白嫖、非无限）。
+2. **O_DIRECT = 诚实验收地板 + 必然磁盘 I/O 路径**：MUST 继续按 [[CON-HONEST-002]]
+   报告；地板抬升与 miss 路径优化仍有独立价值；**不得**假设 O_DIRECT 收益线性惠及 Buffered。
+3. **修正措辞**：CHR-001 / CHR-006 / CON-HONEST-002 / DEC-059 / DEC-060 中
+   「优化第一优先级 / 优化优先级 = O_DIRECT」改为上述双定位；**不改** stable QPS 数字。
+4. **POC 纪律**：`poc/io-pipelining/` 以 Buffered R0–R4 为主；O_DIRECT 为辅；
+   v1 不可信数字 MUST NOT 引用（见 `proposal-goal-clarification` §7）。
+5. **DEC-059 / DEC-060 仍有效**：预算约束、负结果（[[DEC-061]]）、方向 2 优先级不变；
+   仅「谁是主战场」叙事被本决策接管。
+
+**Alternatives rejected.**
+- 废弃 O_DIRECT 优化：大规模 miss 路径仍需地板工程
+- 保持「O_DIRECT 第一优先级」原文：与产品目标及已确认的 goal-clarification 冲突
+- 立刻改写 stable SLA 数字：无新诚实证据；属 promote 闸门事项
+
+> rationale: 诚实协议与优化主战场是两件事。O_DIRECT 回答「没有 page cache 时多快」；
+> Buffered 回答「在合法预算内能否逼近全内存」。当前 1M/10M 产品验收与差距主要在后者。

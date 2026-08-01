@@ -23,7 +23,7 @@ disable-model-invocation: false
 6. **poc** → 委派改 `poc/` only；**promote** → 委派 `src/` → 编译 → 性能；**process** → 结束
 7. 失败走场景7；负结果走 BEH-020
 
-不确定时：**默认先 poc**。
+不确定时：**默认先 poc**。探索期 **禁止** 改 Trunk `src/`（只改 `poc/<topic>/`）。
 
 ## 人工审核辅助
 ```bash
@@ -33,3 +33,5 @@ python3 tools/ndf/ndf_index.py diff HEAD~1
 python3 tools/ndf/ndf_index.py validate
 ```
 见 `spec/INDEX.md`（生成物）、`spec/graph.json`；实现位于 `tools/ndf/`（非 `scripts/`）。
+
+已关闭提案归档到 **`spec/archive/YYYY-MM/`**（不是 `spec/open/archive/`）。

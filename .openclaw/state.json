@@ -1,12 +1,12 @@
 {
-  "current_proposal": null,
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "proposal-buffered-primary-plan-a.md",
+  "scenario_type": "process",
+  "track": "process",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "invalidated",
-  "perf_status": "baseline_needed",
-  "last_activity": "2026-08-01T20:00:00Z",
-  "notes": "POC v1 结果不可信（FINE_PREAD 配置错误 + cgroup 未真正生效 + 缺少 PQ_HYBRID/FLAT_VEC_MB）。用户要求重新测试甚至实现。NDF spec 已刷新：CHR-001 追加 Buffered 为优化主目标，CHR-004 P3 修正为多层内存优化。下一步：按 proposal-goal-clarification §7 先对齐 Buffered 基线（512MB cgroup, 正确配置），再重新实现 pipe_ring_ POC。"
+  "pending_decision": "waiting_for_user_review",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-01T20:25:00Z",
+  "notes": "Plan A landed: DEC-062 Buffered-primary; synced CHR-001/006 CON-HONEST-002 BEH-021 CON-SLA-013; io-pipelining r3 + NOTES §7; goal-clarification → spec/archive/2026-08/; AGENTS/BEH-018/CLAUDE.md hygiene for early-src mistake. Next after 已审核: poc R0 Buffered baseline."
 }

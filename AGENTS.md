@@ -153,12 +153,20 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 落地时：
 - 契约进 `open/` 或固定目录且 **`status=draft` / `level=tbd`**
 - MUST NOT 写入 `status=stable` 的 CON-SLA must（[[BEH-018]]、[[CON-POC-001]]）
-- 创建/更新 `poc/<topic>/`（至少 NOTES 链接提案）
+- **先**创建/更新 `poc/<topic>/`（至少 NOTES 链接提案）；**再**委派实现
+- MUST NOT 在探索期直接改 Trunk `src/`（[[BEH-018]] 第 6 条）
 
 已审核后：
 - 委派：在 `poc/<topic>/` 实现与基准；允许 v1→v2 多轮，**改 POC 与提案证据，不反复改 Trunk stable**
 - **跳过**场景5/6（除非用户只要 POC 自测报告）
 - 正结果 → 另开 **promote** 提案；负结果 → §6.2d
+
+**若曾误改 `src/`（矫正检查清单）**：
+1. `git log` / `rg` 确认 Trunk 无 POC 表面（标志、默认开启、实验路径）
+2. 有效切片已迁入 `poc/<topic>/`；NOTES 标明无效/不可信轮次
+3. 相关 draft 条款与提案 Status 一致；误归档用 `spec/archive/`（**不是** `spec/open/archive/`）
+4. `.claude/CLAUDE.md` / 委派指令含 track 写入边界
+5. 更新 `.openclaw/state.json` notes；需要时开 DEC 或 process 提案收口
 
 #### 6.2b track=promote（晋升）
 
@@ -247,7 +255,9 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
 ### 6.7 写入边界（重申）
 
-见 §2。另：`archive/` 与 `poc/` 均为 **sot: false**；不得当现行 must。
+见 §2。另：`spec/archive/` 与 `poc/` 均为 **sot: false**；不得当现行 must。
+已关闭提案迁入 **`spec/archive/YYYY-MM/`**（见 `ndf.yaml` `archive.path`）；
+**禁止**使用 `spec/open/archive/`（易与现行 `open/` 混淆）。
 
 
 ### 6.8 状态示例
@@ -293,7 +303,9 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 ### 禁止行为
 
 * 生成提案前建议或执行 **Trunk** 代码修改
+* **探索期直接改 `src/`**（必须先有 `poc/<topic>/`；反面教材：RC 过早合入、早期 pipelining）
 * 探索期写入 stable must SLA，或把 POC 默认开启合入 `src/`
 * 把生产实验补丁写入 `spec/models/`
+* 将已关闭提案放进 `spec/open/archive/`（应用 `spec/archive/`）
 * poc/process 跳过验证却宣告「主线任务完成」
 * promote 跳过验证直接宣告完成

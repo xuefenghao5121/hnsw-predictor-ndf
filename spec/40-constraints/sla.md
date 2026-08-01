@@ -44,7 +44,7 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 
 ## 诚实 I/O 基准协议 {#CON-HONEST-002}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.5 source=deduced -->
-<!-- ndf: refines=DEC-039,DEC-059 depends-on=DEC-057 -->
+<!-- ndf: refines=DEC-039,DEC-059 depends-on=DEC-057,DEC-062 -->
 
 性能基准测试 MUST 至少报告两组数据：
 1. **Buffered**: `FINE_BUFFERED=1`（含 page cache）
@@ -53,10 +53,10 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 两组模式 MUST 在同一 cgroup 限制下运行。Buffered 模式下，page cache 计入
 cgroup 内存使用，运行过程中峰值内存（anon + file）MUST NOT 超过 cgroup 限制。
 
-**cgroup 预算约束（[[DEC-059]] 确立）**：page cache 与匿名内存共享 cgroup `memory.max`
-预算。可用 page cache 预算 = `memory.max - RSS`。在运行过程中加载的 page cache
-不得使总内存（anon + file）超过限制，否则触发 OOM kill 或 memory reclaim。
-随数据规模增大，page cache 对 vecblocks 的覆盖率趋近于 0：
+**cgroup 预算约束（[[DEC-059]] 确立，[[DEC-062]] 修正优先级叙事）**：page cache 与
+匿名内存共享 cgroup `memory.max` 预算。可用 page cache 预算 = `memory.max - RSS`。
+在运行过程中加载的 page cache 不得使总内存（anon + file）超过限制，否则触发 OOM kill
+或 memory reclaim。随数据规模增大，page cache 对 vecblocks 的覆盖率趋近于 0：
 
 | 规模 | cgroup | RSS | 可用 page cache | vecblocks | 覆盖率 |
 |------|--------|-----|----------------|-----------|-------|
@@ -64,18 +64,18 @@ cgroup 内存使用，运行过程中峰值内存（anon + file）MUST NOT 超�
 | DEEP10M | 2GB | 1612MB | ~390MB | 3.7GB | ~10% |
 | 100M (预估) | 4GB | ~2GB | ~2GB | ~50GB | ~4% |
 
-因此 O_DIRECT 路径（性能地板）是优化的第一优先级，page cache 是在剩余预算内
-的有限加速手段（[[DEC-059]]）。抬高地板的工程路线图见 [[DEC-060]]（非本条款 SLA）。
+**定位（[[DEC-062]]）**：Buffered（含预算内 page cache）是**生产优化主目标**；
+O_DIRECT 是**诚实验收地板**与大规模下**必然磁盘 I/O** 的独立优化路径，不是「唯一 /
+第一」生产优化优先级。page cache 在剩余预算内是合法核心加速层，但可用量有限。
+抬高地板与 Buffered 流水线的工程路线图见 [[DEC-060]]（非本条款 SLA）。
 
 报告 MUST 标注测量模式。仅报告 Buffered 模式数字时 MUST 附带声明：
 "此数字在 cgroup 限制内运行，page cache 与匿名内存共享内存预算"。
 
 > rationale: cgroup v2 的 memory.max 同时限制匿名内存和 page cache。Page cache
-> 不是免费资源——它与 RSS 竞争同一块预算。Buffered 模式是生产推荐路径，
-> page cache 是 OS 在剩余预算内自动管理的冷热分层，但可用量受限。
-> O_DIRECT 模式消除 page cache 后，测量的是纯匿名内存 + 真实磁盘 I/O 的性能，
-> 代表无缓存时的性能地板，是 I/O 优化的基座。
-> 关联决策: [[DEC-059]]（战略重新校准）、[[DEC-060]]（I/O 优化方案）
+> 不是免费资源——它与 RSS 竞争同一块预算。Buffered 是生产推荐路径与优化主战场；
+> O_DIRECT 消除 page cache 后测量纯磁盘 I/O 地板，并服务 miss 路径。
+> 关联决策: [[DEC-059]]、[[DEC-062]]、[[DEC-060]]
 
 ## Honest / O_DIRECT QPS 下限 {#CON-SLA-011}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.5 source=deduced -->
@@ -101,31 +101,42 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 
 ## I/O Pipelining SLA (探索轨) {#CON-SLA-013}
 <!-- ndf: kind=constraint level=tbd layer=L1 status=draft since=0.8 source=deduced -->
-<!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,BEH-021,BEH-022,BEH-023,CON-POC-001 -->
+<!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,DEC-062,BEH-021,BEH-022,BEH-023,CON-POC-001 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（2026-08-01, r2 统一多层架构）。
+> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`
+> （r3：Buffered 主目标，对齐 [[DEC-062]]）。
 > POC 阶段不纳入生产 SLA（[[CON-POC-001]]）。以下为 POC 验证目标，非 must 承诺。
+> **v1 smoke（~24 QPS、无诚实 cgroup）不可信，MUST NOT 引用为 R0 或增量证据。**
 >
-> 分层验证目标 (R0-R4 逐层叠加):
+> 分层验证 (R0–R4)：**以 Buffered 为核心对比组**；O_DIRECT 为辅助地板组。
 >
 > | 轮次 | 配置 | 验证目标 |
 > |------|------|----------|
-> | R0 | 基线 (PIPE_FINE=0) | 锚定基线 QPS/Recall/RSS |
-> | R1 | + L5 only (PIPE_FINE=1) | pipe_ring_ I/O 重叠的独立贡献 |
-> | R2 | + L5 + L1 (PIPE_FINE=1, PIPE_L1=1) | CPU cache 预取的增量 |
-> | R3 | + L5 + L4 (PIPE_FINE=1, PIPE_L4=1) | L4 旁路填充的跨 query 效果 |
+> | R0 | 基线 (PIPE_FINE=0) | 锚定基线；须对齐 §7 纪律（见提案 / NOTES） |
+> | R1 | + L5 only (PIPE_FINE=1) | pipe_ring_ I/O 重叠 / 主动填 L4 的独立贡献 |
+> | R2 | + L5 + L1 (PIPE_FINE=1, PIPE_L1=1) | CPU cache 预取增量 |
+> | R3 | + L5 + L4 (PIPE_FINE=1, PIPE_L4=1) | L4 旁路填充跨 query 效果 |
 > | R4 | + L5 + L4 + L1 (全开) | 叠加上限 |
+
+### 主表：Buffered（生产优化主目标）
+
+| 指标 | 基线锚点 (参考) | POC 目标 (相对 R0) | 说明 |
+|------|----------------|-------------------|------|
+| SIFT1M 1T QPS | ~2128–2450（诚实 cgroup） | ≥ R0 × 1.03 | L5 + L4 协作；逼近 hnswlib ~2800 |
+| SIFT1M 4T QPS | ~5000–8312 | ≥ R0 × 1.02 | 多线程收益递减 |
+| Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
+| RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool |
+
+### 辅表：O_DIRECT（诚实地板 / 必然 I/O）
 
 | 指标 | 基线 (O_DIRECT) | POC 目标 | 说明 |
 |------|-----------------|----------|------|
 | SIFT1M 1T QPS | 130 | ≥ 140 | L5 I/O 重叠 |
 | SIFT1M 4T QPS | 502 | ≥ 540 | 多线程重叠效果递减 |
 | DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
-| Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
-| RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool (thread_local) |
 
-> 若 POC 验证通过，promote 提案将更新 [[CON-SLA-011]] 的 Honest 下限。
-> 若 POC 负结果，走 [[BEH-020]] 负结果闭环。
+> 若 POC 验证通过，promote 时分别评估是否抬升 [[CHR-006]] Buffered 与/或
+> [[CON-SLA-011]] Honest 下限。负结果走 [[BEH-020]]。
 
 ## POC 不纳入生产 SLA {#CON-POC-001}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.7 source=deduced -->

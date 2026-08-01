@@ -1,10 +1,10 @@
 # Proposal: I/O Pipelining - 统一多层预取架构
 
 > track: poc
-> 关联: [[DEC-060]] 方向 2、[[BEH-001]]、[[BEH-007]]、[[CON-SLA-011]]、[[CON-POC-001]]
+> 关联: [[DEC-060]] 方向 2、[[DEC-062]]、[[BEH-001]]、[[BEH-007]]、[[CHR-006]]、[[CON-SLA-011]]、[[CON-POC-001]]
 > 日期: 2026-08-01
-> Status: **Pending** — draft 条款已写入固定目录（`status=draft`）；待人工「已确认」后进入委派实现
-> 修订: 2026-08-01 r2 统一多层架构；NDF 卫生修复（恢复 API-009、提案 Status 对齐）
+> Status: **Implemented (draft clauses)** — 代码在 `poc/io-pipelining/`；v1 数字 invalid；待 R0 Buffered 后重测
+> 修订: 2026-08-01 r2 统一多层；r3 Buffered 主目标（[[DEC-062]] / plan-a）
 
 ## 1. 问题陈述
 
@@ -312,29 +312,24 @@ inline void prefetchVecToL1(const char* vec_ptr) {
 
 ### 2.8 POC 验证计划
 
-在 `poc/io-pipelining/` 中实现，分层验证各层独立贡献和叠加效果：
+在 `poc/io-pipelining/` 中实现，分层验证各层独立贡献和叠加效果。
+
+**主目标 = Buffered**（[[DEC-062]]）；O_DIRECT 为辅。**v1 smoke 不可信，禁止引用。**
 
 | 轮次 | 配置 | 验证目标 |
 |------|------|---------|
-| R0 | 基线 (PIPE_FINE=0) | 锚定基线 QPS/Recall/RSS |
-| R1 | + L5 only (PIPE_FINE=1) | pipe_ring_ I/O 重叠的独立贡献 |
-| R2 | + L5 + L1 (PIPE_FINE=1, PIPE_L1=1) | CPU cache 预取的增量 |
-| R3 | + L5 + L4 (PIPE_FINE=1, PIPE_L4=1) | L4 旁路填充的跨 query 效果 |
-| R4 | + L5 + L4 + L1 (全开) | 叠加上限 |
+| R0 | 基线 (PIPE_FINE=0) | 诚实 cgroup 下锚定；对齐 §7 / NOTES |
+| R1 | + L5 only (PIPE_FINE=1) | pipe_ring_ / 主动填 L4 |
+| R2 | + L5 + L1 | CPU cache 增量 |
+| R3 | + L5 + L4 | L4 旁路跨 query |
+| R4 | 全开 | 叠加上限 |
 
-测试矩阵：
-- SIFT1M O_DIRECT 1T/4T
-- SIFT1M Buffered 1T/4T
-- DEEP10M O_DIRECT 4T/12T
-- DEEP10M Buffered 4T/12T
+测试矩阵（顺序：Buffered 先于 O_DIRECT）：
+- SIFT1M **Buffered** 1T/4T（主）
+- SIFT1M O_DIRECT 1T/4T（辅）
+- DEEP10M Buffered / O_DIRECT 按需
 
-指标：
-- QPS / Recall@10 / RSS
-- `PROFILE_TS=1` 分解 Phase A / Phase B 耗时
-- `PROFILE_FINE=1` 分解 Fine Rerank 子阶段
-- 新增 `PROFILE_PIPE=1`：pipe_ring_ 提交数 / 命中数 / 浪费数 / L4 hit 数
-
-验证 recall 不变（预取不改变候选集，只改变 I/O 时机和缓存层级）。
+§7 基线纪律见 `proposal-goal-clarification` / NOTES：偏差 >10% vs [[CHR-006]]/[[CON-SLA-011]] 先查根因。
 
 ## 3. 拟新增/修订条款
 
@@ -380,22 +375,14 @@ inline void prefetchVecToL1(const char* vec_ptr) {
 | `PIPE_L1` | int | 0 | 0/1 | 1=开启 L1/L2/L3 CPU cache 向量预取 | [[BEH-022]] |
 | `PIPE_L4` | int | 0 | 0/1 | 1=开启 L4 page cache 旁路填充 (仅 Buffered) | [[BEH-023]] |
 
-### {#CON-SLA-013} (draft, 修订)
+### {#CON-SLA-013} (draft, 修订 r3)
 
-> track: poc | status: draft | level: tbd
+> track: poc | status: draft | level: tbd | depends-on: [[DEC-062]]
 
-POC 阶段不纳入生产 SLA。以下为 POC 验证目标，非 must 承诺。
+POC 阶段不纳入生产 SLA。**主表 Buffered；辅表 O_DIRECT。** 固定目录正文为准。
 
-| 指标 | 基线 (O_DIRECT) | POC 目标 | 说明 |
-|------|-----------------|----------|------|
-| SIFT1M 1T QPS | 130 | ≥ 140 | L5 I/O 重叠 |
-| SIFT1M 4T QPS | 502 | ≥ 540 | 多线程重叠效果递减 |
-| DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
-| Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
-| RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool (thread_local) |
-
-若 POC 验证通过，promote 提案将更新 [[CON-SLA-011]] 的 Honest 下限。
-若 POC 负结果，走 [[BEH-020]] 负结果闭环。
+主表目标：相对诚实 Buffered R0 有可测增益，方向逼近 hnswlib；辅表保留 130→140 等地板目标。
+若负结果，走 [[BEH-020]]。
 
 ## 4. 不做的事
 

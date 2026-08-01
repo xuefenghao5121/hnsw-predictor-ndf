@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T13:32:42Z",
-  "clause_count": 155,
+  "generated_at": "2026-08-01T17:25:55Z",
+  "clause_count": 156,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -489,7 +489,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 148,
+      "line": 152,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -796,6 +796,7 @@
         ]
       },
       "body_refs": [
+        "BEH-020",
         "DEC-061"
       ],
       "backlinks": [
@@ -808,7 +809,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "20-behavior/process.md",
-      "line": 22,
+      "line": 26,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -835,7 +836,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "20-behavior/process.md",
-      "line": 36,
+      "line": 40,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -853,6 +854,7 @@
         "DEC-061"
       ],
       "backlinks": [
+        "BEH-018",
         "CHR-008",
         "CON-SLA-013"
       ]
@@ -873,11 +875,13 @@
         ],
         "depends-on": [
           "DEC-060",
+          "DEC-062",
           "API-010",
           "CON-POC-001"
         ]
       },
       "body_refs": [
+        "DEC-062",
         "CON-POC-001",
         "DEC-061"
       ],
@@ -885,14 +889,15 @@
         "API-010",
         "BEH-022",
         "BEH-023",
-        "CON-SLA-013"
+        "CON-SLA-013",
+        "DEC-062"
       ]
     },
     "BEH-022": {
       "id": "BEH-022",
       "title": "L1/L2/L3 CPU Cache 向量预取 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 123,
+      "line": 127,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -916,7 +921,7 @@
       "id": "BEH-023",
       "title": "L4 Page Cache 旁路填充 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 135,
+      "line": 139,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -948,21 +953,26 @@
       "since": "0.1",
       "edges": {
         "depends-on": [
-          "DEC-059"
+          "DEC-059",
+          "DEC-062"
         ]
       },
       "body_refs": [
-        "DEC-059"
+        "DEC-062",
+        "DEC-059",
+        "DEC-060"
       ],
       "backlinks": [
-        "DEC-059"
+        "CHR-006",
+        "DEC-059",
+        "DEC-062"
       ]
     },
     "CHR-002": {
       "id": "CHR-002",
       "title": "Scope",
       "file": "00-charter/charter.md",
-      "line": 22,
+      "line": 30,
       "kind": "arch",
       "level": "L0",
       "layer": "L0",
@@ -976,7 +986,7 @@
       "id": "CHR-003",
       "title": "Non-Goals",
       "file": "00-charter/charter.md",
-      "line": 32,
+      "line": 40,
       "kind": "info",
       "level": "",
       "layer": "L0",
@@ -990,7 +1000,7 @@
       "id": "CHR-004",
       "title": "演进路线意图（探索性设想）",
       "file": "00-charter/charter.md",
-      "line": 85,
+      "line": 94,
       "kind": "arch",
       "level": "may",
       "layer": "L0",
@@ -1010,7 +1020,7 @@
       "id": "CHR-005",
       "title": "设计约束(推断)",
       "file": "00-charter/charter.md",
-      "line": 111,
+      "line": 122,
       "kind": "constraint",
       "level": "should",
       "layer": "L0",
@@ -1028,7 +1038,7 @@
       "id": "CHR-006",
       "title": "关键性能承诺",
       "file": "00-charter/charter.md",
-      "line": 48,
+      "line": 56,
       "kind": "constraint",
       "level": "must",
       "layer": "L0",
@@ -1038,22 +1048,27 @@
         "depends-on": [
           "CON-HONEST-002",
           "CON-SLA-011",
-          "DEC-059"
+          "DEC-059",
+          "DEC-062"
         ]
       },
       "body_refs": [
         "CON-HONEST-002",
+        "CHR-001",
+        "DEC-062",
         "DEC-059",
         "DEC-060"
       ],
       "backlinks": [
         "CON-POC-001",
         "CON-SLA-011",
+        "CON-SLA-013",
         "DEC-016",
         "DEC-029",
         "DEC-037",
         "DEC-057",
         "DEC-059",
+        "DEC-062",
         "VER-030",
         "VER-037"
       ]
@@ -1062,7 +1077,7 @@
       "id": "CHR-007",
       "title": "设计约束",
       "file": "00-charter/charter.md",
-      "line": 122,
+      "line": 133,
       "kind": "constraint",
       "level": "must",
       "layer": "L0",
@@ -1079,7 +1094,7 @@
       "id": "CHR-008",
       "title": "探索与晋升双轨",
       "file": "00-charter/charter.md",
-      "line": 130,
+      "line": 141,
       "kind": "arch",
       "level": "must",
       "layer": "L0",
@@ -1237,11 +1252,13 @@
           "DEC-059"
         ],
         "depends-on": [
-          "DEC-057"
+          "DEC-057",
+          "DEC-062"
         ]
       },
       "body_refs": [
         "DEC-059",
+        "DEC-062",
         "DEC-060"
       ],
       "backlinks": [
@@ -1251,6 +1268,7 @@
         "DEC-039",
         "DEC-057",
         "DEC-059",
+        "DEC-062",
         "DEF-014",
         "DEF-015",
         "DEF-016",
@@ -1261,7 +1279,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 130,
+      "line": 141,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1441,6 +1459,7 @@
         ],
         "depends-on": [
           "DEC-060",
+          "DEC-062",
           "BEH-021",
           "BEH-022",
           "BEH-023",
@@ -1448,11 +1467,15 @@
         ]
       },
       "body_refs": [
+        "DEC-062",
         "CON-POC-001",
+        "CHR-006",
         "CON-SLA-011",
         "BEH-020"
       ],
-      "backlinks": []
+      "backlinks": [
+        "DEC-062"
+      ]
     },
     "DEC-001": {
       "id": "DEC-001",
@@ -2399,6 +2422,7 @@
         ]
       },
       "body_refs": [
+        "DEC-062",
         "DEC-060"
       ],
       "backlinks": [
@@ -2412,6 +2436,7 @@
         "DEC-057",
         "DEC-060",
         "DEC-061",
+        "DEC-062",
         "DEF-014",
         "DEF-017",
         "DEF-018",
@@ -2422,7 +2447,7 @@
       "id": "DEC-060",
       "title": "D-060: I/O 优化方案设计 - 减少 O_DIRECT 路径的磁盘 I/O 开销",
       "file": "decisions/05-odirect-floor.md",
-      "line": 155,
+      "line": 158,
       "kind": "decision",
       "level": "",
       "layer": "",
@@ -2439,6 +2464,7 @@
       },
       "body_refs": [
         "DEC-059",
+        "DEC-062",
         "DEC-061",
         "DEC-027"
       ],
@@ -2447,6 +2473,7 @@
         "API-010",
         "BEH-017",
         "BEH-021",
+        "CHR-001",
         "CHR-004",
         "CHR-006",
         "CON-HONEST-002",
@@ -2456,6 +2483,7 @@
         "DEC-030",
         "DEC-059",
         "DEC-061",
+        "DEC-062",
         "DEF-017"
       ]
     },
@@ -2463,7 +2491,7 @@
       "id": "DEC-061",
       "title": "D-061: Read Coalescing 负收益决策 - 方向 1 终止",
       "file": "decisions/05-odirect-floor.md",
-      "line": 268,
+      "line": 273,
       "kind": "decision",
       "level": "",
       "layer": "",
@@ -2497,8 +2525,46 @@
         "CON-POC-001",
         "CON-SLA-012",
         "DEC-060",
+        "DEC-062",
         "DEF-019",
         "VER-017"
+      ]
+    },
+    "DEC-062": {
+      "id": "DEC-062",
+      "title": "D-062: Buffered 为生产优化主目标 — 修正 DEC-059 优先级叙事",
+      "file": "decisions/05-odirect-floor.md",
+      "line": 346,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "edges": {
+        "affects": [
+          "DEC-059",
+          "DEC-060",
+          "CHR-001",
+          "CHR-006",
+          "CON-HONEST-002",
+          "CON-SLA-013",
+          "BEH-021"
+        ]
+      },
+      "body_refs": [
+        "DEC-059",
+        "CHR-001",
+        "CON-HONEST-002",
+        "DEC-061"
+      ],
+      "backlinks": [
+        "BEH-021",
+        "CHR-001",
+        "CHR-006",
+        "CON-HONEST-002",
+        "CON-SLA-013",
+        "DEC-059",
+        "DEC-060"
       ]
     },
     "DEC-HYGIENE-001": {
