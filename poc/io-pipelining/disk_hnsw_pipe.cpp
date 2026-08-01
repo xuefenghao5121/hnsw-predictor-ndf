@@ -1,8 +1,8 @@
 // disk_hnsw.cpp - DiskHNSW 实现
 //
-// 实现要点：
-// 1. 贪心下降使用内存中的graph_structure数据（old_id空间）
-// 2. Layer 0搜索通过BlockCache按需加载（new_id空间）
+// 实现要点:
+// 1. 贪心下降使用内存中的graph_structure数据(old_id空间)
+// 2. Layer 0搜索通过BlockCache按需加载(new_id空间)
 // 3. 两层之间通过old_to_new/new_to_old映射转换
 // 4. 搜索结果转换为label返回
 //
@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <malloc.h>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -34,7 +35,7 @@ thread_local std::unordered_set<uint32_t> DiskHNSW::pipe_piped_pages_;
 thread_local std::unordered_map<uint32_t, int> DiskHNSW::pipe_page_bufidx_;
 
 // ============================================================
-// 构造函数（原始接口，向后兼容）
+// 构造函数(原始接口,向后兼容)
 // ============================================================
 
 DiskHNSW::DiskHNSW(const std::string& graph_path,
@@ -81,7 +82,7 @@ DiskHNSW::DiskHNSW(const std::string& graph_path,
     bfs_in.close();
 
     std::cout << "[DiskHNSW] BFS mapping loaded: " << old_to_new_.size() << " entries" << std::endl;
-    
+
     // ---- 构建 BFS-remapped CSR 邻接表 (常驻内存, 用于 multi-hop 预取) ----
     buildInMemoryAdjacency();
 
@@ -92,7 +93,7 @@ DiskHNSW::DiskHNSW(const std::string& graph_path,
 }
 
 // ============================================================
-// 构造函数（可插拔接口）
+// 构造函数(可插拔接口)
 // ============================================================
 
 DiskHNSW::DiskHNSW(const std::string& graph_path,
@@ -137,7 +138,7 @@ DiskHNSW::DiskHNSW(const std::string& graph_path,
     bfs_in.close();
 
     std::cout << "[DiskHNSW] BFS mapping loaded: " << old_to_new_.size() << " entries" << std::endl;
-    
+
     // ---- 构建 BFS-remapped CSR 邻接表 (常驻内存, 用于 multi-hop 预取) ----
     buildInMemoryAdjacency();
     std::cout << "[DiskHNSW] BlockCache (pluggable) initialized" << std::endl;
@@ -149,7 +150,7 @@ DiskHNSW::DiskHNSW(const std::string& graph_path,
 // ============================================================
 
 float DiskHNSW::l2Distance(const float* a, const float* b) const {
-    // 标量 L2 距离计算（不优化，保持与 hnswlib 一致，作为公平对比基线）
+    // 标量 L2 距离计算(不优化,保持与 hnswlib 一致,作为公平对比基线)
     float result = 0.0f;
     for (size_t i = 0; i < dim_; i++) {
         float t = a[i] - b[i];
@@ -237,8 +238,9 @@ void DiskHNSW::loadPQCodes(const std::string& pq_path) {
     if (kUpperPQ && !graph_.upper_vectors.empty()) {
         size_t upper_count = graph_.upper_vectors.size();
         size_t upper_mb = (uint64_t)upper_count * graph_.dim * sizeof(float) / (1024 * 1024);
-        graph_.upper_vectors.clear();
-        std::cout << "  [UpperPQ] Freed " << upper_count << " exact vectors (" << upper_mb << "MB) — using PQ ADC instead" << std::endl;
+        std::unordered_map<uint32_t, std::vector<float>>().swap(graph_.upper_vectors);
+        malloc_trim(0);
+        std::cout << "  [UpperPQ] Freed " << upper_count << " exact vectors (" << upper_mb << "MB) - using PQ ADC instead" << std::endl;
     }
 
     size_t codebook_mb = codebook_size * sizeof(float) / (1024 * 1024);
@@ -353,13 +355,13 @@ float DiskHNSW::pqDistance(const float* query, uint32_t node_id_new) const {
 }
 
 // ============================================================
-// 贪心下降（内存中的上层图，old_id空间）
+// 贪心下降(内存中的上层图,old_id空间)
 // ============================================================
 
 uint32_t DiskHNSW::greedyDescent(const float* query) {
     uint32_t currObj = graph_.entry_point;
 
-    // DEC-034: PQ codes for upper layer — avoid exact L2, save RSS
+    // DEC-034: PQ codes for upper layer - avoid exact L2, save RSS
     bool use_pq = pq_enabled_ && graph_.upper_vectors.empty();
     if (use_pq) buildPqDistTable(query);  // compute LUT once for entire descent
 
@@ -402,7 +404,7 @@ uint32_t DiskHNSW::greedyDescent(const float* query) {
 }
 
 // ============================================================
-// Layer 0 搜索（BlockCache按需加载，new_id空间）
+// Layer 0 搜索(BlockCache按需加载,new_id空间)
 // ============================================================
 
 std::priority_queue<std::pair<float, uint32_t>,
@@ -410,8 +412,8 @@ std::priority_queue<std::pair<float, uint32_t>,
                     std::greater<std::pair<float, uint32_t>>>
 DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                        VisitedList& visited) {
-    // 使用最大堆维护top candidates（距离大的在堆顶，方便淘汰）
-    // 使用最小堆维护candidate set（距离小的在堆顶，优先展开）
+    // 使用最大堆维护top candidates(距离大的在堆顶,方便淘汰)
+    // 使用最小堆维护candidate set(距离小的在堆顶,优先展开)
     std::priority_queue<std::pair<float, uint32_t>,
                         std::vector<std::pair<float, uint32_t>>,
                         std::less<std::pair<float, uint32_t>>> top_candidates;  // 最大堆
@@ -480,13 +482,13 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
         return l2Distance(query, neighborVec);
     };
 
-    // 路由表快速访问 lambda（避免虚函数调用）
+    // 路由表快速访问 lambda(避免虚函数调用)
     auto getBlockIdFast = [&](uint32_t node_id) -> uint32_t {
         if (route_table_) return (*route_table_)[node_id];
         return cache_->getBlockId(node_id);
     };
 
-    // 初始化：计算入口节点距离
+    // 初始化:计算入口节点距离
     // PQ 模式: 用 ADC 距离; 否则: 从 block cache 获取向量算精确距离
     float entryDist;
     if (pq_enabled_) {
@@ -549,13 +551,13 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             }
         }
 
-        // ---- 优化：直接获取 CachedBlock，避免后续多次锁 + 路由查找 ----
+        // ---- 优化:直接获取 CachedBlock,避免后续多次锁 + 路由查找 ----
         uint32_t curr_block_id = getBlockIdFast(candidateId);
         CachedBlock* candidateBlock = cache_->getCachedBlockById(curr_block_id);
         // 更新 block 热度
         if (heat_evaluator_) heat_evaluator_->onBlockAccess(curr_block_id);
         if (!candidateBlock) {
-            // 块不在缓存中（可能被淘汰）
+            // 块不在缓存中(可能被淘汰)
             // 优先用 CSR 内存邻接表, 其次回退到 getNodeNeighbors
             uint32_t neighborCount = 0;
             const uint32_t* neighbors = nullptr;
@@ -568,7 +570,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             if (!neighbors || neighborCount == 0) continue;
             std::vector<uint32_t> local_neighbors(neighbors, neighbors + neighborCount);
 
-            // 回退路径：使用原始逻辑
+            // 回退路径:使用原始逻辑
             // 提交预取 (PQ 模式跳过: 不走向量 I/O, 预取只会堵精排队列)
             if (graph_prefetch_enabled_ && graph_prefetcher_ && !pq_enabled_) {
                 std::vector<uint32_t> prefetch_blocks;
@@ -658,7 +660,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             continue;
         }
 
-        // ---- 快速路径：从 CSR 内存邻接表或 CachedBlock 获取邻居 ----
+        // ---- 快速路径:从 CSR 内存邻接表或 CachedBlock 获取邻居 ----
         uint32_t neighborCount = 0;
         const uint32_t* neighbors = nullptr;
         if (has_inmem_adjacency_) {
@@ -669,7 +671,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
         }
         if (!neighbors || neighborCount == 0) continue;
 
-        // 复制邻居ID到本地缓冲区（因为后续操作可能导致 block 被淘汰）
+        // 复制邻居ID到本地缓冲区(因为后续操作可能导致 block 被淘汰)
         std::vector<uint32_t> local_neighbors(neighbors, neighbors + neighborCount);
 
         // ---- 提交预取 (1-hop, 热度排序但不丢充) ----
@@ -701,8 +703,8 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
         }
 
         // ---- 处理 in-cache 邻居, 收集 cache-miss 邻居 ----
-        // 优化：用 getCachedBlockById 替代 isInCache + getNodeVector
-        // 减少：2 次锁获取 -> 1 次，N 次路由查找 -> 0 次（block_id 已知）
+        // 优化:用 getCachedBlockById 替代 isInCache + getNodeVector
+        // 减少:2 次锁获取 -> 1 次,N 次路由查找 -> 0 次(block_id 已知)
         struct PendingNeighbor {
             uint32_t neighborId;
             uint32_t blockId;
@@ -735,7 +737,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
 
             uint32_t neighbor_block = getBlockIdFast(neighborId);
 
-            // 优化：用 getCachedBlockById 一次锁获取获取 block + vector
+            // 优化:用 getCachedBlockById 一次锁获取获取 block + vector
             // 不再需要 isInCache + getNodeVector 两次锁
             CachedBlock* nBlock = cache_->getCachedBlockById(neighbor_block);
             if (pq_enabled_) {
@@ -809,7 +811,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             if (graph_prefetch_enabled_ && graph_prefetcher_) {
                 graph_prefetcher_->waitForBlocks(needed_blocks);
 
-                // 预取完成后，用 getCachedBlockById 快速访问
+                // 预取完成后,用 getCachedBlockById 快速访问
                 for (const auto& pn : pending_neighbors) {
                     if (pq_enabled_) {
                         float dist = pqDistance(query, pn.neighborId);
@@ -845,7 +847,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                     }
                 }
             } else {
-                // 无预取器：用 getNodeVector 触发磁盘加载
+                // 无预取器:用 getNodeVector 触发磁盘加载
                 for (const auto& pn : pending_neighbors) {
                     if (pq_enabled_) {
                         float dist = pqDistance(query, pn.neighborId);
@@ -1686,16 +1688,16 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     // 热度评价器: 查询开始
     if (heat_evaluator_) heat_evaluator_->onQueryStart();
 
-    // Phase 1: 贪心下降（内存中的上层图，old_id空间）
+    // Phase 1: 贪心下降(内存中的上层图,old_id空间)
     uint32_t entryOldId = greedyDescent(query);
 
     // 转换为new_id用于Layer 0搜索
     uint32_t entryNewId = old_to_new_[entryOldId];
 
-    // Phase 2: Layer 0搜索（BlockCache按需加载，new_id空间）
+    // Phase 2: Layer 0搜索(BlockCache按需加载,new_id空间)
     size_t ef = std::max(ef_search_, k);
 
-    // 创建VisitedList（new_id空间）
+    // 创建VisitedList(new_id空间)
     VisitedList visited(graph_.num_nodes);
 
     // 环境变量 BEAM_WIDTH 控制 beam search (0=标准 best-first, >0=beam search)
@@ -1777,7 +1779,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             static const bool kPipeFine = std::getenv("PIPE_FINE") && std::atoi(std::getenv("PIPE_FINE")) != 0;
             static const bool kPipeL4 = std::getenv("PIPE_L4") && std::atoi(std::getenv("PIPE_L4")) != 0;
             static const bool kPipeL1 = std::getenv("PIPE_L1") && std::atoi(std::getenv("PIPE_L1")) != 0;
-            // DEC-061: Read Coalescing 已终止并回退；pread 仅用于非 O_DIRECT（!kFineDirect）
+            // DEC-061: Read Coalescing 已终止并回退;pread 仅用于非 O_DIRECT(!kFineDirect)
             static double pf_collect = 0, pf_submit = 0, pf_first = 0, pf_iorest = 0, pf_compute = 0;
             static long pf_pages = 0, pf_cached = 0, pf_iters = 0, pf_n = 0;
             auto tf0 = std::chrono::high_resolution_clock::now();
@@ -2060,7 +2062,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             }
             }  // end pread else
 
-            // DEC-031: 页面级驱逐 — FINE_FADVISE=1 时在精排完成后驱逐刚读过的页面
+            // DEC-031: 页面级驱逐 - FINE_FADVISE=1 时在精排完成后驱逐刚读过的页面
             // 消除 page cache 颠簸: 主动告诉 OS 这些页是 read-once, 不占 cache
             static const bool kFineFadvise = std::getenv("FINE_FADVISE") && std::atoi(std::getenv("FINE_FADVISE")) != 0;
             static const bool kFineBufferedInner = std::getenv("FINE_BUFFERED") && std::atoi(std::getenv("FINE_BUFFERED")) != 0;
@@ -2142,12 +2144,12 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     size_t numResults = std::min(k, top_candidates.size());
     result.reserve(numResults);
 
-    // top_candidates是最小堆，距离小的先出
+    // top_candidates是最小堆,距离小的先出
     for (size_t i = 0; i < numResults && !top_candidates.empty(); i++) {
         auto [dist, newId] = top_candidates.top();
         top_candidates.pop();
 
-        // 转换为old_id，然后获取label
+        // 转换为old_id,然后获取label
         uint32_t oldId = new_to_old_[newId];
         uint64_t label = graph_.labels[oldId];
 
@@ -2236,7 +2238,7 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
     //
     // 诊断模式 (FINE_DIRECT=1): O_DIRECT 绕过 page cache
     //   - 用于冷 I/O 基准测试、内存受限 benchmark、模拟更大规模
-    //   - 不推荐生产使用 — 放弃免费的 OS 缓存层
+    //   - 不推荐生产使用 - 放弃免费的 OS 缓存层
     static const bool kFineDirect = std::getenv("FINE_DIRECT") && std::atoi(std::getenv("FINE_DIRECT")) != 0;
     static const bool kFineBuffered = std::getenv("FINE_BUFFERED") && std::atoi(std::getenv("FINE_BUFFERED")) != 0;
     int fd = -1;
@@ -2334,7 +2336,7 @@ void DiskHNSW::enableGraphPrefetch(bool use_odirect) {
     heat_evaluator_ = std::make_unique<BlockHeatEvaluator>(cache_->num_blocks_);
     cache_->setHeatEvaluator(heat_evaluator_.get());
 
-    // 缓存路由表指针，避免虚函数调用开销
+    // 缓存路由表指针,避免虚函数调用开销
     // 通过 BfsLayoutProvider 的 getRouteTable() 获取
     auto* bfs_layout = dynamic_cast<BfsLayoutProvider*>(cache_->layout_.get());
     if (bfs_layout) {
@@ -2549,12 +2551,12 @@ void DiskHNSW::stepQueryState(QueryState& qs) {
     if (graph_prefetch_enabled_ && graph_prefetcher_) {
         std::vector<uint32_t> prefetch_blocks;  // 1-hop
         std::vector<uint32_t> multi_hop_blocks; // 2+ hop
-        
+
         for (uint32_t nid : local_neighbors) {
             uint32_t nb = route_table_ ? (*route_table_)[nid] : cache_->getBlockId(nid);
             if (nb != curr_block_id) {
                 prefetch_blocks.push_back(nb);
-                
+
                 // Multi-hop: 如果该邻居的 block 不在缓存 (cache miss),
                 // 用内存 CSR 邻接表读取它的邻居, 预取更远的 block
                 if (multihop_depth >= 2 && has_inmem_adjacency_ && !cache_->peekCachedBlockById(nb)) {
@@ -2575,14 +2577,14 @@ void DiskHNSW::stepQueryState(QueryState& qs) {
                 }
             }
         }
-        
+
         // 1-hop 预取
         std::sort(prefetch_blocks.begin(), prefetch_blocks.end());
         prefetch_blocks.erase(std::unique(prefetch_blocks.begin(), prefetch_blocks.end()),
                               prefetch_blocks.end());
         if (!prefetch_blocks.empty())
             graph_prefetcher_->submitPrefetch(prefetch_blocks, true);
-        
+
         // Multi-hop 预取
         std::sort(multi_hop_blocks.begin(), multi_hop_blocks.end());
         multi_hop_blocks.erase(std::unique(multi_hop_blocks.begin(), multi_hop_blocks.end()),
@@ -2666,6 +2668,7 @@ void DiskHNSW::buildInMemoryAdjacency() {
     uint32_t N = graph_.num_nodes;
 
     // 先构建 new_id 空间的邻接表 (排序后的邻居列表)
+    // DEC-063 内存优化: 逐节点释放 adjacency0 内层 vector，降低峰值 ~1GB
     std::vector<std::vector<uint32_t>> bfs_adj(N);
     for (uint32_t old_id = 0; old_id < N; old_id++) {
         uint32_t new_id = old_to_new_[old_id];
@@ -2674,7 +2677,13 @@ void DiskHNSW::buildInMemoryAdjacency() {
             bfs_adj[new_id].push_back(old_to_new_[old_neighbor]);
         }
         std::sort(bfs_adj[new_id].begin(), bfs_adj[new_id].end());
+        // 立即释放该内层 vector，避免与 bfs_adj 同时占内存
+        graph_.adjacency0[old_id].clear();
+        graph_.adjacency0[old_id].shrink_to_fit();
     }
+    // 外层 vector 也释放
+    graph_.adjacency0.clear();
+    graph_.adjacency0.shrink_to_fit();
 
     // 统计
     size_t total_edges = 0;
@@ -2709,11 +2718,11 @@ void DiskHNSW::buildInMemoryAdjacency() {
     csr_compressed_ = true;
     has_inmem_adjacency_ = true;
 
-    // 释放原始邻接表内存
-    graph_.adjacency0.clear();
-    graph_.adjacency0.shrink_to_fit();
+    // adjacency0 已在循环中逐节点释放; 释放 bfs_adj
     bfs_adj.clear();
     bfs_adj.shrink_to_fit();
+    // DEC-063: 强制归还内存给 OS
+    malloc_trim(0);
 
     size_t compact_mb = adj_csr_compact_.size() / (1024.0 * 1024);
     size_t offset_mb = (N + 1) * 4 / (1024.0 * 1024);
@@ -2894,30 +2903,30 @@ DiskHNSW::batchSearchConcurrent(const std::vector<float>& queries, size_t k, siz
     size_t dim = dim_;
     size_t total = queries.size() / dim;
     std::vector<std::vector<SearchResult>> results(total);
-    
+
     std::mutex mtx;
     std::atomic<size_t> next_idx{0};
-    
+
     auto worker = [&]() {
         while (true) {
             size_t i = next_idx.fetch_add(1);
             if (i >= total) break;
-            
+
             auto res = searchKnn(&queries[i * dim], k);
-            
+
             {
                 std::lock_guard<std::mutex> lock(mtx);
                 results[i] = std::move(res);
             }
         }
     };
-    
+
     std::vector<std::thread> threads;
     threads.reserve(num_threads);
     for (size_t t = 0; t < num_threads; t++)
         threads.emplace_back(worker);
     for (auto& t : threads)
         t.join();
-    
+
     return results;
 }

@@ -51,8 +51,8 @@ struct PQParams {
 // VisitedList: 简单的访问标记数组（不需要池化，每次搜索创建一个）
 // ============================================================
 struct VisitedList {
-    std::vector<uint32_t> mass;  // 使用uint32_t作为标记类型
-    uint32_t curV;               // 当前标记值
+    std::vector<uint8_t> mass;   // uint8: 10M 节点省 30MB vs uint32 (DEC-063 P2 优化)
+    uint8_t curV;                // 当前标记值
 
     explicit VisitedList(size_t num_elements)
         : mass(num_elements, 0), curV(1) {}
