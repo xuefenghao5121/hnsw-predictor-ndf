@@ -10,6 +10,11 @@ cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；�
 预算 = limit − RSS。默认搜索路径可为 Buffered；**优化与诚实验收的性能地板**以
 O_DIRECT（`FINE_DIRECT=1`）为准（[[DEC-059]]）。
 
+**优化主目标**：Buffered 模式（生产默认）是性能优化的主要目标。目标是在诚实 cgroup
+预算下逼近 hnswlib 全内存方案性能。page cache 在预算内是合法的核心加速层。
+O_DIRECT 模式是诚实验收地板和必然磁盘 I/O 的优化路径，两者各有独立优化空间，
+不假设 O_DIRECT 优化成果会自然惠及 Buffered。参见 [[DEC-060]]。
+
 **核心业务实体(从代码强行归纳):**
 
 1. **HNSW 图结构** (`GraphStructure` - `common.h:113-136`): 分层图,包含节点层级、向量、标签、邻接表,搜索时通过贪心下降 + best-first 遍历
@@ -95,9 +100,11 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
   hnswlib 需 ~6GB OOM@2GB，DiskHNSW 3.7x 内存节省。
   瓶颈从 I/O 转移到 PQ 计算 (80%)，VisitedList 优化带来 2x QPS。
   1GB cgroup 物理不可行 (核心数据 1.3GB)，最小可行 1.8GB。
-- **P3（进行中）**：O_DIRECT 地板优化 + 大规模验证（战略见 [[DEC-059]]，
-  路线图见 [[DEC-060]]）。随规模增大 page cache 对 vecblocks 覆盖率趋近于 0，
-  O_DIRECT 成为多数查询的真实路径。aspirational QPS 目标不构成本条款 must。
+- **P3（进行中）**：多层内存优化 + 大规模验证（战略见 [[DEC-059]]，
+  路线图见 [[DEC-060]]）。Buffered 模式逼近 hnswlib 性能为主要目标；
+  O_DIRECT 地板优化为辅助路径。多层策略：L4 page cache 预算管理 +
+  L5 pipe_ring_ I/O 重叠 + L1/L2/L3 CPU cache 计算加速。
+  aspirational QPS 目标不构成本条款 must。
 - **P4-P5（探索性构想）**：分级存储、硬件亲和（NUMA/SPDK/GPU/PMEM）。这些方向当前
   无代码或设计支撑，仅为探索性路线设想
 
