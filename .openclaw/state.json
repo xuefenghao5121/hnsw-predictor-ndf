@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-02T00:15:00Z",
-  "notes": "DEEP10M 1T pipelining 验证通过! R1=279.3 QPS vs R0=106.4 (+162.6%), recall 94.85%. SIFT1M 负结果 + DEEP10M 正结果完整记录在 DEC-063. 4T 有 thread-safety bug (pipe_piped_pages_ 非 thread_local), 待修复. 下一步: 修复 4T -> 评估 promote."
+  "last_activity": "2026-08-02T01:00:00Z",
+  "notes": "POC 完整验证: SIFT1M 负结果 + DEEP10M 1T 正结果 (+162.6%). 4T thread_local 修复完成 (correctness fix). 4T scaling 0.88x 待深入优化 (io_uring/pread/BlockCache 竞争). 内存优化 (adjacency0 释放 + VisitedList uint8) 是 promote 前置条件 (5GB->2GB cgroup). 下一步: 评估 promote 提案 or 继续 4T 优化."
 }
