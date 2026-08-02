@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-promote-memory-optimization.md",
+  "current_proposal": "null",
   "scenario_type": "promote",
   "track": "promote",
-  "validation_round": 0,
+  "validation_round": 1,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_confirmation",
-  "validation_status": "pending",
-  "perf_status": "pending",
-  "last_activity": "2026-08-02T11:40:00Z",
-  "notes": "Promote 内存优化 (VisitedList uint8 + adjacency0 streaming free + malloc_trim) from poc/ to src/. POC 验证: DEEP10M 1T 5.5x, 4T 9.1x QPS 提升. RSS -33%. cgroup 5GB->3GB. pipe_ring_ (BEH-021) 保持 draft, 等 100M 验证."
+  "pending_decision": "null",
+  "validation_status": "passed",
+  "perf_status": "passed",
+  "last_activity": "2026-08-02T12:15:00Z",
+  "notes": "DEC-064 内存优化 promote 完成. 编译通过 + SLA 验证通过. DEEP10M 1T 583.5 QPS, 4T 1646.5 QPS (2.83x scaling), SIFT1M 2296.2 QPS. pipe_ring_ (BEH-021) 保持 draft, 等 100M 验证. cgroup 下限 3GB."
 }
