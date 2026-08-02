@@ -1,12 +1,12 @@
 {
   "current_proposal": "null",
-  "scenario_type": "promote",
-  "track": "promote",
-  "validation_round": 1,
+  "scenario_type": "null",
+  "track": "null",
+  "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
-  "validation_status": "passed",
-  "perf_status": "passed",
-  "last_activity": "2026-08-02T12:15:00Z",
-  "notes": "DEC-064 内存优化 promote 完成. 编译通过 + SLA 验证通过. DEEP10M 1T 583.5 QPS, 4T 1646.5 QPS (2.83x scaling), SIFT1M 2296.2 QPS. pipe_ring_ (BEH-021) 保持 draft, 等 100M 验证. cgroup 下限 3GB."
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-02T12:30:00Z",
+  "notes": "DEC-064 promote 审核通过. 内存优化已合入 Trunk. pipe_ring_ (BEH-021) 保持 draft 等 100M. 下一步待用户指示."
 }
