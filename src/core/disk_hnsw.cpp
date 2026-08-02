@@ -22,6 +22,7 @@
 #include <immintrin.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <malloc.h>  // malloc_trim (DEC-064)
 
 // thread_local 成员定义
 thread_local std::vector<uint32_t> DiskHNSW::csr_decode_buf_;
@@ -231,6 +232,8 @@ void DiskHNSW::loadPQCodes(const std::string& pq_path) {
         size_t upper_count = graph_.upper_vectors.size();
         size_t upper_mb = (uint64_t)upper_count * graph_.dim * sizeof(float) / (1024 * 1024);
         graph_.upper_vectors.clear();
+        std::unordered_map<uint32_t, std::vector<float>>().swap(graph_.upper_vectors);
+        malloc_trim(0);
         std::cout << "  [UpperPQ] Freed " << upper_count << " exact vectors (" << upper_mb << "MB) — using PQ ADC instead" << std::endl;
     }
 
@@ -2534,7 +2537,13 @@ void DiskHNSW::buildInMemoryAdjacency() {
             bfs_adj[new_id].push_back(old_to_new_[old_neighbor]);
         }
         std::sort(bfs_adj[new_id].begin(), bfs_adj[new_id].end());
+        // DEC-064: 逐节点释放 adjacency0，降低峰值内存 ~834MB
+        graph_.adjacency0[old_id].clear();
+        graph_.adjacency0[old_id].shrink_to_fit();
     }
+    // DEC-064: 外层 vector 也释放
+    graph_.adjacency0.clear();
+    graph_.adjacency0.shrink_to_fit();
 
     // 统计
     size_t total_edges = 0;
@@ -2569,11 +2578,11 @@ void DiskHNSW::buildInMemoryAdjacency() {
     csr_compressed_ = true;
     has_inmem_adjacency_ = true;
 
-    // 释放原始邻接表内存
-    graph_.adjacency0.clear();
-    graph_.adjacency0.shrink_to_fit();
+    // adjacency0 已在循环中逐节点释放 (DEC-064); 释放 bfs_adj
     bfs_adj.clear();
     bfs_adj.shrink_to_fit();
+    // DEC-064: 强制归还内存给 OS
+    malloc_trim(0);
 
     size_t compact_mb = adj_csr_compact_.size() / (1024.0 * 1024);
     size_t offset_mb = (N + 1) * 4 / (1024.0 * 1024);

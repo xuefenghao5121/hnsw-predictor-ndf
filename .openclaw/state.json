@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "proposal-promote-memory-optimization.md",
+  "scenario_type": "promote",
+  "track": "promote",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-02T01:00:00Z",
-  "notes": "POC 完整验证: SIFT1M 负结果 + DEEP10M 1T 正结果 (+162.6%). 4T thread_local 修复完成 (correctness fix). 4T scaling 0.88x 待深入优化 (io_uring/pread/BlockCache 竞争). 内存优化 (adjacency0 释放 + VisitedList uint8) 是 promote 前置条件 (5GB->2GB cgroup). 下一步: 评估 promote 提案 or 继续 4T 优化."
+  "pending_decision": "waiting_for_user_confirmation",
+  "validation_status": "pending",
+  "perf_status": "pending",
+  "last_activity": "2026-08-02T11:40:00Z",
+  "notes": "Promote 内存优化 (VisitedList uint8 + adjacency0 streaming free + malloc_trim) from poc/ to src/. POC 验证: DEEP10M 1T 5.5x, 4T 9.1x QPS 提升. RSS -33%. cgroup 5GB->3GB. pipe_ring_ (BEH-021) 保持 draft, 等 100M 验证."
 }
