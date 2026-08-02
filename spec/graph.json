@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T21:25:16Z",
-  "clause_count": 157,
+  "generated_at": "2026-08-02T10:04:25Z",
+  "clause_count": 158,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -829,6 +829,7 @@
       ],
       "backlinks": [
         "CHR-008",
+        "DEC-064",
         "DEF-021"
       ]
     },
@@ -1155,7 +1156,8 @@
       "body_refs": [],
       "backlinks": [
         "DEC-015",
-        "DEC-034"
+        "DEC-034",
+        "DEC-064"
       ]
     },
     "CON-003": {
@@ -1283,7 +1285,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 141,
+      "line": 150,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1474,6 +1476,8 @@
       "body_refs": [
         "DEC-062",
         "CON-POC-001",
+        "DEC-063",
+        "DEC-064",
         "CHR-006",
         "CON-SLA-011",
         "BEH-020"
@@ -2237,6 +2241,7 @@
       "body_refs": [],
       "backlinks": [
         "DEC-036",
+        "DEC-064",
         "VER-034"
       ]
     },
@@ -2577,7 +2582,7 @@
     },
     "DEC-063": {
       "id": "DEC-063",
-      "title": "D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 正结果",
+      "title": "D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 相对正结果",
       "file": "decisions/06-io-pipelining-poc.md",
       "line": 6,
       "kind": "decision",
@@ -2599,8 +2604,45 @@
           "CON-POC-001"
         ]
       },
-      "body_refs": [],
-      "backlinks": []
+      "body_refs": [
+        "DEC-064",
+        "CON-SLA-013",
+        "CON-POC-001",
+        "CON-HONEST-002"
+      ],
+      "backlinks": [
+        "CON-SLA-013",
+        "DEC-064"
+      ]
+    },
+    "DEC-064": {
+      "id": "DEC-064",
+      "title": "D-064: Promote 内存优化 - VisitedList uint8 + adjacency0 streaming free + malloc_trim",
+      "file": "decisions/07-memory-optimization-promote.md",
+      "line": 6,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "edges": {
+        "affects": [
+          "CON-002",
+          "DEC-034",
+          "DEC-063"
+        ],
+        "depends-on": [
+          "DEC-063",
+          "BEH-019"
+        ]
+      },
+      "body_refs": [
+        "DEC-063"
+      ],
+      "backlinks": [
+        "CON-SLA-013",
+        "DEC-063"
+      ]
     },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",

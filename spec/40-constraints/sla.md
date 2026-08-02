@@ -135,6 +135,15 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 | SIFT1M 4T QPS | 502 | ≥ 540 | 多线程重叠效果递减 |
 | DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
 
+### 证据状态（[[DEC-063]] / [[DEC-064]]，非 must）
+
+| 场景 | 结论 | 口径 |
+|------|------|------|
+| SIFT1M R0–R4 Buffered | **负结果**（无收益） | 诚实 cgroup；见 [[DEC-063]] |
+| DEEP10M 1T pre-memopt | 相对 +162.6%（pipe） | **Buffered+EVICT** 相对对比；**≠** 本辅表 O_DIRECT 达标 |
+| DEEP10M post-memopt | pipe **无收益**（R1≈R0） | [[DEC-064]]；BEH-021 保持 draft |
+| DEEP10M O_DIRECT 辅表 | **未验收** | 不得把 Buffered+EVICT 数字填入本表 |
+
 > 若 POC 验证通过，promote 时分别评估是否抬升 [[CHR-006]] Buffered 与/或
 > [[CON-SLA-011]] Honest 下限。负结果走 [[BEH-020]]。
 

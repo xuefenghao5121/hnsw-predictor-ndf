@@ -1,11 +1,17 @@
 # Decisions - I/O Pipelining POC (DEC-063)
 
 > 条款索引: `DEC-063`
-> 关联: `DEC-060`（方向 2）、`DEC-062`、`BEH-021`、`BEH-022`、`BEH-023`、`CON-SLA-013`、`CON-POC-001`
+> 关联: `DEC-060`（方向 2）、`DEC-062`、`DEC-064`、`BEH-021`、`BEH-022`、`BEH-023`、`CON-SLA-013`、`CON-POC-001`
 
-## D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 正结果 {#DEC-063}
+## D-063: I/O Pipelining POC - SIFT1M 负结果 + DEEP10M 相对正结果 {#DEC-063}
 <!-- ndf: kind=decision date=2026-08-01 affects=DEC-060,BEH-021,BEH-022,BEH-023,CON-SLA-013 source=observed -->
 <!-- ndf: depends-on=DEC-062,CON-HONEST-002,CON-POC-001 -->
+<!-- ndf: amended-by=DEC-064 -->
+
+> **Amendment ([[DEC-064]], 2026-08-02):** DEEP10M 上 pipe_ring_ +162.6% 的 1T 数字为
+> **pre-memory-optimization** 相对对比（Buffered + `EVICT_PAGE_CACHE=1`）。
+> 内存优化 promote 后同协议下 R1≈R0，pipe 无收益。SIFT1M 负结果仍然有效。
+> **MUST NOT** 将下文 DEEP10M 数字当作 [[CON-SLA-013]] O_DIRECT 辅表「已达成」。
 
 **Context.** DEC-060 方向 2（I/O Pipelining）在 `poc/io-pipelining/` 中实现并验证。
 本决策记录 SIFT1M 规模下的负结果、DEEP10M 规模下的正结果，以及 cgroup page cache 审计发现。
@@ -78,26 +84,27 @@ POC v1 smoke test（~24 QPS）作废的 5 个根因：
 4. `FINE_PREAD=1` 未搭配 `FINE_BUFFERED=1` → buildFineRerank fallback 到 O_DIRECT
 5. cgroup 未用 `systemd-run` → 未真正生效
 
-**Decision.**
+**Decision（SIFT1M 阶段，2026-08-01）。**
 
 1. **SIFT1M 规模下 I/O Pipelining 证伪**：pipe_ring_ / L4 readahead / L1 prefetch 均无收益
 2. **根因 = 数据集太小**：496MB vecblocks 的热集完全装入 page cache + flat_vec_cache，I/O 非瓶颈
-3. **转向 DEEP10M 验证**：3.7GB vecblocks / 2GB cgroup / page cache 覆盖率仅 10%，I/O 是真正瓶颈
-4. **BEH-021/022/023 + CON-SLA-013 保持 draft**：不 deprecated，待 DEEP10M 验证后决定
+3. **转向 DEEP10M 验证**：3.7GB vecblocks，page cache 覆盖率低，I/O 可为瓶颈
+4. **BEH-021/022/023 + CON-SLA-013 保持 draft**：不 deprecated
 5. **O_DIRECT 4T 线程安全 bug 记录**：`FINE_PREAD=1 + FINE_DIRECT=1` 条件冲突，需修复
 
-**DEEP10M 验证目标**（对齐 CON-SLA-013 辅表）：
-
-| 指标 | O_DIRECT 基线 | POC 目标 | 说明 |
-|------|-------------|----------|------|
-| DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
+**探索目标（非 CON-SLA-013 辅表达标声明）**：在 I/O-bound 协议下验证 pipe 相对 R0 是否有正增益。
+[[CON-SLA-013]] O_DIRECT 辅表（DEEP10M 4T ≥220）仍为 draft 目标；**本决策 DEEP10M 实测协议
+为 Buffered + EVICT，不得与 O_DIRECT 辅表混报为「已达成」**（[[CON-POC-001]]）。
 
 **Alternatives rejected.**
-- 直接 deprecated BEH-021/022/023：SIFT1M 不是有效验证场景，负结果不可推广
-- 继续在 SIFT1M 调参：热集 < cache 预算的根本矛盾无法通过参数调整解决
-- 用 EVICT_PAGE_CACHE=1 模拟冷态（SIFT1M）：flat_vec_cache 吸收热点，无法制造真正冷 I/O
+- 直接 deprecated BEH-021/022/023：SIFT1M 不是有效推广场景
+- 继续在 SIFT1M 调参：热集 < cache 预算的根本矛盾无法靠参数解决
+- 用 EVICT_PAGE_CACHE=1 模拟冷态（SIFT1M）：flat_vec_cache 吸收热点
 
-### DEEP10M 正结果（2026-08-02）
+### DEEP10M 相对正结果（2026-08-02，pre-memopt）
+
+> **协议口径**：`FINE_BUFFERED=1` + `EVICT_PAGE_CACHE=1` + 10000q —— **相对对比实验**。
+> 非 [[CON-HONEST-002]] O_DIRECT 地板；非 [[CON-SLA-013]] O_DIRECT 辅表验收。
 
 **环境**: DEEP10M (10M/96dim), 5GB cgroup, 10000 queries, k=10, ef=300, REFINE_EF=300
 **配置**: M=32 PQ (dsub=3), FINE_BUFFERED=1, FINE_PREAD=1, EVICT_PAGE_CACHE=1, CACHE_MB=64, FLAT_VEC_MB=64
@@ -112,24 +119,23 @@ POC v1 smoke test（~24 QPS）作废的 5 个根因：
 | Round 3 | 105.8 | 278.6 | +163.3% | 94.85% |
 | **均值** | **106.4** | **279.3** | **+162.6%** | 94.85% |
 
-**关键发现**: pipe_ring_ 几乎完全消除了冷 I/O 惩罚。
+**关键发现**: pipe_ring_ 几乎完全消除了该协议下的冷 I/O 惩罚。
 - R0 热态 (200q, 无 EVICT): 283.9 QPS
 - R0 冷态 (10000q, EVICT): 106.4 QPS (I/O 惩罚 2.7x)
 - R1 冷态 (10000q, EVICT+PIPE): 279.3 QPS (vs 热态仅差 1.6%)
 
 pipe_hits=255/query，Phase A 预取的页在 Phase B 命中，I/O 延迟被 Phase A 计算完全隐藏。
 
-#### 4T 结果
+#### 4T 结果（thread_local 修复前）
 
 | 配置 | 4T QPS | vs 1T | 说明 |
 |------|--------|-------|------|
 | R0 4T | 180.3 | 1.69x | scaling 不理想 |
-| R1 4T | 249.4 | 0.89x ⚠ | 比 1T 还慢！ |
+| R1 4T | 249.4 | 0.89x ⚠ | 比 1T 还慢 |
 | R1 vs R0 | +38.3% | - | 远低于 1T 的 +162.6% |
 
-**4T 退化根因**: `pipe_piped_pages_` 和 `pipe_page_bufidx_` 是成员变量（非 thread_local），
-4 线程竞争导致去重失效、重复/遗漏提交。这是**代码 bug，非设计缺陷**。
-修复方案：改为 `thread_local`。
+**4T 退化根因（已修复）**: `pipe_piped_pages_` / `pipe_page_bufidx_` 曾为成员变量；
+commit `7742330` 已改为 `thread_local`。修复后完整 4T 重测见 `proposal-4t-scaling-investigation.md`。
 
 ### cgroup page cache 审计发现
 
@@ -143,28 +149,27 @@ pipe_hits=255/query，Phase A 预取的页在 Phase B 命中，I/O 延迟被 Pha
 
 ### DEEP10M 环境修复记录
 
-1. **GT 文件错误**: `deep10m_gt_k10_fresh.bin` 是自引用 GT（DiskHNSW 生成），非暴力搜索
-   -> 改用 `data/deep10m_gt_k10.bin`（暴力搜索，10000q, k=10）
-2. **PQ M=8 太粗**: recall 52.6% -> M=32 (dsub=3) recall 95.05%
-3. **路由文件错误**: 用了 vecblocks route -> 改用 `deep10m_route_64k.bin`
+1. **GT 文件错误**: `deep10m_gt_k10_fresh.bin` 是自引用 GT → 改用 `data/deep10m_gt_k10.bin`
+2. **PQ M=8 太粗**: recall 52.6% → M=32 (dsub=3) recall 95.05%
+3. **路由文件错误**: 改用 `deep10m_route_64k.bin`
 4. **FINE_PREAD 必须开**: 不开时走 io_uring 路径，recall 88.4%（可能有 bug）
-5. **cgroup 需 5GB**: RSS 2422MB + graph 加载临时内存 + page cache
+5. **cgroup（pre-memopt）需 5GB**: RSS 2422MB + 临时内存；post-memopt 见 [[DEC-064]]（可 3GB）
 
-**Decision.**
+**Decision（终态，含 [[DEC-064]] 修正）。**
 
-1. **SIFT1M 规模 I/O Pipelining 证伪**：pipe_ring_ / L4 readahead / L1 prefetch 均无收益
-2. **DEEP10M 1T I/O Pipelining 验证通过**：pipe_ring_ +162.6%，几乎消除冷 I/O 惩罚
-3. **BEH-021 保持 draft**：有正结果支撑，不 deprecated；待 4T bug 修复后完整验证
-4. **4T thread-safety bug 记录**：pipe_piped_pages_ / pipe_page_bufidx_ 需改 thread_local
-5. **CON-SLA-013 DEEP10M 1T 目标达成**：R1=279.3 QPS >> 目标 220 QPS (O_DIRECT 辅表)
+1. **SIFT1M：I/O Pipelining 证伪**（稳定结论）
+2. **DEEP10M pre-memopt：相对对比正结果**（+162.6% @ Buffered+EVICT 1T）——**不是**
+   [[CON-SLA-013]] O_DIRECT 辅表达标，也**不是** promote pipe 的充分证据
+3. **DEEP10M post-memopt：pipe 无收益**（[[DEC-064]]）；BEH-021/022/023 + CON-SLA-013 **保持 draft**
+4. **thread_local 竞争 bug：已修**；post-fix 4T 重测仍开放（`proposal-4t-scaling-investigation.md`）
+5. **O_DIRECT 4T（FINE_PREAD+FINE_DIRECT）线程安全：仍开放**
 
 **后续 POC 步骤:**
-- [ ] 修复 pipe_piped_pages_ / pipe_page_bufidx_ 为 thread_local
-- [ ] 修复 O_DIRECT 4T 线程安全（FINE_PREAD+FINE_DIRECT 条件冲突）
-- [ ] DEEP10M 4T 修复后重测
-- [ ] 若 4T 验证通过 -> 评估 promote 提案
+- [x] 修复 pipe_piped_pages_ / pipe_page_bufidx_ 为 thread_local
+- [ ] 修复 O_DIRECT 4T 线程安全（FINE_PREAD+FINE_DIRECT）
+- [ ] Post-memopt + thread_local 后 DEEP10M 4T 重测（见 4T 提案）
+- [ ] 100M 或明确 I/O-bound 协议下再评估是否 promote pipe / deprecated
 
-> rationale: SIFT1M（1M/496MB）的 page cache 预算足以覆盖热集，I/O pipelining 的
-> 价值需要在 I/O bound 场景下验证。DEEP10M（10M/3.7GB）+ EVICT_PAGE_CACHE + 10000 queries
-> 制造了真正的 I/O 瓶颈，pipe_ring_ 在此场景下 +162.6%，验证了 DEC-060 方向 2 的设计。
-> 1T 正结果不构成对 4T 的承诺，4T thread-safety bug 是已知代码缺陷，待修复后重测。
+> rationale: SIFT1M 热集可被 page cache 覆盖；DEEP10M+EVICT 曾暴露 pipe 隐藏延迟的价值，
+> 但内存优化抬高 page cache 预算后该收益消失（[[DEC-064]]）。探索轨允许主目标暂缓、
+> 副产品晋升。口径上相对对比不得冒充 O_DIRECT 辅表或 Trunk SLA（[[CON-POC-001]]）。

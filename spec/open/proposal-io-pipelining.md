@@ -3,8 +3,9 @@
 > track: poc
 > 关联: [[DEC-060]] 方向 2、[[DEC-062]]、[[BEH-001]]、[[BEH-007]]、[[CHR-006]]、[[CON-SLA-011]]、[[CON-POC-001]]
 > 日期: 2026-08-01
-> Status: **Implemented (draft clauses)** — 代码在 `poc/io-pipelining/`；v1 数字 invalid；待 R0 Buffered 后重测
-> 修订: 2026-08-01 r2 统一多层；r3 Buffered 主目标（[[DEC-062]] / plan-a）
+> Status: **Active (draft)** — SIFT1M 负结果 + DEEP10M 相对证据见 [[DEC-063]]；
+> post-memopt pipe 无收益见 [[DEC-064]]；BEH-021…023 / CON-SLA-013 保持 draft；未 promote pipe
+> 修订: 2026-08-01 r2/r3；2026-08-02 同步 DEC-063/064 卫生
 
 ## 1. 问题陈述
 

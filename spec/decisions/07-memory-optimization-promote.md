@@ -4,12 +4,15 @@
 > 关联: `DEC-063`、`DEC-034`、`CHR-006`、`CON-002`、`BEH-019`
 
 ## D-064: Promote 内存优化 - VisitedList uint8 + adjacency0 streaming free + malloc_trim {#DEC-064}
-<!-- ndf: kind=decision date=2026-08-02 affects=CON-002,DEC-034 source=observed -->
+<!-- ndf: kind=decision date=2026-08-02 affects=CON-002,DEC-034,DEC-063 source=observed -->
 <!-- ndf: depends-on=DEC-063,BEH-019 -->
 
 **Context.** POC io-pipelining 期间发现内存优化（VisitedList uint8 + adjacency0 streaming free + malloc_trim）
 对 DEEP10M 性能有 5.5x 提升，远超 pipe_ring_ 本身的收益。根因：释放 ~1GB RSS 给 page cache，
 覆盖更多热集，减少 I/O。内存优化是 POC 探索的副产品，但属于通用机制优化，应 promote 到 Trunk。
+
+本决策 **amends [[DEC-063]]**：下文「post-fix 后 pipe 无收益」覆盖 DEC-063 中 pre-memopt
+相对正结果对外的 promote 含义；DEC-063 正文已加 `amended-by=DEC-064`。
 
 ### 变更内容
 
