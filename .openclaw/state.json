@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-strict-baseline-semantics.md",
-  "scenario_type": "process",
-  "track": "process",
+  "current_proposal": "proposal-l4-cache-mgmt.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_review",
-  "validation_status": "pass",
-  "perf_status": "baseline_established",
-  "last_activity": "2026-08-03T14:30:00Z",
-  "notes": "DEC-066 语义补全落地: CON-SLA-014 为唯一合法测法; QPS=观测对齐基线(非must); must=Recall/RSS1T<=300/RSS4T<=450/peak/oom. 旧>=2000等废止. pipe POC 预留 DEC-067. 待审核. 下一步可委派 poc 对齐新基线."
+  "pending_decision": "waiting_for_user_confirmation_r2",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-03T16:07:00Z",
+  "notes": "POC L4 cache mgmt r2 审查收口: Status=Pending. BEH-024 draft 已落地. 提案/NOTES 已对齐(禁 EVICT 幽灵, 统一预算, file 监控语义). CON-SLA-013 不绑定 BEH-024. 待用户确认后委派 poc/ 实现."
 }
