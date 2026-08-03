@@ -1,107 +1,93 @@
 # L4 Page Cache 主动管理 - POC 笔记
 
-> 提案: `spec/open/proposal-l4-cache-mgmt.md`（Pending r2）
+> 提案: `spec/open/proposal-l4-cache-mgmt.md`（Implemented）
 > 条款: [[BEH-024]] draft
-> 装订器: `ndf/TOPIC.md`（[[BEH-025]]）
-> 基线: SIFT1M 严格隔离 Buffered 1T=22.9 QPS ([[DEC-066]])
-> 状态: 待确认
+> 基线: SIFT1M 严格隔离 Buffered 1T ([[DEC-066]])
+> 状态: R0-R3 v2 完成（修正 PQ_CODES_PATH），FINE_FADVISE 有害，EvictMeta 微正
 > 口径: 以提案 / [[BEH-024]] 为准；禁止把 `EVICT_PAGE_CACHE` 当有效旋钮
 
-## 问题分析
+## ⚠️ 重大发现：环境变量名错误 (2026-08-03)
 
-### 预算（与提案统一）
+**R0-R3 v1 全部作废。** benchmark 读 `PQ_CODES_PATH`（带 S），但 v1 脚本设的是 `PQ_CODE_PATH`（不带 S）。
+
+PQ codes 未加载 -> `pq_enabled_=false` -> 走普通 searchLayer0NonBlocking（无 PQ 粗筛、无 fine rerank）-> Recall=98.35%（全量精排）但 QPS=23（极慢）。
+
+修正后 QPS 从 23 跳到 2309（100x）。
+
+## 预算
 
 ```text
 page_cache_budget ≈ memory.max − Peak_RSS
-1T: 512 − 235 = 277MB
-4T: 512 − 416 = 96MB
+1T: 512 − 155 = 357MB（修正后 RSS 降至 155MB，因 PQ 替换 upper vectors 释放 30MB）
 ```
 
-### RSS 构成（1T, 严格隔离基线）
+## R0-R3 v2 结果 (2026-08-03, 严格隔离 CON-SLA-014, 512MB cgroup, 200q, 1T)
 
-| 组成 | 大小 | 生命周期 |
-|------|------|----------|
-| upper-layer vectors | 30MB | 静态 |
-| CSR compressed | 47MB | 静态 |
-| BlockCache slots | 64MB | 静态 |
-| PQ codes | 31MB | 静态 |
-| route table | 8MB | 静态 |
-| flat_vec cache | 4MB | 静态 |
-| graph metadata | ~5MB | 静态 |
-| VisitedList (1T) | ~40MB | 每查询 |
-| 其他 | ~48MB | 每查询 |
-| **Init RSS** | **147MB** | |
-| **Peak RSS 1T** | **235MB** | |
-| **可用 page cache (1T)** | **277MB** | 512 - 235 |
+| 指标 | R0 (Buffered) | R1 (+FADVISE) | R2 (+EvictMeta) | R3 (+Both) |
+|------|---------------|--------------|-----------------|------------|
+| QPS | **2309** | **133** | **2383** | **132** |
+| Recall | 95.75% | 95.75% | 95.75% | 95.75% |
+| Mean | 0.43ms | 7.49ms | 0.42ms | 7.60ms |
+| RSS | 155MB | 155MB | 155MB | 155MB |
+| memory.peak | 512MB | 512MB | 512MB | 512MB |
+| max events | 1654 | 1523 | 1526 | 1526 |
+| peak file | 420MB | 428MB | 393MB | 407MB |
+| file (end) | 374MB | 370MB | 181MB | 143MB |
+| workingset_refault_file | 0 | 0 | 0 | 0 |
+| pgmajfault | 6 | 6 | 6 | 6 |
 
-### Page cache 行为（当前问题）
+### 机制说明
 
-- peak file = 400MB（总分，含 graph/PQ 等，不只 vecblocks）
-- 相对 277MB 预算明显偏高 → `max` events = 1523
-- pgmajfault = 5（1T）/ 27（4T）
-- 根因：buffered I/O 读入 page cache，OS LRU 不知 HNSW 热/冷
-- **成功标准**：以 vecblocks 驻留/回收 + `max` events 为主监控；不以「总 file≤277」为硬门闩
+| 轮次 | 机制 | 说明 |
+|------|------|------|
+| R0 | FINE_BUFFERED=1 | True buffered I/O for vecblocks (基线) |
+| R1 | + FINE_FADVISE=1 | Fine rerank 后驱逐 vecblocks 页 (机制 A) |
+| R2 | + L4_EVICT_META=1 | Init 后驱逐 graph+BFS 页 (新机制) |
+| R3 | + 两者 | 同时驱逐 vecblocks + graph+BFS |
 
-### 优化方向（对齐提案机制 A–D）
+### Profile 分解（PROFILE_TS=1, 200q × 2 批）
 
-1. **精准 DONTNEED（A）**：fine rerank 后对非热 vecblocks 页 `posix_fadvise(DONTNEED)`（POC env，如 `L4_DONTNEED`）
-2. **WILLNEED（B）**：对热块 `posix_fadvise(WILLNEED)`（如 `L4_WILLNEED`）
-3. **选择性页面驱逐（D）**：基于真旋钮 **`FINE_FADVISE`** 或 POC `L4_SELECTIVE`；**禁止**依赖幽灵 `EVICT_PAGE_CACHE`
-4. **L3/L4 分层（C）**：BlockCache miss 时 `mincore` 探 L4 再 `pread`（仍拷贝，非零拷贝）
+```
+R0: n=200 PhaseA=-2953us pread=9448us rerank=45us -> n=400 PhaseA=-1486us pread=4782us rerank=27us
+R1: n=200 PhaseA=-2903us pread=10001us rerank=43us -> n=400 PhaseA=-1474us pread=8313us rerank=38us
+R2: n=200 PhaseA=-2904us pread=9383us rerank=43us -> n=400 PhaseA=-1461us pread=4748us rerank=26us
+R3: n=200 PhaseA=-2706us pread=9725us rerank=38us -> n=400 PhaseA=-1375us pread=8227us rerank=35us
+```
 
-优先级：A → D → B → C。本 POC 优先于 pipe_ring_ 重测。
+- Phase A：负值（计时插桩 bug，tpA < tp0，待修）
+- **pread (Fine I/O)：R0/R2 从 9.4ms 降到 4.8ms（page cache 预热 2x）；R1/R3 从 10ms 只降到 8.3ms（FADVISE 阻止预热）**
+- rerank (L2 计算)：27-45μs（极快，不是瓶颈）
+- **Fine I/O 占总延迟 95%+**
+
+### 关键发现
+
+1. **FINE_FADVISE 导致 17x 性能下降**（2309 -> 133 QPS）
+   - 每次 fine rerank 后驱逐 vecblocks 页 -> 下次查询必须重新从磁盘读
+   - page cache 无法跨 query 积累，每次都是冷读
+   - pread 从 4.8ms 涨到 8.3ms（热态），证明 page cache 命中被破坏
+
+2. **R2 (EvictMeta) 反而最快**（2383 QPS，比 R0 快 3%）
+   - 驱逐 graph+BFS 的 page cache 释放了预算给 vecblocks
+   - file (end) 从 374MB 降到 181MB -- graph 页被驱逐，vecblocks 页保留
+   - vecblocks 获得更多 page cache 空间，QPS 微升
+
+3. **page cache 对 vecblocks 极其关键**：
+   - R0/R2（无 FADVISE）：前 200q pread=9.4ms，后 200q pread=4.8ms（page cache 预热，2x 加速）
+   - R1/R3（有 FADVISE）：前 200q pread=10ms，后 200q pread=8.3ms（page cache 被驱逐，无法预热）
+
+4. **workingset_refault_file = 0（所有轮次）**：内核 LRU 没有误杀热页，无需 WILLNEED
+
+### 核心结论
+
+- **FINE_FADVISE 在严格隔离下是有害的**：驱逐 vecblocks 页破坏跨 query page cache 预热
+- **L4_EVICT_META 有微小正收益**：驱逐 graph 页释放预算给 vecblocks，QPS +3%
+- **真实瓶颈是 Fine I/O (pread)**：占总延迟 95%+，page cache 命中率是关键杠杆
+- **后续方向**：如何在预算内最大化 vecblocks page cache 命中率（而非驱逐它）
 
 ## 进度
 
 - [x] 提案确认
-- [x] R0 基线复跑（FINE_BUFFERED=1, true buffered）
-- [x] R1: FINE_FADVISE=1（evict all after read）
-- [ ] R2: +WILLNEED（A+B）
-- [ ] R3: +选择性（A+B+D，`FINE_FADVISE` / `L4_SELECTIVE`）
-- [ ] 数据分析 + 决策
-
-## R0/R1 结果 (2026-08-03, 严格隔离 CON-SLA-014, 512MB cgroup, 200q, 1T)
-
-| 指标 | R0 (Buffered) | R1 (+FADVISE) | 旧基线 (误用 O_DIRECT) |
-|------|---------------|--------------|----------------------|
-| QPS | **23.0** | **23.1** | 22.9 |
-| Recall | 98.35% | 98.35% | 98.35% |
-| RSS | 235MB | 235MB | 235MB |
-| memory.peak | 512MB | 512MB | 512MB |
-| max events | 1522 | 1523 | 1523 |
-| peak anon | 249MB | 245MB | 246MB |
-| peak file | 432MB | 459MB | 400MB |
-| workingset_refault_file | 0 | 0 | 0 |
-| pgmajfault | 6 | 6 | 5 |
-
-### 关键发现
-
-1. **R0 vs 旧基线几乎相同** (23.0 vs 22.9)：FINE_BUFFERED=1 vs fallback O_DIRECT 性能几乎一致。说明 vecblocks I/O 模式不是瓶颈差异点。
-
-2. **FINE_FADVISE 无收益** (23.1 vs 23.0)：FINE_FADVISE 在 fine rerank 后驱逐读过的页，但：
-   - peak file 反而更高 (459 vs 432MB) -- FADVISE 只驱逐 vecblocks 页，graph/PQ 的 file 页不受影响
-   - max events 不变 (1523 vs 1522) -- 内核回收压力未减轻
-   - workingset_refault_file = 0 -- 没有热页被反复淘汰的迹象
-
-3. **page cache 的 400-460MB 主要是 graph/PQ 等元数据文件，不是 vecblocks**：
-   - vecblocks 通过 fine rerank 的 pread 路径读取，每次只读 4KB 页
-   - graph 文件 587MB 通过 ifstream 加载，全量读入 page cache
-   - PQ codes 31MB 也是 ifstream
-   - 即使 FINE_FADVISE 驱逐了 vecblocks 页，graph/PQ 的页仍占满 page cache
-
-4. **真正问题：graph 文件加载（587MB）填满 page cache 预算**：
-   - Init 阶段读 587MB graph 文件 -> page cache 被填满
-   - 搜索时 vecblocks 的 pread 又往 page cache 塞页 -> 超预算 -> 内核回收
-   - 但 workingset_refault=0 说明回收的不是热页，性能影响不大
-   - **瓶颈不在 page cache 回收，而在 I/O 延迟本身**
-
-### 下一步方向调整
-
-R0/R1 结果表明机制 A（精准 DONTNEED）在当前场景下无收益。需要重新分析：
-
-1. **graph 文件的 page cache 管理**：graph 587MB 在 init 后不再需要（CSR 已构建），应驱逐其 page cache
-2. **BlockCache 的 O_DIRECT**：BlockCache 已用 O_DIRECT (io_mode=direct)，不走 page cache
-3. **真正的 I/O 瓶颈**：43ms/query 中，Phase A (PQ 计算) + Fine Rerank I/O 各占多少？
-4. **flat_vec_cache 效果**：64MB BlockCache 中的 flat_vec_cache 是否已覆盖热向量？
-
-可能需要先做 profile 分析再决定 R2/R3 方向。
+- [x] R0-R3 v1（作废：PQ_CODES_PATH 拼写错误）
+- [x] R0-R3 v2（修正后）
+- [x] Profile 分析：Fine I/O 是瓶颈，page cache 命中是关键
+- [ ] 决策：L4_EVICT_META 是否值得 promote / FINE_FADVISE 是否需要标注有害

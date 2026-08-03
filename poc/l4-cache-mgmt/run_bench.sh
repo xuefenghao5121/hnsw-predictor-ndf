@@ -1,22 +1,18 @@
 #!/bin/bash
 # run_l4_poc.sh - L4 Page Cache 主动管理 POC 测试
 # 遵循 CON-SLA-014 严格隔离协议
-# R0: FINE_BUFFERED=1 (true buffered, no fadvise)
-# R1: + FINE_FADVISE=1 (evict all after read)
-# R2: + selective (POC code, pending)
-# R3: + WILLNEED (POC code, pending)
 set -euo pipefail
 
-cd /home/huawei/hnsw-predictor-ndf
-BIN=build/benchmark_diskhnsw
+cd /home/huawei/hnsw-predictor-ndf/poc/l4-cache-mgmt
+BIN=build/benchmark_l4
 
-GRAPH=output/sift1m_graph.bin
-BFS=output/sift1m_bfs.bin
-BLOCKS=output/sift1m_blocks_64k.bin
-ROUTE=output/sift1m_route_64k.bin
-DATA=data/sift_base.fvecs
-QUERY=data/sift1m_query200.fvecs
-GT=data/sift1m_gt200.bin
+GRAPH=../../output/sift1m_graph.bin
+BFS=../../output/sift1m_bfs.bin
+BLOCKS=../../output/sift1m_blocks_64k.bin
+ROUTE=../../output/sift1m_route_64k.bin
+DATA=../../data/sift_base.fvecs
+QUERY=../../data/sift1m_query200.fvecs
+GT=../../data/sift1m_gt200.bin
 K=10; EF=100; NUMQ=200
 
 CGROUP_MB=512
@@ -25,8 +21,8 @@ CGROUP_PATH=/sys/fs/cgroup/hnsw_l4_poc
 export CACHE_MB=64
 export TWO_STAGE=1
 export FINE_RERANK=1
-export VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin
-export PQ_CODE_PATH=output/pqco_sift1m_M32_correct.bin
+export VEC_BLOCKS_PATH=../../output/sift1m_vecblocks_64k.bin
+export PQ_CODE_PATH=../../output/pqco_sift1m_M32_correct.bin
 export REFINE_EF=100
 export FINE_PREAD=1
 export EVICT_PAGE_CACHE=0
@@ -91,15 +87,23 @@ run_round() {
     sudo rmdir "$CGROUP_PATH" 2>/dev/null || true
 }
 
-# R0: True Buffered (FINE_BUFFERED=1, no fadvise)
+# R0: True Buffered (FINE_BUFFERED=1, no fadvise, no evict)
 run_round "R0 Buffered 1T" \
-    FINE_BUFFERED=1 FINE_FADVISE=0
+    FINE_BUFFERED=1 FINE_FADVISE=0 L4_EVICT_META=0
 
-# R1: Buffered + FINE_FADVISE (evict all after read)
+# R1: Buffered + FINE_FADVISE (evict vecblocks after read)
 run_round "R1 Buffered+FADVISE 1T" \
-    FINE_BUFFERED=1 FINE_FADVISE=1
+    FINE_BUFFERED=1 FINE_FADVISE=1 L4_EVICT_META=0
+
+# R2: Buffered + L4_EVICT_META (evict graph+BFS page cache after init)
+run_round "R2 Buffered+EvictMeta 1T" \
+    FINE_BUFFERED=1 FINE_FADVISE=0 L4_EVICT_META=1
+
+# R3: Buffered + L4_EVICT_META + FINE_FADVISE (evict meta + evict vecblocks)
+run_round "R3 Buffered+EvictMeta+FADVISE 1T" \
+    FINE_BUFFERED=1 FINE_FADVISE=1 L4_EVICT_META=1
 
 echo ""
 echo "============================================"
-echo "  R0/R1 完成。R2/R3 需要 POC 代码。"
+echo "  R0-R3 完成"
 echo "============================================"

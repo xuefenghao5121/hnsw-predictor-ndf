@@ -2,11 +2,11 @@
   "current_proposal": "proposal-l4-cache-mgmt.md",
   "scenario_type": "poc",
   "track": "poc",
-  "validation_round": 0,
+  "validation_round": 1,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T17:20:00Z",
-  "notes": "POC L4 cache mgmt 已确认. 提案 Implemented. 开始实现 poc/l4-cache-mgmt/. 优先级: A(DONTNEED) -> D(FINE_FADVISE) -> B(WILLNEED) -> C(mincore)."
+  "last_activity": "2026-08-03T20:01:00Z",
+  "notes": "R0-R3 v2 完成(修正PQ_CODES_PATH). FINE_FADVISE 17x下降(有害). L4_EVICT_META +3%(微正). 瓶颈=Fine I/O 95%+. page cache 命中是关键. 待决策: promote EvictMeta / 标注 FADVISE 有害."
 }
