@@ -1752,6 +1752,8 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 }
             }
             for (uint32_t nid : cand_ids) {
+                // L4 POC R4: check flat_vec_cache BEFORE going to pread
+                if (const float* fv = cache_->getFlatVector(nid)) { consider(nid, fv); continue; }
                 // 用 vecblocks 专属路由表 (修复: blocks 文件和 vecblocks 文件 block ID 不一致)
                 uint32_t b = vec_route_table_[nid];
                 // 只查 cache 不触发加载 (getNodeVector miss 会同步读 64KB block!)

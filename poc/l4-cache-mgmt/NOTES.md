@@ -86,10 +86,41 @@ PQ 未加载 -> `pq_enabled_=false` -> 走 fallback 路径 -> QPS=23（假基线
 
 ## 下一步
 
-- [ ] R4: 在 256MB cgroup 下测试 L4_DONTNEED（选择性驱逐冷 vecblocks 页）
+- [x] R4: 在 256MB cgroup 下测试 flat_vec_cache 在 fine rerank 中的命中
+- [x] R4b: 增大 flat_vec_cache (8/16/32/64MB) 扫描
 - [ ] R5: 在 256MB cgroup 下测试 WILLNEED（提示热 block 保留）
-- [ ] 目标：减少 workingset_refault，抬升 QPS 从 126 向 2309 逼近
+- [ ] 决策：flat_vec_cache 增大是否值得 promote 到 Trunk
 - [ ] DEEP10M 严格隔离基线测试
+
+## R4 结果：flat_vec_cache 在 fine rerank 中命中 (2026-08-03)
+
+**发现**：fine rerank 代码未查 flat_vec_cache，热向量走 pread 读磁盘。加入 `getFlatVector()` 检查后：
+
+### 256MB cgroup, flat_vec_cache 扫描
+
+| flat_vec_cache | slots | RSS | QPS | refault | majfault | vs 基线 |
+|---------------|-------|-----|-----|---------|----------|---------|
+| 4MB (原默认) | 8K | 153MB | 126 | 30326 | 5078 | 基线 |
+| 8MB | 16K | 157MB | **216** | 16414 | 5043 | +71% |
+| 16MB | 32K | 165MB | **464** | 6888 | 4997 | +268% |
+| 32MB | 65K | 179MB | **621** | 5339 | 4901 | +393% |
+| 64MB | 130K | 194MB | **947** | 4048 | 5119 | **+651%** |
+
+### 关键发现
+
+1. **flat_vec_cache 64MB: QPS 126->947 (7.5x)**，refault 30326->4048 (-87%)
+2. RSS 只增 41MB，用 41MB 匿名内存换 7.5x QPS 提升
+3. Recall 不变 (95.75-95.80%)
+4. **核心洞察**：在 page cache 不足场景下，把热向量从 page cache (OS 管理) 移到 flat_vec_cache (进程内管理) 更有效--不受 cgroup 回收影响
+
+### 512MB cgroup, R4 vs R2
+
+| 配置 | QPS | refault | 说明 |
+|------|-----|---------|------|
+| R2 (512MB, 4MB flat_vec) | 2383 | 0 | 基线 |
+| R4 (512MB, 4MB flat_vec + rerank check) | 2326 | 32 | -2% (噪声) |
+
+512MB 下 flat_vec_cache 增大无必要（page cache 充裕）。
 
 ## 进度
 

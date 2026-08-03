@@ -42,9 +42,21 @@
 
 ## Next gate
 
-- [ ] R4: 在 256MB cgroup 下测试选择性 DONTNEED / WILLNEED
-- [ ] 目标：减少 refault（从 30326 向 <5000），抬升 QPS（从 126 向 500+）
-- [ ] DEEP10M 严格隔离基线（天然 page cache 不足场景）
+- [x] R4: flat_vec_cache 在 fine rerank 中命中 + 增大扫描
+- [ ] R5: WILLNEED 测试（预期收益小，flat_vec_cache 已覆盖热向量）
+- [ ] 决策：flat_vec_cache 增大 + fine rerank check 是否 promote
+- [ ] DEEP10M 严格隔离基线测试
+
+## R4 结果 (2026-08-03)
+
+**发现**：fine rerank 未查 flat_vec_cache，热向量走 pread。加入 check + 增大 cache：
+
+| flat_vec | cgroup | QPS | refault | 提升 |
+|----------|--------|-----|---------|------|
+| 4MB | 256MB | 126 | 30326 | 基线 |
+| 64MB | 256MB | **947** | 4048 | **7.5x** |
+
+核心洞察：把热向量从 page cache (OS) 移到 flat_vec_cache (进程内) 更有效。
 
 ## Draft clauses
 
@@ -79,3 +91,14 @@
 ## Commits
 
 见 [COMMITS.md](COMMITS.md)
+
+## R4 Evidence (补充)
+
+| date | round | cgroup | flat_vec | QPS | refault | majfault | note |
+|------|-------|--------|----------|-----|---------|----------|------|
+| 2026-08-03 | R4-4M | 256MB | 4MB | 139 | 27666 | 5105 | +flat_vec check in rerank |
+| 2026-08-03 | R4-8M | 256MB | 8MB | 216 | 16414 | 5043 | |
+| 2026-08-03 | R4-16M | 256MB | 16MB | 464 | 6888 | 4997 | |
+| 2026-08-03 | R4-32M | 256MB | 32MB | 621 | 5339 | 4901 | |
+| 2026-08-03 | R4-64M | 256MB | 64MB | 947 | 4048 | 5119 | 7.5x vs 基线 |
+| 2026-08-03 | R4-512M | 512MB | 4MB | 2326 | 32 | 9 | 512MB 下无显著收益 |
