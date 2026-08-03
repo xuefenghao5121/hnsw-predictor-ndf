@@ -131,3 +131,47 @@ PQ 未加载 -> `pq_enabled_=false` -> 走 fallback 路径 -> QPS=23（假基线
 - [x] 紧 cgroup 实验（256/192/160MB）
 - [ ] R4+: 在 256MB cgroup 下测试 L4 管理机制
 - [ ] 决策
+
+## DEEP10M 严格隔离基线 + flat_vec_cache 实验 (2026-08-03)
+
+### 基线 (CON-SLA-014, 2GB cgroup, GT=deep10m_gt_k10.bin)
+
+| 模式 | 线程 | QPS | Recall | RSS | peak | oom | refault | majfault |
+|------|------|-----|--------|-----|------|-----|---------|----------|
+| Buffered | 1T | 580 | 95.05% | 1156MB | 2GB | 0 | 318 | 73005 |
+| Buffered | 4T | 1562 | 95.05% | 1205MB | 2GB | 0 | 367 | 70025 |
+| O_DIRECT | 1T | 43 | 95.05% | 1157MB | 2GB | 0 | - | - |
+
+- vecblocks 3.7GB vs 预算 ~850MB -> 天然 page cache 不足
+- majfault=73005 (极高, vs SIFT1M 512MB 的 6)
+- pread 热态 21ms (vs SIFT1M 4.8ms)
+
+### flat_vec_cache 扫描 (2GB cgroup, Buffered 1T)
+
+| flat_vec | slots | QPS | refault | majfault | RSS | vs基线 |
+|----------|-------|-----|---------|----------|-----|--------|
+| 4MB | 10K | 581 | 263 | 73019 | 1156 | 基线 |
+| 32MB | 86K | 637 | 285 | 72176 | 1185 | +10% |
+| 64MB | 173K | 660 | 284 | 70791 | 1215 | +14% |
+| 128MB | 173K | 664 | 322 | 69654 | 1214 | +14% (cap?) |
+| 256MB | 173K | 659 | 317 | 68838 | 1215 | +13% (cap?) |
+
+### DEEP10M vs SIFT1M 对比
+
+| 场景 | SIFT1M 256MB | DEEP10M 2GB |
+|------|-------------|-------------|
+| flat_vec 4->64MB QPS 提升 | 7.5x (126->947) | 1.14x (581->660) |
+| 热工作集覆盖率 | 高 (64MB/1M vec) | 低 (64MB/10M vec) |
+| majfault 变化 | 5078->5119 (不变) | 73019->70791 (-3%) |
+
+### 结论
+
+- flat_vec_cache 在 DEEP10M 上效果有限 (+14%)，因为 10M 向量的热工作集远大于 cache
+- 128/256MB slots 没增长（173K cap，待查代码）
+- DEEP10M 的瓶颈是 I/O 量本身（majfault=73K），不是 page cache 管理
+- 后续方向：减少候选数（降 REFINE_EF）或改善 PQ 质量
+
+### GT 文件修正
+
+- `data/deep10m_gt.bin` (kk=100) 格式不匹配（read_gt 读 k=10 导致错位）
+- `data/deep10m_gt_k10.bin` (kk=10, n=10000) 正确，Recall=95.05%
