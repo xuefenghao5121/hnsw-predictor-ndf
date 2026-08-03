@@ -175,3 +175,17 @@ PQ 未加载 -> `pq_enabled_=false` -> 走 fallback 路径 -> QPS=23（假基线
 
 - `data/deep10m_gt.bin` (kk=100) 格式不匹配（read_gt 读 k=10 导致错位）
 - `data/deep10m_gt_k10.bin` (kk=10, n=10000) 正确，Recall=95.05%
+
+### flat_vec_cache cap 修复 (CACHE_MB 限制)
+
+根因: `vec_budget = std::min(cache_bytes, vec_max_bytes)` -- flat_vec 受 CACHE_MB 限制。
+修复:增大 CACHE_MB 解除 cap。
+
+| flat_vec | CACHE_MB | slots | QPS | majfault | RSS | vs基线 |
+|----------|----------|-------|-----|----------|-----|--------|
+| 4MB | 64 | 10K | 581 | 73019 | 1156 | 基线 |
+| 64MB | 64 | 173K | 651 | 69280 | 1215 | +12% |
+| 128MB | 128 | 346K | 698 | 65499 | 1258 | +20% |
+| 256MB | 256 | 692K | 699 | 68054 | 1302 | +20% (饱和) |
+
+128MB 后饱和。692K slots 覆盖 6.9% 的 10M 向量。
