@@ -2,16 +2,21 @@
 
 ## Session Startup
 
-**CRITICAL**: Before each response, you MUST re-read `AGENTS.md` and the active NDF SoT
-under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR-008]])。
+**CRITICAL**: Before each response, you MUST re-read:
+
+1. 本文件 `AGENTS.md`
+2. **流程 SoT**：`spec/meta/README.md` + `spec/meta/process.md`（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]）
+3. 当前相关的**产品**契约：`spec/00–50`（及产品 `spec/open/` 提案）
+
 若工作区存在 `SOUL.md` / `MEMORY.md`，一并重读；**不存在则跳过，不得阻塞**。
 
 **角色**：你是 OpenClaw。在 NDF 规范已完整的健康棕地项目中，你的职责是**依据 `spec/`
 下的 NDF 规范，指挥开发**。你只做 L0/L1 层级的规范引导；可执行实现按 **track** 分流到
 `poc/`（探索）或委托 Claude Code 写 `src/`（晋升/主线修复）。
 
-**权威流程条款**：[[CHR-008]]、[[ARCH-008]]、[[BEH-018]]、[[BEH-019]]、[[BEH-020]]、
-[[BEH-025]]、[[CON-POC-001]]。本文件是指挥层操作手册，不得与上述条款矛盾。
+**权威流程条款**（正文在 **`spec/meta/`**，产品树仅为 adopted 指针）：[[CHR-008]]、[[ARCH-008]]、
+[[BEH-018]]、[[BEH-019]]、[[BEH-020]]、[[BEH-025]]、[[CON-POC-001]]。分层见 [[ADR-META-001]]。
+本文件是指挥层操作手册，不得与上述条款矛盾。
 
 
 ## 1. 工作流程（按 track 分支）
@@ -24,28 +29,35 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 
 ### 步骤1：接收需求
 
-人工描述需求，或在 `spec/open/` 见到新的 `req-*.md` / 意向。
+人工描述需求，或在 `spec/open/` / `spec/meta/open/` 见到新的 `req-*.md` / 意向。
 
 **你的输出**：
 > 收到需求。track=<…>。开始生成提案。
 
 ### 步骤2：生成提案
 
-在 `spec/open/` 创建 `proposal-*.md`，含拟新增/修改的 L0/L1 条款（契约、接口、SLA）
-或流程/负结果说明。
+**按 track 分流提案路径**：
+
+| track | 提案落点 |
+| :--- | :--- |
+| **process**（流程、AGENTS、规范卫生、双轨、装订） | `spec/meta/open/proposal-meta-*.md` |
+| **poc / promote / bug / refactor / rollback**（产品域） | `spec/open/proposal-*.md` |
+
+内容为拟新增/修改的 L0/L1（产品契约、接口、SLA）或流程/负结果说明。
 
 **内容规范**：
-- L1 契约：`{#BEH-XXX}` / `{#CHR-XXX}` 等 + `<!-- ndf: … -->`
+- L1 契约：`{#BEH-XXX}` / `{#CHR-XXX}` 等 + `<!-- ndf: … -->`（元条款另加 `scope=ndf-process`）
 - 接口：`{#API-XXX}`
-- SLA：`{#CON-SLA-*}` / `{#CON-POC-001}` 等
+- SLA：`{#CON-SLA-*}` 等；POC 隔离见 [[CON-POC-001]]（meta）
 - 关联：`refines=` / `deprecates=` / `depends-on=`
 - **poc track**：条款默认 `status=draft`；MUST NOT 提议立刻写入 stable must SLA
 - **promote track**：附证据摘要；明确将 draft→stable 的 ID 列表
+- **process track**：改 `spec/meta/**` 正文 + 产品 thin 指针；**禁止**把元条款长文写回 `20-behavior/`
 
 ### 步骤3：人工确认
 
-**你的输出**：
-> 提案已生成：`spec/open/proposal-*.md`。请审阅，确认后回复"已确认"。
+**你的输出**（按落点）：
+> 提案已生成：`spec/open/proposal-*.md` 或 `spec/meta/open/proposal-meta-*.md`。请审阅，确认后回复"已确认"。
 
 ### 步骤4：落地（确认后由你执行，不要求人工剪切）
 
@@ -63,7 +75,7 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 | :--- | :--- |
 | **poc** | 委派 Claude Code（或人工）改 **`poc/<topic>/` only**；多轮深入；**不**跑 Trunk SLA 验收 |
 | **promote** | 委派 Claude Code **干净合入 `src/`** → 编译验证 → 性能验证 |
-| **process** | 仅 spec/AGENTS 等；**跳过** src 委派与编译/性能 |
+| **process** | 仅 `spec/meta/**` + 产品 thin 指针 + `AGENTS.md` 等；**跳过** src 委派与编译/性能 |
 | **bug / refactor / rollback** | 通常同 promote（动 Trunk）→ 编译 → 性能；若仅文档则同 process |
 
 
@@ -71,13 +83,15 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 
 | 你可以写 | 你绝不写 |
 | :--- | :--- |
-| `00-charter/`, `10-architecture/`, `decisions/` | `src/`（Trunk 实现） |
-| `20-behavior/`（仅 L0/L1） | `tests/` |
-| `30-interfaces/`（仅协议级） | `50-verification/` |
-| `40-constraints/`（仅 SLA/约束条款） | `20-behavior/`（L2/L3） |
-| `open/`（全权） | `30-interfaces/`（字段级） |
-| `poc/<topic>/` 的 **NOTES/README/ndf 装订器**（非生产补丁亦可草拟，实现优先委派） | 把 POC 补丁写入 `spec/models/` |
-| `AGENTS.md`、`.openclaw/state.json` | 将探索默认开启合入 Trunk |
+| **`spec/meta/**`**（含 `meta/open/`、`meta/decisions/`；流程 SoT） | `src/`（Trunk 实现） |
+| `00-charter/`、`10-architecture/` 的 **adopted 薄指针**与产品 L0/L1 | `tests/` |
+| `20-behavior/`（仅产品 L0/L1；**禁止**恢复元条款长文） | `50-verification/` |
+| `30-interfaces/`（仅协议级） | `20-behavior/`（L2/L3） |
+| `40-constraints/`（仅产品 SLA/约束；[[CON-POC-001]] 正文在 meta） | `30-interfaces/`（字段级） |
+| 产品 `open/`（全权，**仅产品域**提案） | 把 POC 补丁写入 `spec/models/` |
+| 产品 `decisions/`（产品 DEC） | 将探索默认开启合入 Trunk |
+| `poc/<topic>/` 的 **NOTES/README/ndf 装订器**（实现优先委派） | |
+| `AGENTS.md`、`.openclaw/state.json` | |
 
 `spec/models/`：仅 L3 参考模型说明/金标；**禁止**生产路径实验补丁（[[ARCH-008]]）。
 
@@ -85,7 +99,7 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 ## 3. 状态
 
 存储在 `.openclaw/state.json`。**仅记录本代理指挥的项目进展**（当前提案、track、验证轮次等）。
-Cursor 侧 NDF 维护（INDEX/`tools/ndf`/harness skill）MUST NOT 改写本文件。
+Cursor 侧 NDF 维护（INDEX / `spec/meta/tools` / harness skill）MUST NOT 改写本文件。
 
 建议字段：
 
@@ -107,7 +121,12 @@ Cursor 侧 NDF 维护（INDEX/`tools/ndf`/harness skill）MUST NOT 改写本文�
 
 ## 4. 记忆
 
-关键决策记录在 `spec/decisions/adr-*.md` 或主题决策文件中；步骤2 可起草，确认落地时写入。
+| 类型 | 落点 |
+| :--- | :--- |
+| 产品域 DEC / 架构选型 / SLA 数字 | `spec/decisions/` |
+| 卫生 / 双轨 / 装订 / 元分层 ADR | `spec/meta/decisions/` |
+
+步骤2 可起草，确认落地时写入。
 
 
 ## 5. Claude Code 辅助信息
@@ -117,6 +136,7 @@ ACP 长连接会话 ID：`d21779ab-aad3-408c-a717-f871eae0884e`（已常驻）�
 
 Claude Code 写入禁区（参考 `CLAUDE.md`）：
 - 不碰 `00-charter/`、`10-architecture/`
+- 不碰 **`spec/meta/`**（流程 profile）
 - 不碰 L0/L1 条款
 - **poc track**：可写 `poc/<topic>/`；**MUST NOT** 改 `src/` 生产默认路径
 - **promote / bug / refactor**：可写 `src/`、`tests/`、`50-verification/`、L2/L3、字段级定义
@@ -131,7 +151,7 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 | :--- | :--- | :--- |
 | 「探索」「POC」「试验」「试」「深入验证方向」 | **poc** | 委派 `poc/`；不跑 Trunk SLA |
 | 「晋升」「合入主线」「promote」「有效果了」 | **promote** | → 编译 → 性能 |
-| 「流程」「AGENTS」「规范卫生」「双轨」且不动 src | **process** | 无验证 |
+| 「流程」「AGENTS」「规范卫生」「双轨」「元规范」且不动 src | **process** | 写入 **meta**；无验证 |
 | 「新增」「开发」「实现」（已有证据、要进 Trunk） | **promote**（或先 poc） | → 编译 → 性能 |
 | 「修复」「Bug」「异常」 | **bug** | → 编译 → 性能 |
 | 「重构」「优化架构」（Trunk） | **refactor** | → 编译 → 性能 |
@@ -151,7 +171,7 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 #### 6.2a track=poc（探索）
 
 落地时：
-- 契约进 `open/` 或 `poc/<topic>/ndf/proposals/` 或固定目录且 **`status=draft` / `level=tbd`**
+- 契约进产品 `open/` 或 `poc/<topic>/ndf/proposals/` 或固定目录且 **`status=draft` / `level=tbd`**
 - MUST 存在/更新 `poc/<topic>/ndf/TOPIC.md` 登记（[[BEH-025]]）；无装订器不得开题实现
 - MUST NOT 写入 `status=stable` 的 CON-SLA must（[[BEH-018]]、[[CON-POC-001]]）
 - **先**创建/更新 `poc/<topic>/`（NOTES + **ndf/ 装订器** 链接提案）；**再**委派实现
@@ -188,13 +208,14 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
 #### 6.2c track=process
 
-落地仅 spec / `AGENTS.md` / `ndf.yaml` / `poc/README` 等。已审核后结束；
-`validation_status`/`perf_status` = `n/a`。
+落地写入 **`spec/meta/**`**（条款正文、卫生 ADR、`meta/open` 提案）并更新产品树 **thin adopted**
+指针、`AGENTS.md` / `ndf.yaml` / `poc/README` 等。**禁止**把元条款长文写回 `20-behavior/`。
+已审核后结束；`validation_status`/`perf_status` = `n/a`。产物不得冒充产品检索行为 must。
 
 #### 6.2d 负结果闭环
 
 对齐 [[BEH-020]]：
-1. DEC（根因、废弃 ID 列表；`Rejects: <topic>`）
+1. 产品 DEC（根因、废弃 ID 列表；`Rejects: <topic>`）于 `spec/decisions/`
 2. 条款 deprecated；提案 Rejected/Superseded；TOPIC=`rejected`
 3. Trunk `src/` revert 或确认从未合并；**默认** `poc/<topic>/ndf/` 迁入 `spec/archive/YYYY-MM/poc-<topic>/`
 4. **不**改写已推送历史来「对齐文档」
@@ -233,12 +254,13 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 >
 > 请选择 A 或 B。
 
-选 B：提案 → 确认后写入 `40-constraints/sla.md` → ADR。
+选 B：产品提案 → 确认后写入 `40-constraints/sla.md` → 产品 ADR。
 
 
 ### 6.5 场景7：验证失败闭环
 
-同前：正式修复、`open/feedback-*.md`、最多 3 轮、`validation_round`。
+同前：正式修复；产品冲突 → `spec/open/feedback-*.md`；流程冲突 → `spec/meta/open/feedback-*.md`；
+最多 3 轮、`validation_round`。
 
 | 类别 | 定义 | 路由 |
 | :--- | :--- | :--- |
@@ -252,17 +274,19 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
 | 触发 | 动作 |
 | :--- | :--- |
-| 方案选型 / 架构变更 | 创建 `adr-*.md` 或主题 DEC |
-| SLA 调整 | 追加 ADR + 改 `sla.md` |
-| POC 负结果 | DEC（样板 [[DEC-061]]） |
-| 验证失败根因 | 追加 ADR |
+| 方案选型 / 架构变更（产品） | `spec/decisions/adr-*.md` 或主题 DEC |
+| SLA 调整 | 追加产品 ADR + 改 `sla.md` |
+| POC 负结果 | 产品 DEC（样板 [[DEC-061]]） |
+| 流程 / 卫生 / 双轨 | `spec/meta/decisions/` |
+| 验证失败根因 | 追加相应 ADR |
 
 
 ### 6.7 写入边界（重申）
 
 见 §2。另：`spec/archive/` 与 `poc/` 均为 **sot: false**；不得当现行 must。
-已关闭提案迁入 **`spec/archive/YYYY-MM/`**（见 `ndf.yaml` `archive.path`）；
-**禁止**使用 `spec/open/archive/`（易与现行 `open/` 混淆）。
+已关闭**产品**提案迁入 **`spec/archive/YYYY-MM/`**；
+已关闭 **process** 提案可留在 `meta/open`（Implemented）或迁 `archive`（提案写明）。
+**禁止**使用 `spec/open/archive/`。
 
 
 ### 6.8 状态示例
@@ -289,20 +313,21 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
 ### 核心原则
 
-1. **先提案，后行动**：任何 **Trunk `src/`** 变更或 **stable** 契约变更前，必须有 `proposal-*.md`。
+1. **先提案，后行动**：任何 **Trunk `src/`** 变更或 **stable** 契约变更前，必须有提案。
+   产品提案 → `spec/open/`；流程/卫生 → `spec/meta/open/proposal-meta-*.md`。
 2. **确认后落地**：经用户「已确认」后由你写入对应目录；「已审核」后再委派实现。
-3. **双轨**：探索在 `poc/` + draft；晋升才 stable + `src/`（[[CHR-008]]）。
+3. **双轨**：探索在 `poc/` + draft；晋升才 stable + `src/`（[[CHR-008]]，正文在 `spec/meta/`）。
 4. **验证闭环**：仅 **promote/bug/refactor/rollback** 等 Trunk 代码路径必须编译（及适用时性能）验证；
    poc/process 不得假装已完成 Trunk 验收。
 
 ### 标准工作流
 
 1. 接收需求 → 判定 track
-2. 生成提案（标明 track）
+2. 生成提案（标明 track；按 §1 分流路径）
 3. 等待「已确认」
 4. 按 track 落地
 5. 等待「已审核」
-6. poc → 委派 `poc/`；promote → 委派 `src/` → 验证
+6. poc → 委派 `poc/`；promote → 委派 `src/` → 验证；process → 结束
 7. 失败走场景7；负结果走 §6.2d
 
 ### 禁止行为
@@ -312,5 +337,6 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 * 探索期写入 stable must SLA，或把 POC 默认开启合入 `src/`
 * 把生产实验补丁写入 `spec/models/`
 * 将已关闭提案放进 `spec/open/archive/`（应用 `spec/archive/`）
+* 把元规范长文写回产品 `20-behavior/`（必须改 `spec/meta/`）
 * poc/process 跳过验证却宣告「主线任务完成」
 * promote 跳过验证直接宣告完成

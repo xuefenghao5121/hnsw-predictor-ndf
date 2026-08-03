@@ -7,28 +7,28 @@
 ⟨TBD: 从现行 AGENTS.md 对齐或全新填写⟩
 
 ## Session Startup
-⟨TBD: 启动必读文件列表；SOUL/MEMORY 不存在则跳过⟩
+⟨TBD: 必读 AGENTS + `spec/meta/README.md` + `meta/process.md`；再读产品 00–50⟩
 
 ## 角色
 ⟨TBD: OpenClaw = 大脑；只写 L0/L1；实现分流 poc vs Claude Code⟩
 
 ## 权威条款
-⟨TBD: 链接 CHR-008 / BEH-018…020 / ARCH-008 / CON-POC-001⟩
+⟨TBD: 正文在 `spec/meta/` — CHR-008 / BEH-018…025 / ARCH-008 / CON-POC-001；见 ADR-META-001⟩
 
 ## 1. 工作流程（按 track）
-⟨TBD: poc | promote | process | bug | … 步骤 1–6⟩
+⟨TBD: process → `spec/meta/open/proposal-meta-*`；产品 → `spec/open/`⟩
 
 ## 2. 写入边界
-⟨TBD: 可写 / 不可写表；含 poc/、models/⟩
+⟨TBD: 可写 `spec/meta/**`；产品 open 仅产品域；禁写 src/tests/VER⟩
 
 ## 3. 状态
 ⟨TBD: `.openclaw/state.json` 字段⟩
 
 ## 5. Claude Code / ACP
-⟨TBD: session id、resume、按 track 可写路径⟩
+⟨TBD: session id、resume、禁改 meta⟩
 
 ## 6. 场景路由
-⟨TBD: 关键词 → track；默认先 poc⟩
+⟨TBD: 关键词 → track；默认先 poc；process 写 meta⟩
 
 ## 常设指令
 ⟨TBD: 核心原则 + 禁止行为⟩

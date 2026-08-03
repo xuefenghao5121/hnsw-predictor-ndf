@@ -1,7 +1,50 @@
 {
-  "generated_at": "2026-08-03T15:17:19Z",
-  "clause_count": 166,
+  "generated_at": "2026-08-03T17:28:39Z",
+  "clause_count": 168,
   "nodes": {
+    "ADR-META-001": {
+      "id": "ADR-META-001",
+      "title": "ADR: NDF 元规范与产品契约分层",
+      "file": "meta/decisions/adr-meta-layer-split.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CHR-008",
+        "BEH-018",
+        "ARCH-008",
+        "CON-POC-001",
+        "BEH-025"
+      ],
+      "backlinks": [
+        "ADR-TOPIC-BINDER-001"
+      ]
+    },
+    "ADR-TOPIC-BINDER-001": {
+      "id": "ADR-TOPIC-BINDER-001",
+      "title": "ADR: Topic Binder as meta capability",
+      "file": "meta/decisions/adr-topic-binder.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-025",
+        "DEF-022",
+        "DEF-023",
+        "ADR-META-001"
+      ],
+      "backlinks": []
+    },
     "API-001": {
       "id": "API-001",
       "title": "CLI 入口",
@@ -12,6 +55,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -28,6 +72,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -42,6 +87,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -58,6 +104,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "BEH-009"
@@ -76,6 +123,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -90,6 +138,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -104,6 +153,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -118,6 +168,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "depends-on": [
           "DEC-021",
@@ -140,6 +191,7 @@
       "layer": "L1",
       "status": "deprecated",
       "since": "0.6",
+      "scope": "",
       "edges": {
         "depends-on": [
           "DEC-060"
@@ -165,6 +217,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.8",
+      "scope": "",
       "edges": {
         "depends-on": [
           "DEC-060",
@@ -193,6 +246,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -210,6 +264,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -226,6 +281,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -242,6 +298,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -260,6 +317,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "ARCH-002"
@@ -278,6 +336,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "ARCH-007"
@@ -294,6 +353,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "CONFLICT-002"
@@ -306,13 +366,14 @@
     "ARCH-008": {
       "id": "ARCH-008",
       "title": "`models/` 与 `poc/` 边界",
-      "file": "10-architecture/modules.md",
-      "line": 211,
+      "file": "meta/architecture.md",
+      "line": 7,
       "kind": "arch",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "CHR-008"
@@ -329,6 +390,7 @@
         "BEH-025"
       ],
       "backlinks": [
+        "ADR-META-001",
         "BEH-018",
         "BEH-025",
         "CHR-008",
@@ -347,6 +409,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -377,6 +440,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -395,6 +459,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -415,6 +480,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -433,6 +499,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -457,6 +524,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-005"
@@ -477,6 +545,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -502,6 +571,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -520,6 +590,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "depends-on": [
           "API-004"
@@ -544,6 +615,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-009"
@@ -562,6 +634,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -582,6 +655,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-007"
@@ -600,6 +674,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -618,6 +693,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -638,6 +714,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -668,6 +745,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-014"
@@ -688,6 +766,7 @@
       "layer": "L1",
       "status": "deprecated",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -718,6 +797,7 @@
       "layer": "L2",
       "status": "deprecated",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-015"
@@ -738,6 +818,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -764,6 +845,7 @@
       "layer": "L1",
       "status": "deprecated",
       "since": "0.6",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -786,13 +868,14 @@
     "BEH-018": {
       "id": "BEH-018",
       "title": "探索期 NDF 纪律",
-      "file": "20-behavior/process.md",
-      "line": 7,
+      "file": "meta/process.md",
+      "line": 24,
       "kind": "req",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "CHR-008"
@@ -809,6 +892,7 @@
         "DEC-061"
       ],
       "backlinks": [
+        "ADR-META-001",
         "BEH-025",
         "CHR-008",
         "CON-POC-001",
@@ -818,13 +902,14 @@
     "BEH-019": {
       "id": "BEH-019",
       "title": "晋升闸门",
-      "file": "20-behavior/process.md",
-      "line": 31,
+      "file": "meta/process.md",
+      "line": 49,
       "kind": "req",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "CHR-008"
@@ -850,13 +935,14 @@
     "BEH-020": {
       "id": "BEH-020",
       "title": "负结果与回退",
-      "file": "20-behavior/process.md",
-      "line": 51,
+      "file": "meta/process.md",
+      "line": 69,
       "kind": "req",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "CHR-008"
@@ -886,6 +972,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.8",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-001"
@@ -921,6 +1008,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.8",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-021"
@@ -946,6 +1034,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.8",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-021"
@@ -972,6 +1061,7 @@
       "layer": "L1",
       "status": "draft",
       "since": "0.9",
+      "scope": "",
       "edges": {
         "refines": [
           "BEH-023"
@@ -994,13 +1084,14 @@
     "BEH-025": {
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
-      "file": "20-behavior/process.md",
-      "line": 67,
+      "file": "meta/process.md",
+      "line": 85,
       "kind": "req",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.9",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "BEH-018",
@@ -1017,6 +1108,8 @@
         "CON-SLA-014"
       ],
       "backlinks": [
+        "ADR-META-001",
+        "ADR-TOPIC-BINDER-001",
         "ARCH-008",
         "BEH-018",
         "BEH-019",
@@ -1035,6 +1128,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "depends-on": [
           "DEC-059",
@@ -1063,6 +1157,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -1077,6 +1172,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -1091,6 +1187,7 @@
       "layer": "L0",
       "status": "draft",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-059",
@@ -1111,6 +1208,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "CHR-007"
@@ -1130,6 +1228,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "depends-on": [
           "CON-HONEST-002",
@@ -1180,6 +1279,7 @@
       "layer": "L0",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -1190,13 +1290,14 @@
     "CHR-008": {
       "id": "CHR-008",
       "title": "探索与晋升双轨",
-      "file": "00-charter/charter.md",
-      "line": 150,
+      "file": "meta/process.md",
+      "line": 9,
       "kind": "arch",
       "level": "must",
       "layer": "L0",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "depends-on": [
           "BEH-018",
@@ -1214,6 +1315,7 @@
         "ARCH-008"
       ],
       "backlinks": [
+        "ADR-META-001",
         "ARCH-008",
         "BEH-018",
         "BEH-019",
@@ -1231,6 +1333,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -1245,6 +1348,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -1263,6 +1367,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -1277,6 +1382,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -1291,6 +1397,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -1307,6 +1414,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -1323,6 +1431,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -1338,12 +1447,13 @@
       "id": "CON-HONEST-002",
       "title": "诚实 I/O 基准协议",
       "file": "40-constraints/sla.md",
-      "line": 48,
+      "line": 49,
       "kind": "req",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.5",
+      "scope": "",
       "edges": {
         "refines": [
           "DEC-039",
@@ -1384,13 +1494,14 @@
     "CON-POC-001": {
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
-      "file": "40-constraints/sla.md",
-      "line": 164,
+      "file": "meta/constraints.md",
+      "line": 7,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {
         "refines": [
           "CHR-008"
@@ -1406,6 +1517,7 @@
         "DEC-061"
       ],
       "backlinks": [
+        "ADR-META-001",
         "API-010",
         "BEH-021",
         "BEH-024",
@@ -1418,12 +1530,13 @@
       "id": "CON-SLA-008",
       "title": "Page Search SLA 豁免",
       "file": "40-constraints/sla.md",
-      "line": 5,
+      "line": 6,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "DEC-017",
@@ -1447,12 +1560,13 @@
       "id": "CON-SLA-009",
       "title": "Dynamic Width 已知限制",
       "file": "40-constraints/sla.md",
-      "line": 19,
+      "line": 20,
       "kind": "info",
       "level": "may",
       "layer": "L1",
       "status": "deprecated",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "refines": [
           "DEC-019",
@@ -1472,12 +1586,13 @@
       "id": "CON-SLA-010",
       "title": "冷 I/O 模式 SLA",
       "file": "40-constraints/sla.md",
-      "line": 31,
+      "line": 32,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "refines": [
           "DEC-021"
@@ -1498,12 +1613,13 @@
       "id": "CON-SLA-011",
       "title": "Honest / O_DIRECT 严格隔离观测基线",
       "file": "40-constraints/sla.md",
-      "line": 87,
+      "line": 88,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
       "status": "stable",
       "since": "0.5",
+      "scope": "",
       "edges": {
         "refines": [
           "CON-HONEST-002"
@@ -1539,12 +1655,13 @@
       "id": "CON-SLA-012",
       "title": "Read Coalescing SLA (已废弃)",
       "file": "40-constraints/sla.md",
-      "line": 109,
+      "line": 110,
       "kind": "constraint",
       "level": "may",
       "layer": "L1",
       "status": "deprecated",
       "since": "0.6",
+      "scope": "",
       "edges": {
         "refines": [
           "CON-SLA-011"
@@ -1567,12 +1684,13 @@
       "id": "CON-SLA-013",
       "title": "I/O Pipelining SLA (探索轨)",
       "file": "40-constraints/sla.md",
-      "line": 115,
+      "line": 116,
       "kind": "constraint",
       "level": "tbd",
       "layer": "L1",
       "status": "draft",
       "since": "0.8",
+      "scope": "",
       "edges": {
         "refines": [
           "CON-SLA-011"
@@ -1610,6 +1728,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.9",
+      "scope": "",
       "edges": {
         "refines": [
           "CON-HONEST-002"
@@ -1650,6 +1769,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "ARCH-001",
@@ -1669,6 +1789,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "API-003",
@@ -1688,6 +1809,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "ARCH-001",
@@ -1710,6 +1832,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "BEH-007",
@@ -1731,6 +1854,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEF-008",
@@ -1752,6 +1876,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEF-003",
@@ -1774,6 +1899,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CON-006"
@@ -1792,6 +1918,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "BEH-002"
@@ -1814,6 +1941,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "BEH-007",
@@ -1839,6 +1967,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-005"
@@ -1855,6 +1984,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-006",
@@ -1876,6 +2006,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-004",
@@ -1897,6 +2028,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-003"
@@ -1917,6 +2049,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CON-005",
@@ -1938,6 +2071,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "CON-002"
@@ -1954,6 +2088,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CHR-006"
@@ -1974,6 +2109,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-009",
@@ -2002,6 +2138,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-006",
@@ -2030,6 +2167,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-008",
@@ -2056,6 +2194,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-017",
@@ -2079,6 +2218,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-009",
@@ -2108,6 +2248,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-017",
@@ -2130,6 +2271,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-018",
@@ -2153,6 +2295,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-017",
@@ -2181,6 +2324,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-018",
@@ -2201,6 +2345,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -2218,6 +2363,7 @@
       "layer": "",
       "status": "superseded-by=DEC-030",
       "since": "",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-059",
@@ -2241,6 +2387,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -2257,6 +2404,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-018",
@@ -2281,6 +2429,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-009",
@@ -2316,6 +2465,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-030"
@@ -2339,6 +2489,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-031",
@@ -2360,6 +2511,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-032",
@@ -2385,6 +2537,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "BEH-002",
@@ -2408,6 +2561,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-003",
@@ -2432,6 +2586,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-014",
@@ -2455,6 +2610,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CHR-006",
@@ -2477,6 +2633,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-033",
@@ -2498,6 +2655,7 @@
       "layer": "",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-021",
@@ -2529,6 +2687,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-039",
@@ -2558,6 +2717,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-030"
@@ -2576,6 +2736,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CHR-001",
@@ -2619,6 +2780,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-009",
@@ -2664,6 +2826,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-060",
@@ -2707,6 +2870,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-059",
@@ -2746,6 +2910,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "DEC-060",
@@ -2780,6 +2945,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CON-002",
@@ -2808,6 +2974,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CON-HONEST-002",
@@ -2844,6 +3011,7 @@
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {
         "affects": [
           "CHR-006",
@@ -2876,13 +3044,14 @@
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",
       "title": "ADR: NDF 规范防腐化与双轨 SLA",
-      "file": "decisions/adr-ndf-hygiene.md",
+      "file": "meta/decisions/adr-ndf-hygiene.md",
       "line": 1,
       "kind": "",
       "level": "",
       "layer": "",
       "status": "",
       "since": "",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2897,6 +3066,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2911,6 +3081,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2925,6 +3096,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -2941,6 +3113,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2955,6 +3128,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2969,6 +3143,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -2985,6 +3160,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -2999,6 +3175,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -3015,6 +3192,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -3031,6 +3209,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -3047,6 +3226,7 @@
       "layer": "L2",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": [
@@ -3063,6 +3243,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "BEH-014",
@@ -3080,6 +3261,7 @@
       "layer": "L1",
       "status": "deprecated",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-024",
@@ -3097,6 +3279,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "depends-on": [
           "DEC-059"
@@ -3119,6 +3302,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "CON-HONEST-002",
@@ -3137,6 +3321,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "CON-HONEST-002"
@@ -3153,6 +3338,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.6",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-059",
@@ -3170,6 +3356,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.6",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-059"
@@ -3186,6 +3373,7 @@
       "layer": "L1",
       "status": "deprecated",
       "since": "0.6",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-061"
@@ -3197,13 +3385,14 @@
     "DEF-020": {
       "id": "DEF-020",
       "title": "DEF: POC（概念验证）",
-      "file": "00-charter/glossary.md",
-      "line": 114,
+      "file": "meta/glossary.md",
+      "line": 7,
       "kind": "def",
       "level": "",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {},
       "body_refs": [
         "ARCH-008",
@@ -3219,13 +3408,14 @@
     "DEF-021": {
       "id": "DEF-021",
       "title": "DEF: 晋升（Promote）",
-      "file": "00-charter/glossary.md",
-      "line": 120,
+      "file": "meta/glossary.md",
+      "line": 13,
       "kind": "def",
       "level": "",
       "layer": "L1",
       "status": "stable",
       "since": "0.7",
+      "scope": "ndf-process",
       "edges": {},
       "body_refs": [
         "BEH-019"
@@ -3239,13 +3429,14 @@
     "DEF-022": {
       "id": "DEF-022",
       "title": "DEF: Topic Binder（主题装订器）",
-      "file": "00-charter/glossary.md",
-      "line": 126,
+      "file": "meta/glossary.md",
+      "line": 19,
       "kind": "def",
       "level": "",
       "layer": "L1",
       "status": "stable",
       "since": "0.9",
+      "scope": "ndf-process",
       "edges": {
         "depends-on": [
           "DEF-020",
@@ -3257,6 +3448,7 @@
         "BEH-025"
       ],
       "backlinks": [
+        "ADR-TOPIC-BINDER-001",
         "ARCH-008",
         "BEH-019",
         "BEH-020",
@@ -3267,13 +3459,14 @@
     "DEF-023": {
       "id": "DEF-023",
       "title": "DEF: Commit Ledger（提交账本）",
-      "file": "00-charter/glossary.md",
-      "line": 134,
+      "file": "meta/glossary.md",
+      "line": 27,
       "kind": "def",
       "level": "",
       "layer": "L1",
       "status": "stable",
       "since": "0.9",
+      "scope": "ndf-process",
       "edges": {
         "depends-on": [
           "DEF-022",
@@ -3282,6 +3475,7 @@
       },
       "body_refs": [],
       "backlinks": [
+        "ADR-TOPIC-BINDER-001",
         "BEH-025"
       ]
     },
@@ -3295,6 +3489,7 @@
       "layer": "",
       "status": "",
       "since": "2026-07-29",
+      "scope": "",
       "edges": {},
       "body_refs": [
         "DEC-026",
@@ -3315,6 +3510,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {},
       "body_refs": [],
       "backlinks": []
@@ -3329,6 +3525,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-009",
@@ -3348,6 +3545,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-001",
@@ -3367,6 +3565,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-013"
@@ -3385,6 +3584,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.1",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-005"
@@ -3403,6 +3603,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-014",
@@ -3422,6 +3623,7 @@
       "layer": "L3",
       "status": "deprecated",
       "since": "0.2",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-015",
@@ -3441,6 +3643,7 @@
       "layer": "L3",
       "status": "deprecated",
       "since": "0.6",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-017",
@@ -3465,6 +3668,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-018"
@@ -3485,6 +3689,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-016",
@@ -3504,6 +3709,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-014",
@@ -3523,6 +3729,7 @@
       "layer": "L3",
       "status": "deprecated",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-015",
@@ -3542,6 +3749,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.3",
+      "scope": "",
       "edges": {
         "verifies": [
           "BEH-014",
@@ -3561,6 +3769,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-059",
@@ -3590,6 +3799,7 @@
       "layer": "L3",
       "status": "draft",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-031"
@@ -3610,6 +3820,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-033"
@@ -3631,6 +3842,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-034"
@@ -3649,6 +3861,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-035",
@@ -3668,6 +3881,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-036",
@@ -3687,6 +3901,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-037",
@@ -3706,6 +3921,7 @@
       "layer": "L3",
       "status": "stable",
       "since": "0.4",
+      "scope": "",
       "edges": {
         "verifies": [
           "DEC-038"
@@ -3724,6 +3940,7 @@
       "layer": "L1",
       "status": "stable",
       "since": "0.9",
+      "scope": "",
       "edges": {
         "verifies": [
           "CON-SLA-014",

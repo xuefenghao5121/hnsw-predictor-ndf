@@ -3,7 +3,7 @@ name: ndf-harness
 description: >-
   Scaffold and unify NDF harness artifacts for this repo: Cursor review aids,
   OpenClaw AGENTS/skills prompts, Claude Code CLAUDE.md constraints, and
-  tools/ndf review scripts. Use when creating or regenerating NDF governance
+  spec/meta/tools review scripts. Use when creating or regenerating NDF governance
   files, prompt packs, ndf-index tooling, or when the user mentions NDF harness,
   三角色, OpenClaw/Claude Code 提示文件, or 统一生成管理.
 disable-model-invocation: true
@@ -15,15 +15,16 @@ disable-model-invocation: true
 
 | 角色 | 职责 | 主要读什么 |
 |------|------|------------|
-| **Cursor**（眼睛） | NDF 文档审核/修改/变更监控；生成与维护 harness | `spec/`、本 skill、`tools/ndf/` |
-| **OpenClaw**（大脑） | 读 NDF 后做设计与指挥；不写 Trunk `src/` | `AGENTS.md`、`skills/ndf-workflow/`、`spec/` |
+| **Cursor**（眼睛） | NDF 文档审核/修改/变更监控；生成与维护 harness | `spec/`（含 **`meta/`**）、本 skill、`spec/meta/tools/` |
+| **OpenClaw**（大脑） | 读 NDF 后做设计与指挥；不写 Trunk `src/` | `AGENTS.md`、`skills/ndf-workflow/`、`spec/meta/`、`spec/00–50` |
 | **Claude Code**（手脚） | 编码、测试、L2/L3、验证执行 | `.claude/CLAUDE.md`、委派指令、`src/`/`tests/` |
 
 本 skill **只给 Cursor** 用：统一**脚手架/清单/模板路径**。本仓库已有成熟 NDF，
 **默认不生成/不覆盖** `AGENTS.md`、条款正文或 Claude 提示初版；仅在用户显式要求时
 按 templates 做增量脚手架。
 
-权威产品流程仍以 `AGENTS.md` + `spec/20-behavior/process.md`（[[CHR-008]] / [[BEH-018]]…）为准。本 skill 不得与之矛盾。
+权威流程仍以 `AGENTS.md` + **`spec/meta/process.md`**（[[CHR-008]] / [[BEH-018]]…）为准。
+产品行为 must 在 `spec/00–50`。本 skill 不得与之矛盾。
 
 ## 调用方式
 
@@ -34,15 +35,16 @@ disable-model-invocation: true
 
 - 「生成 / 更新 NDF harness」「统一管理提示文件」
 - 新建 OpenClaw skill / 刷新 CLAUDE 禁区说明
-- 增补 `tools/ndf/` 审核工具（**禁止**放进产品 `scripts/`）
+- 增补 `spec/meta/tools/` 审核工具（**禁止**放进产品 `scripts/`）
 - 初始化 `spec/` 目录骨架或 INDEX 生成约定
+- 变更 process profile / meta 分层后同步提示面
 
 ## 统一管理范围（Manifest）
 
 详见 [MANIFEST.md](MANIFEST.md)。三类产物：
 
-1. **NDF 文档面**：`spec/**` 约定、INDEX/graph 生成入口  
-2. **工具面**：`tools/ndf/**`（与产品 `scripts/` 解耦）  
+1. **NDF 文档面**：`spec/00–50`（产品）+ **`spec/meta/`**（process profile）、INDEX/graph  
+2. **工具面**：`spec/meta/tools/**`（与产品 `scripts/` 解耦）  
 3. **提示面**：
    - OpenClaw：`AGENTS.md`、`skills/ndf-workflow/SKILL.md`
    - Claude Code：`.claude/CLAUDE.md`（及可选 ACP 委派模板）
@@ -58,16 +60,18 @@ Harness task:
 - [ ] 3. 从 templates/ 复制 stub 到目标路径（或刷新 ⟨TBD⟩ 段）
 - [ ] 4. 标注 Status: Draft — 等待人工审核
 - [ ] 5. 人工回复「已确认生成」后再填初版正文 / 跑工具
-- [ ] 6. 更新 MANIFEST 版本与日期
+- [ ] 6. 若 prompts 类：diff AGENTS + ndf-workflow + CLAUDE + meta/README 交叉一致
+- [ ] 7. 更新 MANIFEST 版本与日期
 ```
 
 ### 生成原则
 
 - **框架优先**：目录、标题、必填字段、交叉引用占位  
 - **人工闸门**：未经「已确认生成」，只提交 stub  
-- **路径隔离**：审核脚本 → `tools/ndf/`；产品数据脚本 → `scripts/`  
+- **路径隔离**：审核脚本 → `spec/meta/tools/`；产品数据脚本 → `scripts/`  
 - **单源流程**：track/poc/promote 文字与 `AGENTS.md` 保持一致，重复段落用「见 AGENTS §x」引用，避免双份漂移  
 - **OpenClaw skill ≠ Cursor skill**：`skills/ndf-workflow` 约束大脑；`.cursor/skills/ndf-harness` 约束眼睛的生成动作
+- **meta vs product**：流程条款进 `spec/meta/`；勿脚手架写回 `20-behavior` 元长文
 
 ## 模板入口
 
@@ -76,7 +80,7 @@ Harness task:
 | [templates/openclaw-agents.stub.md](templates/openclaw-agents.stub.md) | `AGENTS.md` 结构骨架 |
 | [templates/openclaw-ndf-workflow.stub.md](templates/openclaw-ndf-workflow.stub.md) | `skills/ndf-workflow/SKILL.md` |
 | [templates/claude-code.stub.md](templates/claude-code.stub.md) | `.claude/CLAUDE.md` |
-| [templates/tools-ndf-readme.stub.md](templates/tools-ndf-readme.stub.md) | `tools/ndf/README.md` |
+| [templates/tools-ndf-readme.stub.md](templates/tools-ndf-readme.stub.md) | `spec/meta/tools/README.md` |
 | [templates/acp-delegate.stub.md](templates/acp-delegate.stub.md) | 委派 Claude Code 的指令块 |
 
 填写规范见 [reference.md](reference.md)。

@@ -1,6 +1,7 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-POC-001`
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`  
+> CON-POC-001 正文在 `spec/meta/constraints.md`（adopted 见下文）
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
@@ -161,13 +162,12 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 > 若 POC 在严格隔离下验证通过，promote 时再评估是否把抬升后的 QPS 写入 must。
 > 负结果走 [[BEH-020]]。
 
-## POC 不纳入生产 SLA {#CON-POC-001}
-<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.7 source=deduced -->
-<!-- ndf: refines=CHR-008 depends-on=BEH-018,ARCH-008 -->
+## POC 不纳入生产 SLA（adopted）
 
-`poc/` 与 draft 探索条款下的 QPS/Recall 数字 MUST NOT 自动成为 [[CHR-006]] /
-[[CON-SLA-011]] 等 Trunk SLA 的一部分。相对对比实验若基线协议不同于诚实锚点，
-MUST 在 DEC/提案中标注口径（同 [[DEC-061]]）。
+> **非 SoT 正文** — adopted 指针。Canonical:
+> [`../meta/constraints.md#CON-POC-001`](../meta/constraints.md#CON-POC-001)（CON-POC-001）。  
+> 见 [`../meta/decisions/adr-meta-layer-split.md`](../meta/decisions/adr-meta-layer-split.md)。
+
 
 ## 严格 cgroup 隔离测试协议 {#CON-SLA-014}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9 source=deduced -->

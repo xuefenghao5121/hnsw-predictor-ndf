@@ -2,10 +2,12 @@
 
 本目录 **不是** NDF 权威源，也 **不是** 生产实现树。
 
+流程纪律正文在 **`spec/meta/`**（[[ADR-META-001]]）；下表 ID 仍有效。
+
 | 规则 | 条款 |
 |------|------|
-| 非 SoT | `ndf.yaml` `poc.sot: false`；[[ARCH-008]] |
-| 探索纪律 | [[BEH-018]] |
+| 非 SoT | `ndf.yaml` `poc.sot: false`；[[ARCH-008]]（`spec/meta/architecture.md`） |
+| 探索纪律 | [[BEH-018]]（`spec/meta/process.md`） |
 | 主题装订 | [[BEH-025]] / [[DEF-022]] / [[DEF-023]] |
 | 晋升闸门 | [[BEH-019]] |
 | 负结果 | [[BEH-020]]；样板 [[DEC-061]] |
@@ -51,4 +53,4 @@ Clauses: ...
 **硬规则**：探索代码 MUST 写在本目录；MUST NOT 先改 Trunk `src/` 再「补 POC」。
 若已误改，按 `AGENTS.md` §6.2a 矫正检查清单处理（[[BEH-018]]）。
 
-列出各主题状态：`python3 tools/ndf/ndf_index.py poc-topics`
+列出各主题状态：`python3 spec/meta/tools/ndf_index.py poc-topics`

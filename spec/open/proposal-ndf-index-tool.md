@@ -9,7 +9,7 @@
 
 | 产物 | 说明 |
 |------|------|
-| `tools/ndf/ndf_index.py` | `index` / `impact` / `validate` / `diff`（与产品 `scripts/` 解耦） |
+| `spec/meta/tools/ndf_index.py` | `index` / `impact` / `validate` / `diff`（与产品 `scripts/` 解耦；**2026-08-03 自 `tools/ndf/` 迁入**） |
 | `spec/INDEX.md` | 按前缀可点进 `{file}#{ID}`（生成物） |
 | `spec/graph.json` | 节点 + edges + backlinks |
 | `skills/ndf-workflow/SKILL.md` | 对齐 AGENTS 双轨 |
