@@ -85,7 +85,12 @@
 | SIFT1M Buffered 4T QPS | 同上 | ≥5000 ([[CHR-006]]) | **6060** | ✅ |
 | SIFT1M Honest 1T QPS | FINE_DIRECT=1 同上 | ≥100 ([[CON-SLA-011]]) | **837** | ✅ |
 | SIFT1M Honest 4T QPS | FINE_DIRECT=1 同上 | ≥400 ([[CON-SLA-011]]) | **3215** (recall=13.95%⚠️) | ⚠️ QPS达标recall异常 |
-| DEEP10M C 组严格隔离 | 2GB + drop_caches | peak≤2GB, oom=0, Recall≥95% | TBD | 待测 |
+| DEEP10M C 组严格隔离 | 2GB + drop_caches | peak≤2GB, oom=0, Recall≥95% | peak=2GB, oom=0, Recall=95.05% | ✅ 合规 |
+| DEEP10M Buffered 1T QPS | 同上 | 观测基线 | **580** | 📌 基线 |
+| DEEP10M Buffered 4T QPS | 同上 | 观测基线 | **1562** | 📌 基线 |
+| DEEP10M O_DIRECT 1T QPS | FINE_DIRECT=1 同上 | 观测基线 | **43** | 📌 基线 |
+| DEEP10M RSS 1T | 同上 | - | 1156MB | ✅ |
+| DEEP10M RSS 4T | 同上 | - | 1205MB | ✅ |
 
 > DEC-066 假基线（22.9 等）因 PQ_CODES_PATH 拼写错误废止，见 [[DEC-067]]。
 > 修正后旧 SLA 数字在严格隔离下仍然有效。详细报告见
