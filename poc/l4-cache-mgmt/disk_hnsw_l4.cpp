@@ -1771,13 +1771,16 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 if (cross) pages_needed.insert(page0 + 1);
             }
 
-            if (kFinePread && !kFineDirect) {
+            if (kFinePread) {
                 // ---- pread 路径 (线程安全, 多线程并发用) ----
                 auto tp0 = std::chrono::high_resolution_clock::now();
                 std::unordered_map<uint32_t, std::unique_ptr<char[]>> page_cache;
                 page_cache.reserve(pages_needed.size());
                 for (uint32_t pg : pages_needed) {
-                    auto buf = std::make_unique<char[]>(4096);
+                    // O_DIRECT 需要 512 字节对齐 buffer
+                    char* raw_ptr = nullptr;
+                    posix_memalign((void**)&raw_ptr, 4096, 4096);
+                    auto buf = std::unique_ptr<char[]>(raw_ptr);
                     ssize_t r = pread(vec_blocks_fd_, buf.get(), 4096, (off_t)pg << 12);
                     if (r == 4096) page_cache[pg] = std::move(buf);
                 }

@@ -2,53 +2,49 @@
 
 > topic_id: l4-cache-mgmt
 > status: exploring
-> baseline_protocol: [[CON-SLA-014]] + SIFT1M 512MB cgroup；Buffered 1T ([[DEC-066]])
+> baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > depends_on_topics: (none; **this topic precedes** io-pipelining re-bench)
 > binder: [[DEF-022]] / [[BEH-025]]
 
 ## Active hypothesis
 
-严格隔离下 peak file 顶满导致内核盲目 LRU；对 vecblocks 做精准 DONTNEED / WILLNEED /
-基于 `FINE_FADVISE` 的选择性驱逐，可抬升 Buffered QPS（aspirational ≥×1.5）。
+严格隔离下 page cache 预算不足时内核盲目 LRU 误杀热页；
+对 vecblocks 做精准 DONTNEED / WILLNEED / 选择性驱逐，可减少 workingset_refault，抬升 QPS。
 
-## R0-R3 v2 结论 (2026-08-03)
+## 实验进展
 
-**FINE_FADVISE 有害（-17x），L4_EVICT_META 微正（+3%）。** page cache 命中是 Fine I/O 瓶颈的关键杠杆。
+### Phase 1: R0-R3 v2 (512MB cgroup, PQ_CODES_PATH 修正后)
 
-### 核心数据
+**结论：512MB 下 page cache 充裕，L4 管理无显著收益。**
 
-| 轮次 | 机制 | QPS | pread (热态) | file(end) | 结论 |
-|------|------|-----|-------------|-----------|------|
-| R0 | Buffered 基线 | 2309 | 4.8ms | 374MB | 基线 |
-| R1 | +FINE_FADVISE (evict vecblocks) | 133 | 8.3ms | 370MB | ❌ 17x 下降 |
-| R2 | +L4_EVICT_META (evict graph+BFS) | 2383 | 4.7ms | 181MB | ✅ +3% |
-| R3 | +两者 | 132 | 8.2ms | 143MB | ❌ FADVISE 主导 |
+| 轮次 | 机制 | QPS | refault | 结论 |
+|------|------|-----|---------|------|
+| R0 | Buffered 基线 | 2309 | 0 | 基线 |
+| R1 | +FINE_FADVISE (evict vecblocks) | 133 | 0 | ❌ 17x 下降 |
+| R2 | +L4_EVICT_META (evict graph) | 2383 | 0 | ✅ +3% |
+| R3 | +两者 | 132 | 0 | ❌ FADVISE 主导 |
 
-### Profile 分解
+### Phase 2: 紧 cgroup 实验 (256/192/160MB)
 
-- Phase A (PQ 粗筛)：负值（计时 bug 待修）
-- **pread (Fine I/O)：9.4→4.8ms（热态，page cache 预热 2x）；FADVISE 破坏预热**
-- rerank (L2 计算)：27-45μs（非瓶颈）
-- **Fine I/O 占总延迟 95%+**
+**结论：256MB 是分水岭，page cache 不足导致 refault 暴涨。L4 管理的有效场景。**
 
-### 关键洞察
+| cgroup | page cache 预算 | QPS | refault | majfault | 场景 |
+|--------|----------------|-----|---------|----------|------|
+| 512MB | 357MB | 2309 | 0 | 6 | 充裕 |
+| 256MB | 103MB | 126 | 30326 | 5078 | **不足，L4 有效** |
+| 192MB | 62MB | 134 | 31212 | 13535 | 不足 |
+| 160MB | 40MB | 124 | 35376 | 30544 | 不足 |
 
-1. **page cache 对 vecblocks 跨 query 预热极其关键**：前 200q pread=9.4ms，后 200q pread=4.8ms
-2. **FINE_FADVISE 驱逐 vecblocks 页 = 自毁长城**：阻止 page cache 跨 query 积累
-3. **L4_EVICT_META 驱逐 graph 页 = 释放预算给 vecblocks**：file(end) 374→181MB，vecblocks 获得更多空间
-4. **workingset_refault=0**：内核 LRU 未误杀热页，WILLNEED 无用武之地
-5. **R0-R3 v1 全部作废**：PQ_CODES_PATH 拼写错误（少了个 S），PQ 未加载
+### O_DIRECT 4T bug 修复
 
-### v1 作废说明
-
-v1 脚本设 `PQ_CODE_PATH`（无 S），benchmark 读 `PQ_CODES_PATH`（有 S）。PQ 未加载导致走了无 PQ 粗筛的 fallback 路径，QPS=23（非真实基线）。修正后 QPS=2309。
+根因：`if (kFinePread && !kFineDirect)` 跳过 pread 走了非线程安全 io_uring。
+修复：改为 `if (kFinePread)` + `posix_memalign`。Recall 12.40% -> 95.75%。
 
 ## Next gate
 
-- [ ] 决策：L4_EVICT_META (+3%) 是否值得 promote 为 Trunk 可选项
-- [ ] 决策：FINE_FADVISE 在严格隔离下是否需要标注"有害"或改默认
-- [ ] Phase A 计时 bug 修复（负值问题）
-- [ ] 考虑：增大 flat_vec_cache / BlockCache 替代 page cache 管理
+- [ ] R4: 在 256MB cgroup 下测试选择性 DONTNEED / WILLNEED
+- [ ] 目标：减少 refault（从 30326 向 <5000），抬升 QPS（从 126 向 500+）
+- [ ] DEEP10M 严格隔离基线（天然 page cache 不足场景）
 
 ## Draft clauses
 
@@ -60,17 +56,25 @@ v1 脚本设 `PQ_CODE_PATH`（无 S），benchmark 读 `PQ_CODES_PATH`（有 S�
 
 | Role | Path | Status |
 |------|------|--------|
-| root | `spec/archive/2026-08/proposal-l4-cache-mgmt.md`（open stub） | Implemented |
+| root | `spec/open/proposal-l4-cache-mgmt.md` | Implemented |
 
 ## Evidence
 
-| date | round | protocol | QPS | pread(热) | file(end) | note |
-|------|-------|----------|-----|-----------|-----------|------|
-| 2026-08-03 | R0 v2 | CON-SLA-014 512MB | 2309 | 4.8ms | 374MB | FINE_BUFFERED=1 baseline |
-| 2026-08-03 | R1 v2 | 同上 | 133 | 8.3ms | 370MB | +FINE_FADVISE=1, ❌ 17x 下降 |
-| 2026-08-03 | R2 v2 | 同上 | 2383 | 4.7ms | 181MB | +L4_EVICT_META=1, ✅ +3% |
-| 2026-08-03 | R3 v2 | 同上 | 132 | 8.2ms | 143MB | +both, FADVISE 主导下降 |
-| 2026-08-03 | R0-R3 v1 | 同上 | 23 | - | - | **作废**: PQ_CODES_PATH 拼写错误 |
+| date | round | cgroup | QPS | refault | majfault | pread(热) | note |
+|------|-------|--------|-----|---------|----------|-----------|------|
+| 2026-08-03 | R0 v2 | 512MB | 2309 | 0 | 6 | 4.8ms | 基线，page cache 充裕 |
+| 2026-08-03 | R1 v2 | 512MB | 133 | 0 | 6 | 8.3ms | +FINE_FADVISE, ❌ 17x 下降 |
+| 2026-08-03 | R2 v2 | 512MB | 2383 | 0 | 6 | 4.7ms | +EvictMeta, ✅ +3% |
+| 2026-08-03 | R3 v2 | 512MB | 132 | 0 | 6 | 8.2ms | +both, FADVISE 主导 |
+| 2026-08-03 | tight-256 | 256MB | 126 | 30326 | 5078 | 8.4ms | page cache 不足，refault 暴涨 |
+| 2026-08-03 | tight-192 | 192MB | 134 | 31212 | 13535 | 8.4ms | 同上 |
+| 2026-08-03 | tight-160 | 160MB | 124 | 35376 | 30544 | 8.7ms | 同上 |
+
+### 作废数据
+
+| date | round | QPS | note |
+|------|-------|-----|------|
+| 2026-08-03 | R0-R3 v1 | 23 | **作废**: PQ_CODES_PATH 拼写错误 |
 
 ## Commits
 

@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-dec066-correction.md",
-  "scenario_type": "process",
-  "track": "process",
-  "validation_round": 0,
+  "current_proposal": "proposal-l4-cache-mgmt.md",
+  "scenario_type": "poc",
+  "track": "poc",
+  "validation_round": 2,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_review",
-  "validation_status": "pass",
-  "perf_status": "pass",
-  "last_activity": "2026-08-03T20:47:00Z",
-  "notes": "DEC-067 修正落地: DEC-066 假基线(PQ_CODES_PATH拼写错误)废止. 旧SLA恢复有效. CHR-006/CON-SLA-011/VER-039/CON-SLA-013 已修正. 实测: Buffered 1T=2309 4T=6060, O_DIRECT 1T=837 4T=3215(recall异常待查). 待审核."
+  "pending_decision": "null",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-03T22:22:00Z",
+  "notes": "R0-R3 v2 + 紧cgroup实验 + O_DIRECT 4T bug修复完成. 512MB下L4无收益(充裕). 256MB是分水岭(refault=30326). 下一步: R4在256MB下测试选择性DONTNEED/WILLNEED. O_DIRECT 4T bug已修(pread条件+posix_memalign)."
 }
