@@ -62,3 +62,28 @@
 | R_max=20 recall | EF=300 | ≥94% (P2 过渡) | 94.45% | ⚠️ -0.7pp vs Charter |
 | R_max=20 CSR | - | <522MB | 481MB (-110MB) | ✅ |
 | 结论 | - | 不合入主线 | recall 损失 > QPS 收益 | ✅ 决策 |
+
+## 严格隔离验收 {#VER-039}
+<!-- ndf: kind=verification level=must layer=L1 status=stable since=0.9 source=deduced -->
+<!-- ndf: verifies=CON-SLA-014,CHR-006,CON-SLA-011 depends-on=DEC-065 -->
+
+[[CHR-006]] 和 [[CON-SLA-011]] 中的所有 QPS/Recall/RSS 指标 MUST 在
+[[CON-SLA-014]] 严格 cgroup 隔离条件下验证（或重新验证）。
+
+验收报告 MUST 包含：
+1. cgroup `memory.peak`（证明总内存未超限）
+2. cgroup `memory.stat` 中的 `anon` 和 `file` 分项（证明 page cache 在预算内）
+3. `memory.events` 中的 `oom` 计数（证明未触发 OOM）
+4. [可选] `fincore`/`vmtouch` 文件缓存验证
+
+| 用例 | 配置 | 预期 | 实测 | 判定 |
+|------|------|------|------|------|
+| SIFT1M C 组严格隔离 | 512MB + drop_caches | peak≤512MB, oom=0, Recall≥95% | TBD | 待测 |
+| SIFT1M Buffered QPS | 同上 | ≥2000 (1T) / ≥5000 (4T) 或修订 SLA | TBD | 待测 |
+| SIFT1M Honest QPS | FINE_DIRECT=1 同上 | ≥100 (1T) / ≥400 (4T) | TBD | 待测 |
+| DEEP10M C 组严格隔离 | 2GB + drop_caches | peak≤2GB, oom=0, Recall≥95% | TBD | 待测 |
+
+> rationale: 现有 SLA 数字可能是在 page cache 白嫖条件下测得的，
+> 需在严格隔离条件下验证以确保数字诚实性。见 [[DEC-065]]、
+> `spec/open/proposal-strict-cgroup-test.md`。
+> ID 说明：原提案误用 VER-035（已占用 FINE_PREAD）；本条款为 VER-039。

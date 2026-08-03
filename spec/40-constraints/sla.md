@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-POC-001`
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-POC-001`
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
@@ -44,7 +44,7 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 
 ## 诚实 I/O 基准协议 {#CON-HONEST-002}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.5 source=deduced -->
-<!-- ndf: refines=DEC-039,DEC-059 depends-on=DEC-057,DEC-062 -->
+<!-- ndf: refines=DEC-039,DEC-059 depends-on=DEC-057,DEC-062,DEC-065,CON-SLA-014 -->
 
 性能基准测试 MUST 至少报告两组数据：
 1. **Buffered**: `FINE_BUFFERED=1`（含 page cache）
@@ -72,10 +72,13 @@ O_DIRECT 是**诚实验收地板**与大规模下**必然磁盘 I/O** 的独立�
 报告 MUST 标注测量模式。仅报告 Buffered 模式数字时 MUST 附带声明：
 "此数字在 cgroup 限制内运行，page cache 与匿名内存共享内存预算"。
 
+所有 SLA 验收 benchmark MUST 按 [[CON-SLA-014]] 严格 cgroup 隔离协议执行，
+确保 page cache 在 cgroup 预算内诚实积累，不偷用预算外内存。
+
 > rationale: cgroup v2 的 memory.max 同时限制匿名内存和 page cache。Page cache
 > 不是免费资源——它与 RSS 竞争同一块预算。Buffered 是生产推荐路径与优化主战场；
 > O_DIRECT 消除 page cache 后测量纯磁盘 I/O 地板，并服务 miss 路径。
-> 关联决策: [[DEC-059]]、[[DEC-062]]、[[DEC-060]]
+> 关联决策: [[DEC-059]]、[[DEC-062]]、[[DEC-060]]、[[DEC-065]]
 
 ## Honest / O_DIRECT QPS 下限 {#CON-SLA-011}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.5 source=deduced -->
@@ -154,3 +157,42 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 `poc/` 与 draft 探索条款下的 QPS/Recall 数字 MUST NOT 自动成为 [[CHR-006]] /
 [[CON-SLA-011]] 等 Trunk SLA 的一部分。相对对比实验若基线协议不同于诚实锚点，
 MUST 在 DEC/提案中标注口径（同 [[DEC-061]]）。
+
+## 严格 cgroup 隔离测试协议 {#CON-SLA-014}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9 source=deduced -->
+<!-- ndf: refines=CON-HONEST-002 depends-on=DEC-065 -->
+
+> **一等公民**：本协议是 Trunk SLA 验收的强制前置条件（[[CHR-006]]、[[CON-HONEST-002]]、
+> [[CON-SLA-011]]）。白嫖对照组（未 `drop_caches`）结果 MUST NOT 作为验收依据。
+> 历史 Buffered/Honest 数字若未按本协议重测，视为待复核（[[VER-039]]）。
+
+所有 SLA 验收 benchmark MUST 在严格 cgroup 隔离条件下执行。
+
+**协议**：
+1. benchmark 启动前 MUST 执行 `sync && echo 3 > /proc/sys/vm/drop_caches` 清空 page cache
+2. benchmark 进程 MUST 运行在受限 cgroup 内（`memory.max` = SLA 规定值）
+3. benchmark 启动后所有文件 I/O 为首次读取，page cache 在 cgroup 内记账积累
+4. 测试过程中 MUST 监控 `memory.current`、`memory.peak`、`memory.stat`（anon/file）
+5. `memory.events` 中 `oom` MUST = 0（不得触发 OOM）
+
+**模拟场景**：此协议模拟真实部署——数据准备在内存充足机器上完成，
+文件拷贝到内存受限机器上进行检索。部署机器上无预热的 page cache。
+`drop_caches` 将 page cache 状态重置到等价于"文件刚到达"的初始态，
+使 cgroup 记账准确。page cache 在预算内合法积累，不被消灭。
+
+**白嫖对照组**：允许额外运行"未清场"组用于对比分析，但其结果
+MUST NOT 作为 SLA 验收依据。
+
+**验收报告 MUST 包含**：
+1. cgroup `memory.peak`（证明总内存未超限）
+2. cgroup `memory.stat` 中的 `anon` 和 `file` 分项（证明 page cache 在预算内）
+3. `memory.events` 中的 `oom` 计数（证明未触发 OOM）
+4. [可选] `fincore`/`vmtouch` 文件缓存验证
+
+> rationale: cgroup v2 page cache 记账规则为"首次读取者归属"。
+> 当数据准备（root cgroup）和检索（子 cgroup）在同一台机器上执行时，
+> 数据准备阶段预热的 page cache 不会被重新记账到 benchmark cgroup，
+> 导致 benchmark 实际可用内存远超 cgroup 限制，性能数字虚高。
+> `drop_caches` 清场模拟了跨机器部署场景，确保 cgroup 记账准确。
+> page cache 在 cgroup 预算内（limit - RSS）是核心合法加速层，
+> 本协议保障其在预算内被诚实利用。提案见 `spec/open/proposal-strict-cgroup-test.md`。

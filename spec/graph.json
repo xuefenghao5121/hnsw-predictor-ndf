@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T10:04:25Z",
-  "clause_count": 158,
+  "generated_at": "2026-08-03T08:47:28Z",
+  "clause_count": 161,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -969,7 +969,8 @@
       "backlinks": [
         "CHR-006",
         "DEC-059",
-        "DEC-062"
+        "DEC-062",
+        "DEC-065"
       ]
     },
     "CHR-002": {
@@ -1004,7 +1005,7 @@
       "id": "CHR-004",
       "title": "演进路线意图（探索性设想）",
       "file": "00-charter/charter.md",
-      "line": 94,
+      "line": 98,
       "kind": "arch",
       "level": "may",
       "layer": "L0",
@@ -1024,7 +1025,7 @@
       "id": "CHR-005",
       "title": "设计约束(推断)",
       "file": "00-charter/charter.md",
-      "line": 122,
+      "line": 126,
       "kind": "constraint",
       "level": "should",
       "layer": "L0",
@@ -1035,7 +1036,8 @@
         "CHR-007"
       ],
       "backlinks": [
-        "DEC-016"
+        "DEC-016",
+        "DEC-065"
       ]
     },
     "CHR-006": {
@@ -1052,36 +1054,43 @@
         "depends-on": [
           "CON-HONEST-002",
           "CON-SLA-011",
+          "CON-SLA-014",
           "DEC-059",
           "DEC-062"
         ]
       },
       "body_refs": [
         "CON-HONEST-002",
+        "CON-SLA-014",
         "CHR-001",
         "DEC-062",
         "DEC-059",
-        "DEC-060"
+        "DEC-060",
+        "VER-039",
+        "DEC-065"
       ],
       "backlinks": [
         "CON-POC-001",
         "CON-SLA-011",
         "CON-SLA-013",
+        "CON-SLA-014",
         "DEC-016",
         "DEC-029",
         "DEC-037",
         "DEC-057",
         "DEC-059",
         "DEC-062",
+        "DEC-065",
         "VER-030",
-        "VER-037"
+        "VER-037",
+        "VER-039"
       ]
     },
     "CHR-007": {
       "id": "CHR-007",
       "title": "设计约束",
       "file": "00-charter/charter.md",
-      "line": 133,
+      "line": 137,
       "kind": "constraint",
       "level": "must",
       "layer": "L0",
@@ -1098,7 +1107,7 @@
       "id": "CHR-008",
       "title": "探索与晋升双轨",
       "file": "00-charter/charter.md",
-      "line": 141,
+      "line": 145,
       "kind": "arch",
       "level": "must",
       "layer": "L0",
@@ -1258,23 +1267,28 @@
         ],
         "depends-on": [
           "DEC-057",
-          "DEC-062"
+          "DEC-062",
+          "DEC-065",
+          "CON-SLA-014"
         ]
       },
       "body_refs": [
         "DEC-059",
         "DEC-062",
-        "DEC-060"
+        "DEC-060",
+        "CON-SLA-014"
       ],
       "backlinks": [
         "BEH-019",
         "CHR-006",
         "CON-SLA-011",
+        "CON-SLA-014",
         "DEC-039",
         "DEC-057",
         "DEC-059",
         "DEC-062",
         "DEC-063",
+        "DEC-065",
         "DEF-014",
         "DEF-015",
         "DEF-016",
@@ -1285,7 +1299,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 150,
+      "line": 153,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1391,7 +1405,7 @@
       "id": "CON-SLA-011",
       "title": "Honest / O_DIRECT QPS 下限",
       "file": "40-constraints/sla.md",
-      "line": 80,
+      "line": 83,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1417,16 +1431,19 @@
         "CON-SLA-008",
         "CON-SLA-012",
         "CON-SLA-013",
+        "CON-SLA-014",
         "DEC-061",
+        "DEC-065",
         "DEF-015",
-        "VER-030"
+        "VER-030",
+        "VER-039"
       ]
     },
     "CON-SLA-012": {
       "id": "CON-SLA-012",
       "title": "Read Coalescing SLA (已废弃)",
       "file": "40-constraints/sla.md",
-      "line": 96,
+      "line": 99,
       "kind": "constraint",
       "level": "may",
       "layer": "L1",
@@ -1454,7 +1471,7 @@
       "id": "CON-SLA-013",
       "title": "I/O Pipelining SLA (探索轨)",
       "file": "40-constraints/sla.md",
-      "line": 102,
+      "line": 105,
       "kind": "constraint",
       "level": "tbd",
       "layer": "L1",
@@ -1485,6 +1502,37 @@
       "backlinks": [
         "DEC-062",
         "DEC-063"
+      ]
+    },
+    "CON-SLA-014": {
+      "id": "CON-SLA-014",
+      "title": "严格 cgroup 隔离测试协议",
+      "file": "40-constraints/sla.md",
+      "line": 161,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "edges": {
+        "refines": [
+          "CON-HONEST-002"
+        ],
+        "depends-on": [
+          "DEC-065"
+        ]
+      },
+      "body_refs": [
+        "CHR-006",
+        "CON-HONEST-002",
+        "CON-SLA-011",
+        "VER-039"
+      ],
+      "backlinks": [
+        "CHR-006",
+        "CON-HONEST-002",
+        "DEC-065",
+        "VER-039"
       ]
     },
     "DEC-001": {
@@ -2577,7 +2625,8 @@
         "CON-SLA-013",
         "DEC-059",
         "DEC-060",
-        "DEC-063"
+        "DEC-063",
+        "DEC-065"
       ]
     },
     "DEC-063": {
@@ -2642,6 +2691,42 @@
       "backlinks": [
         "CON-SLA-013",
         "DEC-063"
+      ]
+    },
+    "DEC-065": {
+      "id": "DEC-065",
+      "title": "D-065: 严格 cgroup 隔离测试协议确立",
+      "file": "decisions/06-strict-cgroup.md",
+      "line": 5,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "edges": {
+        "affects": [
+          "CON-HONEST-002",
+          "CHR-006",
+          "CON-SLA-011",
+          "CON-SLA-014",
+          "VER-039"
+        ]
+      },
+      "body_refs": [
+        "CON-HONEST-002",
+        "CHR-001",
+        "CHR-005",
+        "CON-SLA-014",
+        "CHR-006",
+        "CON-SLA-011",
+        "VER-039",
+        "DEC-062"
+      ],
+      "backlinks": [
+        "CHR-006",
+        "CON-HONEST-002",
+        "CON-SLA-014",
+        "VER-039"
       ]
     },
     "DEC-HYGIENE-001": {
@@ -3432,6 +3517,38 @@
       },
       "body_refs": [],
       "backlinks": []
+    },
+    "VER-039": {
+      "id": "VER-039",
+      "title": "严格隔离验收",
+      "file": "50-verification/acceptance-p2.md",
+      "line": 66,
+      "kind": "verification",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "edges": {
+        "verifies": [
+          "CON-SLA-014",
+          "CHR-006",
+          "CON-SLA-011"
+        ],
+        "depends-on": [
+          "DEC-065"
+        ]
+      },
+      "body_refs": [
+        "CHR-006",
+        "CON-SLA-011",
+        "CON-SLA-014",
+        "DEC-065"
+      ],
+      "backlinks": [
+        "CHR-006",
+        "CON-SLA-014",
+        "DEC-065"
+      ]
     }
   }
 }

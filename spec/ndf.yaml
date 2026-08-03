@@ -52,7 +52,7 @@ layout:
     env.md: [API-007..008, API-009(deprecated), API-010(draft)]
   40-constraints:
     constants.md: [CON-001..007]
-    sla.md: [CON-SLA-*, CON-HONEST-002, CON-POC-001, CON-SLA-013(draft)]
+    sla.md: [CON-SLA-*, CON-HONEST-002, CON-POC-001, CON-SLA-013(draft), CON-SLA-014]
   50-verification: [acceptance.md, acceptance-p2.md]
   decisions:
     01-foundation.md: [DEC-001..016]
@@ -60,6 +60,7 @@ layout:
     03-scale-and-io.md: [DEC-026..033]
     04-p2.md: [DEC-034..039]
     05-odirect-floor.md: [DEC-057..061]
+    06-strict-cgroup.md: [DEC-065]
     adr-ndf-hygiene.md: [DEC-HYGIENE-001]
     adr-poc-track.md: [ADR-POC-001]
   models: [README.md]

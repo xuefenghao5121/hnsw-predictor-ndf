@@ -55,9 +55,10 @@ cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；�
 
 ## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
-<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,DEC-059,DEC-062 -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,CON-SLA-014,DEC-059,DEC-062 -->
 
 DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
+所有指标 MUST 在 [[CON-SLA-014]] 严格 cgroup 隔离条件下验收。
 
 **SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化主目标**为 Buffered（逼近
 hnswlib，见 [[CHR-001]] / [[DEC-062]]）。**诚实验收地板**以 O_DIRECT（`FINE_DIRECT=1`）
@@ -86,6 +87,9 @@ Buffered 模式下 page cache 与匿名内存共享 cgroup 预算，运行过程
 | RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
 
 仅报告 Buffered 数字时 MUST 附带声明：page cache 与匿名内存共享 cgroup 预算（[[CON-HONEST-002]]）。
+
+> **验收协议**：上表数字 MUST 在 [[CON-SLA-014]]（严格 cgroup 隔离，一等公民）下取得。
+> 未按该协议重测的历史锚点视为待复核，见 [[VER-039]] / [[DEC-065]]。
 
 > rationale: 95% recall 是生产可接受的最低召回率阈值;
 > Buffered 2000 QPS 是交互式可用阈值; Honest 下限锚定 O_DIRECT 实测，消除无模式 QPS 双重真相。

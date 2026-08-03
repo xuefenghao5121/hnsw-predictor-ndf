@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "proposal-strict-cgroup-test.md",
+  "scenario_type": "process",
+  "track": "process",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
+  "pending_decision": "waiting_for_user_review",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-02T12:30:00Z",
-  "notes": "DEC-064 promote 审核通过. 内存优化已合入 Trunk. pipe_ring_ (BEH-021) 保持 draft 等 100M. 下一步待用户指示."
+  "last_activity": "2026-08-03T11:44:00Z",
+  "notes": "方案A落地: CON-SLA-014 status=stable (一等公民); VER-039 取代误用 VER-035; DEC-065/ndf.yaml/CHR-006 已对齐. 待人工审核. process track 跳过编译; 审核后需按 VER-039 跑 SIFT1M/DEEP10M C组严格隔离重测."
 }
