@@ -87,7 +87,7 @@ layout:
     03-scale-and-io.md: [DEC-026..033]
     04-p2.md: [DEC-034..039]
     05-odirect-floor.md: [DEC-057..061]
-    06-strict-cgroup.md: [DEC-065, DEC-066, DEC-067]
+    06-strict-cgroup.md: [DEC-065, DEC-066, DEC-067, DEC-068]
     adr-ndf-hygiene.md: [stub-to-meta]
     adr-poc-track.md: [stub-to-meta]
   models: [README.md]

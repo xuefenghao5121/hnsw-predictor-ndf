@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-l4-cache-mgmt.md",
-  "scenario_type": "poc",
-  "track": "poc",
-  "validation_round": 2,
+  "current_proposal": "null",
+  "scenario_type": "null",
+  "track": "null",
+  "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
-  "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-03T22:22:00Z",
-  "notes": "R0-R3 v2 + 紧cgroup实验 + O_DIRECT 4T bug修复完成. 512MB下L4无收益(充裕). 256MB是分水岭(refault=30326). 下一步: R4在256MB下测试选择性DONTNEED/WILLNEED. O_DIRECT 4T bug已修(pread条件+posix_memalign)."
+  "validation_status": "pass",
+  "perf_status": "pass",
+  "last_activity": "2026-08-03T23:02:00Z",
+  "notes": "Promote l4-cache-mgmt 完成. BEH-024 draft->stable. DEC-068 记录. 编译+性能验证通过(Buffered 1T=2365 4T=5765, O_DIRECT 4T recall=95.75%). src/ 已合入(flat_vec_cache check + pread fix). TOPIC=promoted."
 }

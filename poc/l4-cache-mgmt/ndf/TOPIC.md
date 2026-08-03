@@ -1,7 +1,7 @@
 # TOPIC: l4-cache-mgmt
 
 > topic_id: l4-cache-mgmt
-> status: exploring
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > depends_on_topics: (none; **this topic precedes** io-pipelining re-bench)
 > binder: [[DEF-022]] / [[BEH-025]]

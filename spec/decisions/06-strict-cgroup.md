@@ -137,3 +137,39 @@ cgroup 验证：memory.peak=512MB=memory.max，oom=0，无白嫖。
 > rationale: 22.9 QPS 不是严格隔离的真实性能，是 PQ 未加载的 fallback 路径性能。
 > 修正后 2309 QPS 证明 SIFT1M @ 512MB cgroup 的 page cache 预算（~357MB）足以覆盖热工作集，
 > 旧 SLA 数字在严格隔离下仍然有效。page cache 白嫖问题在 SIFT1M 规模下影响可忽略。
+
+---
+
+## D-068: Promote l4-cache-mgmt - flat_vec_cache + O_DIRECT 4T fix {#DEC-068}
+<!-- ndf: kind=decision date=2026-08-03 affects=BEH-024,CHR-006 source=observed -->
+<!-- ndf: promotes=l4-cache-mgmt -->
+
+**Context.** L4 POC 发现两个可 promote 的代码修复：
+
+1. **fine rerank 未查 flat_vec_cache**：候选循环查 BlockCache 后直接走 pread，
+   没查 flat_vec_cache（4MB 进程内热向量缓存）。热向量不必要地走磁盘 I/O。
+   在 256MB cgroup（page cache 不足）下，增大 flat_vec_cache 到 64MB 后 QPS 提升 7.5x。
+
+2. **O_DIRECT 4T pread 条件错误**：`if (kFinePread && !kFineDirect)` 导致
+   O_DIRECT 模式跳过 pread 走了非线程安全 io_uring，4T recall 崩到 12%。
+
+**Decision.** 合入 Trunk `src/`：
+
+1. fine rerank 候选循环加 `getFlatVector()` 检查（+2 行）
+2. `if (kFinePread && !kFineDirect)` -> `if (kFinePread)`（1 行改）
+3. pread buffer `new char[]` -> `posix_memalign`（3 行改）
+4. BEH-024 draft -> stable
+
+**验证**（CON-SLA-014, 512MB cgroup）：
+
+| 用例 | SLA | 实测 | 判定 |
+|------|-----|------|------|
+| Buffered 1T QPS | ≥2000 | 2365 | ✅ |
+| Buffered 4T QPS | ≥5000 | 5765 | ✅ |
+| Recall@10 | ≥95% | 95.75% | ✅ |
+| O_DIRECT 4T Recall | ≥95% | 95.75% | ✅ |
+| RSS 1T | ≤300MB | 155MB | ✅ |
+| oom | =0 | 0 | ✅ |
+
+> rationale: 两个修复都不改变搜索逻辑（零 recall 风险），仅优化缓存命中和线程安全。
+> flat_vec_cache 增大由用户按需调整（FLAT_VEC_MB），不改默认值。

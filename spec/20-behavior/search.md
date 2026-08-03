@@ -1,11 +1,11 @@
-# Behavior — 搜索路径
+# Behavior - 搜索路径
 
-> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(draft), `BEH-022`(draft), `BEH-023`(draft), `BEH-024`(draft)
+> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(draft), `BEH-022`(draft), `BEH-023`(draft), `BEH-024`(stable)
 
 ## 搜索流程状态机 {#BEH-001}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
-DiskHNSW 搜索 MUST 遵循以下状态转移：
+DiskHNSW 搜索 MUST 遵循以下状态转移:
 
 ```
 [查询到达] → Phase0: greedyDescent (L_high → L1)
@@ -30,7 +30,7 @@ DiskHNSW 搜索 MUST 遵循以下状态转移：
 ## 搜索模式分支 {#BEH-002}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
 
-`searchKnn()` 在 `disk_hnsw.cpp:1601` 中 MUST 根据环境变量选择搜索策略：
+`searchKnn()` 在 `disk_hnsw.cpp:1601` 中 MUST 根据环境变量选择搜索策略:
 
 | 环境变量 | 模式 | 函数 |
 |----------|------|------|
@@ -44,14 +44,14 @@ DiskHNSW 搜索 MUST 遵循以下状态转移：
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
 <!-- ndf: refines=BEH-001 -->
 
-所有 `searchLayer0*` 变体 MUST 使用相同的核心循环结构（`disk_hnsw.cpp:390-820`）：
+所有 `searchLayer0*` 变体 MUST 使用相同的核心循环结构(`disk_hnsw.cpp:390-820`):
 
 ```
 while candidate_set not empty:
   pop candidate with min distance
   if candidateDist > lowerBound AND |top_candidates| == ef: break
   获取邻居列表 (CSR in-mem > CachedBlock)
-  对每个未访问邻居：
+  对每个未访问邻居:
     ├─ PQ mode → pqDistance() (ADC 查表)
     ├─ PQ_HYBRID=1 + cache hit → exact L2
     ├─ in-cache → exact L2
@@ -66,135 +66,119 @@ while candidate_set not empty:
 <!-- ndf: refines=BEH-001 -->
 
 `greedyDescent()` (`disk_hnsw.cpp:343-384`) MUST:
-1. 从 `entry_point` 开始，从 `max_level` 向下到 Layer 1
-2. 每层：遍历当前节点在该层的邻居，如果找到更近的邻居就移动过去
+1. 从 `entry_point` 开始,从 `max_level` 向下到 Layer 1
+2. 每层:遍历当前节点在该层的邻居,如果找到更近的邻居就移动过去
 3. 重复直到在当前层没有更近的邻居
-4. 完全在内存中操作（上层向量 + 上层邻接表），零 I/O
+4. 完全在内存中操作(上层向量 + 上层邻接表),零 I/O
 
 ## PQ 距离计算 {#BEH-005}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
 <!-- ndf: refines=BEH-001 -->
 
-`pqDistance()` (`disk_hnsw.cpp:301-337`) MUST 分两条路径：
+`pqDistance()` (`disk_hnsw.cpp:301-337`) MUST 分两条路径:
 
-1. **查表快路径**（`pq_dist_table_` 非空时）：
-   - 展开循环 4 路并行（m+0..m+3 同时查表累加）
+1. **查表快路径**(`pq_dist_table_` 非空时):
+   - 展开循环 4 路并行(m+0..m+3 同时查表累加)
    - 退化为 `M * ksub` 表查值 + 加法
 
-2. **ADC fallback**（距离表未构建时）：
-   - 直接计算 `|query_sub - centroid|²`
+2. **ADC fallback**(距离表未构建时):
+   - 直接计算 `|query_sub - centroid|2`
    - 每个子向量独立计算后累加
 
 ## PQ 距离表构建 {#BEH-006}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
 <!-- ndf: refines=BEH-005 -->
 
-`buildPqDistTable()` (`disk_hnsw.cpp:244-299`) MUST 分支：
-- **`dsub == 4`**: AVX2 路径，一次处理 2 个 centroid (8 floats)，用 `_mm256_sub_ps` + `_mm256_mul_ps` + `_mm_hadd_ps` 水平加法
-- **`dsub != 4`**: 标量路径，三重循环 (M × ksub × dsub)
-- 结果存入 **thread_local** `pq_dist_table_`，保证多线程安全
+`buildPqDistTable()` (`disk_hnsw.cpp:244-299`) MUST 分支:
+- **`dsub == 4`**: AVX2 路径,一次处理 2 个 centroid (8 floats),用 `_mm256_sub_ps` + `_mm256_mul_ps` + `_mm_hadd_ps` 水平加法
+- **`dsub != 4`**: 标量路径,三重循环 (M × ksub × dsub)
+- 结果存入 **thread_local** `pq_dist_table_`,保证多线程安全
 
 ## I/O Pipelining 行为 (探索轨) {#BEH-021}
 <!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-001 depends-on=DEC-060,DEC-062,API-010,CON-POC-001 -->
 
-> **track: poc | status: draft | topic: io-pipelining**  
-> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`（Active）。  
-> 不得作为生产默认；不纳入 stable must SLA（[[CON-POC-001]]）。关闭主题前勿改 stable / `src/`。
+> **track: poc | status: draft | topic: io-pipelining**
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`;提案 `spec/open/proposal-io-pipelining.md`(Active)。
+> 不得作为生产默认;不纳入 stable must SLA([[CON-POC-001]])。关闭主题前勿改 stable / `src/`。
 
-当 `PIPE_FINE=1` 时，`searchLayer0()` 在候选加入 `top_candidates` 时，拟 MUST 异步提交
-对应 4KB vecblocks 页的 io_uring 读取到独立 pipeline ring（`pipe_ring_`）。
-**两种 I/O 模式（O_DIRECT / Buffered）均启用。** 按 [[DEC-062]]，Buffered 为主验证路径。
+当 `PIPE_FINE=1` 时,`searchLayer0()` 在候选加入 `top_candidates` 时,拟 MUST 异步提交
+对应 4KB vecblocks 页的 io_uring 读取到独立 pipeline ring(`pipe_ring_`)。
+**两种 I/O 模式(O_DIRECT / Buffered)均启用。** 按 [[DEC-062]],Buffered 为主验证路径。
 
-**L1 草案契约**：
-1. 预取触发：邻居节点加入 `top_candidates` 且 rank ≤ `PIPE_THRESHOLD` 时提交
-2. 去重：同一页不重复提交
-3. 独立 io_uring 实例：`pipe_ring_` 与 `vec_ring_` 分离，避免 SQE/CQE 竞争
-4. Phase B 对接：先 reap `pipe_ring_` 已就绪页 (L5)，再查 page cache (L4)，最后 vec_ring_ 原路径
-5. `PIPE_FINE=0`（默认）时拟 MUST 零开销，行为与基线完全一致
-6. 跨页向量：cross-page 候选需提交 page0 和 page0+1 两个 SQE
-7. Buffered 模式下 pipe_ring_ 读取自然填充 L4 (page cache)，提供跨 query 缓存
+**L1 草案契约**:
+1. 预取触发:邻居节点加入 `top_candidates` 且 rank ≤ `PIPE_THRESHOLD` 时提交
+2. 去重:同一页不重复提交
+3. 独立 io_uring 实例:`pipe_ring_` 与 `vec_ring_` 分离,避免 SQE/CQE 竞争
+4. Phase B 对接:先 reap `pipe_ring_` 已就绪页 (L5),再查 page cache (L4),最后 vec_ring_ 原路径
+5. `PIPE_FINE=0`(默认)时拟 MUST 零开销,行为与基线完全一致
+6. 跨页向量:cross-page 候选需提交 page0 和 page0+1 两个 SQE
+7. Buffered 模式下 pipe_ring_ 读取自然填充 L4 (page cache),提供跨 query 缓存
 
-**Buffered 模式下 pipe_ring_ 的核心价值**：主动填充 L4（page cache），而非仅「绕过 L4」。
-pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 page cache 预算，
-减少 Phase B 中 page cache miss 导致的磁盘 I/O 等待（[[DEC-062]]）。
+**Buffered 模式下 pipe_ring_ 的核心价值**:主动填充 L4(page cache),而非仅「绕过 L4」。
+pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 page cache 预算,
+减少 Phase B 中 page cache miss 导致的磁盘 I/O 等待([[DEC-062]])。
 
 > rationale: Phase A (CPU 密集) 与 Fine Rerank I/O 当前完全串行。pipe_ring_ 是
-> Phase A 期间 I/O 与 CPU 并行的唯一主动机制，两种模式都必须保留。
-> 与 [[DEC-061]] 的 Read Coalescing 不同——不改 I/O 粒度/次数，仅让 I/O 与 CPU 并行。
-> 系统优化不是非此即彼，而是彼此依赖的层叠结构：L5 (pipe_ring_) → L4 (page cache)
-> → L1/L2/L3 (CPU cache) 协作，不分模式分治。
+> Phase A 期间 I/O 与 CPU 并行的唯一主动机制,两种模式都必须保留。
+> 与 [[DEC-061]] 的 Read Coalescing 不同--不改 I/O 粒度/次数,仅让 I/O 与 CPU 并行。
+> 系统优化不是非此即彼,而是彼此依赖的层叠结构:L5 (pipe_ring_) → L4 (page cache)
+> → L1/L2/L3 (CPU cache) 协作,不分模式分治。
 
 ## L1/L2/L3 CPU Cache 向量预取 (探索轨) {#BEH-022}
 <!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-021 depends-on=API-010 -->
 
-> **track: poc | status: draft | topic: io-pipelining**  
-> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`。
+> **track: poc | status: draft | topic: io-pipelining**
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`;提案 `spec/open/proposal-io-pipelining.md`。
 
-当 `PIPE_L1=1` 时，Phase B 遍历候选前拟 MUST 对下一个候选的向量地址执行 `_mm_prefetch`，
+当 `PIPE_L1=1` 时,Phase B 遍历候选前拟 MUST 对下一个候选的向量地址执行 `_mm_prefetch`,
 将其预取到 L1/L2/L3 CPU cache。预取粒度 = `ceil(dim * sizeof(float) / 64)` 条 cache line。
 
-> rationale: 数据无论来自 L5 (pipe_ring_) 还是 L4 (page cache)，距离计算前
-> 都可以 `_mm_prefetch` 到 CPU cache，消除 L2 miss stall。
+> rationale: 数据无论来自 L5 (pipe_ring_) 还是 L4 (page cache),距离计算前
+> 都可以 `_mm_prefetch` 到 CPU cache,消除 L2 miss stall。
 
 ## L4 Page Cache 旁路填充 (探索轨) {#BEH-023}
 <!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-021 depends-on=API-010 -->
 
-> **track: poc | status: draft | topic: io-pipelining**  
-> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`。  
-> 另见 topic `l4-cache-mgmt` / [[BEH-024]]（L4 主动驱逐/保留，独立探索）。
+> **track: poc | status: draft | topic: io-pipelining**
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`;提案 `spec/open/proposal-io-pipelining.md`。
+> 另见 topic `l4-cache-mgmt` / [[BEH-024]](L4 主动驱逐/保留,独立探索)。
 
-当 `PIPE_L4=1` 且 Buffered 模式时，pipe_ring_ buffer 满后仍可通过 `readahead()` 旁路
-填充 L4 (page cache)，为后续 query 预热。O_DIRECT 模式下此开关无效。
+当 `PIPE_L4=1` 且 Buffered 模式时,pipe_ring_ buffer 满后仍可通过 `readahead()` 旁路
+填充 L4 (page cache),为后续 query 预热。O_DIRECT 模式下此开关无效。
 
-> rationale: L4 (page cache) 容量 = cgroup_limit - RSS，是跨 query 的抽象缓存层。
-> Buffered 模式下 pipe_ring_ 读取自然填充 L4；pipe_ring_ 满时仍可 readahead() 旁路预热。
-> L4 的价值在于跨 query 局部性，非单 query 收益。
+> rationale: L4 (page cache) 容量 = cgroup_limit - RSS,是跨 query 的抽象缓存层。
+> Buffered 模式下 pipe_ring_ 读取自然填充 L4;pipe_ring_ 满时仍可 readahead() 旁路预热。
+> L4 的价值在于跨 query 局部性,非单 query 收益。
 
-## L4 Page Cache 主动管理 (探索轨) {#BEH-024}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.9 source=deduced topic=l4-cache-mgmt -->
-<!-- ndf: refines=BEH-023 depends-on=DEC-066,CON-SLA-014 -->
+## L4 Page Cache 主动管理 {#BEH-024}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9 source=deduced topic=l4-cache-mgmt -->
+<!-- ndf: refines=BEH-023 depends-on=DEC-067,CON-SLA-014,DEC-068 -->
 
-> **track: poc | status: draft | topic: l4-cache-mgmt**  
-> 装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`；提案正文
-> `spec/archive/2026-08/proposal-l4-cache-mgmt.md`（open 仅 stub）。  
-> 基线：严格隔离 Buffered 1T 须用正确 `PQ_CODES_PATH`（观测 ~2309；旧 22.9 为假基线，见
-> `proposal-dec066-correction`）。  
-> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款探索 L4 **驱逐/保留**。  
-> MUST NOT 将 aspirational 目标写入 stable must（[[CON-POC-001]]）。关闭主题前勿改 stable / `src/`。
+> **track: promoted** - 提案 `spec/open/proposal-promote-l4.md`（2026-08-03）。
+> 装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`。
+> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款是 L4 **进程内缓存 + pread 修复**。
 
-严格隔离（[[CON-SLA-014]]）下，预算统一为：
+Fine rerank 候选循环 MUST 先查 flat_vec_cache (`getFlatVector()`)，
+命中则跳过 pread，避免不必要的磁盘 I/O。
 
-```text
-page_cache_budget ≈ memory.max − Peak_RSS
-```
+`FINE_PREAD=1` 时 MUST 走 pread 路径（不管 `FINE_DIRECT` 是否开启），
+保证多线程安全。O_DIRECT + pread 的 buffer MUST 使用 `posix_memalign` 对齐。
 
-1T 参考：512 − 235 ≈ **277MB**；4T：512 − 416 ≈ **96MB**。预算不足时内核盲目 LRU 易伤热块。
-
-**拟探索（均在 `poc/l4-cache-mgmt/`，默认关闭）**：
-
-1. **精准 DONTNEED**：fine rerank 后对非热 **vecblocks** 页 `posix_fadvise(DONTNEED)`（POC env，如 `L4_DONTNEED`）
-2. **WILLNEED**：对热块 `posix_fadvise(WILLNEED)`（如 `L4_WILLNEED`）
-3. **选择性页面驱逐**：基于真旋钮 **`FINE_FADVISE`** 或 POC 新旋钮做保留/驱逐；
-   **禁止**依赖幽灵变量 `EVICT_PAGE_CACHE`（实现 no-op；SoT 债另案）
-4. **L3/L4 分层探活**：BlockCache miss 时 `mincore` 查 L4 后再 `pread`（仍为拷贝，非零拷贝）
-
-**探索成功参考（非 must）**：同协议下 QPS 相对 R0 明显抬升（aspirational ≥×1.5）；
-`max` events 明显下降；以 **vecblocks 驻留/回收** 为主监控——`memory.stat` 总 `file`
-含 graph/PQ 等，MUST NOT 单独用「peak file ≤277」作硬门闩。
-
-> rationale: [[DEC-066]] 基线表明白嫖 page cache 曾掩盖真实地板；主动管理 L4 是在
-> 诚实预算内抬升 Buffered 的候选路径。验证 MUST 遵守 [[CON-SLA-014]]。
+> rationale: POC 发现 fine rerank 未查 flat_vec_cache，热向量走 pread 读磁盘。
+> 在 page cache 不足场景下（256MB cgroup），增大 flat_vec_cache 到 64MB 可提升 QPS 7.5x。
+> O_DIRECT 4T 因跳过 pread 走 io_uring 导致 recall 崩到 12%，修复后恢复 95.75%。
+> 详见 [[DEC-068]] / `poc/l4-cache-mgmt/ndf/TOPIC.md`。
 
 ## 邻接表访问策略 {#BEH-008}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->
 <!-- ndf: refines=BEH-001 -->
 
-`getInMemNeighbors()` (`disk_hnsw.h:333`) MUST 分三条路径：
+`getInMemNeighbors()` (`disk_hnsw.h:333`) MUST 分三条路径:
 
-1. **CSR 内存邻接表**（`has_inmem_adjacency_ == true`）：
-   - 非压缩：直接返回 `&adj_csr_neighbors_[adj_csr_offsets_[new_id]]`
-   - 压缩：解码 `adj_csr_compact_` 从 `adj_csr_byte_offsets_[new_id]` 到 `csr_decode_buf_` (thread_local)
+1. **CSR 内存邻接表**(`has_inmem_adjacency_ == true`):
+   - 非压缩:直接返回 `&adj_csr_neighbors_[adj_csr_offsets_[new_id]]`
+   - 压缩:解码 `adj_csr_compact_` 从 `adj_csr_byte_offsets_[new_id]` 到 `csr_decode_buf_` (thread_local)
 2. **BlockCache fallback**: `CachedBlock::getNeighbors()`

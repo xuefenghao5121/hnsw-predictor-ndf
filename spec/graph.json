@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T18:01:22Z",
-  "clause_count": 169,
+  "generated_at": "2026-08-03T20:06:13Z",
+  "clause_count": 170,
   "nodes": {
     "ADR-META-001": {
       "id": "ADR-META-001",
@@ -185,7 +185,7 @@
       "id": "API-009",
       "title": "Read Coalescing 环境变量 (已废弃)",
       "file": "30-interfaces/env.md",
-      "line": 83,
+      "line": 84,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -565,7 +565,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 185,
+      "line": 175,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -985,8 +985,8 @@
         ]
       },
       "body_refs": [
-        "DEC-062",
         "CON-POC-001",
+        "DEC-062",
         "DEC-061"
       ],
       "backlinks": [
@@ -1002,7 +1002,7 @@
       "id": "BEH-022",
       "title": "L1/L2/L3 CPU Cache 向量预取 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 127,
+      "line": 128,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -1028,7 +1028,7 @@
       "id": "BEH-023",
       "title": "L4 Page Cache 旁路填充 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 139,
+      "line": 141,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -1043,7 +1043,9 @@
           "API-010"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "BEH-024"
+      ],
       "backlinks": [
         "API-010",
         "BEH-024",
@@ -1053,13 +1055,13 @@
     },
     "BEH-024": {
       "id": "BEH-024",
-      "title": "L4 Page Cache 主动管理 (探索轨)",
+      "title": "L4 Page Cache 主动管理",
       "file": "20-behavior/search.md",
-      "line": 153,
+      "line": 156,
       "kind": "req",
-      "level": "tbd",
+      "level": "must",
       "layer": "L1",
-      "status": "draft",
+      "status": "stable",
       "since": "0.9",
       "scope": "",
       "edges": {
@@ -1067,18 +1069,19 @@
           "BEH-023"
         ],
         "depends-on": [
-          "DEC-066",
-          "CON-SLA-014"
+          "DEC-067",
+          "CON-SLA-014",
+          "DEC-068"
         ]
       },
       "body_refs": [
-        "DEC-066",
         "BEH-023",
-        "CON-POC-001",
-        "CON-SLA-014"
+        "DEC-068"
       ],
       "backlinks": [
-        "CON-SLA-013"
+        "BEH-023",
+        "CON-SLA-013",
+        "DEC-068"
       ]
     },
     "BEH-025": {
@@ -1265,6 +1268,7 @@
         "DEC-065",
         "DEC-066",
         "DEC-067",
+        "DEC-068",
         "VER-030",
         "VER-037",
         "VER-039"
@@ -1521,7 +1525,6 @@
         "ADR-META-001",
         "API-010",
         "BEH-021",
-        "BEH-024",
         "BEH-025",
         "CON-SLA-013",
         "DEC-063"
@@ -1726,7 +1729,7 @@
       "id": "CON-SLA-014",
       "title": "严格 cgroup 隔离测试协议",
       "file": "40-constraints/sla.md",
-      "line": 169,
+      "line": 170,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -3035,7 +3038,6 @@
         "CON-SLA-011"
       ],
       "backlinks": [
-        "BEH-024",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-008",
@@ -3069,12 +3071,36 @@
         "CON-SLA-014"
       ],
       "backlinks": [
+        "BEH-024",
         "CHR-006",
         "CON-SLA-011",
         "CON-SLA-013",
         "CON-SLA-014",
         "DEC-066",
+        "VER-030",
         "VER-039"
+      ]
+    },
+    "DEC-068": {
+      "id": "DEC-068",
+      "title": "D-068: Promote l4-cache-mgmt - flat_vec_cache + O_DIRECT 4T fix",
+      "file": "decisions/06-strict-cgroup.md",
+      "line": 143,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "BEH-024",
+          "CHR-006"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-024"
       ]
     },
     "DEC-HYGIENE-001": {
@@ -3673,7 +3699,7 @@
       "id": "VER-017",
       "title": "VER-017: Read Coalescing (已废弃)",
       "file": "50-verification/acceptance.md",
-      "line": 232,
+      "line": 233,
       "kind": "verif",
       "level": "may",
       "layer": "L3",
@@ -3816,10 +3842,11 @@
       },
       "body_refs": [
         "DEC-066",
+        "DEC-067",
         "CON-SLA-014",
         "CHR-006",
-        "VER-039",
-        "CON-SLA-011"
+        "CON-SLA-011",
+        "VER-039"
       ],
       "backlinks": [
         "DEC-030"
@@ -3829,7 +3856,7 @@
       "id": "VER-031",
       "title": "VER-031: 页面级驱逐消除 Cgroup 颠簸",
       "file": "50-verification/acceptance.md",
-      "line": 237,
+      "line": 238,
       "kind": "verif",
       "level": "should",
       "layer": "L3",
@@ -3850,7 +3877,7 @@
       "id": "VER-033",
       "title": "VER-033: CSR 图裁剪内存压缩",
       "file": "50-verification/acceptance.md",
-      "line": 248,
+      "line": 249,
       "kind": "verif",
       "level": "should",
       "layer": "L3",
