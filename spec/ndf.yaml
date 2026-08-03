@@ -60,7 +60,7 @@ layout:
     03-scale-and-io.md: [DEC-026..033]
     04-p2.md: [DEC-034..039]
     05-odirect-floor.md: [DEC-057..061]
-    06-strict-cgroup.md: [DEC-065]
+    06-strict-cgroup.md: [DEC-065, DEC-066]
     adr-ndf-hygiene.md: [DEC-HYGIENE-001]
     adr-poc-track.md: [ADR-POC-001]
   models: [README.md]

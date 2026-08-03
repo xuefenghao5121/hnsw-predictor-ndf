@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T08:47:28Z",
-  "clause_count": 161,
+  "generated_at": "2026-08-03T11:33:55Z",
+  "clause_count": 162,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -1005,7 +1005,7 @@
       "id": "CHR-004",
       "title": "演进路线意图（探索性设想）",
       "file": "00-charter/charter.md",
-      "line": 98,
+      "line": 103,
       "kind": "arch",
       "level": "may",
       "layer": "L0",
@@ -1025,7 +1025,7 @@
       "id": "CHR-005",
       "title": "设计约束(推断)",
       "file": "00-charter/charter.md",
-      "line": 126,
+      "line": 131,
       "kind": "constraint",
       "level": "should",
       "layer": "L0",
@@ -1056,23 +1056,26 @@
           "CON-SLA-011",
           "CON-SLA-014",
           "DEC-059",
-          "DEC-062"
+          "DEC-062",
+          "DEC-066"
         ]
       },
       "body_refs": [
         "CON-HONEST-002",
         "CON-SLA-014",
+        "DEC-065",
+        "DEC-066",
         "CHR-001",
         "DEC-062",
         "DEC-059",
         "DEC-060",
-        "VER-039",
-        "DEC-065"
+        "VER-039"
       ],
       "backlinks": [
         "CON-POC-001",
+        "CON-SLA-008",
+        "CON-SLA-010",
         "CON-SLA-011",
-        "CON-SLA-013",
         "CON-SLA-014",
         "DEC-016",
         "DEC-029",
@@ -1081,6 +1084,7 @@
         "DEC-059",
         "DEC-062",
         "DEC-065",
+        "DEC-066",
         "VER-030",
         "VER-037",
         "VER-039"
@@ -1090,7 +1094,7 @@
       "id": "CHR-007",
       "title": "设计约束",
       "file": "00-charter/charter.md",
-      "line": 137,
+      "line": 142,
       "kind": "constraint",
       "level": "must",
       "layer": "L0",
@@ -1107,7 +1111,7 @@
       "id": "CHR-008",
       "title": "探索与晋升双轨",
       "file": "00-charter/charter.md",
-      "line": 145,
+      "line": 150,
       "kind": "arch",
       "level": "must",
       "layer": "L0",
@@ -1254,7 +1258,7 @@
       "id": "CON-HONEST-002",
       "title": "诚实 I/O 基准协议",
       "file": "40-constraints/sla.md",
-      "line": 45,
+      "line": 48,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1275,8 +1279,10 @@
       "body_refs": [
         "DEC-059",
         "DEC-062",
+        "DEC-066",
         "DEC-060",
-        "CON-SLA-014"
+        "CON-SLA-014",
+        "DEC-065"
       ],
       "backlinks": [
         "BEH-019",
@@ -1299,7 +1305,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 153,
+      "line": 162,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1343,12 +1349,14 @@
         ]
       },
       "body_refs": [
+        "CHR-006",
+        "DEC-066",
         "CON-SLA-011",
         "DEC-020"
       ],
       "backlinks": [
         "BEH-014",
-        "CON-SLA-011",
+        "DEC-066",
         "DEF-012",
         "VER-022"
       ]
@@ -1357,7 +1365,7 @@
       "id": "CON-SLA-009",
       "title": "Dynamic Width 已知限制",
       "file": "40-constraints/sla.md",
-      "line": 17,
+      "line": 19,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1382,7 +1390,7 @@
       "id": "CON-SLA-010",
       "title": "冷 I/O 模式 SLA",
       "file": "40-constraints/sla.md",
-      "line": 29,
+      "line": 31,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1393,19 +1401,22 @@
           "DEC-021"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "CON-SLA-014",
+        "DEC-066",
+        "CHR-006"
+      ],
       "backlinks": [
         "BEH-016",
-        "CON-SLA-011",
         "VER-021",
         "VER-025"
       ]
     },
     "CON-SLA-011": {
       "id": "CON-SLA-011",
-      "title": "Honest / O_DIRECT QPS 下限",
+      "title": "Honest / O_DIRECT 严格隔离观测基线",
       "file": "40-constraints/sla.md",
-      "line": 83,
+      "line": 87,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1417,13 +1428,15 @@
         ],
         "depends-on": [
           "DEC-039",
-          "DEC-057"
+          "DEC-057",
+          "DEC-066",
+          "CON-SLA-014"
         ]
       },
       "body_refs": [
+        "CON-SLA-014",
         "CHR-006",
-        "CON-SLA-008",
-        "CON-SLA-010"
+        "DEC-066"
       ],
       "backlinks": [
         "CHR-006",
@@ -1434,6 +1447,7 @@
         "CON-SLA-014",
         "DEC-061",
         "DEC-065",
+        "DEC-066",
         "DEF-015",
         "VER-030",
         "VER-039"
@@ -1443,7 +1457,7 @@
       "id": "CON-SLA-012",
       "title": "Read Coalescing SLA (已废弃)",
       "file": "40-constraints/sla.md",
-      "line": 99,
+      "line": 109,
       "kind": "constraint",
       "level": "may",
       "layer": "L1",
@@ -1471,7 +1485,7 @@
       "id": "CON-SLA-013",
       "title": "I/O Pipelining SLA (探索轨)",
       "file": "40-constraints/sla.md",
-      "line": 105,
+      "line": 115,
       "kind": "constraint",
       "level": "tbd",
       "layer": "L1",
@@ -1493,22 +1507,21 @@
       "body_refs": [
         "DEC-062",
         "CON-POC-001",
-        "DEC-063",
-        "DEC-064",
-        "CHR-006",
-        "CON-SLA-011",
+        "CON-SLA-014",
+        "DEC-066",
         "BEH-020"
       ],
       "backlinks": [
         "DEC-062",
-        "DEC-063"
+        "DEC-063",
+        "DEC-066"
       ]
     },
     "CON-SLA-014": {
       "id": "CON-SLA-014",
       "title": "严格 cgroup 隔离测试协议",
       "file": "40-constraints/sla.md",
-      "line": 161,
+      "line": 170,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1526,12 +1539,18 @@
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-011",
+        "DEC-066",
         "VER-039"
       ],
       "backlinks": [
         "CHR-006",
         "CON-HONEST-002",
+        "CON-SLA-010",
+        "CON-SLA-011",
+        "CON-SLA-013",
         "DEC-065",
+        "DEC-066",
+        "VER-030",
         "VER-039"
       ]
     },
@@ -2439,7 +2458,8 @@
         "CON-SLA-011",
         "DEC-027",
         "DEC-039",
-        "DEC-059"
+        "DEC-059",
+        "DEC-066"
       ]
     },
     "DEC-058": {
@@ -2496,6 +2516,7 @@
         "DEC-060",
         "DEC-061",
         "DEC-062",
+        "DEC-066",
         "DEF-014",
         "DEF-017",
         "DEF-018",
@@ -2660,7 +2681,6 @@
         "CON-HONEST-002"
       ],
       "backlinks": [
-        "CON-SLA-013",
         "DEC-064"
       ]
     },
@@ -2689,7 +2709,6 @@
         "DEC-063"
       ],
       "backlinks": [
-        "CON-SLA-013",
         "DEC-063"
       ]
     },
@@ -2726,6 +2745,44 @@
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-014",
+        "VER-039"
+      ]
+    },
+    "DEC-066": {
+      "id": "DEC-066",
+      "title": "D-066: 旧 SLA 数字废止 - 严格隔离基线确立",
+      "file": "decisions/06-strict-cgroup.md",
+      "line": 60,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "edges": {
+        "affects": [
+          "CHR-006",
+          "CON-SLA-011",
+          "CON-SLA-008",
+          "CON-SLA-013",
+          "DEC-057",
+          "DEC-059",
+          "VER-039"
+        ]
+      },
+      "body_refs": [
+        "CON-SLA-014",
+        "CHR-006",
+        "CON-SLA-011"
+      ],
+      "backlinks": [
+        "CHR-006",
+        "CON-HONEST-002",
+        "CON-SLA-008",
+        "CON-SLA-010",
+        "CON-SLA-011",
+        "CON-SLA-013",
+        "CON-SLA-014",
+        "VER-030",
         "VER-039"
       ]
     },
@@ -3241,7 +3298,7 @@
       "id": "VER-017",
       "title": "VER-017: Read Coalescing (已废弃)",
       "file": "50-verification/acceptance.md",
-      "line": 233,
+      "line": 232,
       "kind": "verif",
       "level": "may",
       "layer": "L3",
@@ -3376,9 +3433,11 @@
         ]
       },
       "body_refs": [
-        "CON-SLA-011",
-        "DEC-059",
-        "CHR-006"
+        "DEC-066",
+        "CON-SLA-014",
+        "CHR-006",
+        "VER-039",
+        "CON-SLA-011"
       ],
       "backlinks": [
         "DEC-030"
@@ -3388,7 +3447,7 @@
       "id": "VER-031",
       "title": "VER-031: 页面级驱逐消除 Cgroup 颠簸",
       "file": "50-verification/acceptance.md",
-      "line": 238,
+      "line": 237,
       "kind": "verif",
       "level": "should",
       "layer": "L3",
@@ -3408,7 +3467,7 @@
       "id": "VER-033",
       "title": "VER-033: CSR 图裁剪内存压缩",
       "file": "50-verification/acceptance.md",
-      "line": 249,
+      "line": 248,
       "kind": "verif",
       "level": "should",
       "layer": "L3",
@@ -3542,12 +3601,15 @@
         "CHR-006",
         "CON-SLA-011",
         "CON-SLA-014",
+        "DEC-066",
         "DEC-065"
       ],
       "backlinks": [
         "CHR-006",
         "CON-SLA-014",
-        "DEC-065"
+        "DEC-065",
+        "DEC-066",
+        "VER-030"
       ]
     }
   }

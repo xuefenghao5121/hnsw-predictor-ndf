@@ -6,13 +6,15 @@
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.2 source=deduced -->
 <!-- ndf: refines=DEC-017,CON-007 -->
 
-当 `PAGE_SEARCH=1` 时，Buffered QPS SLA 放宽为 ≥ 基线 × 85%（当前实测 1832/2051 = 89%，达标）。
-recall SLA 不变（≥ 95%，实测 96.20%）。
+当 `PAGE_SEARCH=1` 时，Buffered QPS SLA 放宽为 ≥ **现行严格隔离对齐基线** × 85%
+（基线见 [[CHR-006]] 观测表 / [[DEC-066]]；白嫖 era 的 1832/2051 仅作历史参考）。
+recall SLA 不变（≥ 95%）。
 
-当 `PAGE_SEARCH=0`（默认）时，Buffered 原始 SLA（QPS ≥ 2000）不变。Honest / O_DIRECT 下限见 [[CON-SLA-011]]。
+当 `PAGE_SEARCH=0`（默认）时，Buffered QPS 不以 must 下限考核，对齐 [[CHR-006]] 观测基线。
+Honest / O_DIRECT 观测基线见 [[CON-SLA-011]]。
 
-> rationale: Page Search 是 opt-in recall 提升功能，用 ~15% QPS 换 0.5pp recall。
-> 适合 recall 优先于速度的场景。参见 [[DEC-020]]。
+> rationale: Page Search 是 opt-in recall 提升功能，用部分 QPS 换 recall。
+> 适合 recall 优先于速度的场景。参见 [[DEC-020]]。旧「≥2000」口径经 [[DEC-066]] 废止。
 
 ## Dynamic Width 已知限制 {#CON-SLA-009}
 <!-- ndf: kind=info level=may layer=L1 status=deprecated since=0.2 source=deduced -->
@@ -30,10 +32,11 @@ Dynamic Width 在当前配置（REFINE_EF=100, PQ 粗筛）下无效果。根因
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.3 source=deduced -->
 <!-- ndf: refines=DEC-021 -->
 
-当 `EVICT_PAGE_CACHE=1` 时：
+当 `EVICT_PAGE_CACHE=1` 时（**注**：实现侧该变量为幽灵/no-op，真驱逐见 `FINE_FADVISE`；
+SoT 对齐另案。本条款 QPS 数字属白嫖 era，**待按 [[CON-SLA-014]] / [[DEC-066]] 重标定**）：
 - Recall SLA 不变（≥ 95%）
-- Buffered QPS SLA 放宽为 ≥ 500（冷 I/O 条件下 QPS 自然下降）
-- RSS SLA 不变（≤ 300MB）
+- Buffered QPS SLA 放宽阈值 **暂不适用**（旧 ≥500 相对热态 ≥2000，口径已废止）
+- RSS SLA 对齐 [[CHR-006]]（1T≤300 / 4T≤450）
 
 | 参数 | 默认值 | 环境变量 | 说明 |
 |------|--------|---------|------|
@@ -58,9 +61,10 @@ cgroup 内存使用，运行过程中峰值内存（anon + file）MUST NOT 超�
 在运行过程中加载的 page cache 不得使总内存（anon + file）超过限制，否则触发 OOM kill
 或 memory reclaim。随数据规模增大，page cache 对 vecblocks 的覆盖率趋近于 0：
 
-| 规模 | cgroup | RSS | 可用 page cache | vecblocks | 覆盖率 |
-|------|--------|-----|----------------|-----------|-------|
-| SIFT1M | 512MB | 269MB | ~240MB | 496MB | ~48% |
+| 规模 | cgroup | RSS (参考) | 可用 page cache | vecblocks | 覆盖率 |
+|------|--------|------------|----------------|-----------|-------|
+| SIFT1M 1T | 512MB | ~235–269MB | ~240MB | 496MB | ~48%（预算理论）；严格隔离下常被 reclaim |
+| SIFT1M 4T | 512MB | ~416MB | 更紧 | 496MB | anon 上升挤压 file（[[DEC-066]]） |
 | DEEP10M | 2GB | 1612MB | ~390MB | 3.7GB | ~10% |
 | 100M (预估) | 4GB | ~2GB | ~2GB | ~50GB | ~4% |
 
@@ -80,21 +84,27 @@ O_DIRECT 是**诚实验收地板**与大规模下**必然磁盘 I/O** 的独立�
 > O_DIRECT 消除 page cache 后测量纯磁盘 I/O 地板，并服务 miss 路径。
 > 关联决策: [[DEC-059]]、[[DEC-062]]、[[DEC-060]]、[[DEC-065]]
 
-## Honest / O_DIRECT QPS 下限 {#CON-SLA-011}
+## Honest / O_DIRECT 严格隔离观测基线 {#CON-SLA-011}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.5 source=deduced -->
-<!-- ndf: refines=CON-HONEST-002 depends-on=DEC-039,DEC-057 -->
+<!-- ndf: refines=CON-HONEST-002 depends-on=DEC-039,DEC-057,DEC-066,CON-SLA-014 -->
 
-SIFT1M、512MB cgroup、`FINE_DIRECT=1`（Honest / O_DIRECT）下：
+SIFT1M、512MB cgroup、`FINE_DIRECT=1`、**[[CON-SLA-014]] 严格隔离**下：
 
-| 指标 | 下限 | 实测锚点 (2026-07-31) |
-|------|------|----------------------|
-| QPS (单线程) | ≥ 100 | 130 |
-| QPS (4 线程) | ≥ 400 | 502 |
-| Recall@10 | ≥ 95% | 95.70% |
+**Must**：Recall@10 ≥ 95%；协议与内存门槛见 [[CHR-006]]。
 
-Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-SLA-010]] 为准，MUST NOT 用本条款覆盖。
+**观测对齐基线**（2026-08-03，非 must QPS 点承诺；回归 SHOULD ≥ 基线 × 0.9）：
 
-> rationale: 双轨 SLA——不静默删除 Buffered 数字；Honest 下限取自 O_DIRECT 实测并留安全余量。
+| 指标 | 严格隔离基线 | 旧 SLA（已废止） | 实测 (2026-08-03) |
+|------|-------------|-----------------|-------------------|
+| QPS (单线程) | **22.8** | ~~≥100~~ (白嫖 era: 130) | 22.8 |
+| QPS (4 线程) | **19.5** | ~~≥400~~ (白嫖 era: 502) | 19.5 |
+| Recall@10 | ≥ 95% | ≥ 95% | 98.35% |
+
+旧白嫖 QPS 废止理由见 [[DEC-066]]。后续 POC 优化以本表 + [[CHR-006]] Buffered 基线为 R0。
+
+Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
+
+> rationale: 双轨报告保留；QPS 在严格隔离下先作对齐基线，待优化抬升后再评估是否写入 must 下限。
 
 ## Read Coalescing SLA (已废弃) {#CON-SLA-012}
 <!-- ndf: kind=constraint level=may layer=L1 status=deprecated since=0.6 source=deduced -->
@@ -125,8 +135,8 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 
 | 指标 | 基线锚点 (参考) | POC 目标 (相对 R0) | 说明 |
 |------|----------------|-------------------|------|
-| SIFT1M 1T QPS | ~2128–2450（诚实 cgroup） | ≥ R0 × 1.03 | L5 + L4 协作；逼近 hnswlib ~2800 |
-| SIFT1M 4T QPS | ~5000–8312 | ≥ R0 × 1.02 | 多线程收益递减 |
+| SIFT1M 1T QPS | **22.9**（[[CON-SLA-014]] / [[DEC-066]]） | ≥ R0 × 1.03 | 旧 ~2128–2450 白嫖口径 **作废** |
+| SIFT1M 4T QPS | **18.4**（同上） | ≥ R0 × 1.02 | 旧 ~5000–8312 作废 |
 | Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
 | RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool |
 
@@ -134,21 +144,20 @@ Buffered 模式阈值仍以 [[CHR-006]] Buffered 行及 [[CON-SLA-008]]…[[CON-
 
 | 指标 | 基线 (O_DIRECT) | POC 目标 | 说明 |
 |------|-----------------|----------|------|
-| SIFT1M 1T QPS | 130 | ≥ 140 | L5 I/O 重叠 |
-| SIFT1M 4T QPS | 502 | ≥ 540 | 多线程重叠效果递减 |
-| DEEP10M 4T QPS | 169 | ≥ 220 | Phase A ~7ms 可隐藏大量 I/O |
+| SIFT1M 1T QPS | **22.8**（[[DEC-066]]） | ≥ R0 × 1.03 | 旧 130 白嫖/半诚实口径作废 |
+| SIFT1M 4T QPS | **19.5**（同上） | ≥ R0 × 1.02 | 旧 502 作废 |
+| DEEP10M 4T QPS | TBD（待严格隔离重测） | TBD | 旧 169 未按 [[CON-SLA-014]] |
 
-### 证据状态（[[DEC-063]] / [[DEC-064]]，非 must）
+### 证据状态（历史；待 [[CON-SLA-014]] 重测前不得 promote）
 
 | 场景 | 结论 | 口径 |
 |------|------|------|
-| SIFT1M R0–R4 Buffered | **负结果**（无收益） | 诚实 cgroup；见 [[DEC-063]] |
-| DEEP10M 1T pre-memopt | 相对 +162.6%（pipe） | **Buffered+EVICT** 相对对比；**≠** 本辅表 O_DIRECT 达标 |
-| DEEP10M post-memopt | pipe **无收益**（R1≈R0） | [[DEC-064]]；BEH-021 保持 draft |
-| DEEP10M O_DIRECT 辅表 | **未验收** | 不得把 Buffered+EVICT 数字填入本表 |
+| SIFT1M R0–R4 Buffered（旧） | 负结果 | **口径过期**；须按 DEC-066 基线重开 |
+| DEEP10M pre/post-memopt pipe | 正/负混杂 | EVICT 幽灵 + 未严格隔离；搁置 |
+| 2026-08-03 SIFT1M 严格基线 | 对齐锚点已立 | [[DEC-066]]；pipe POC 见 open 提案 r2 |
 
-> 若 POC 验证通过，promote 时分别评估是否抬升 [[CHR-006]] Buffered 与/或
-> [[CON-SLA-011]] Honest 下限。负结果走 [[BEH-020]]。
+> 若 POC 在严格隔离下验证通过，promote 时再评估是否把抬升后的 QPS 写入 must。
+> 负结果走 [[BEH-020]]。
 
 ## POC 不纳入生产 SLA {#CON-POC-001}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.7 source=deduced -->
@@ -162,9 +171,10 @@ MUST 在 DEC/提案中标注口径（同 [[DEC-061]]）。
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9 source=deduced -->
 <!-- ndf: refines=CON-HONEST-002 depends-on=DEC-065 -->
 
-> **一等公民**：本协议是 Trunk SLA 验收的强制前置条件（[[CHR-006]]、[[CON-HONEST-002]]、
-> [[CON-SLA-011]]）。白嫖对照组（未 `drop_caches`）结果 MUST NOT 作为验收依据。
-> 历史 Buffered/Honest 数字若未按本协议重测，视为待复核（[[VER-039]]）。
+> **一等公民**：本协议是 Trunk 验收与 POC 对齐的强制测法（[[CHR-006]]、[[CON-HONEST-002]]、
+> [[CON-SLA-011]]）。白嫖对照组（未 `drop_caches`）结果 MUST NOT 作为验收或优化证据。
+> 白嫖 era QPS 已由 [[DEC-066]] 废止；SIFT1M 严格隔离观测基线已写入 [[CHR-006]]。
+> DEEP10M 严格隔离基线仍待 [[VER-039]]。
 
 所有 SLA 验收 benchmark MUST 在严格 cgroup 隔离条件下执行。
 

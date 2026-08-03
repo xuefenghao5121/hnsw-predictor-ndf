@@ -54,3 +54,44 @@ page cache，而是保障其在预算内被诚实利用，消除测试中偷用�
 
 **Note (ID hygiene):** 提案原稿误用 `VER-035`（已占用：FINE_PREAD bug）。
 验收条款 ID 更正为 [[VER-039]]。
+
+---
+
+## D-066: 旧 SLA 数字废止 - 严格隔离基线确立 {#DEC-066}
+<!-- ndf: kind=decision date=2026-08-03 affects=CHR-006,CON-SLA-011,CON-SLA-008,CON-SLA-013,DEC-057,DEC-059,VER-039 source=observed -->
+
+**Context.** [[CON-SLA-014]] 严格 cgroup 隔离测试协议落地后，首次 SIFT1M 基线测试
+（2026-08-03, 512MB cgroup, 200 queries, drop_caches 清场）结果与旧 SLA 数字差异巨大：
+
+| 模式 | 线程 | 旧 SLA (白嫖 era) | 严格隔离基线 | 下降 |
+|------|------|-------------------|-------------|------|
+| Buffered | 1T | ≥2000 (实测 ~2300) | **22.9** | 100x |
+| Buffered | 4T | ≥5000 (实测 ~5800) | **18.4** | 315x |
+| O_DIRECT | 1T | ≥100 (实测 130) | **22.8** | 5.7x |
+| O_DIRECT | 4T | ≥400 (实测 502) | **19.5** | 25.7x |
+
+**根因**：旧测试未执行 drop_caches，数据准备阶段（root cgroup）预热的 page cache
+（vecblocks ~450MB + graph ~587MB + PQ ~31MB）被 benchmark 进程白嫖，实际可用内存
+远超 512MB cgroup 限制。严格隔离后，cgroup 撞满 512MB，内核疯狂回收 page cache
+（max events 1523-7141 次），每次查询都重新读盘。
+
+**Decision.**
+
+1. **测法一等公民**：[[CON-SLA-014]] 为后续一切 SLA/POC 对齐的唯一合法口径
+2. **旧 QPS must 废止**：Buffered ≥2000/≥5000、Honest ≥100/≥400 **不再有效**
+3. **观测对齐基线确立**：上表 QPS 写入 [[CHR-006]] / [[CON-SLA-011]] 作为 R0 锚点；
+   **不是** must 点承诺。回归 SHOULD ≥ 基线 × 0.9；优化在同协议下抬升基线
+4. **Must 门槛保留/修订**：Recall≥95%、oom=0、peak≤512；RSS **1T≤300 / 4T≤450**
+   （4T 实测 416–426，旧统≤300 在严格隔离多线程下不成立）
+5. **后续优化**：压低 RSS、改善 I/O、或审慎评估提高 cgroup——均须在严格隔离下复测
+
+**Alternatives rejected.**
+- 保留旧 SLA 数字：不诚实，违反 [[CON-SLA-014]]
+- 把 22.9 写成 must 下限并宣告「达标」：混淆观测与承诺；基线过低且 200q 样本偏薄
+- 上调 cgroup 仅为刷回旧数字：掩盖问题，非真实受限场景
+- 继续用白嫖对照作优化证据：否决
+
+> rationale: 严格隔离符合「数据准备与检索分离」的部署语义，是当前最合理测法。
+> 基线虽低，但是 512MB 下的真实地板；后续优化目标是在该协议下抬升 QPS，
+> 而非假装白嫖数字仍然有效。补全提案见 `spec/open/proposal-strict-baseline-semantics.md`。
+> 详细报告见 `spec/open/validation-20260803-strict-baseline.md`。

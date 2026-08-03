@@ -76,12 +76,20 @@
 3. `memory.events` 中的 `oom` 计数（证明未触发 OOM）
 4. [可选] `fincore`/`vmtouch` 文件缓存验证
 
-| 用例 | 配置 | 预期 | 实测 | 判定 |
+| 用例 | 配置 | 预期 | 实测 (2026-08-03) | 判定 |
 |------|------|------|------|------|
-| SIFT1M C 组严格隔离 | 512MB + drop_caches | peak≤512MB, oom=0, Recall≥95% | TBD | 待测 |
-| SIFT1M Buffered QPS | 同上 | ≥2000 (1T) / ≥5000 (4T) 或修订 SLA | TBD | 待测 |
-| SIFT1M Honest QPS | FINE_DIRECT=1 同上 | ≥100 (1T) / ≥400 (4T) | TBD | 待测 |
+| SIFT1M 严格隔离合规 | 512MB + drop_caches | peak≤512MB, oom=0, Recall≥95% | peak=512MB, oom=0, Recall=98.35% | ✅ 合规 |
+| SIFT1M RSS 1T | 同上 | ≤300MB ([[CHR-006]]) | 235MB | ✅ |
+| SIFT1M RSS 4T | 同上 | ≤450MB ([[CHR-006]] / [[DEC-066]]) | 416–426MB | ✅ |
+| SIFT1M Buffered 1T QPS | 同上 | 观测基线（非 must） | **22.9** | 📌 对齐锚点 |
+| SIFT1M Buffered 4T QPS | 同上 | 观测基线（非 must） | **18.4** | 📌 对齐锚点 |
+| SIFT1M Honest 1T QPS | FINE_DIRECT=1 同上 | 观测基线（非 must） | **22.8** | 📌 对齐锚点 |
+| SIFT1M Honest 4T QPS | FINE_DIRECT=1 同上 | 观测基线（非 must） | **19.5** | 📌 对齐锚点 |
 | DEEP10M C 组严格隔离 | 2GB + drop_caches | peak≤2GB, oom=0, Recall≥95% | TBD | 待测 |
+
+> 详细报告见 `spec/open/validation-20260803-strict-baseline.md`。
+> 旧白嫖 QPS 废止与基线语义见 [[DEC-066]] / `proposal-strict-baseline-semantics.md`。
+> QPS 行为后续优化的 R0；200 queries 为初版基线，加厚样本不改变协议。
 
 > rationale: 现有 SLA 数字可能是在 page cache 白嫖条件下测得的，
 > 需在严格隔离条件下验证以确保数字诚实性。见 [[DEC-065]]、

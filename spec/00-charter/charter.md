@@ -55,45 +55,50 @@ cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；�
 
 ## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
-<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,CON-SLA-014,DEC-059,DEC-062 -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,CON-SLA-014,DEC-059,DEC-062,DEC-066 -->
 
-DiskHNSW 对 SIFT1M(128 维,100 万向量)MUST 达成以下指标。QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
-所有指标 MUST 在 [[CON-SLA-014]] 严格 cgroup 隔离条件下验收。
+DiskHNSW 对 SIFT1M(128 维,100 万向量)的验收 MUST 区分 **must 门槛** 与 **观测对齐基线**。
+QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
+所有验收 MUST 在 [[CON-SLA-014]] 严格 cgroup 隔离条件下执行（测试方法一等公民，见 [[DEC-065]] / [[DEC-066]]）。
 
-**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化主目标**为 Buffered（逼近
-hnswlib，见 [[CHR-001]] / [[DEC-062]]）。**诚实验收地板**以 O_DIRECT（`FINE_DIRECT=1`）
-为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]] / [[DEC-062]]
-（非本条款 must 数字）。
+**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化主目标**为 Buffered（在严格隔离下
+抬升基线、逼近 hnswlib，见 [[CHR-001]] / [[DEC-062]]）。**诚实验收地板**以 O_DIRECT
+（`FINE_DIRECT=1`）为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]] / [[DEC-062]]。
 
-### Buffered（`FINE_BUFFERED=1`，生产默认）
+### Must 门槛（严格隔离）
 
 | 指标 | 值 | 条件 | 验证方式 |
 |------|-----|------|----------|
-| Recall@10 | ≥ 95% | 512MB cgroup | benchmark vs GT |
-| QPS (单线程) | ≥ 2000 | 512MB cgroup, CSR 压缩后 | benchmark |
-| QPS (4 线程) | ≥ 5000 | 512MB cgroup | benchmark |
-| RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
+| Recall@10 | ≥ 95% | 512MB cgroup, [[CON-SLA-014]] | benchmark vs GT |
+| RSS (1T) | ≤ 300MB | 512MB cgroup | /proc/self/status |
+| RSS (4T) | ≤ 450MB | 512MB cgroup（VisitedList×N） | /proc/self/status |
+| cgroup peak | ≤ 512MB | 严格隔离 | memory.peak |
+| oom | = 0 | 严格隔离 | memory.events |
 | 内存节省 | ≥ 2.5x | vs hnswlib 726MB | 对比测试 |
 
 Buffered 模式下 page cache 与匿名内存共享 cgroup 预算，运行过程中峰值内存（anon + file）MUST NOT 超过 cgroup 限制。
 
-### Honest / O_DIRECT（`FINE_DIRECT=1`，性能地板）
+### 观测对齐基线（非 must QPS 承诺）— 2026-08-03
 
-| 指标 | 值 | 条件 | 验证方式 |
-|------|-----|------|----------|
-| Recall@10 | ≥ 95% | 512MB cgroup | benchmark vs GT |
-| QPS (单线程) | ≥ 100 | 512MB cgroup（实测 2026-07-31: 130） | benchmark |
-| QPS (4 线程) | ≥ 400 | 512MB cgroup（实测 2026-07-31: 502） | benchmark |
-| RSS | ≤ 300MB | 512MB cgroup | /proc/self/status |
+> [[CON-SLA-014]] 下实测锚点（200 queries）。旧白嫖 era QPS（Buffered ≥2000/≥5000，
+> Honest ≥100/≥400）经 [[DEC-066]] **废止**，MUST NOT 再作验收依据。
+> **后续 POC / 优化以此表为 R0 对齐基线**；相对收益在同协议下度量。
+> Trunk **暂不**将下列 QPS 写成 must 下限；回归检测 SHOULD ≥ 基线 × 0.9。
+> 详见 `spec/open/validation-20260803-strict-baseline.md` / [[VER-039]]。
+
+| 模式 | 线程 | QPS 基线 | Recall | RSS (MB) |
+|------|------|----------|--------|----------|
+| Buffered | 1T | **22.9** | 98.35% | 235 |
+| Buffered | 4T | **18.4** | 98.35% | 416 |
+| O_DIRECT | 1T | **22.8** | 98.35% | 235 |
+| O_DIRECT | 4T | **19.5** | 98.35% | 426 |
 
 仅报告 Buffered 数字时 MUST 附带声明：page cache 与匿名内存共享 cgroup 预算（[[CON-HONEST-002]]）。
 
-> **验收协议**：上表数字 MUST 在 [[CON-SLA-014]]（严格 cgroup 隔离，一等公民）下取得。
-> 未按该协议重测的历史锚点视为待复核，见 [[VER-039]] / [[DEC-065]]。
-
-> rationale: 95% recall 是生产可接受的最低召回率阈值;
-> Buffered 2000 QPS 是交互式可用阈值; Honest 下限锚定 O_DIRECT 实测，消除无模式 QPS 双重真相。
-> 抬高 O_DIRECT 地板的 aspirational 目标不属于本 must 条款，见 [[DEC-060]]。
+> rationale: 95% recall 是生产可接受的最低召回率阈值。
+> 严格隔离是符合部署语义的合法测法；基线揭示 512MB 下真实性能地板（page cache 被回收）。
+> 优化路径：在**同一协议**下压低 RSS / 改善 I/O，抬升上表 QPS——而非恢复白嫖口径。
+> aspirational 目标见 [[DEC-060]]（非本条款 must 数字）。
 
 ## 演进路线意图（探索性设想） {#CHR-004}
 <!-- ndf: kind=arch level=may layer=L0 status=draft since=0.2 source=deduced -->

@@ -3,15 +3,17 @@
 > track: poc
 > Status: Pending
 > 日期: 2026-08-03
-> 修订: r2 — 对齐 [[CON-SLA-014]] / [[DEC-065]]（严格 cgroup 一等公民）后重开验证
-> 关联: [[DEC-063]]、[[DEC-064]]、[[DEC-065]]、[[BEH-021]]、[[CON-SLA-013]]、[[CON-SLA-014]]、[[CON-HONEST-002]]、[[CON-POC-001]]、[[VER-039]]、[[CHR-008]]
-> 前序: `spec/open/proposal-io-behavior-correction.md` r1（2026-08-02）在白嫖/幽灵变量口径下设计；**本 r2 废止 r1 验证计划，保留问题诊断**
+> 修订: r2 — 对齐 [[CON-SLA-014]] / [[DEC-065]]；r2.1 — 对齐 [[DEC-066]] 严格隔离观测基线（CHR-006 已更新）
+> 关联: [[DEC-063]]、[[DEC-064]]、[[DEC-065]]、[[DEC-066]]、[[BEH-021]]、[[CON-SLA-013]]、[[CON-SLA-014]]、[[CON-HONEST-002]]、[[CON-POC-001]]、[[VER-039]]、[[CHR-008]]
+> 前序: r1（2026-08-02）废止；**本 r2 验证计划以 DEC-066 基线为 R0**
 
 ## 0. 为何重开
 
 1. **测试协议升格**：[[CON-SLA-014]] 已为 Trunk **stable 一等公民**。一切相对 QPS / 是否 promote `pipe_ring_` 的结论，MUST 在 C 组（`drop_caches` + 受限 cgroup）下取得；B 组仅作白嫖对照，MUST NOT 作证据。
 2. **历史证据失效口径**：[[DEC-063]] / [[DEC-064]] 中标注 `EVICT_PAGE_CACHE=1` 的点，以及未按 [[CON-SLA-014]] 清场的 Buffered 点，**不得**再支撑「pipe 无收益 / +162%」类 promote 叙事，直至本 POC 在 C 组重测。
-3. **探索轨边界**：本提案只动 `poc/io-pipelining/` + draft 条款备注；MUST NOT 立刻改 [[CHR-006]] / [[CON-SLA-011]] 数字（[[CON-POC-001]]）。
+3. **探索轨边界**：本提案只动 `poc/io-pipelining/` + draft 备注。QPS **观测基线**已由
+   [[DEC-066]] 写入 [[CHR-006]]（非 must 点承诺）；本 POC MUST NOT 把相对收益直接写成新的
+   Trunk must 下限（[[CON-POC-001]]），promote 另案。
 
 ---
 
@@ -122,9 +124,10 @@ DEEP10M @ 2GB（必做）与可选 3GB：
 | 动作 | ID | 说明 |
 |------|-----|------|
 | 备注证据作废 | [[CON-SLA-013]] 证据表 | 标注「DEC-063/064 pipe 行待 CON-SLA-014 重测；本 POC 产出前不得引用为 promote」 |
-| 决策补丁（POC 结束后） | DEC-063 / DEC-064 或新 DEC-066 | 用 C 组结果 amend；**本提案确认时不改 DEC 正文** |
+| 决策补丁（POC 结束后） | DEC-063 / DEC-064 或新 **DEC-067** | 用 C 组结果 amend；**DEC-066 已占用**（严格基线） |
 | 保持 draft | [[BEH-021]] / API-010 | 直至 C 组正结果 + promote 提案 |
 | 另案 process | EVICT SoT 对齐 | 不阻塞本 POC |
+| R0 锚点 | [[CHR-006]] / [[DEC-066]] | SIFT1M 严格隔离观测基线；DEEP10M 待测 |
 
 **不在本提案写入 stable must 新 SLA。**
 
