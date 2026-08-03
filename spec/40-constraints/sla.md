@@ -111,15 +111,16 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 > **Deprecated (2026-07-31):** 代码已回退，SLA 不再生效。见 [[BEH-017]] 和 [[DEC-061]]。
 
 ## I/O Pipelining SLA (探索轨) {#CON-SLA-013}
-<!-- ndf: kind=constraint level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: kind=constraint level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=CON-SLA-011 depends-on=DEC-060,DEC-062,BEH-021,BEH-022,BEH-023,CON-POC-001 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`
-> （r3：Buffered 主目标，对齐 [[DEC-062]]）。
-> POC 阶段不纳入生产 SLA（[[CON-POC-001]]）。以下为 POC 验证目标，非 must 承诺。
-> **v1 smoke（~24 QPS、无诚实 cgroup）不可信，MUST NOT 引用为 R0 或增量证据。**
-> L4 **主动管理**（驱逐/保留）见独立草案 [[BEH-024]] / `proposal-l4-cache-mgmt.md`，
-> **不**纳入本条款 depends-on（证据未叠面前避免绑死）。
+> **track: poc | status: draft | topic: io-pipelining**  
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`
+> （r3：Buffered 主目标，对齐 [[DEC-062]]）。  
+> POC 阶段不纳入生产 SLA（[[CON-POC-001]]）。以下为 POC 验证目标，非 must 承诺。  
+> **v1 smoke（~24 QPS、无诚实 cgroup）不可信，MUST NOT 引用为 R0 或增量证据。**  
+> L4 **主动管理**（驱逐/保留）见独立草案 [[BEH-024]] / topic `l4-cache-mgmt`，
+> **不**纳入本条款 depends-on（证据未叠面前避免绑死）。关闭主题前勿写入 `status=stable` must。
 >
 > 分层验证 (R0–R4)：**以 Buffered 为核心对比组**；O_DIRECT 为辅助地板组。
 >

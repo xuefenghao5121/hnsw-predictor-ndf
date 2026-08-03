@@ -317,7 +317,9 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
    产品提案 → `spec/open/`；流程/卫生 → `spec/meta/open/proposal-meta-*.md`。
 2. **确认后落地**：经用户「已确认」后由你写入对应目录；「已审核」后再委派实现。
 3. **双轨**：探索在 `poc/` + draft；晋升才 stable + `src/`（[[CHR-008]]，正文在 `spec/meta/`）。
-4. **验证闭环**：仅 **promote/bug/refactor/rollback** 等 Trunk 代码路径必须编译（及适用时性能）验证；
+4. **先收口，再 POC，关闭后才回合**：`open/` 不堆 Implemented；探索中默认不改 stable/`src/`；
+   主题 promote/reject 时才做产品 NDF + 代码回合（[[BEH-018]]…[[BEH-020]]；卫生 r2）。
+5. **验证闭环**：仅 **promote/bug/refactor/rollback** 等 Trunk 代码路径必须编译（及适用时性能）验证；
    poc/process 不得假装已完成 Trunk 验收。
 
 ### 标准工作流
@@ -337,6 +339,8 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 * 探索期写入 stable must SLA，或把 POC 默认开启合入 `src/`
 * 把生产实验补丁写入 `spec/models/`
 * 将已关闭提案放进 `spec/open/archive/`（应用 `spec/archive/`）
+* Implemented/Rejected 提案长期留在 `spec/open/`（应归档；见 hygiene r2）
 * 把元规范长文写回产品 `20-behavior/`（必须改 `spec/meta/`）
 * poc/process 跳过验证却宣告「主线任务完成」
 * promote 跳过验证直接宣告完成
+* 主题未关闭却宣称 NDF/`src/`「回合完成」

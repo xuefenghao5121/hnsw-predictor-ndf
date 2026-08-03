@@ -95,11 +95,12 @@ while candidate_set not empty:
 - 结果存入 **thread_local** `pq_dist_table_`，保证多线程安全
 
 ## I/O Pipelining 行为 (探索轨) {#BEH-021}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-001 depends-on=DEC-060,DEC-062,API-010,CON-POC-001 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（r3, [[DEC-062]]）。
-> 不得作为生产默认；不纳入 stable must SLA（[[CON-POC-001]]）。
+> **track: poc | status: draft | topic: io-pipelining**  
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`（Active）。  
+> 不得作为生产默认；不纳入 stable must SLA（[[CON-POC-001]]）。关闭主题前勿改 stable / `src/`。
 
 当 `PIPE_FINE=1` 时，`searchLayer0()` 在候选加入 `top_candidates` 时，拟 MUST 异步提交
 对应 4KB vecblocks 页的 io_uring 读取到独立 pipeline ring（`pipe_ring_`）。
@@ -125,10 +126,11 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 > → L1/L2/L3 (CPU cache) 协作，不分模式分治。
 
 ## L1/L2/L3 CPU Cache 向量预取 (探索轨) {#BEH-022}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-021 depends-on=API-010 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`。
+> **track: poc | status: draft | topic: io-pipelining**  
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`。
 
 当 `PIPE_L1=1` 时，Phase B 遍历候选前拟 MUST 对下一个候选的向量地址执行 `_mm_prefetch`，
 将其预取到 L1/L2/L3 CPU cache。预取粒度 = `ceil(dim * sizeof(float) / 64)` 条 cache line。
@@ -137,11 +139,12 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 > 都可以 `_mm_prefetch` 到 CPU cache，消除 L2 miss stall。
 
 ## L4 Page Cache 旁路填充 (探索轨) {#BEH-023}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: refines=BEH-021 depends-on=API-010 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`。
-> 另见 `spec/open/proposal-l4-cache-mgmt.md`（L4 主动管理，独立探索方向）。
+> **track: poc | status: draft | topic: io-pipelining**  
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`。  
+> 另见 topic `l4-cache-mgmt` / [[BEH-024]]（L4 主动驱逐/保留，独立探索）。
 
 当 `PIPE_L4=1` 且 Buffered 模式时，pipe_ring_ buffer 满后仍可通过 `readahead()` 旁路
 填充 L4 (page cache)，为后续 query 预热。O_DIRECT 模式下此开关无效。
@@ -151,13 +154,16 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 > L4 的价值在于跨 query 局部性，非单 query 收益。
 
 ## L4 Page Cache 主动管理 (探索轨) {#BEH-024}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.9 source=deduced -->
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.9 source=deduced topic=l4-cache-mgmt -->
 <!-- ndf: refines=BEH-023 depends-on=DEC-066,CON-SLA-014 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-l4-cache-mgmt.md`（Pending）。
-> 基线: SIFT1M 严格隔离 Buffered 1T=22.9 QPS ([[DEC-066]])。
-> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款探索 L4 **驱逐/保留**。
-> MUST NOT 将下列 aspirational 目标写入 stable must（[[CON-POC-001]]）。
+> **track: poc | status: draft | topic: l4-cache-mgmt**  
+> 装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`；提案正文
+> `spec/archive/2026-08/proposal-l4-cache-mgmt.md`（open 仅 stub）。  
+> 基线：严格隔离 Buffered 1T 须用正确 `PQ_CODES_PATH`（观测 ~2309；旧 22.9 为假基线，见
+> `proposal-dec066-correction`）。  
+> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款探索 L4 **驱逐/保留**。  
+> MUST NOT 将 aspirational 目标写入 stable must（[[CON-POC-001]]）。关闭主题前勿改 stable / `src/`。
 
 严格隔离（[[CON-SLA-014]]）下，预算统一为：
 

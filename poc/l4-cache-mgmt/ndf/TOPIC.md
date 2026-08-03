@@ -60,7 +60,7 @@ v1 脚本设 `PQ_CODE_PATH`（无 S），benchmark 读 `PQ_CODES_PATH`（有 S�
 
 | Role | Path | Status |
 |------|------|--------|
-| root | `spec/open/proposal-l4-cache-mgmt.md` | Implemented |
+| root | `spec/archive/2026-08/proposal-l4-cache-mgmt.md`（open stub） | Implemented |
 
 ## Evidence
 

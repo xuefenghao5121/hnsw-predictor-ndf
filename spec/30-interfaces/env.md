@@ -62,10 +62,11 @@
 | `EVICT_PAGE_CACHE` | int | 0 | 0/1 | 1=每次查询后 posix_fadvise(DONTNEED) 驱逐 vecblocks page cache | [[DEC-021]] [[BEH-016]] |
 
 ## I/O Pipelining 环境变量 (探索轨) {#API-010}
-<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced -->
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.8 source=deduced topic=io-pipelining -->
 <!-- ndf: depends-on=DEC-060,CON-POC-001 -->
 
-> **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`（2026-08-01, r2）。
+> **track: poc | status: draft | topic: io-pipelining**  
+> 装订器: `poc/io-pipelining/ndf/TOPIC.md`；提案 `spec/open/proposal-io-pipelining.md`。  
 > 行为契约见 [[BEH-021]] / [[BEH-022]] / [[BEH-023]]（接口不反向 depends-on 行为，避免环）。
 
 | 环境变量 | 类型 | 默认值 | 取值范围 | 说明 | 关联条款 |

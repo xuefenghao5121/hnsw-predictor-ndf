@@ -214,18 +214,19 @@
 ### VER-030: Page Cache + Disk 两层 I/O / 诚实双轨 {#VER-030}
 <!-- ndf: kind=verif level=must layer=L3 status=stable since=0.4 verifies=DEC-059,CON-HONEST-002,CON-SLA-011,CHR-006 -->
 
-> **口径更新（[[DEC-066]]）**：下表中带「白嫖 era」的 QPS ✅ 行 **不再作为现行验收**。
-> 现行 SoT：协议 [[CON-SLA-014]]；must 见 [[CHR-006]]；QPS 观测基线见 [[VER-039]] /
-> `validation-20260803-strict-baseline.md`。
+> **口径更新（[[DEC-066]] / [[DEC-067]]）**：白嫖 era QPS ✅ 行 **不再作为现行验收**。
+> 现行 SoT：协议 [[CON-SLA-014]]；must 见 [[CHR-006]] / [[CON-SLA-011]]；严格隔离实测表见
+> [[VER-039]]。假基线 22.9/22.8/19.5（PQ_CODES_PATH 拼写错误）已废止。
 > 2026-07-31 半诚实/白嫖锚点仅作历史对照。
 
-| 用例 | 配置 | 预期 | 实测 | 判定 |
+| 用例 | 配置 | 预期 | 实测 (2026-08-03, [[DEC-067]]) | 判定 |
 |------|------|------|------|------|
-| Buffered recall | FINE_BUFFERED=1 | ≥ 95% | 95.70%（旧）/ 98.35%（严格 2026-08-03） | ✅ |
-| Buffered QPS (1T) | 严格隔离 | 观测基线 22.9（[[CHR-006]]） | **22.9** | 📌 基线；旧≥2000 废止 |
-| Honest recall | FINE_DIRECT=1 | ≥ 95% | 98.35%（严格） | ✅ |
-| Honest QPS (1T) | 严格隔离 | 观测基线 22.8（[[CON-SLA-011]]） | **22.8** | 📌 基线；旧≥100 废止 |
-| Honest QPS (4T) | 严格隔离 | 观测基线 19.5 | **19.5** | 📌 基线；旧≥400 废止 |
+| Buffered recall | FINE_BUFFERED=1 严格隔离 | ≥ 95% | 95.75% | ✅ |
+| Buffered QPS (1T) | 严格隔离 | ≥2000 ([[CHR-006]]) | **2309** | ✅ |
+| Buffered QPS (4T) | 严格隔离 | ≥5000 ([[CHR-006]]) | **6060** | ✅ |
+| Honest recall (1T) | FINE_DIRECT=1 严格隔离 | ≥ 95% | 95.75% | ✅ |
+| Honest QPS (1T) | 严格隔离 | ≥100 ([[CON-SLA-011]]) | **837** | ✅ |
+| Honest QPS (4T) | 严格隔离 | ≥400 ([[CON-SLA-011]]) | **3215** (recall=13.95%⚠️) | ⚠️ QPS达标 recall 异常 |
 | 白嫖 era Buffered QPS | 未 drop_caches | — | ~2300–2450 | ❌ 不作验收 |
 | O_DIRECT 稳定可用 | FINE_DIRECT=1 无 crash | 稳定运行 | 通过 | ✅ |
 

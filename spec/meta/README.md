@@ -27,6 +27,7 @@
 | 卫生 ADR | [`decisions/`](decisions/) |
 | 流程提案 | [`open/proposal-meta-*.md`](open/)（及迁入的装订器提案） |
 | 审核 harness | [`tools/`](tools/)（`ndf_index.py`；原 `tools/ndf/`） |
+| 卫生收口 r2 | [`open/proposal-meta-trunk-hygiene-r2.md`](open/proposal-meta-trunk-hygiene-r2.md) |
 
 产品契约仍在 `spec/00–50` + `spec/decisions/`（产品 DEC）+ `spec/open/`（**仅产品域**提案）。
 产品树中对应段落为 **adopted 薄指针（非 SoT 正文）**，不得把元条款长文写回 `20-behavior/`。

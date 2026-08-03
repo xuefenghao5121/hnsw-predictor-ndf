@@ -88,9 +88,10 @@
 | DEEP10M C 组严格隔离 | 2GB + drop_caches | peak≤2GB, oom=0, Recall≥95% | TBD | 待测 |
 
 > DEC-066 假基线（22.9 等）因 PQ_CODES_PATH 拼写错误废止，见 [[DEC-067]]。
-> 修正后旧 SLA 数字在严格隔离下仍然有效。详细报告见 `spec/open/validation-20260803-strict-baseline.md`。
+> 修正后旧 SLA 数字在严格隔离下仍然有效。详细报告见
+> `spec/archive/2026-08/validation-20260803-strict-baseline.md`（open 仅 stub）。
 
 > rationale: 现有 SLA 数字可能是在 page cache 白嫖条件下测得的，
 > 需在严格隔离条件下验证以确保数字诚实性。见 [[DEC-065]]、
-> `spec/open/proposal-strict-cgroup-test.md`。
+> `spec/archive/2026-08/proposal-strict-cgroup-test.md`。
 > ID 说明：原提案误用 VER-035（已占用 FINE_PREAD）；本条款为 VER-039。
