@@ -2,11 +2,11 @@
   "current_proposal": "proposal-refine-ef.md, proposal-pq-quality.md",
   "scenario_type": "poc",
   "track": "poc",
-  "validation_round": 0,
+  "validation_round": 1,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T23:43:00Z",
-  "notes": "2个POC已确认. refine-ef-tuning: 降REFINE_EF扫描. pq-quality: PQ M/dsub调优. 开始实现."
+  "last_activity": "2026-08-03T23:58:00Z",
+  "notes": "2个POC R0-R4/R0-R3完成. refine-ef: EF=200最佳(+26%,94.25%). pq-quality: M=24最佳(+33%,94.05%). 联合M=24+EF=200=963QPS(+82%,92.40%). 待决策."
 }
