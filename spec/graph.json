@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T11:33:55Z",
-  "clause_count": 162,
+  "generated_at": "2026-08-03T12:44:41Z",
+  "clause_count": 163,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -489,7 +489,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 152,
+      "line": 185,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -941,8 +941,38 @@
       "body_refs": [],
       "backlinks": [
         "API-010",
+        "BEH-024",
         "CON-SLA-013",
         "DEC-063"
+      ]
+    },
+    "BEH-024": {
+      "id": "BEH-024",
+      "title": "L4 Page Cache 主动管理 (探索轨)",
+      "file": "20-behavior/search.md",
+      "line": 153,
+      "kind": "req",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.9",
+      "edges": {
+        "refines": [
+          "BEH-023"
+        ],
+        "depends-on": [
+          "DEC-066",
+          "CON-SLA-014"
+        ]
+      },
+      "body_refs": [
+        "DEC-066",
+        "BEH-023",
+        "CON-POC-001",
+        "CON-SLA-014"
+      ],
+      "backlinks": [
+        "CON-SLA-013"
       ]
     },
     "CHR-001": {
@@ -1305,7 +1335,7 @@
       "id": "CON-POC-001",
       "title": "POC 不纳入生产 SLA",
       "file": "40-constraints/sla.md",
-      "line": 162,
+      "line": 164,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1328,6 +1358,7 @@
       "backlinks": [
         "API-010",
         "BEH-021",
+        "BEH-024",
         "CON-SLA-013",
         "DEC-063"
       ]
@@ -1507,6 +1538,7 @@
       "body_refs": [
         "DEC-062",
         "CON-POC-001",
+        "BEH-024",
         "CON-SLA-014",
         "DEC-066",
         "BEH-020"
@@ -1521,7 +1553,7 @@
       "id": "CON-SLA-014",
       "title": "严格 cgroup 隔离测试协议",
       "file": "40-constraints/sla.md",
-      "line": 170,
+      "line": 172,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1543,6 +1575,7 @@
         "VER-039"
       ],
       "backlinks": [
+        "BEH-024",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-010",
@@ -2775,6 +2808,7 @@
         "CON-SLA-011"
       ],
       "backlinks": [
+        "BEH-024",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-008",

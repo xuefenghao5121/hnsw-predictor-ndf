@@ -1,6 +1,6 @@
 # Behavior — 搜索路径
 
-> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(draft), `BEH-022`(draft), `BEH-023`(draft)
+> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(draft), `BEH-022`(draft), `BEH-023`(draft), `BEH-024`(draft)
 
 ## 搜索流程状态机 {#BEH-001}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
@@ -141,6 +141,7 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 <!-- ndf: refines=BEH-021 depends-on=API-010 -->
 
 > **track: poc | status: draft** - 提案 `spec/open/proposal-io-pipelining.md`。
+> 另见 `spec/open/proposal-l4-cache-mgmt.md`（L4 主动管理，独立探索方向）。
 
 当 `PIPE_L4=1` 且 Buffered 模式时，pipe_ring_ buffer 满后仍可通过 `readahead()` 旁路
 填充 L4 (page cache)，为后续 query 预热。O_DIRECT 模式下此开关无效。
@@ -148,6 +149,38 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 > rationale: L4 (page cache) 容量 = cgroup_limit - RSS，是跨 query 的抽象缓存层。
 > Buffered 模式下 pipe_ring_ 读取自然填充 L4；pipe_ring_ 满时仍可 readahead() 旁路预热。
 > L4 的价值在于跨 query 局部性，非单 query 收益。
+
+## L4 Page Cache 主动管理 (探索轨) {#BEH-024}
+<!-- ndf: kind=req level=tbd layer=L1 status=draft since=0.9 source=deduced -->
+<!-- ndf: refines=BEH-023 depends-on=DEC-066,CON-SLA-014 -->
+
+> **track: poc | status: draft** - 提案 `spec/open/proposal-l4-cache-mgmt.md`（Pending）。
+> 基线: SIFT1M 严格隔离 Buffered 1T=22.9 QPS ([[DEC-066]])。
+> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款探索 L4 **驱逐/保留**。
+> MUST NOT 将下列 aspirational 目标写入 stable must（[[CON-POC-001]]）。
+
+严格隔离（[[CON-SLA-014]]）下，预算统一为：
+
+```text
+page_cache_budget ≈ memory.max − Peak_RSS
+```
+
+1T 参考：512 − 235 ≈ **277MB**；4T：512 − 416 ≈ **96MB**。预算不足时内核盲目 LRU 易伤热块。
+
+**拟探索（均在 `poc/l4-cache-mgmt/`，默认关闭）**：
+
+1. **精准 DONTNEED**：fine rerank 后对非热 **vecblocks** 页 `posix_fadvise(DONTNEED)`（POC env，如 `L4_DONTNEED`）
+2. **WILLNEED**：对热块 `posix_fadvise(WILLNEED)`（如 `L4_WILLNEED`）
+3. **选择性页面驱逐**：基于真旋钮 **`FINE_FADVISE`** 或 POC 新旋钮做保留/驱逐；
+   **禁止**依赖幽灵变量 `EVICT_PAGE_CACHE`（实现 no-op；SoT 债另案）
+4. **L3/L4 分层探活**：BlockCache miss 时 `mincore` 查 L4 后再 `pread`（仍为拷贝，非零拷贝）
+
+**探索成功参考（非 must）**：同协议下 QPS 相对 R0 明显抬升（aspirational ≥×1.5）；
+`max` events 明显下降；以 **vecblocks 驻留/回收** 为主监控——`memory.stat` 总 `file`
+含 graph/PQ 等，MUST NOT 单独用「peak file ≤277」作硬门闩。
+
+> rationale: [[DEC-066]] 基线表明白嫖 page cache 曾掩盖真实地板；主动管理 L4 是在
+> 诚实预算内抬升 Buffered 的候选路径。验证 MUST 遵守 [[CON-SLA-014]]。
 
 ## 邻接表访问策略 {#BEH-008}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->

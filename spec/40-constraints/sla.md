@@ -120,6 +120,8 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 > （r3：Buffered 主目标，对齐 [[DEC-062]]）。
 > POC 阶段不纳入生产 SLA（[[CON-POC-001]]）。以下为 POC 验证目标，非 must 承诺。
 > **v1 smoke（~24 QPS、无诚实 cgroup）不可信，MUST NOT 引用为 R0 或增量证据。**
+> L4 **主动管理**（驱逐/保留）见独立草案 [[BEH-024]] / `proposal-l4-cache-mgmt.md`，
+> **不**纳入本条款 depends-on（证据未叠面前避免绑死）。
 >
 > 分层验证 (R0–R4)：**以 Buffered 为核心对比组**；O_DIRECT 为辅助地板组。
 >

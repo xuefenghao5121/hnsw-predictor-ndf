@@ -38,7 +38,7 @@ layout:
   00-charter: [charter.md, glossary.md]
   10-architecture: [modules.md]
   20-behavior:
-    search.md: [BEH-001..006, BEH-008, BEH-021..023(draft)]
+    search.md: [BEH-001..006, BEH-008, BEH-021..024(draft)]
     fine-rerank.md: [BEH-007, BEH-011, BEH-014, BEH-017(deprecated)]
     cache.md: [BEH-009, BEH-010]
     prefetch.md: [BEH-012]
