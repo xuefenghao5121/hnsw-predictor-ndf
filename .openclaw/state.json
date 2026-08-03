@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-strict-cgroup-test.md",
-  "scenario_type": "process",
-  "track": "process",
+  "current_proposal": "proposal-io-behavior-correction.md",
+  "scenario_type": "feature",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_review",
+  "pending_decision": "confirmed_waiting_next_instruction",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T11:44:00Z",
-  "notes": "方案A落地: CON-SLA-014 status=stable (一等公民); VER-039 取代误用 VER-035; DEC-065/ndf.yaml/CHR-006 已对齐. 待人工审核. process track 跳过编译; 审核后需按 VER-039 跑 SIFT1M/DEEP10M C组严格隔离重测."
+  "last_activity": "2026-08-03T11:55:00Z",
+  "notes": "用户已确认 proposal-io-behavior-correction r2；提案已入库。按指示暂不落地 CON-SLA-013 备注、暂不委派 poc/。等待下一步指令。"
 }
