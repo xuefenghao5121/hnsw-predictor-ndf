@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T20:06:13Z",
-  "clause_count": 170,
+  "generated_at": "2026-08-03T20:38:56Z",
+  "clause_count": 171,
   "nodes": {
     "ADR-META-001": {
       "id": "ADR-META-001",
@@ -1081,7 +1081,8 @@
       "backlinks": [
         "BEH-023",
         "CON-SLA-013",
-        "DEC-068"
+        "DEC-068",
+        "DEC-069"
       ]
     },
     "BEH-025": {
@@ -3102,6 +3103,25 @@
       "backlinks": [
         "BEH-024"
       ]
+    },
+    "DEC-069": {
+      "id": "DEC-069",
+      "title": "D-069: Promote flat_vec_cache cap fix",
+      "file": "decisions/06-strict-cgroup.md",
+      "line": 179,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "BEH-024"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
     },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",

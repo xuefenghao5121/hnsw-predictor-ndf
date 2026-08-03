@@ -246,7 +246,7 @@ void BlockCache::initFlatCache(size_t cache_bytes) {
         int mb = std::atoi(env);
         if (mb > 0) vec_max_bytes = (size_t)mb * 1024 * 1024;
     }
-    size_t vec_budget = std::min(cache_bytes, vec_max_bytes);
+    size_t vec_budget = vec_max_bytes;  // flat_vec independent of BlockCache slots budget (promote fv-cap, DEC-069)
     size_t vec_entry_size = dim_ * sizeof(float);
     size_t vec_owner_size = sizeof(uint32_t);
     size_t vec_total_per_slot = vec_entry_size + vec_owner_size;

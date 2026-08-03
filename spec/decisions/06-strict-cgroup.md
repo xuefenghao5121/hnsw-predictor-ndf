@@ -173,3 +173,18 @@ cgroup 验证：memory.peak=512MB=memory.max，oom=0，无白嫖。
 
 > rationale: 两个修复都不改变搜索逻辑（零 recall 风险），仅优化缓存命中和线程安全。
 > flat_vec_cache 增大由用户按需调整（FLAT_VEC_MB），不改默认值。
+
+---
+
+## D-069: Promote flat_vec_cache cap fix {#DEC-069}
+<!-- ndf: kind=decision date=2026-08-03 affects=BEH-024 source=observed -->
+<!-- ndf: promotes=l4-cache-mgmt -->
+
+**Context.** flat_vec_cache 预算 `vec_budget = std::min(cache_bytes, vec_max_bytes)` 受 CACHE_MB
+限制。FLAT_VEC_MB > CACHE_MB 时无法增大。DEEP10M 上 128/256MB 配置无效（slots cap at 173K）。
+
+**Decision.** 合入 Trunk: `vec_budget = vec_max_bytes`（1 行改）。flat_vec_cache 独立于
+BlockCache slots 预算。
+
+**验证**: SIFT1M 512MB 无回归 (QPS=2108 ≥ 2000 ✅, Recall=95.75% ✅)。
+DEEP10M 2GB: 128MB flat_vec = 698 QPS (+20% vs 581 基线)。
