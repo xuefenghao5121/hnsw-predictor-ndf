@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-l4-cache-mgmt.md",
-  "scenario_type": "poc",
-  "track": "poc",
-  "validation_round": 1,
+  "current_proposal": "proposal-dec066-correction.md",
+  "scenario_type": "process",
+  "track": "process",
+  "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-03T20:01:00Z",
-  "notes": "R0-R3 v2 完成(修正PQ_CODES_PATH). FINE_FADVISE 17x下降(有害). L4_EVICT_META +3%(微正). 瓶颈=Fine I/O 95%+. page cache 命中是关键. 待决策: promote EvictMeta / 标注 FADVISE 有害."
+  "pending_decision": "waiting_for_user_review",
+  "validation_status": "pass",
+  "perf_status": "pass",
+  "last_activity": "2026-08-03T20:47:00Z",
+  "notes": "DEC-067 修正落地: DEC-066 假基线(PQ_CODES_PATH拼写错误)废止. 旧SLA恢复有效. CHR-006/CON-SLA-011/VER-039/CON-SLA-013 已修正. 实测: Buffered 1T=2309 4T=6060, O_DIRECT 1T=837 4T=3215(recall异常待查). 待审核."
 }

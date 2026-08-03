@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T17:28:39Z",
-  "clause_count": 168,
+  "generated_at": "2026-08-03T18:01:22Z",
+  "clause_count": 169,
   "nodes": {
     "ADR-META-001": {
       "id": "ADR-META-001",
@@ -1179,7 +1179,7 @@
     },
     "CHR-004": {
       "id": "CHR-004",
-      "title": "演进路线意图（探索性设想）",
+      "title": "演进路线意图(探索性设想)",
       "file": "00-charter/charter.md",
       "line": 103,
       "kind": "arch",
@@ -1236,7 +1236,7 @@
           "CON-SLA-014",
           "DEC-059",
           "DEC-062",
-          "DEC-066"
+          "DEC-067"
         ]
       },
       "body_refs": [
@@ -1248,7 +1248,7 @@
         "DEC-062",
         "DEC-059",
         "DEC-060",
-        "VER-039"
+        "DEC-067"
       ],
       "backlinks": [
         "CON-POC-001",
@@ -1264,6 +1264,7 @@
         "DEC-062",
         "DEC-065",
         "DEC-066",
+        "DEC-067",
         "VER-030",
         "VER-037",
         "VER-039"
@@ -1611,7 +1612,7 @@
     },
     "CON-SLA-011": {
       "id": "CON-SLA-011",
-      "title": "Honest / O_DIRECT 严格隔离观测基线",
+      "title": "Honest / O_DIRECT QPS 下限",
       "file": "40-constraints/sla.md",
       "line": 88,
       "kind": "constraint",
@@ -1627,14 +1628,14 @@
         "depends-on": [
           "DEC-039",
           "DEC-057",
-          "DEC-066",
-          "CON-SLA-014"
+          "CON-SLA-014",
+          "DEC-067"
         ]
       },
       "body_refs": [
         "CON-SLA-014",
-        "CHR-006",
-        "DEC-066"
+        "DEC-067",
+        "CHR-006"
       ],
       "backlinks": [
         "CHR-006",
@@ -1646,6 +1647,7 @@
         "DEC-061",
         "DEC-065",
         "DEC-066",
+        "DEC-067",
         "DEF-015",
         "VER-030",
         "VER-039"
@@ -1655,7 +1657,7 @@
       "id": "CON-SLA-012",
       "title": "Read Coalescing SLA (已废弃)",
       "file": "40-constraints/sla.md",
-      "line": 110,
+      "line": 107,
       "kind": "constraint",
       "level": "may",
       "layer": "L1",
@@ -1684,7 +1686,7 @@
       "id": "CON-SLA-013",
       "title": "I/O Pipelining SLA (探索轨)",
       "file": "40-constraints/sla.md",
-      "line": 116,
+      "line": 113,
       "kind": "constraint",
       "level": "tbd",
       "layer": "L1",
@@ -1709,20 +1711,22 @@
         "CON-POC-001",
         "BEH-024",
         "CON-SLA-014",
+        "DEC-067",
         "DEC-066",
         "BEH-020"
       ],
       "backlinks": [
         "DEC-062",
         "DEC-063",
-        "DEC-066"
+        "DEC-066",
+        "DEC-067"
       ]
     },
     "CON-SLA-014": {
       "id": "CON-SLA-014",
       "title": "严格 cgroup 隔离测试协议",
       "file": "40-constraints/sla.md",
-      "line": 172,
+      "line": 169,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1741,7 +1745,7 @@
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-011",
-        "DEC-066",
+        "DEC-067",
         "VER-039"
       ],
       "backlinks": [
@@ -1755,6 +1759,7 @@
         "CON-SLA-013",
         "DEC-065",
         "DEC-066",
+        "DEC-067",
         "VER-030",
         "VER-039"
       ]
@@ -3024,6 +3029,7 @@
         ]
       },
       "body_refs": [
+        "DEC-067",
         "CON-SLA-014",
         "CHR-006",
         "CON-SLA-011"
@@ -3034,10 +3040,40 @@
         "CON-HONEST-002",
         "CON-SLA-008",
         "CON-SLA-010",
+        "CON-SLA-013",
+        "DEC-067",
+        "VER-030"
+      ]
+    },
+    "DEC-067": {
+      "id": "DEC-067",
+      "title": "D-067: DEC-066 修正 - 环境变量拼写错误导致假基线",
+      "file": "decisions/06-strict-cgroup.md",
+      "line": 109,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "DEC-066",
+          "CHR-006",
+          "CON-SLA-011",
+          "VER-039",
+          "CON-SLA-013"
+        ]
+      },
+      "body_refs": [
+        "CON-SLA-014"
+      ],
+      "backlinks": [
+        "CHR-006",
         "CON-SLA-011",
         "CON-SLA-013",
         "CON-SLA-014",
-        "VER-030",
+        "DEC-066",
         "VER-039"
       ]
     },
@@ -3955,14 +3991,14 @@
         "CHR-006",
         "CON-SLA-011",
         "CON-SLA-014",
-        "DEC-066",
+        "DEC-067",
         "DEC-065"
       ],
       "backlinks": [
-        "CHR-006",
         "CON-SLA-014",
         "DEC-065",
         "DEC-066",
+        "DEC-067",
         "VER-030"
       ]
     }

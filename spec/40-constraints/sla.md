@@ -85,27 +85,24 @@ O_DIRECT 是**诚实验收地板**与大规模下**必然磁盘 I/O** 的独立�
 > O_DIRECT 消除 page cache 后测量纯磁盘 I/O 地板，并服务 miss 路径。
 > 关联决策: [[DEC-059]]、[[DEC-062]]、[[DEC-060]]、[[DEC-065]]
 
-## Honest / O_DIRECT 严格隔离观测基线 {#CON-SLA-011}
+## Honest / O_DIRECT QPS 下限 {#CON-SLA-011}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.5 source=deduced -->
-<!-- ndf: refines=CON-HONEST-002 depends-on=DEC-039,DEC-057,DEC-066,CON-SLA-014 -->
+<!-- ndf: refines=CON-HONEST-002 depends-on=DEC-039,DEC-057,CON-SLA-014,DEC-067 -->
 
-SIFT1M、512MB cgroup、`FINE_DIRECT=1`、**[[CON-SLA-014]] 严格隔离**下：
+SIFT1M、512MB cgroup、`FINE_DIRECT=1`（Honest / O_DIRECT）、**[[CON-SLA-014]] 严格隔离**下：
 
-**Must**：Recall@10 ≥ 95%；协议与内存门槛见 [[CHR-006]]。
+| 指标 | 下限 | 严格隔离实测 (2026-08-03, [[DEC-067]]) |
+|------|------|----------------------------------------|
+| QPS (单线程) | ≥ 100 | **837** |
+| QPS (4 线程) | ≥ 400 | **3215** (recall=13.95%⚠️ 待查) |
+| Recall@10 | ≥ 95% | 95.75% (1T) / 13.95%⚠️ (4T) |
 
-**观测对齐基线**（2026-08-03，非 must QPS 点承诺；回归 SHOULD ≥ 基线 × 0.9）：
-
-| 指标 | 严格隔离基线 | 旧 SLA（已废止） | 实测 (2026-08-03) |
-|------|-------------|-----------------|-------------------|
-| QPS (单线程) | **22.8** | ~~≥100~~ (白嫖 era: 130) | 22.8 |
-| QPS (4 线程) | **19.5** | ~~≥400~~ (白嫖 era: 502) | 19.5 |
-| Recall@10 | ≥ 95% | ≥ 95% | 98.35% |
-
-旧白嫖 QPS 废止理由见 [[DEC-066]]。后续 POC 优化以本表 + [[CHR-006]] Buffered 基线为 R0。
+> DEC-066 假基线（22.8/19.5）因 PQ_CODES_PATH 拼写错误废止，见 [[DEC-067]]。
+> 旧 SLA 下限在严格隔离下仍然有效（1T 实测 837 >> 100）。
 
 Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 
-> rationale: 双轨报告保留；QPS 在严格隔离下先作对齐基线，待优化抬升后再评估是否写入 must 下限。
+> rationale: 双轨 SLA 保留。严格隔离验证确认旧下限仍然有效。
 
 ## Read Coalescing SLA (已废弃) {#CON-SLA-012}
 <!-- ndf: kind=constraint level=may layer=L1 status=deprecated since=0.6 source=deduced -->
@@ -138,8 +135,8 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 
 | 指标 | 基线锚点 (参考) | POC 目标 (相对 R0) | 说明 |
 |------|----------------|-------------------|------|
-| SIFT1M 1T QPS | **22.9**（[[CON-SLA-014]] / [[DEC-066]]） | ≥ R0 × 1.03 | 旧 ~2128–2450 白嫖口径 **作废** |
-| SIFT1M 4T QPS | **18.4**（同上） | ≥ R0 × 1.02 | 旧 ~5000–8312 作废 |
+| SIFT1M 1T QPS | **2309**（[[CON-SLA-014]] / [[DEC-067]]） | ≥ R0 × 1.03 | 旧 22.9 为 PQ_CODES_PATH 拼写错误，已废止 |
+| SIFT1M 4T QPS | **6060**（同上） | ≥ R0 × 1.02 | 旧 18.4 同上 |
 | Recall@10 | ≥ 95% | ≥ 95% (不变) | 预取不改变候选集 |
 | RSS 增量 | - | ≤ +1MB | pipe_ring_ buffer pool |
 
@@ -147,8 +144,8 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 
 | 指标 | 基线 (O_DIRECT) | POC 目标 | 说明 |
 |------|-----------------|----------|------|
-| SIFT1M 1T QPS | **22.8**（[[DEC-066]]） | ≥ R0 × 1.03 | 旧 130 白嫖/半诚实口径作废 |
-| SIFT1M 4T QPS | **19.5**（同上） | ≥ R0 × 1.02 | 旧 502 作废 |
+| SIFT1M 1T QPS | **837**（[[DEC-067]]） | ≥ R0 × 1.03 | 旧 22.8 为 PQ_CODES_PATH 拼写错误，已废止 |
+| SIFT1M 4T QPS | **3215**（同上） | ≥ R0 × 1.02 | recall=13.95%⚠️ 待查 |
 | DEEP10M 4T QPS | TBD（待严格隔离重测） | TBD | 旧 169 未按 [[CON-SLA-014]] |
 
 ### 证据状态（历史；待 [[CON-SLA-014]] 重测前不得 promote）
@@ -175,7 +172,7 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 
 > **一等公民**：本协议是 Trunk 验收与 POC 对齐的强制测法（[[CHR-006]]、[[CON-HONEST-002]]、
 > [[CON-SLA-011]]）。白嫖对照组（未 `drop_caches`）结果 MUST NOT 作为验收或优化证据。
-> 白嫖 era QPS 已由 [[DEC-066]] 废止；SIFT1M 严格隔离观测基线已写入 [[CHR-006]]。
+> 白嫖 era QPS 经 [[DEC-067]] 验证在严格隔离下仍然有效；SIFT1M 严格隔离实测已写入 [[CHR-006]]。
 > DEEP10M 严格隔离基线仍待 [[VER-039]]。
 
 所有 SLA 验收 benchmark MUST 在严格 cgroup 隔离条件下执行。

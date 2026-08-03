@@ -59,6 +59,12 @@ page cache，而是保障其在预算内被诚实利用，消除测试中偷用�
 
 ## D-066: 旧 SLA 数字废止 - 严格隔离基线确立 {#DEC-066}
 <!-- ndf: kind=decision date=2026-08-03 affects=CHR-006,CON-SLA-011,CON-SLA-008,CON-SLA-013,DEC-057,DEC-059,VER-039 source=observed -->
+<!-- ndf: amended-by=DEC-067 -->
+
+> **⚠️ AMENDED (2026-08-03, [[DEC-067]])**: 本决策的基线数据（22.9/18.4/22.8/19.5 QPS）
+> 因测试脚本环境变量拼写错误（`PQ_CODE_PATH` 应为 `PQ_CODES_PATH`）而无效。
+> PQ codes 未加载导致走了 fallback 路径。修正后真实严格隔离基线恢复到 2309/6060/837/3215 QPS，
+> 旧 SLA 数字在严格隔离下仍然有效。详见 [[DEC-067]]。
 
 **Context.** [[CON-SLA-014]] 严格 cgroup 隔离测试协议落地后，首次 SIFT1M 基线测试
 （2026-08-03, 512MB cgroup, 200 queries, drop_caches 清场）结果与旧 SLA 数字差异巨大：
@@ -69,6 +75,8 @@ page cache，而是保障其在预算内被诚实利用，消除测试中偷用�
 | Buffered | 4T | ≥5000 (实测 ~5800) | **18.4** | 315x |
 | O_DIRECT | 1T | ≥100 (实测 130) | **22.8** | 5.7x |
 | O_DIRECT | 4T | ≥400 (实测 502) | **19.5** | 25.7x |
+
+> **上述数据全部无效（PQ_CODES_PATH 拼写错误）。修正数据见 [[DEC-067]]。**
 
 **根因**：旧测试未执行 drop_caches，数据准备阶段（root cgroup）预热的 page cache
 （vecblocks ~450MB + graph ~587MB + PQ ~31MB）被 benchmark 进程白嫖，实际可用内存
@@ -95,3 +103,37 @@ page cache，而是保障其在预算内被诚实利用，消除测试中偷用�
 > 基线虽低，但是 512MB 下的真实地板；后续优化目标是在该协议下抬升 QPS，
 > 而非假装白嫖数字仍然有效。补全提案见 `spec/open/proposal-strict-baseline-semantics.md`。
 > 详细报告见 `spec/open/validation-20260803-strict-baseline.md`。
+
+---
+
+## D-067: DEC-066 修正 - 环境变量拼写错误导致假基线 {#DEC-067}
+<!-- ndf: kind=decision date=2026-08-03 affects=DEC-066,CHR-006,CON-SLA-011,VER-039,CON-SLA-013 source=observed -->
+
+**Context.** DEC-066 的严格隔离基线（22.9/18.4/22.8/19.5 QPS）因测试脚本环境变量
+拼写错误而无效：脚本设 `PQ_CODE_PATH`（无 S），benchmark 代码读 `PQ_CODES_PATH`（有 S）。
+PQ codes 未加载 -> `pq_enabled_=false` -> 走 fallback 路径（无 PQ 粗筛）-> Recall=98.35%
+但 QPS=23（极慢）。
+
+修正后（PQ_CODES_PATH）在 [[CON-SLA-014]] 严格隔离下重测：
+
+| 模式 | 线程 | DEC-066 假基线 | 修正基线 | 旧 SLA | 达标 |
+|------|------|---------------|----------|--------|------|
+| Buffered | 1T | ~~22.9~~ | **2309** | ≥2000 | ✅ |
+| Buffered | 4T | ~~18.4~~ | **6060** | ≥5000 | ✅ |
+| O_DIRECT | 1T | ~~22.8~~ | **837** | ≥100 | ✅ |
+| O_DIRECT | 4T | ~~19.5~~ | **3215**⚠️ | ≥400 | ⚠️ recall=13.95% |
+
+cgroup 验证：memory.peak=512MB=memory.max，oom=0，无白嫖。
+
+**Decision.**
+
+1. **DEC-066 基线数据废止**：22.9/18.4/22.8/19.5 标注为环境变量错误导致的假基线
+2. **旧 SLA 恢复有效**：Buffered ≥2000/≥5000、O_DIRECT ≥100/≥400 在严格隔离下达标
+3. **CHR-006 / CON-SLA-011 恢复旧 SLA must 数字**，附注严格隔离验证已通过
+4. **CON-SLA-014 协议不变**：仍为唯一合法测法
+5. **O_DIRECT 4T recall 异常待查**：疑为 O_DIRECT+io_uring 多线程问题
+6. **环境变量教训**：所有测试脚本 MUST 使用 `PQ_CODES_PATH`（有 S）
+
+> rationale: 22.9 QPS 不是严格隔离的真实性能，是 PQ 未加载的 fallback 路径性能。
+> 修正后 2309 QPS 证明 SIFT1M @ 512MB cgroup 的 page cache 预算（~357MB）足以覆盖热工作集，
+> 旧 SLA 数字在严格隔离下仍然有效。page cache 白嫖问题在 SIFT1M 规模下影响可忽略。

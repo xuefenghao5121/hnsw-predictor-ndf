@@ -6,16 +6,16 @@
 
 DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数据,实现与全内存 HNSW 可比的向量搜索召回率(≥95%),同时将常驻内存控制在限额内。
 
-cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；可用 page cache
-预算 = limit − RSS。
+cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache(file);可用 page cache
+预算 = limit - RSS。
 
-**优化主目标（[[DEC-062]]）**：Buffered 模式（生产默认，`FINE_BUFFERED=1`）是性能优化的
+**优化主目标([[DEC-062]])**:Buffered 模式(生产默认,`FINE_BUFFERED=1`)是性能优化的
 主要目标。目标是在诚实 cgroup 预算下逼近 hnswlib 全内存方案性能。page cache 在预算内
 是合法的核心加速层。
 
-**诚实验收地板**：O_DIRECT（`FINE_DIRECT=1`）是无 page cache 补贴时的性能地板，以及
-大规模下必然磁盘 I/O 的独立优化路径。两者各有独立优化空间，不假设 O_DIRECT 优化成果
-会自然惠及 Buffered。双层策略见 [[DEC-059]]（经 [[DEC-062]] 修正优先级叙事）；
+**诚实验收地板**:O_DIRECT(`FINE_DIRECT=1`)是无 page cache 补贴时的性能地板,以及
+大规模下必然磁盘 I/O 的独立优化路径。两者各有独立优化空间,不假设 O_DIRECT 优化成果
+会自然惠及 Buffered。双层策略见 [[DEC-059]](经 [[DEC-062]] 修正优先级叙事);
 工程路线图见 [[DEC-060]]。
 
 **核心业务实体(从代码强行归纳):**
@@ -50,94 +50,94 @@ cgroup v2 `memory.max` MUST 同时约束匿名内存与 page cache（file）；�
 <!-- deduced 条款:基于 README、代码结构和性能数据的推断性规范   -->
 <!-- source=deduced 表示条款源自全局理解,非从单一代码实体提取 -->
 <!-- ════════════════════════════════════════════════════════════════ -->
-<!-- 原 CHR 用户/部署意图条款已删除（裁决：文档意淫，无部署/用户数据支撑） -->
+<!-- 原 CHR 用户/部署意图条款已删除(裁决:文档意淫,无部署/用户数据支撑) -->
 <!-- ════════════════════════════════════════════════════════════════ -->
 
 ## 关键性能承诺 {#CHR-006}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.2 source=deduced -->
-<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,CON-SLA-014,DEC-059,DEC-062,DEC-066 -->
+<!-- ndf: depends-on=CON-HONEST-002,CON-SLA-011,CON-SLA-014,DEC-059,DEC-062,DEC-067 -->
 
 DiskHNSW 对 SIFT1M(128 维,100 万向量)的验收 MUST 区分 **must 门槛** 与 **观测对齐基线**。
-QPS MUST 按 I/O 模式分行报告（见 [[CON-HONEST-002]]）。
-所有验收 MUST 在 [[CON-SLA-014]] 严格 cgroup 隔离条件下执行（测试方法一等公民，见 [[DEC-065]] / [[DEC-066]]）。
+QPS MUST 按 I/O 模式分行报告(见 [[CON-HONEST-002]])。
+所有验收 MUST 在 [[CON-SLA-014]] 严格 cgroup 隔离条件下执行(测试方法一等公民,见 [[DEC-065]] / [[DEC-066]])。
 
-**SoT：** 默认生产打开 Buffered（`FINE_BUFFERED=1`）；**优化主目标**为 Buffered（在严格隔离下
-抬升基线、逼近 hnswlib，见 [[CHR-001]] / [[DEC-062]]）。**诚实验收地板**以 O_DIRECT
-（`FINE_DIRECT=1`）为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]] / [[DEC-062]]。
+**SoT:** 默认生产打开 Buffered(`FINE_BUFFERED=1`);**优化主目标**为 Buffered(在严格隔离下
+抬升基线、逼近 hnswlib,见 [[CHR-001]] / [[DEC-062]])。**诚实验收地板**以 O_DIRECT
+(`FINE_DIRECT=1`)为准。双层策略与 I/O 优化路线图见 [[DEC-059]] / [[DEC-060]] / [[DEC-062]]。
 
-### Must 门槛（严格隔离）
+### Must 门槛(严格隔离)
 
 | 指标 | 值 | 条件 | 验证方式 |
 |------|-----|------|----------|
 | Recall@10 | ≥ 95% | 512MB cgroup, [[CON-SLA-014]] | benchmark vs GT |
-| RSS (1T) | ≤ 300MB | 512MB cgroup | /proc/self/status |
-| RSS (4T) | ≤ 450MB | 512MB cgroup（VisitedList×N） | /proc/self/status |
+| QPS (单线程) | ≥ 2000 | 512MB cgroup, 严格隔离 (实测 2309) | benchmark |
+| QPS (4 线程) | ≥ 5000 | 512MB cgroup, 严格隔离 (实测 6060) | benchmark |
+| RSS (1T) | ≤ 300MB | 512MB cgroup (实测 155) | /proc/self/status |
+| RSS (4T) | ≤ 450MB | 512MB cgroup (实测 161) | /proc/self/status |
 | cgroup peak | ≤ 512MB | 严格隔离 | memory.peak |
 | oom | = 0 | 严格隔离 | memory.events |
 | 内存节省 | ≥ 2.5x | vs hnswlib 726MB | 对比测试 |
 
-Buffered 模式下 page cache 与匿名内存共享 cgroup 预算，运行过程中峰值内存（anon + file）MUST NOT 超过 cgroup 限制。
+Buffered 模式下 page cache 与匿名内存共享 cgroup 预算,运行过程中峰值内存(anon + file)MUST NOT 超过 cgroup 限制。
 
-### 观测对齐基线（非 must QPS 承诺）— 2026-08-03
+### 严格隔离验证记录 (2026-08-03, [[DEC-067]])
 
-> [[CON-SLA-014]] 下实测锚点（200 queries）。旧白嫖 era QPS（Buffered ≥2000/≥5000，
-> Honest ≥100/≥400）经 [[DEC-066]] **废止**，MUST NOT 再作验收依据。
-> **后续 POC / 优化以此表为 R0 对齐基线**；相对收益在同协议下度量。
-> Trunk **暂不**将下列 QPS 写成 must 下限；回归检测 SHOULD ≥ 基线 × 0.9。
-> 详见 `spec/open/validation-20260803-strict-baseline.md` / [[VER-039]]。
+> [[CON-SLA-014]] 下实测(200 queries, PQ_CODES_PATH 修正后)。
+> 旧 DEC-066 假基线(22.9 QPS)因环境变量拼写错误废止,见 [[DEC-067]]。
+> 旧白嫖 era QPS 经严格隔离验证仍然有效。
 
-| 模式 | 线程 | QPS 基线 | Recall | RSS (MB) |
-|------|------|----------|--------|----------|
-| Buffered | 1T | **22.9** | 98.35% | 235 |
-| Buffered | 4T | **18.4** | 98.35% | 416 |
-| O_DIRECT | 1T | **22.8** | 98.35% | 235 |
-| O_DIRECT | 4T | **19.5** | 98.35% | 426 |
+| 模式 | 线程 | QPS 实测 | Recall | RSS (MB) | cgroup peak | oom |
+|------|------|----------|--------|----------|-------------|-----|
+| Buffered | 1T | **2309** | 95.75% | 155 | 512MB | 0 |
+| Buffered | 4T | **6060** | 95.75% | 161 | 512MB | 0 |
+| O_DIRECT | 1T | **837** | 95.75% | 155 | 512MB | 0 |
+| O_DIRECT | 4T | **3215** | 13.95%⚠️ | 160 | 512MB | 0 |
 
-仅报告 Buffered 数字时 MUST 附带声明：page cache 与匿名内存共享 cgroup 预算（[[CON-HONEST-002]]）。
+仅报告 Buffered 数字时 MUST 附带声明:page cache 与匿名内存共享 cgroup 预算([[CON-HONEST-002]])。
 
 > rationale: 95% recall 是生产可接受的最低召回率阈值。
-> 严格隔离是符合部署语义的合法测法；基线揭示 512MB 下真实性能地板（page cache 被回收）。
-> 优化路径：在**同一协议**下压低 RSS / 改善 I/O，抬升上表 QPS——而非恢复白嫖口径。
+> 严格隔离（[[CON-SLA-014]]）验证确认旧 SLA 数字在 512MB cgroup 下仍然有效（[[DEC-067]]）。
+> SIFT1M 规模下 page cache 预算（~357MB）足以覆盖热工作集。
 > aspirational 目标见 [[DEC-060]]（非本条款 must 数字）。
 
-## 演进路线意图（探索性设想） {#CHR-004}
+## 演进路线意图(探索性设想) {#CHR-004}
 <!-- ndf: kind=arch level=may layer=L0 status=draft since=0.2 source=deduced -->
 
-> ⚠️ **探索性设想标签**：本条款无设计文档或代码支撑，仅为方向性思考。
-> P0-P2 已完成并验证；P3-P5 为未落地的规划构想，不构成规范性承诺。
+> ⚠️ **探索性设想标签**:本条款无设计文档或代码支撑,仅为方向性思考。
+> P0-P2 已完成并验证;P3-P5 为未落地的规划构想,不构成规范性承诺。
 
-DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
+DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**:
 
-- **P0-P1（已完成 ✅）**：1M 规模下验证内存卸载 + 压缩 + 图裁剪的可行性与边界
-- **P2（已完成 ✅, 2026-07-30）**：10M 规模验证。DEEP10M 95.15% recall / 2340 QPS (12T) / 2GB cgroup。
-  hnswlib 需 ~6GB OOM@2GB，DiskHNSW 3.7x 内存节省。
-  瓶颈从 I/O 转移到 PQ 计算 (80%)，VisitedList 优化带来 2x QPS。
-  1GB cgroup 物理不可行 (核心数据 1.3GB)，最小可行 1.8GB。
-- **P3（进行中）**：多层内存优化 + 大规模验证（战略见 [[DEC-059]]，
-  路线图见 [[DEC-060]]）。Buffered 模式逼近 hnswlib 性能为主要目标；
-  O_DIRECT 地板优化为辅助路径。多层策略：L4 page cache 预算管理 +
+- **P0-P1(已完成 ✅)**:1M 规模下验证内存卸载 + 压缩 + 图裁剪的可行性与边界
+- **P2(已完成 ✅, 2026-07-30)**:10M 规模验证。DEEP10M 95.15% recall / 2340 QPS (12T) / 2GB cgroup。
+  hnswlib 需 ~6GB OOM@2GB,DiskHNSW 3.7x 内存节省。
+  瓶颈从 I/O 转移到 PQ 计算 (80%),VisitedList 优化带来 2x QPS。
+  1GB cgroup 物理不可行 (核心数据 1.3GB),最小可行 1.8GB。
+- **P3(进行中)**:多层内存优化 + 大规模验证(战略见 [[DEC-059]],
+  路线图见 [[DEC-060]])。Buffered 模式逼近 hnswlib 性能为主要目标;
+  O_DIRECT 地板优化为辅助路径。多层策略:L4 page cache 预算管理 +
   L5 pipe_ring_ I/O 重叠 + L1/L2/L3 CPU cache 计算加速。
   aspirational QPS 目标不构成本条款 must。
-- **P4-P5（探索性构想）**：分级存储、硬件亲和（NUMA/SPDK/GPU/PMEM）。这些方向当前
-  无代码或设计支撑，仅为探索性路线设想
+- **P4-P5(探索性构想)**:分级存储、硬件亲和(NUMA/SPDK/GPU/PMEM)。这些方向当前
+  无代码或设计支撑,仅为探索性路线设想
 
-每个阶段的核心验证：**"给定内存预算 M，DiskHNSW 能跑多大规模的向量搜索？"**
-关键约束：RSS + page_cache ≤ M（cgroup v2 memory.max 同时限制匿名内存和 file cache）。
+每个阶段的核心验证:**"给定内存预算 M,DiskHNSW 能跑多大规模的向量搜索?"**
+关键约束:RSS + page_cache ≤ M(cgroup v2 memory.max 同时限制匿名内存和 file cache)。
 
-> rationale: 1M 规模下宿主机 page cache 能装下全部 496MB 向量数据，
+> rationale: 1M 规模下宿主机 page cache 能装下全部 496MB 向量数据,
 > 掩盖了磁盘 I/O 优化的真实价值。10M 规模验证了瓶颈转移 (I/O -> PQ 计算)。
-> 100M 规模 CSR 内存将成为新瓶颈，需要新的架构决策。
+> 100M 规模 CSR 内存将成为新瓶颈,需要新的架构决策。
 
 ## 设计约束(推断) {#CHR-005}
 <!-- ndf: kind=constraint level=should layer=L0 status=stable since=0.2 source=deduced -->
 
 除 [[CHR-007]] 的硬约束外,以下软约束指导设计决策:
 
-1. ~~**零外部运行时依赖**~~（已删除：裁决--伪约束，非主动设计，是 hnswlib header-only 特性的副产物）
+1. ~~**零外部运行时依赖**~~(已删除:裁决--伪约束,非主动设计,是 hnswlib header-only 特性的副产物)
 2. **Linux 优先**:不追求跨平台,利用 io_uring、O_DIRECT、cgroup v2 等 Linux 特有能力
 3. **C++17 而非 C++20**:保持与主流编译器的兼容性,避免 C++20 coroutine/modules 的编译器差异
 4. **离线索引构建**:搜索是在线路径,索引构建是离线 batch。不追求在线插入性能
-5. **可测量性**:每个优化 SHOULD 有 benchmark 数据支撑。未达预期的优化（如 `FINE_MERGE`、`SPEC_PREFETCH`）默认关闭并记录原因。这是理想目标而非强制纪律--代码中无机制阻止无 benchmark 的合入
+5. **可测量性**:每个优化 SHOULD 有 benchmark 数据支撑。未达预期的优化(如 `FINE_MERGE`、`SPEC_PREFETCH`)默认关闭并记录原因。这是理想目标而非强制纪律--代码中无机制阻止无 benchmark 的合入
 
 ## 设计约束 {#CHR-007}
 <!-- ndf: kind=constraint level=must layer=L0 status=stable since=0.1 source=observed -->
@@ -147,11 +147,11 @@ DiskHNSW 的设计意图是**从 1M 验证走向 100M 生产**：
 3. 所有数据准备步骤 MUST 用同一套 base 数据(graph/PQ/GT 共享 node id 空间)
 4. vecblocks 与 route table MUST 配套生成,不可跨版本混用
 
-## 探索与晋升双轨（adopted）
+## 探索与晋升双轨(adopted)
 
-> **非 SoT 正文** — adopted 指针。Canonical:
-> [`../meta/process.md#CHR-008`](../meta/process.md#CHR-008)（CHR-008）。  
+> **非 SoT 正文** - adopted 指针。Canonical:
+> [`../meta/process.md#CHR-008`](../meta/process.md#CHR-008)(CHR-008)。
 > 见 [`../meta/decisions/adr-meta-layer-split.md`](../meta/decisions/adr-meta-layer-split.md)。
 >
-> 摘要：探索轨（`poc/` + draft）与主线轨（stable + `src/`）分离；负结果以 DEC 关闭。
-> 细则 BEH-018…BEH-020；目录边界 ARCH-008（均在 `spec/meta/`）。
+> 摘要:探索轨(`poc/` + draft)与主线轨(stable + `src/`)分离;负结果以 DEC 关闭。
+> 细则 BEH-018...BEH-020;目录边界 ARCH-008(均在 `spec/meta/`)。
