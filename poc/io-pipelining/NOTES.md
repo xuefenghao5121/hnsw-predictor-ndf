@@ -2,6 +2,7 @@
 
 > 提案: `spec/open/proposal-io-pipelining.md` (r3)
 > 关联: [[DEC-060]]、[[DEC-062]]、[[DEC-063]]、[[DEC-064]]、[[BEH-021]]…[[BEH-023]]、[[API-010]]、[[CON-SLA-013]]
+> 装订器: `ndf/TOPIC.md`（[[BEH-025]]）；修正案见 `proposal-io-behavior-correction.md`
 > track: poc | 创建: 2026-08-01 | 修订: 2026-08-02（同步 DEC-063/064 卫生）
 
 ## 架构

@@ -11,7 +11,7 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 `poc/`（探索）或委托 Claude Code 写 `src/`（晋升/主线修复）。
 
 **权威流程条款**：[[CHR-008]]、[[ARCH-008]]、[[BEH-018]]、[[BEH-019]]、[[BEH-020]]、
-[[CON-POC-001]]。本文件是指挥层操作手册，不得与上述条款矛盾。
+[[BEH-025]]、[[CON-POC-001]]。本文件是指挥层操作手册，不得与上述条款矛盾。
 
 
 ## 1. 工作流程（按 track 分支）
@@ -76,7 +76,7 @@ under `spec/` (尤其 `20-behavior/process.md` [[BEH-018]]…[[BEH-020]]、[[CHR
 | `30-interfaces/`（仅协议级） | `50-verification/` |
 | `40-constraints/`（仅 SLA/约束条款） | `20-behavior/`（L2/L3） |
 | `open/`（全权） | `30-interfaces/`（字段级） |
-| `poc/<topic>/` 的 **NOTES/README/索引**（非生产补丁亦可草拟，实现优先委派） | 把 POC 补丁写入 `spec/models/` |
+| `poc/<topic>/` 的 **NOTES/README/ndf 装订器**（非生产补丁亦可草拟，实现优先委派） | 把 POC 补丁写入 `spec/models/` |
 | `AGENTS.md`、`.openclaw/state.json` | 将探索默认开启合入 Trunk |
 
 `spec/models/`：仅 L3 参考模型说明/金标；**禁止**生产路径实验补丁（[[ARCH-008]]）。
@@ -151,15 +151,17 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 #### 6.2a track=poc（探索）
 
 落地时：
-- 契约进 `open/` 或固定目录且 **`status=draft` / `level=tbd`**
+- 契约进 `open/` 或 `poc/<topic>/ndf/proposals/` 或固定目录且 **`status=draft` / `level=tbd`**
+- MUST 存在/更新 `poc/<topic>/ndf/TOPIC.md` 登记（[[BEH-025]]）；无装订器不得开题实现
 - MUST NOT 写入 `status=stable` 的 CON-SLA must（[[BEH-018]]、[[CON-POC-001]]）
-- **先**创建/更新 `poc/<topic>/`（至少 NOTES 链接提案）；**再**委派实现
+- **先**创建/更新 `poc/<topic>/`（NOTES + **ndf/ 装订器** 链接提案）；**再**委派实现
 - MUST NOT 在探索期直接改 Trunk `src/`（[[BEH-018]] 第 6 条）
 
 已审核后：
-- 委派：在 `poc/<topic>/` 实现与基准；允许 v1→v2 多轮，**改 POC 与提案证据，不反复改 Trunk stable**
+- 委派：在 `poc/<topic>/` 实现与基准；允许 v1→v2 多轮，**改 POC、装订器与提案证据，不反复改 Trunk stable**
+- 代码/脚本 commit MUST 含 `Topic:` / `Proposals:` / `Clauses:` trailers，并追加 `ndf/COMMITS.md`
 - **跳过**场景5/6（除非用户只要 POC 自测报告）
-- 正结果 → 另开 **promote** 提案；负结果 → §6.2d
+- 正结果 → 另开 **promote** 提案（引用 TOPIC）；负结果 → §6.2d
 
 **若曾误改 `src/`（矫正检查清单）**：
 1. `git log` / `rg` 确认 Trunk 无 POC 表面（标志、默认开启、实验路径）
@@ -172,14 +174,17 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
 落地时：
 - draft→stable（或新增 stable）；SLA 仅在有合格证据时写入
-- 代码要求：**干净合入** `src/`（重写/最小 cherry-pick），commit 引用条款与提案/DEC（[[BEH-019]]）
+- promote 提案 MUST 引用 `poc/<topic>/ndf/TOPIC.md` 与 draft→stable ID 清单
+- 代码要求：**干净合入** `src/`（重写/最小 cherry-pick），commit 引用条款与提案/DEC，
+  并含 `Promotes: <topic>`（[[BEH-019]]、[[BEH-025]]）
 
 已审核后：
 1. ACP 委派 Claude Code 合入 `src/` + L2/L3/VER/字段
-2. 自动场景5（编译）
-3. 自动场景6（性能；对照 stable SLA）
-4. 失败 → 场景7
-5. 通过 → 验收合并提示（tag 可选）
+2. 更新 TOPIC=`promoted`；COMMITS 记 src_commit + spec_commit；装订器按提案归档
+3. 自动场景5（编译）
+4. 自动场景6（性能；对照 stable SLA）
+5. 失败 → 场景7
+6. 通过 → 验收合并提示（tag 可选）
 
 #### 6.2c track=process
 
@@ -189,9 +194,9 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 #### 6.2d 负结果闭环
 
 对齐 [[BEH-020]]：
-1. DEC（根因、废弃 ID 列表）
-2. 条款 deprecated；提案 Rejected/Superseded
-3. Trunk `src/` revert 或确认从未合并；`poc/<topic>/` 归档或保留复现
+1. DEC（根因、废弃 ID 列表；`Rejects: <topic>`）
+2. 条款 deprecated；提案 Rejected/Superseded；TOPIC=`rejected`
+3. Trunk `src/` revert 或确认从未合并；**默认** `poc/<topic>/ndf/` 迁入 `spec/archive/YYYY-MM/poc-<topic>/`
 4. **不**改写已推送历史来「对齐文档」
 
 

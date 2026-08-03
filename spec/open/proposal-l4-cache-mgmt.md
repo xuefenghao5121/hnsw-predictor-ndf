@@ -1,12 +1,13 @@
 # Proposal: L4 Page Cache 主动管理 - 避免内核盲目回收 {#PROP-L4-CACHE-MGMT}
 
 > track: poc
-> Status: Pending
+> Status: Implemented on 2026-08-03
 > 日期: 2026-08-03
 > 修订: r2 — 审查收口：Pending；[[BEH-024]]；禁止 EVICT 幽灵；统一预算；改写 file 目标
 > 关联: [[CHR-001]], [[CHR-006]], [[CON-SLA-014]], [[DEC-059]], [[DEC-066]], [[BEH-021]], [[BEH-023]], [[BEH-024]]
 > 相关并行: `proposal-io-behavior-correction.md`（pipe_ring_）；**本 POC 优先**（先稳 L4 再叠 L5）
 > 基线: SIFT1M 严格隔离 ([[DEC-066]]) Buffered 1T=22.9 QPS
+> 主题装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`（[[BEH-025]]）
 
 ## 1. 动机
 

@@ -24,7 +24,9 @@ poc:
   role: exploration
   sot: false
   note: |
-    仓库根 poc/<topic>/；见 ARCH-008 / BEH-018…020 / CON-POC-001。
+    仓库根 poc/<topic>/；见 ARCH-008 / BEH-018…020 / BEH-025 / CON-POC-001。
+    每个 topic MUST 有 poc/<topic>/ndf/ 主题装订器（TOPIC.md + COMMITS.md）；
+    装订器非 Trunk must 源。扫描：python3 tools/ndf/ndf_index.py poc-topics
 
 # L3 参考模型：金标，禁止存放生产路径实验补丁。
 models:
@@ -44,7 +46,7 @@ layout:
     prefetch.md: [BEH-012]
     metrics.md: [BEH-013]
     io-modes.md: [BEH-015, BEH-016]
-    process.md: [BEH-018..020]
+    process.md: [BEH-018..020, BEH-025]
   30-interfaces:
     cli.md: [API-001..003]
     formats.md: [API-004]
@@ -75,4 +77,5 @@ tooling:
   note: |
     INDEX/graph are generated for human jump/impact review. SoT remains 00-50 + decisions.
     Implementation is under tools/ndf/ (harness), not scripts/ (data pipeline).
+    POC binders: `python3 tools/ndf/ndf_index.py poc-topics` (non-SoT).
 

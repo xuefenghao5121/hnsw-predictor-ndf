@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T12:44:41Z",
-  "clause_count": 163,
+  "generated_at": "2026-08-03T15:17:19Z",
+  "clause_count": 166,
   "nodes": {
     "API-001": {
       "id": "API-001",
@@ -319,15 +319,22 @@
         ],
         "depends-on": [
           "DEF-020",
-          "DEF-021"
+          "DEF-021",
+          "DEF-022",
+          "BEH-025"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "DEF-022",
+        "BEH-025"
+      ],
       "backlinks": [
         "BEH-018",
+        "BEH-025",
         "CHR-008",
         "CON-POC-001",
-        "DEF-020"
+        "DEF-020",
+        "DEF-022"
       ]
     },
     "BEH-001": {
@@ -780,7 +787,7 @@
       "id": "BEH-018",
       "title": "探索期 NDF 纪律",
       "file": "20-behavior/process.md",
-      "line": 6,
+      "line": 7,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -792,14 +799,17 @@
         ],
         "depends-on": [
           "ARCH-008",
-          "DEF-020"
+          "DEF-020",
+          "BEH-025"
         ]
       },
       "body_refs": [
+        "BEH-025",
         "BEH-020",
         "DEC-061"
       ],
       "backlinks": [
+        "BEH-025",
         "CHR-008",
         "CON-POC-001",
         "DEF-020"
@@ -809,7 +819,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "20-behavior/process.md",
-      "line": 26,
+      "line": 31,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -821,11 +831,15 @@
         ],
         "depends-on": [
           "DEF-021",
-          "CON-HONEST-002"
+          "DEF-022",
+          "CON-HONEST-002",
+          "BEH-025"
         ]
       },
       "body_refs": [
-        "CON-HONEST-002"
+        "CON-HONEST-002",
+        "CON-SLA-014",
+        "BEH-025"
       ],
       "backlinks": [
         "CHR-008",
@@ -837,7 +851,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "20-behavior/process.md",
-      "line": 40,
+      "line": 51,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -848,7 +862,9 @@
           "CHR-008"
         ],
         "depends-on": [
-          "DEC-061"
+          "DEC-061",
+          "BEH-025",
+          "DEF-022"
         ]
       },
       "body_refs": [
@@ -973,6 +989,40 @@
       ],
       "backlinks": [
         "CON-SLA-013"
+      ]
+    },
+    "BEH-025": {
+      "id": "BEH-025",
+      "title": "POC 主题装订纪律",
+      "file": "20-behavior/process.md",
+      "line": 67,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "edges": {
+        "refines": [
+          "BEH-018",
+          "ARCH-008"
+        ],
+        "depends-on": [
+          "DEF-022",
+          "DEF-023",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "DEF-023",
+        "CON-SLA-014"
+      ],
+      "backlinks": [
+        "ARCH-008",
+        "BEH-018",
+        "BEH-019",
+        "BEH-020",
+        "DEF-022",
+        "DEF-023"
       ]
     },
     "CHR-001": {
@@ -1359,6 +1409,7 @@
         "API-010",
         "BEH-021",
         "BEH-024",
+        "BEH-025",
         "CON-SLA-013",
         "DEC-063"
       ]
@@ -1575,7 +1626,9 @@
         "VER-039"
       ],
       "backlinks": [
+        "BEH-019",
         "BEH-024",
+        "BEH-025",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-010",
@@ -3159,7 +3212,8 @@
       "backlinks": [
         "ARCH-008",
         "BEH-018",
-        "CHR-008"
+        "CHR-008",
+        "DEF-022"
       ]
     },
     "DEF-021": {
@@ -3180,6 +3234,55 @@
         "ARCH-008",
         "BEH-019",
         "CHR-008"
+      ]
+    },
+    "DEF-022": {
+      "id": "DEF-022",
+      "title": "DEF: Topic Binder（主题装订器）",
+      "file": "00-charter/glossary.md",
+      "line": 126,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "edges": {
+        "depends-on": [
+          "DEF-020",
+          "ARCH-008",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [
+        "BEH-025"
+      ],
+      "backlinks": [
+        "ARCH-008",
+        "BEH-019",
+        "BEH-020",
+        "BEH-025",
+        "DEF-023"
+      ]
+    },
+    "DEF-023": {
+      "id": "DEF-023",
+      "title": "DEF: Commit Ledger（提交账本）",
+      "file": "00-charter/glossary.md",
+      "line": 134,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "edges": {
+        "depends-on": [
+          "DEF-022",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-025"
       ]
     },
     "REF-HELMSMAN": {

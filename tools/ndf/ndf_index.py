@@ -8,6 +8,7 @@ Usage:
   python3 tools/ndf/ndf_index.py impact BEH-018 DEC-061
   python3 tools/ndf/ndf_index.py validate           # dangling [[ID]] / meta refs
   python3 tools/ndf/ndf_index.py diff [git-range]   # IDs touched + impact closure
+  python3 tools/ndf/ndf_index.py poc-topics         # list poc/<topic>/ndf/TOPIC.md (non-SoT)
 """
 
 from __future__ import annotations
@@ -401,6 +402,64 @@ def cmd_diff(by_id: dict[str, Clause], range_spec: str, depth: int) -> int:
     return 0
 
 
+def cmd_poc_topics() -> int:
+    """List poc/<topic>/ndf/TOPIC.md binders (non-SoT progress surface)."""
+    poc_root = ROOT / "poc"
+    print("# POC topic binders (non-SoT; see BEH-025)")
+    if not poc_root.is_dir():
+        print("(no poc/ directory)")
+        return 0
+    topics = []
+    for topic_dir in sorted(poc_root.iterdir()):
+        if not topic_dir.is_dir() or topic_dir.name.startswith("."):
+            continue
+        if topic_dir.name == "README.md":
+            continue
+        topic_md = topic_dir / "ndf" / "TOPIC.md"
+        if not topic_md.is_file():
+            topics.append((topic_dir.name, "MISSING", str(topic_md.relative_to(ROOT)), 0, "—"))
+            continue
+        text = topic_md.read_text(encoding="utf-8", errors="replace")
+        status = "unknown"
+        m = re.search(r"(?im)^\s*[-*]?\s*\**status\**\s*[:=]\s*`?([a-z_]+)`?", text)
+        if m:
+            status = m.group(1)
+        else:
+            m2 = re.search(r"(?im)^>\s*status:\s*([a-z_]+)", text)
+            if m2:
+                status = m2.group(1)
+        prop_dir = topic_dir / "ndf" / "proposals"
+        n_prop = 0
+        if prop_dir.is_dir():
+            n_prop = sum(1 for p in prop_dir.iterdir() if p.suffix == ".md")
+        # also count proposal links in TOPIC
+        n_link = len(re.findall(r"proposal-[a-z0-9_-]+\.md", text, flags=re.I))
+        baseline = "—"
+        mb = re.search(r"(?im)baseline_protocol\s*[:=]\s*(.+)$", text)
+        if mb:
+            baseline = mb.group(1).strip()[:80]
+        topics.append(
+            (
+                topic_dir.name,
+                status,
+                str(topic_md.relative_to(ROOT)),
+                max(n_prop, n_link),
+                baseline,
+            )
+        )
+    if not topics:
+        print("(no topic directories under poc/)")
+        return 0
+    print(f"{'topic':<24} {'status':<12} {'proposals~':>10}  path")
+    missing = 0
+    for name, status, path, nprop, _bl in topics:
+        print(f"{name:<24} {status:<12} {nprop:>10}  {path}")
+        if status == "MISSING":
+            missing += 1
+    print(f"\ntopics: {len(topics)}; missing_binder: {missing}")
+    return 1 if missing else 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--archive", action="store_true", help="include spec/archive/")
@@ -415,8 +474,13 @@ def main() -> int:
     p_diff = sub.add_parser("diff", help="IDs in git diff + impact")
     p_diff.add_argument("range", nargs="?", default="HEAD~1")
     p_diff.add_argument("--depth", type=int, default=1)
+    sub.add_parser("poc-topics", help="list poc/<topic>/ndf/TOPIC.md binders (non-SoT)")
 
     args = ap.parse_args()
+
+    if args.cmd == "poc-topics":
+        return cmd_poc_topics()
+
     by_id = load_graph(include_archive=args.archive, include_open=args.open)
 
     if args.cmd == "index":

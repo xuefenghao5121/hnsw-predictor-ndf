@@ -4,9 +4,9 @@
   "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_confirmation_r2",
+  "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T16:07:00Z",
-  "notes": "POC L4 cache mgmt r2 审查收口: Status=Pending. BEH-024 draft 已落地. 提案/NOTES 已对齐(禁 EVICT 幽灵, 统一预算, file 监控语义). CON-SLA-013 不绑定 BEH-024. 待用户确认后委派 poc/ 实现."
+  "last_activity": "2026-08-03T17:20:00Z",
+  "notes": "POC L4 cache mgmt 已确认. 提案 Implemented. 开始实现 poc/l4-cache-mgmt/. 优先级: A(DONTNEED) -> D(FINE_FADVISE) -> B(WILLNEED) -> C(mincore)."
 }
