@@ -1,7 +1,7 @@
 # Proposal: 降 REFINE_EF 减少候选数 {#PROP-REFINE-EF}
 
 > track: poc
-> Status: Draft
+> Status: Implemented on 2026-08-03
 > 日期: 2026-08-03
 > 关联: [[CHR-006]], [[CON-SLA-014]], [[DEC-067]], [[BEH-024]]
 > 基线: DEEP10M 2GB cgroup Buffered 1T = 580 QPS, majfault=73005

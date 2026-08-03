@@ -4,9 +4,9 @@
   "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_confirmation",
+  "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T23:37:00Z",
-  "notes": "fv-cap promote完成(DEC-069). 2个新POC开题: refine-ef-tuning + pq-quality. 装订器已创建. 待确认后开始实现."
+  "last_activity": "2026-08-03T23:43:00Z",
+  "notes": "2个POC已确认. refine-ef-tuning: 降REFINE_EF扫描. pq-quality: PQ M/dsub调优. 开始实现."
 }
