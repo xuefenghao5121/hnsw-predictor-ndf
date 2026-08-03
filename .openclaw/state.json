@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "proposal-refine-ef.md, proposal-pq-quality.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "pass",
-  "perf_status": "pass",
-  "last_activity": "2026-08-03T23:02:00Z",
-  "notes": "Promote l4-cache-mgmt 完成. BEH-024 draft->stable. DEC-068 记录. 编译+性能验证通过(Buffered 1T=2365 4T=5765, O_DIRECT 4T recall=95.75%). src/ 已合入(flat_vec_cache check + pread fix). TOPIC=promoted."
+  "pending_decision": "waiting_for_user_confirmation",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "2026-08-03T23:37:00Z",
+  "notes": "fv-cap promote完成(DEC-069). 2个新POC开题: refine-ef-tuning + pq-quality. 装订器已创建. 待确认后开始实现."
 }
