@@ -1751,6 +1751,14 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 if (cross) pages_needed.insert(page0 + 1);
             }
 
+            // L4 WILLNEED: hint kernel to prefetch fine rerank pages (BEH-024, DEC-070)
+            static const bool kL4Willneed = std::getenv("L4_WILLNEED") && std::atoi(std::getenv("L4_WILLNEED")) != 0;
+            if (kL4Willneed && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
+                for (uint32_t pg : pages_needed) {
+                    posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                }
+            }
+
             if (kFinePread) {
                 // ---- pread 路径 (线程安全, 多线程并发用) ----
                 auto tp0 = std::chrono::high_resolution_clock::now();
