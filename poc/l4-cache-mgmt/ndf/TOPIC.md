@@ -1,7 +1,7 @@
 # TOPIC: l4-cache-mgmt
 
 > topic_id: l4-cache-mgmt
-> status: promoted
+> status: exploring (R5 amendment; R4 promoted subset in Trunk as BEH-024 stable)
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > depends_on_topics: (none; **this topic precedes** io-pipelining re-bench)
 > binder: [[DEF-022]] / [[BEH-025]]
@@ -42,10 +42,12 @@
 
 ## Next gate
 
-- [x] R4: flat_vec_cache 在 fine rerank 中命中 + 增大扫描
-- [ ] R5: WILLNEED 测试（预期收益小，flat_vec_cache 已覆盖热向量）
-- [ ] 决策：flat_vec_cache 增大 + fine rerank check 是否 promote
-- [ ] DEEP10M 严格隔离基线测试
+- [x] R4: flat_vec_cache 在 fine rerank 中命中 + 增大扫描 -> **promoted** (BEH-024 stable, DEC-068)
+- [ ] R5a: WILLNEED 测试（256MB cgroup + flat_vec=64MB 基线）
+- [ ] R5b: Selective DONTNEED 测试（冷 block 驱逐）
+- [ ] R5c: mincore 探测 page cache 命中
+- [ ] 决策：R5 结果 -> promote 或 close topic
+- [ ] DEEP10M 严格隔离基线测试（部分完成，待补充）
 
 ## R4 结果 (2026-08-03)
 
@@ -68,7 +70,9 @@
 
 | Role | Path | Status |
 |------|------|--------|
-| root | `spec/open/proposal-l4-cache-mgmt.md` | Implemented |
+| root | `spec/archive/2026-08/proposal-l4-cache-mgmt.md` | Implemented (archived) |
+| root | `spec/open/proposal-promote-l4.md` | Implemented |
+| amend | `poc/l4-cache-mgmt/ndf/proposals/proposal-l4-r5-willneed-selective.md` | Pending |
 
 ## Evidence
 

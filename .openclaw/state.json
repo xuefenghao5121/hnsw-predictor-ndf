@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-refine-ef.md, proposal-pq-quality.md",
+  "current_proposal": "proposal-l4-r5-willneed-selective.md",
   "scenario_type": "poc",
   "track": "poc",
-  "validation_round": 1,
+  "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-03T23:58:00Z",
-  "notes": "2个POC R0-R4/R0-R3完成. refine-ef: EF=200最佳(+26%,94.25%). pq-quality: M=24最佳(+33%,94.05%). 联合M=24+EF=200=963QPS(+82%,92.40%). 待决策."
+  "last_activity": "2026-08-04T10:53:00+03:00",
+  "notes": "R5: WILLNEED + Selective DONTNEED + mincore in poc/l4-cache-mgmt/; 256MB cgroup baseline"
 }
