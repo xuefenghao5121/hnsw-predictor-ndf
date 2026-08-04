@@ -26,6 +26,7 @@ skills/
 AGENTS.md
 MEMORY.md
 tmp/
+packages/
 
 # 目标文件
 *.o

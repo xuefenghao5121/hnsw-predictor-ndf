@@ -1,1 +1,0 @@
-# placeholder — product content only
