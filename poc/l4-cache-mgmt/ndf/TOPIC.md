@@ -1,7 +1,7 @@
 # TOPIC: l4-cache-mgmt
 
 > topic_id: l4-cache-mgmt
-> status: exploring (R5 amendment; R4 promoted subset in Trunk as BEH-024 stable)
+> status: exploring (R5b Selective DONTNEED still POC; R4 flat_vec_cache + R5a WILLNEED promoted to Trunk as BEH-024 stable)
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > depends_on_topics: (none; **this topic precedes** io-pipelining re-bench)
 > binder: [[DEF-022]] / [[BEH-025]]

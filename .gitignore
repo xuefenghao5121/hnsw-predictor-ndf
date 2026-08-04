@@ -12,6 +12,20 @@ output2/
 # 日志
 logs/
 
+# POC文档
+poc/
+
+# spec文档 NDF迭代记录
+spec/
+
+# AI 工具相关
+.claude/
+.openclaw/
+.cursor/
+skills/
+AGENTS.md
+MEMORY.md
+
 # 目标文件
 *.o
 *.swp
@@ -19,4 +33,4 @@ logs/
 __pycache__/
 
 # hnswlib 外部依赖 (如需精简可改为 submodule)
-# hnswlib/
+hnswlib/
