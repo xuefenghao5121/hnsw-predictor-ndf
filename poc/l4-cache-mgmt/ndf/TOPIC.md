@@ -46,6 +46,7 @@
 - [x] R5a: WILLNEED 测试 -> **18.5x QPS! 候选 promote**
 - [x] R5b: Selective DONTNEED 测试 -> refault 消除, QPS +14%
 - [x] R5d: 组合测试 -> WILLNEED alone 最优
+- [x] 512MB 回归验证 -> **无回归** ✅ (+3.7%)
 - [ ] 决策：WILLNEED 是否 promote 到 Trunk
 - [ ] DEEP10M WILLNEED 验证
 - [ ] R5c: mincore 诊断 (低优先级)
@@ -114,6 +115,30 @@
 3. **Combining hurts**: WILLNEED+SelDONTNEED (965) < WILLNEED alone (2521). Evicting pages reduces readahead effectiveness.
 4. **256MB vs 512MB FADVISE**: At 512MB, blanket FADVISE was -17x (evicting useful hot pages). At 256MB, it's neutral (page cache too small to help anyway).
 5. **WILLNEED 256MB > baseline 512MB**: 2521 vs 2309 QPS. Kernel readahead more efficient than passive page cache.
+
+### R5 512MB 回归验证 (2026-08-04)
+
+| cgroup | WILLNEED | QPS | Recall | RSS | refault | majfault | file | vs base |
+|--------|----------|-----|--------|-----|---------|----------|------|--------|
+| 512MB | OFF | 2408 | 95.75% | 155MB | 0 | 0 | 180MB | baseline |
+| 512MB | ON | **2498** | 95.75% | 155MB | 0 | 0 | 136MB | **+3.7%** |
+
+**结论：512MB 无回归** ✅
+- QPS +3.7%（微正，不退化）
+- Recall/RSS/refault/majfault 全部不变
+- file 从 180MB 降到 136MB（WILLNEED 更精准的预取使用更少 page cache）
+- pread 延迟：9522us -> 3643us（n=200），4812us -> 1875us（n=400）
+
+### WILLNEED 跨 cgroup 对比
+
+| cgroup | WILLNEED | QPS | pread(n=400) | refault | majfault |
+|--------|----------|-----|-------------|---------|----------|
+| 256MB | OFF | 136 | 8161us | 27439 | 5103 |
+| 256MB | ON | 2521 | 1872us | 0 | 5039 |
+| 512MB | OFF | 2408 | 4812us | 0 | 0 |
+| 512MB | ON | 2498 | 1875us | 0 | 0 |
+
+**核心洞察**：WILLNEED 使 256MB 达到 512MB 同等性能。pread 延迟在两种 cgroup 下几乎相同（1872us vs 1875us），说明内核 readahead 不受 cgroup 限制影响。
 
 | date | round | cgroup | flat_vec | QPS | refault | majfault | note |
 |------|-------|--------|----------|-----|---------|----------|------|
