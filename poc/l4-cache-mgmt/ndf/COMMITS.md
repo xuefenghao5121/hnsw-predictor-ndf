@@ -6,4 +6,4 @@
 | date | code_commit | ndf_commit | proposals | clauses | protocol | note |
 |------|-------------|------------|-----------|---------|----------|------|
 | 2026-08-03 | - | (binder created) | proposal-l4-cache-mgmt | BEH-024 | CON-SLA-014 / DEC-066 | ledger starts; no code yet |
-| 2026-08-03 | TBD | TBD | proposal-promote-l4 | BEH-024, DEC-068 | CON-SLA-014 / DEC-067 | promote: flat_vec_cache check + O_DIRECT 4T fix; BEH-024 draft->stable |
+| 2026-08-04 | 310d681 | 310d681 | proposal-l4-r5-willneed-selective | BEH-024 | CON-SLA-014 / DEC-067 | R5: WILLNEED 18.5x, SelDONTNEED +14%, Both 7.1x |

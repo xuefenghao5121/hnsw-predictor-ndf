@@ -43,11 +43,12 @@
 ## Next gate
 
 - [x] R4: flat_vec_cache 在 fine rerank 中命中 + 增大扫描 -> **promoted** (BEH-024 stable, DEC-068)
-- [ ] R5a: WILLNEED 测试（256MB cgroup + flat_vec=64MB 基线）
-- [ ] R5b: Selective DONTNEED 测试（冷 block 驱逐）
-- [ ] R5c: mincore 探测 page cache 命中
-- [ ] 决策：R5 结果 -> promote 或 close topic
-- [ ] DEEP10M 严格隔离基线测试（部分完成，待补充）
+- [x] R5a: WILLNEED 测试 -> **18.5x QPS! 候选 promote**
+- [x] R5b: Selective DONTNEED 测试 -> refault 消除, QPS +14%
+- [x] R5d: 组合测试 -> WILLNEED alone 最优
+- [ ] 决策：WILLNEED 是否 promote 到 Trunk
+- [ ] DEEP10M WILLNEED 验证
+- [ ] R5c: mincore 诊断 (低优先级)
 
 ## R4 结果 (2026-08-03)
 
@@ -96,7 +97,23 @@
 
 见 [COMMITS.md](COMMITS.md)
 
-## R4 Evidence (补充)
+## R5 Evidence (2026-08-04)
+
+| date | round | cgroup | mechanism | QPS | refault | majfault | RSS | vs base | note |
+|------|-------|--------|----------|-----|---------|----------|-----|---------|------|
+| 2026-08-04 | R5-base | 256MB | none (promoted) | 136 | 27439 | 5103 | 153MB | 1x | baseline |
+| 2026-08-04 | R5a | 256MB | +WILLNEED | **2521** | **0** | 5039 | 153MB | **18.5x** | kernel readahead pipelining |
+| 2026-08-04 | R5b | 256MB | +SelDONTNEED | 155 | **2** | 5025 | 153MB | +14% | refault eliminated, QPS modest |
+| 2026-08-04 | R5d | 256MB | +Both | 965 | 0 | 4978 | 153MB | 7.1x | SelDONTNEED hurts WILLNEED |
+| 2026-08-04 | R1-ref | 256MB | blanket FADVISE | 144 | 0 | 5074 | 153MB | +6% | no harm at 256MB (vs 512MB -17x) |
+
+### R5 Key Findings
+
+1. **WILLNEED = free I/O pipelining**: `posix_fadvise(WILLNEED)` before pread loop causes kernel readahead to run asynchronously. By the time pread runs, pages are already in page cache. 18.5x QPS improvement.
+2. **Selective DONTNEED eliminates refault**: refault 27439->2, but QPS only +14% (majfault unchanged = disk I/O is real bottleneck).
+3. **Combining hurts**: WILLNEED+SelDONTNEED (965) < WILLNEED alone (2521). Evicting pages reduces readahead effectiveness.
+4. **256MB vs 512MB FADVISE**: At 512MB, blanket FADVISE was -17x (evicting useful hot pages). At 256MB, it's neutral (page cache too small to help anyway).
+5. **WILLNEED 256MB > baseline 512MB**: 2521 vs 2309 QPS. Kernel readahead more efficient than passive page cache.
 
 | date | round | cgroup | flat_vec | QPS | refault | majfault | note |
 |------|-------|--------|----------|-----|---------|----------|------|
