@@ -47,7 +47,7 @@
 - [x] R5b: Selective DONTNEED 测试 -> refault 消除, QPS +14%
 - [x] R5d: 组合测试 -> WILLNEED alone 最优
 - [x] 512MB 回归验证 -> **无回归** ✅ (+3.7%)
-- [ ] 决策：WILLNEED 是否 promote 到 Trunk
+- [x] 决策：WILLNEED promote 到 Trunk -> **promoted** (DEC-070, BEH-024 amend, API-012)
 - [x] DEEP10M WILLNEED 验证 -> 中性（I/O 量是瓶颈，不是时序）
 - [ ] R5c: mincore 诊断 (低优先级)
 

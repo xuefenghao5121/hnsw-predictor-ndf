@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-promote-willneed.md",
+  "current_proposal": "null",
   "scenario_type": "promote",
   "track": "promote",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "waiting_for_user_review",
-  "validation_status": "pending",
-  "perf_status": "pending",
-  "last_activity": "2026-08-04T12:00:00+03:00",
-  "notes": "WILLNEED promote: NDF landed (BEH-024 amend, API-012, DEC-070); next:委派 Claude Code 合入 src/ -> 编译验证 -> 性能验证"
+  "pending_decision": "null",
+  "validation_status": "passed",
+  "perf_status": "passed",
+  "last_activity": "2026-08-04T13:10:00+03:00",
+  "notes": "WILLNEED promote complete: src/ 合入+编译通过+性能验证通过(17.9x@256MB, +2.2%@512MB, SLA合规)"
 }

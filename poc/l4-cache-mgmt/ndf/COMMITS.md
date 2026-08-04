@@ -6,4 +6,4 @@
 | date | code_commit | ndf_commit | proposals | clauses | protocol | note |
 |------|-------------|------------|-----------|---------|----------|------|
 | 2026-08-03 | - | (binder created) | proposal-l4-cache-mgmt | BEH-024 | CON-SLA-014 / DEC-066 | ledger starts; no code yet |
-| 2026-08-04 | 310d681 | 310d681 | proposal-l4-r5-willneed-selective | BEH-024 | CON-SLA-014 / DEC-067 | R5: WILLNEED 18.5x, SelDONTNEED +14%, Both 7.1x |
+| 2026-08-04 | 2f008f7 | 0805b74 | proposal-promote-willneed | BEH-024, API-012, DEC-070 | CON-SLA-014 | promote WILLNEED: 17.9x@256MB, +2.2%@512MB, no regression |
