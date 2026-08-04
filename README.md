@@ -282,7 +282,9 @@ hnsw-predictor-ndf/
 │   ├── train_pq.py        #   PQ 训练
 │   ├── gen_gt.py          #   Ground Truth 生成
 │   └── run_trunk_perf.sh  #   严格 cgroup 性能验证
-├── docs/                  # 设计文档
+├── docs/
+│   ├── detailed-design.md #   主线详细设计（含 cgroup 严格测试协议）
+│   └── archive-*.orig     #   历史文档存档
 └── Makefile
 ```
 
