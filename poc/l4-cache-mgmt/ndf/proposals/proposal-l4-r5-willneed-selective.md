@@ -1,7 +1,7 @@
 # Proposal: L4 R5 - WILLNEED + Selective DONTNEED + mincore {#PROP-L4-R5}
 
 > track: poc  
-> Status: Implemented on 2026-08-04  
+> Status: Implemented on 2026-08-04 (WILLNEED promoted to Trunk; Selective DONTNEED remains POC)  
 > 日期: 2026-08-04  
 > Role: amend  
 > Parent: `spec/archive/2026-08/proposal-l4-cache-mgmt.md` (Implemented)  

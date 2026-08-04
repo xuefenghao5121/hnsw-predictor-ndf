@@ -155,11 +155,11 @@ pipe_ring_ 的 Buffered I/O 将即将需要的候选页提前拉入有限的 pag
 
 ## L4 Page Cache 主动管理 {#BEH-024}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.9 source=deduced topic=l4-cache-mgmt -->
-<!-- ndf: refines=BEH-023 depends-on=DEC-067,CON-SLA-014,DEC-068 -->
+<!-- ndf: refines=BEH-006 depends-on=DEC-067,CON-SLA-014,DEC-068 -->
 
 > **track: promoted** - 提案 `spec/open/proposal-promote-l4.md`（2026-08-03）。
 > 装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`。
-> 与 [[BEH-023]]（`PIPE_L4` 旁路**填充**）互补：本条款是 L4 **进程内缓存 + pread 修复**。
+> 另见 [[BEH-023]]（`PIPE_L4` 旁路**填充**，探索轨）与本条款互补。
 
 Fine rerank 候选循环 MUST 先查 flat_vec_cache (`getFlatVector()`)，
 命中则跳过 pread，避免不必要的磁盘 I/O。
