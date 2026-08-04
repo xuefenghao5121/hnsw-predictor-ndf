@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-03T20:38:56Z",
-  "clause_count": 171,
+  "generated_at": "2026-08-04T11:46:28Z",
+  "clause_count": 173,
   "nodes": {
     "ADR-META-001": {
       "id": "ADR-META-001",
@@ -234,6 +234,31 @@
         "BEH-021",
         "BEH-022",
         "BEH-023"
+      ]
+    },
+    "API-012": {
+      "id": "API-012",
+      "title": "L4 WILLNEED 环境变量",
+      "file": "30-interfaces/env.md",
+      "line": 90,
+      "kind": "req",
+      "level": "may",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "BEH-024",
+          "DEC-070"
+        ]
+      },
+      "body_refs": [
+        "BEH-024",
+        "DEC-070"
+      ],
+      "backlinks": [
+        "DEC-070"
       ]
     },
     "ARCH-001": {
@@ -532,6 +557,7 @@
       },
       "body_refs": [],
       "backlinks": [
+        "BEH-024",
         "VER-036"
       ]
     },
@@ -565,7 +591,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 175,
+      "line": 183,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -1066,7 +1092,7 @@
       "scope": "",
       "edges": {
         "refines": [
-          "BEH-023"
+          "BEH-006"
         ],
         "depends-on": [
           "DEC-067",
@@ -1076,13 +1102,16 @@
       },
       "body_refs": [
         "BEH-023",
-        "DEC-068"
+        "DEC-068",
+        "DEC-070"
       ],
       "backlinks": [
+        "API-012",
         "BEH-023",
         "CON-SLA-013",
         "DEC-068",
-        "DEC-069"
+        "DEC-069",
+        "DEC-070"
       ]
     },
     "BEH-025": {
@@ -1118,6 +1147,7 @@
         "BEH-018",
         "BEH-019",
         "BEH-020",
+        "DEC-070",
         "DEF-022",
         "DEF-023"
       ]
@@ -1764,6 +1794,7 @@
         "DEC-065",
         "DEC-066",
         "DEC-067",
+        "DEC-070",
         "VER-030",
         "VER-039"
       ]
@@ -3101,7 +3132,8 @@
       },
       "body_refs": [],
       "backlinks": [
-        "BEH-024"
+        "BEH-024",
+        "DEC-070"
       ]
     },
     "DEC-069": {
@@ -3122,6 +3154,34 @@
       },
       "body_refs": [],
       "backlinks": []
+    },
+    "DEC-070": {
+      "id": "DEC-070",
+      "title": "D-070: WILLNEED readahead hint promote",
+      "file": "decisions/08-willneed-promote.md",
+      "line": 5,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "BEH-024",
+          "API-012"
+        ],
+        "depends-on": [
+          "DEC-068",
+          "CON-SLA-014",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "API-012",
+        "BEH-024"
+      ]
     },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",
