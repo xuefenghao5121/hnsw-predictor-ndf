@@ -48,7 +48,7 @@
 - [x] R5d: 组合测试 -> WILLNEED alone 最优
 - [x] 512MB 回归验证 -> **无回归** ✅ (+3.7%)
 - [ ] 决策：WILLNEED 是否 promote 到 Trunk
-- [ ] DEEP10M WILLNEED 验证
+- [x] DEEP10M WILLNEED 验证 -> 中性（I/O 量是瓶颈，不是时序）
 - [ ] R5c: mincore 诊断 (低优先级)
 
 ## R4 结果 (2026-08-03)
@@ -116,7 +116,32 @@
 4. **256MB vs 512MB FADVISE**: At 512MB, blanket FADVISE was -17x (evicting useful hot pages). At 256MB, it's neutral (page cache too small to help anyway).
 5. **WILLNEED 256MB > baseline 512MB**: 2521 vs 2309 QPS. Kernel readahead more efficient than passive page cache.
 
-### R5 512MB 回归验证 (2026-08-04)
+### DEEP10M WILLNEED 验证 (2026-08-04, CON-SLA-014)
+
+| 配置 | QPS | Recall | RSS | refault | majfault | peak | file | max_events |
+|------|-----|--------|-----|---------|----------|------|------|------------|
+| 2GB base | 570 | 95.05% | 1157MB | 248 | 68152 | 2GB | 857MB | 11846 |
+| 2GB +WILLNEED | 568 | 95.05% | 1156MB | 208 | 68707 | 2GB | 740MB | 12106 |
+
+**结论：WILLNEED 在 DEEP10M 上中性**（-0.4%，无显著差异）
+- pread 延迟降低（21ms->12ms），但 QPS 不变
+- majfault 不变（68K）-- I/O 量是瓶颈，不是 I/O 时序
+- cgroup 强制执行：peak=2GB, oom=0
+
+### WILLNEED 适用条件总结
+
+| 场景 | page cache 状态 | pread 是否瓶颈 | WILLNEED 效果 |
+|------|----------------|---------------|------------|
+| SIFT1M 256MB | 严重不足 | 是（8ms/query） | **17.7x** |
+| SIFT1M 512MB | 充裕 | 否（4.8ms但热态快） | +5.5% |
+| DEEP10M 2GB | 不足但I/O量主导 | 否（I/O量68K） | ~0% |
+
+**WILLNEED 有效的条件**：
+1. page cache 严重受限（budget << hot working set）
+2. pread 是 query 延迟的主要来源
+3. refault 暴涨证明 LRU 在误杀热页
+
+DEEP10M 不满足条件 2：瓶颈是 majfault 总量（68K次磁盘读），不是 readahead 时序。
 
 | cgroup | WILLNEED | QPS | Recall | RSS | refault | majfault | file | vs base |
 |--------|----------|-----|--------|-----|---------|----------|------|--------|
