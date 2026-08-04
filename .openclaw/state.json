@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-l4-r5-willneed-selective.md",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "proposal-promote-willneed.md",
+  "scenario_type": "promote",
+  "track": "promote",
   "validation_round": 0,
   "max_validation_rounds": 3,
-  "pending_decision": "null",
-  "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-04T10:53:00+03:00",
-  "notes": "R5: WILLNEED + Selective DONTNEED + mincore in poc/l4-cache-mgmt/; 256MB cgroup baseline"
+  "pending_decision": "waiting_for_user_review",
+  "validation_status": "pending",
+  "perf_status": "pending",
+  "last_activity": "2026-08-04T12:00:00+03:00",
+  "notes": "WILLNEED promote: NDF landed (BEH-024 amend, API-012, DEC-070); next:委派 Claude Code 合入 src/ -> 编译验证 -> 性能验证"
 }

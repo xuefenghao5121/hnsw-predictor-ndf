@@ -171,6 +171,14 @@ Fine rerank 候选循环 MUST 先查 flat_vec_cache (`getFlatVector()`)，
 > 在 page cache 不足场景下（256MB cgroup），增大 flat_vec_cache 到 64MB 可提升 QPS 7.5x。
 > O_DIRECT 4T 因跳过 pread 走 io_uring 导致 recall 崩到 12%，修复后恢复 95.75%。
 > 详见 [[DEC-068]] / `poc/l4-cache-mgmt/ndf/TOPIC.md`。
+>
+> **WILLNEED readahead（opt-in）**：当 `L4_WILLNEED=1` 且 Buffered 模式时，
+> fine rerank 的 `pages_needed` 填充后 MUST 对每个页调用
+> `posix_fadvise(vec_blocks_fd_, offset, 4096, POSIX_FADV_WILLNEED)`，
+> 提示内核启动异步 readahead。此机制在 page cache 严重受限场景下
+> 可将串行 pread 转为流水线 I/O，QPS 提升可达 17.7x（SIFT1M 256MB cgroup）。
+> 在 page cache 充裕或 I/O 量主导场景下无副作用（+5.5% / ~0%）。
+> 默认关闭（`L4_WILLNEED=0`）。详见 [[DEC-070]]。
 
 ## 邻接表访问策略 {#BEH-008}
 <!-- ndf: kind=req level=must layer=L2 status=stable since=0.1 source=observed -->

@@ -86,3 +86,16 @@
 <!-- ndf: depends-on=DEC-060 -->
 
 > **Deprecated (2026-07-31):** 代码已回退，环境变量不再生效。见 [[BEH-017]] 和 [[DEC-061]]。
+
+## L4 WILLNEED 环境变量 {#API-012}
+<!-- ndf: kind=req level=may layer=L1 status=stable since=0.9 source=deduced topic=l4-cache-mgmt -->
+<!-- ndf: depends-on=BEH-024,DEC-070 -->
+
+| 环境变量 | 类型 | 默认值 | 取值范围 | 说明 | 关联条款 |
+|----------|------|--------|---------|------|----------|
+| `L4_WILLNEED` | int | 0 | 0/1 | 1=Fine rerank pread 前对 pages_needed 调用 posix_fadvise(WILLNEED)，启动内核异步 readahead | [[BEH-024]] [[DEC-070]] |
+
+> 前置条件: `FINE_RERANK=1` + `FINE_PREAD=1` + `FINE_BUFFERED=1`
+> 内存开销: 无额外内存（仅 fadvise 系统调用）
+> 适用场景: page cache 严重受限时效果显著（SIFT1M 256MB: 17.7x QPS）
+> 不适用场景: page cache 充裕或 I/O 量主导（512MB: +5.5%; DEEP10M 2GB: ~0%）
