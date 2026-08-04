@@ -26,6 +26,12 @@ poc/<topic>/
     COMMITS.md             # code_sha ↔ proposals/clauses/protocol
 ```
 
+```text
+NDF（唯一呈现面）：poc/<topic>/ndf/TOPIC.md
+复现与口径：poc/<topic>/ndf/COMMITS.md + ndf/evidence/
+Trunk must 仍在：spec/00-50（status=stable）
+```
+
 主题命名建议与 `proposal-*` / DEC 方向一致（例：`poc/io-pipelining/`、`poc/l4-cache-mgmt/`）。
 
 ### 开题清单

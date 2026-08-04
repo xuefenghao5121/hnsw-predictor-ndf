@@ -17,6 +17,7 @@
 5. 每个活跃 `poc/<topic>/` MUST 维护主题装订器 `poc/<topic>/ndf/`（[[DEF-022]] / [[BEH-025]]）。
    装订器内文档 **MUST NOT** 被 Agent 当作 Trunk `status=stable` must 的实现依据；
    确认后的契约草稿仍写入 `spec/` 且显式 `status=draft`，并登记进 `TOPIC.md`。
+   装订器仅提供探索呈现与复现入口；stable must 源仍以 `spec/00-50` 为准。
 
 > rationale: NDF `models/` 是金标，不是实验沙箱。误用会导致 Agent 把 POC 当 must 实现依据。
 > 装订器解决多提案漂移与 commit 可复现，但不引入第二套 Trunk SoT。

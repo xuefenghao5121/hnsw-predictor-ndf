@@ -96,6 +96,15 @@ poc/<topic>/ndf/
   COMMITS.md     # Commit Ledger [[DEF-023]]
 ```
 
+### 呈现规则（唯一入口与阅读顺序）
+
+- `poc/<topic>/ndf/` MUST 作为 POC 内唯一规范性呈现面；如存在 `poc/<topic>/README.md`，MUST NOT 作为 must 源（仅允许导航指针）。
+- 协作者在 POC 内获取 NDF 的推荐阅读顺序 MUST 为：
+  1. `poc/<topic>/ndf/TOPIC.md`
+  2. `poc/<topic>/ndf/proposals/`（或 stub → `spec/open/`）
+  3. `poc/<topic>/ndf/evidence/`
+  4. `poc/<topic>/ndf/COMMITS.md`
+
 ### TOPIC.md
 
 MUST 记录至少：`topic_id`；`status` ∈ {`exploring`,`blocked`,`promoted`,`rejected`}；
