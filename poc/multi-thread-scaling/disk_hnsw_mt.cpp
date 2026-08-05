@@ -1629,8 +1629,23 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     // Phase 2: Layer 0搜索（BlockCache按需加载，new_id空间）
     size_t ef = std::max(ef_search_, k);
 
-    // 创建VisitedList（new_id空间）
-    VisitedList visited(graph_.num_nodes);
+    // Direction C: pool VisitedList (opt-in via VL_POOL=1)
+    // Uses thread_local pointer, set by batchSearchConcurrent per-thread
+    static const bool kVLPool = std::getenv("VL_POOL") && std::atoi(std::getenv("VL_POOL")) != 0;
+    static thread_local std::unique_ptr<VisitedList> tl_vl_pool;
+    std::unique_ptr<VisitedList> vl_scratch;  // fallback if pool not active
+    VisitedList* vp;
+    if (kVLPool) {
+        if (!tl_vl_pool || tl_vl_pool->mass.size() < graph_.num_nodes) {
+            tl_vl_pool = std::make_unique<VisitedList>(graph_.num_nodes);
+        }
+        tl_vl_pool->reset();
+        vp = tl_vl_pool.get();
+    } else {
+        vl_scratch = std::make_unique<VisitedList>(graph_.num_nodes);
+        vp = vl_scratch.get();
+    }
+    VisitedList& visited = *vp;
 
     // 环境变量 BEAM_WIDTH 控制 beam search (0=标准 best-first, >0=beam search)
     static const int kBeamWidth = []() {
