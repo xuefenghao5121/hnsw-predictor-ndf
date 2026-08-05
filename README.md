@@ -1,8 +1,9 @@
 # DiskHNSW - 内存受限环境下的磁盘向量搜索
 
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
-> SIFT1M @512MB: 95.75% recall / 3147 QPS (1T) / 9914 QPS (4T) / RSS 220MB
+> SIFT1M @512MB: 95.75% recall / 3241 QPS (1T) / 20903 QPS (16T+BG) / RSS 242MB
 > SIFT1M @256MB: 95.80% recall / 8838 QPS (4T) / RSS 200MB (35% of hnswlib memory)
+> SIFT1M peak (512MB+BG): 30,332 QPS (16T) = 73% of hnswlib, 1.05x QPS/MB efficiency
 > DEEP10M @2GB: 95.15% recall / 2340 QPS (12T) / RSS 1612MB (hnswlib OOM)
 
 ## 项目背景
@@ -134,27 +135,35 @@ L4_WILLNEED=1 ./build/benchmark_diskhnsw ...
 
 **多线程 Scaling (CON-SLA-014, 512MB cgroup, +WILLNEED):**
 
-| 线程数 | QPS | Recall | RSS | Scaling |
-|--------|-----|--------|-----|--------|
-| 1T | 3,147 | 95.75% | 214MB | 1.0x |
-| 4T | 9,914 | 95.75% | 220MB | 3.1x |
-| 12T | 17,610 | 95.75% | 217MB | 5.6x |
-| 16T (peak) | 18,044 | 95.75% | 225MB | 5.7x |
+| 线程数 | QPS (baseline) | QPS (+BG+POOL) | Recall | Scaling (optimized) |
+|--------|---------------|----------------|--------|---------------------|
+| 1T | 3,147 | 3,133 | 95.75% | 1.0x |
+| 4T | 9,914 | 9,041 | 95.75% | 2.9x |
+| 8T | 14,224 | 14,901 | 95.75% | 4.8x |
+| 12T | 17,207 | 18,459 | 95.75% | 5.9x |
+| **16T (peak)** | 18,317 | **30,332** | 95.75% | **9.7x** |
+| 24T | 19,766 | 29,738 | 95.75% | 9.5x |
+
+> `+BG+POOL` = `WILLNEED_BG=1 VL_POOL_THREADS=14` (BEH-027, DEC-074)
 
 **256MB cgroup (CON-SLA-016, +WILLNEED, FLAT_VEC_MB=64):**
 
 | 线程数 | QPS | Recall | RSS |
 |--------|-----|--------|-----|
-| 1T | 2,379 | 95.75% | 153MB |
-| 4T | 8,838 | 95.80% | 200MB |
+| 1T | 2,564 | 95.80% | 195MB |
+| 4T | 6,882 | 95.80% | 200MB |
+| 12T | 10,477 | 95.80% | 215MB |
+| **16T (peak)** | **16,873** | 95.80% | 223MB |
 
-**对比 hnswlib (4T):**
+**对比 hnswlib (16T, 完整 scaling):**
 
-| 配置 | QPS | Recall | 内存 | QPS/MB 效率 |
-|------|-----|--------|------|------------|
-| hnswlib (unlimited) | 18,496 | 98.30% | 732MB | 25.3 |
-| DiskHNSW 512MB | 11,421 | 95.75% | 512MB (70%) | 22.3 |
-| **DiskHNSW 256MB** | **8,838** | **95.80%** | **256MB (35%)** | **34.5 (2.0x)** |
+| 配置 | QPS (16T) | Recall | 内存 | QPS/MB 效率 | vs hnswlib |
+|------|-----------|--------|------|------------|-----------|
+| hnswlib (unlimited) | 39,322 | 98.30% | 732MB | 53.7 | 1.0x |
+| DiskHNSW 512MB (+BG) | **30,332** | 95.75% | 512MB (70%) | **59.2** | **1.10x** |
+| **DiskHNSW 256MB** | **16,873** | 95.80% | **256MB (35%)** | **65.9** | **1.23x** |
+
+> DiskHNSW 的 QPS/MB 内存效率在 256MB 和 512MB 配置下均超过 hnswlib
 
 ### DEEP10M (96维, 1000万向量)
 
@@ -210,6 +219,8 @@ L4_WILLNEED=1 ./build/benchmark_diskhnsw ...
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `NUM_THREADS` | 0 | >0=并发搜索线程数（需配合 FINE_PREAD=1） |
+| `WILLNEED_BG` | 0 | 1=WILLNEED 后台线程提交 (无锁 SPSC, 消除内核锁竞争, 8T+ 推荐) |
+| `VL_POOL_THREADS` | 999 | VisitedList 池化阈值, NUM_THREADS≥此值时启用 (推荐 14) |
 
 ### 调试
 
@@ -274,6 +285,8 @@ L4_WILLNEED=1 ./build/benchmark_diskhnsw ...
 | **FineRerank thread safety** | 9914@4T | 95.75% | 220MB | std::call_once 修复 race |
 | **FVC default 64MB** | 11421@4T | 95.75% | 220MB | +23.4% QPS (perf-gap-4t D1) |
 | **256MB cgroup SLA** | 8838@4T | 95.80% | 200MB | 35% memory, 2.0x efficiency |
+| **WILLNEED_BG (A2)** | 30332@16T | 95.75% | 242MB | 无锁后台线程, +72.8% QPS |
+| **VL_POOL (C2)** | 30332@16T | 95.75% | 242MB | 自适应 VisitedList 池化 |
 
 ---
 
@@ -335,8 +348,9 @@ hnsw-predictor-ndf/
 | P0.5: 双路由表修复 | vec_route_table 分离 | ✅ 完成 |
 | P1: 图裁剪 | MRNG R_max 减边 | ✅ 负结果（1M 无净收益） |
 | P2: 10M 规模 | DEEP10M @2GB, recall≥95% | ✅ 完成 (95.15%, 2340 QPS) |
-| P2.1: 多线程 Scaling | SIFT1M 1-24T 曲线 + hnswlib 对比 | ✅ 完成 (peak 16T=18044) |
+| P2.1: 多线程 Scaling | SIFT1M 1-24T 曲线 + hnswlib 对比 | ✅ 完成 (peak 16T=30332) |
 | P2.2: 性能差距优化 | FVC 调优 + 256MB cgroup | ✅ 完成 (+23.4%, 2.0x 效率) |
+| P2.3: 多线程拓展性优化 | WILLNEED_BG + VL_POOL | ✅ 完成 (+72.8% at 16T) |
 | P3: CSR 上磁盘 | 100M 必需，4.7GB 装不进内存 | 待启动 |
 | P4: 分级存储 | hot/warm/cold 三层 + 增量插入 | 长期 |
 | P5: 硬件亲和 | NUMA/SPDK/GPU/PMEM | 探索 |
