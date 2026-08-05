@@ -1759,8 +1759,18 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             }
 
             // L4 WILLNEED: hint kernel to prefetch fine rerank pages (BEH-024, DEC-070)
+            // Direction B: adaptive disable at high thread count to avoid kernel lock contention
             static const bool kL4Willneed = std::getenv("L4_WILLNEED") && std::atoi(std::getenv("L4_WILLNEED")) != 0;
-            if (kL4Willneed && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
+            static const int kWillneedDisableThreads = []() {
+                const char* e = std::getenv("WILLNEED_DISABLE_THREADS");
+                return e ? std::atoi(e) : 0;  // 0=never disable
+            }();
+            static const int kNumThreads = []() {
+                const char* e = std::getenv("NUM_THREADS");
+                return e ? std::atoi(e) : 1;
+            }();
+            bool willneed_active = kL4Willneed && (kWillneedDisableThreads == 0 || kNumThreads < kWillneedDisableThreads);
+            if (willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
                 for (uint32_t pg : pages_needed) {
                     posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
                 }
