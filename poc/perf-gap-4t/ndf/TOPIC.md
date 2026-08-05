@@ -13,12 +13,15 @@
 
 ## 临时基线 (SIFT1M 4T)
 
-| 指标 | DiskHNSW (512MB) | hnswlib (unlimited) | 差距 |
-|------|-----------------|--------------------|----|
+| 指标 | DiskHNSW (512MB cgroup) | hnswlib (unlimited) | 差距 |
+|------|------------------------|--------------------|----|
 | QPS | 9,657 | 18,496 | 52% |
 | Recall@10 | 95.80% | 98.30% | -2.5pp |
 | P99 | 0.89ms | 0.37ms | 2.4x |
-| RSS | 202MB | 732MB | 28% |
+| 内存 | 512MB (cgroup: anon~202MB + file~308MB) | 732MB (RSS: 全 anon) | 70% |
+
+> 内存对比基于 cgroup 限制（DiskHNSW）vs RSS（hnswlib），不是 RSS-only 对比。
+> DiskHNSW 的 page cache (~308MB) 是其运行所必需的，计入 cgroup 预算。
 
 ## Proposals
 

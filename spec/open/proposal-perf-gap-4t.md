@@ -10,12 +10,16 @@
 
 ### 临时基线 (SIFT1M 4T, CON-SLA-014)
 
-| 指标 | DiskHNSW (512MB) | hnswlib (unlimited) | 差距 |
-|------|-----------------|--------------------|----|
+| 指标 | DiskHNSW (512MB cgroup) | hnswlib (unlimited) | 差距 |
+|------|------------------------|--------------------|----|
 | QPS | 9,657 | 18,496 | 52% |
 | Recall@10 | 95.80% | 98.30% | -2.5pp |
 | P99 latency | 0.89ms | 0.37ms | 2.4x |
-| RSS | 202MB | 732MB | 28% (内存优势) |
+| 内存占用 | 512MB (cgroup: anon~202MB + file~308MB) | 732MB (RSS: 全 anonymous) | 70% |
+
+> **内存对比口径**: DiskHNSW 使用 cgroup memory.max=512MB（含 anon + page cache），
+> hnswlib 使用 RSS（全 anonymous，无 cgroup 限制）。之前 RSS-only 对比 (202/732=28%)
+> 严重低估了 DiskHNSW 的实际内存占用。
 
 **目标**: 在 512MB cgroup 约束下，缩小与 hnswlib unlimited 4T 的 QPS 和 recall 差距。
 
