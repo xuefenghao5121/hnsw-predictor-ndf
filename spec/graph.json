@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-05T20:13:50Z",
-  "clause_count": 199,
+  "generated_at": "2026-08-05T23:33:44Z",
+  "clause_count": 202,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -1252,8 +1252,39 @@
         "DEC-074"
       ],
       "backlinks": [
+        "BEH-028",
         "CON-SLA-017",
-        "DEC-074"
+        "CON-SLA-018",
+        "DEC-074",
+        "DEC-075"
+      ]
+    },
+    "BEH-028": {
+      "id": "BEH-028",
+      "title": "WILLNEED BG 页合并",
+      "file": "20-behavior/search.md",
+      "line": 216,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.6",
+      "scope": "",
+      "edges": {
+        "refines": [
+          "BEH-027"
+        ],
+        "depends-on": [
+          "DEC-070",
+          "DEC-074",
+          "DEC-075",
+          "CON-SLA-014"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "CON-SLA-018",
+        "DEC-075"
       ]
     },
     "CHR-001": {
@@ -1879,6 +1910,7 @@
       "backlinks": [
         "BEH-024",
         "BEH-027",
+        "BEH-028",
         "CHR-006",
         "CON-HONEST-002",
         "CON-SLA-010",
@@ -1894,6 +1926,7 @@
         "DEC-072",
         "DEC-073",
         "DEC-074",
+        "DEC-075",
         "VER-030",
         "VER-039"
       ]
@@ -1920,6 +1953,7 @@
         "CON-SLA-014"
       ],
       "backlinks": [
+        "CON-SLA-018",
         "DEC-073"
       ]
     },
@@ -1945,6 +1979,30 @@
       "body_refs": [],
       "backlinks": [
         "DEC-074"
+      ]
+    },
+    "CON-SLA-018": {
+      "id": "CON-SLA-018",
+      "title": "SIFT1M 256MB BG+Merge SLA",
+      "file": "40-constraints/sla.md",
+      "line": 247,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "CON-SLA-016",
+          "BEH-027",
+          "BEH-028",
+          "DEC-075"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "DEC-075"
       ]
     },
     "DEC-001": {
@@ -3329,11 +3387,13 @@
         "API-012",
         "BEH-024",
         "BEH-027",
+        "BEH-028",
         "CON-SLA-016",
         "DEC-071",
         "DEC-072",
         "DEC-073",
         "DEC-074",
+        "DEC-075",
         "MODEL-WILLNEED-001"
       ]
     },
@@ -3450,7 +3510,38 @@
       "body_refs": [],
       "backlinks": [
         "BEH-027",
-        "CON-SLA-017"
+        "BEH-028",
+        "CON-SLA-017",
+        "DEC-075"
+      ]
+    },
+    "DEC-075": {
+      "id": "DEC-075",
+      "title": "D-075: WILLNEED BG 页合并",
+      "file": "decisions/13-l4-d2-pagemerge-promote.md",
+      "line": 5,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "BEH-027",
+          "BEH-028",
+          "CON-SLA-018"
+        ],
+        "depends-on": [
+          "DEC-070",
+          "DEC-074",
+          "CON-SLA-014"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-028",
+        "CON-SLA-018"
       ]
     },
     "DEC-HYGIENE-001": {
