@@ -99,3 +99,22 @@
 > 内存开销: 无额外内存（仅 fadvise 系统调用）
 > 适用场景: page cache 严重受限时效果显著（SIFT1M 256MB: 17.7x QPS）
 > 不适用场景: page cache 充裕或 I/O 量主导（512MB: +5.5%; DEEP10M 2GB: ~0%）
+
+### WILLNEED_BG
+
+- 类型: bool (0/1)
+- 默认: 0 (关闭)
+- 作用: 将 `posix_fadvise(WILLNEED)` 移到后台 I/O 线程，消除多线程内核锁竞争
+- 前置条件: `L4_WILLNEED=1`
+- 适用场景: 8T+ 高并发，512MB cgroup 16T +72.8% QPS，256MB 12T +61.3%
+- 内存开销: ~8MB (后台线程 stack + slot array)
+- 机制: SPSC per-thread slot + atomic flag polling (零 mutex)
+
+### VL_POOL_THREADS
+
+- 类型: int
+- 默认: 999 (不启用)
+- 推荐: 14 (16T+ 时启用)
+- 作用: 自适应 VisitedList 池化，高并发时复用 thread_local 实例
+- 适用场景: 16T+ 高并发，与 WILLNEED_BG=1 叠加使用
+- 不适用: 12T- (thread_local 开销 > memset 节省，自动跳过)

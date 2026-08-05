@@ -24,7 +24,7 @@
 | 脚本 | 职责 |
 |------|------|
 | [`ndf_index.py`](ndf_index.py) | 条款 **索引 / 检索面**：写 `INDEX.md` + `graph.json`；impact / diff / 轻量 dangling / poc-topics |
-| [`ndf_graphcheck.py`](ndf_graphcheck.py) | **图语义面** Linter：环、stable must→非 stable、conflicts 非对称、meta 悬空；错误子图 |
+| [`ndf_graphcheck.py`](ndf_graphcheck.py) | **图语义面** Linter：环、stable must→非 stable、conflicts 非对称、meta 悬空；错误子图；`--meta` / `--product` |
 | [`ndf_advise.py`](ndf_advise.py) | **顾问**：`--surface graph`（图手术单+沙盒）/ `--surface bind`（绑定溯源手术单+虚拟装订器沙盒）；**不**写 SoT |
 | [`ndf_advise_bind.py`](ndf_advise_bind.py) | bind 表面实现（由 `ndf_advise` 调用） |
 | [`ndf_bindcheck.py`](ndf_bindcheck.py) | **绑定溯源面** Linter：ledger/trailer、装订器双头、观测粒度；可选 zombie/drift |

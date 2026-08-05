@@ -188,3 +188,27 @@ Fine rerank 候选循环 MUST 先查 flat_vec_cache (`getFlatVector()`)，
    - 非压缩:直接返回 `&adj_csr_neighbors_[adj_csr_offsets_[new_id]]`
    - 压缩:解码 `adj_csr_compact_` 从 `adj_csr_byte_offsets_[new_id]` 到 `csr_decode_buf_` (thread_local)
 2. **BlockCache fallback**: `CachedBlock::getNeighbors()`
+
+## WILLNEED 后台线程化 {#BEH-027}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.5 source=observed topic=multi-thread-scaling -->
+<!-- ndf: refines=BEH-024 depends-on=DEC-070,DEC-074,CON-SLA-014 model=MODEL-WILLNEED-001 -->
+
+> **track: promoted** - 提案 `spec/open/proposal-promote-mt-scaling.md`（2026-08-05）。
+> 装订器: `poc/multi-thread-scaling/ndf/TOPIC.md`。
+
+当 `WILLNEED_BG=1` 时，`posix_fadvise(WILLNEED)` MUST 由后台 I/O 线程统一提交，
+搜索线程通过无锁 SPSC slot 传递 page 列表。
+
+后台线程 MUST 轮询所有 slot 的 `ready` flag（`memory_order_acquire`），
+对 ready slot 中的 pages 批量调用 `posix_fadvise`，完成后清除 flag。
+
+搜索线程 MUST NOT 在 `WILLNEED_BG=1` 时直接调用 `posix_fadvise`（避免内核锁竞争）。
+
+当 `VL_POOL_THREADS=N` 且 `NUM_THREADS >= N` 时，searchKnn MUST 复用
+thread_local VisitedList（`reset()` 递增 curV），而非每次创建新实例。
+`NUM_THREADS < N` 时 MUST 走原始创建路径（避免低并发 thread_local 开销）。
+
+> rationale: 12T+ 时 posix_fadvise 内核锁竞争占 6.27%，VisitedList memset 占 10.29%。
+> A2 无锁后台线程消除锁竞争，16T +72.8% QPS。C2 自适应池化消除 cache bouncing。
+> 详见 [[DEC-074]] / `poc/multi-thread-scaling/ndf/TOPIC.md`。
+> source: poc/multi-thread-scaling/ndf/evidence/a2-lockless-bg-20260805.md ; comprehensive-sweep-20260805.md

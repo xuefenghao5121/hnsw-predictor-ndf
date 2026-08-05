@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-05T14:56:55Z",
+  "generated_at": "2026-08-05T16:51:41Z",
   "clause_count": 32,
   "meta_only": true,
   "nodes": {
@@ -152,7 +152,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "meta/process.md",
-      "line": 55,
+      "line": 57,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -186,7 +186,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 80,
+      "line": 87,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -212,7 +212,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 96,
+      "line": 103,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -232,6 +232,7 @@
       },
       "body_refs": [
         "DEF-023",
+        "BEH-018",
         "BEH-019"
       ],
       "backlinks": [
@@ -248,7 +249,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 165,
+      "line": 197,
       "kind": "info",
       "level": "may",
       "layer": "L1",

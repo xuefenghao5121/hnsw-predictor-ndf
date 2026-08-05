@@ -9,6 +9,7 @@ for human review.
 Usage:
   python3 spec/meta/tools/ndf_graphcheck.py
   python3 spec/meta/tools/ndf_graphcheck.py --meta
+  python3 spec/meta/tools/ndf_graphcheck.py --product
   python3 spec/meta/tools/ndf_graphcheck.py --format text --hop 2
   python3 spec/meta/tools/ndf_graphcheck.py --report /tmp/ndf-graphcheck.md
 """
@@ -396,15 +397,33 @@ def render_issue_block(
 def run_checks(by_id: dict[str, ndx.Clause]) -> tuple[list[Issue], list[Issue]]:
     errors: list[Issue] = []
     warnings: list[Issue] = []
-    for fn in (
-        find_cycles,
-        find_stable_must_deps,
-        find_conflict_asym,
-        find_meta_dangling,
-    ):
-        errors.extend(fn(by_id))
+    errors.extend(find_cycles(by_id))
+    errors.extend(find_stable_must_deps(by_id))
+    errors.extend(find_conflict_asym(by_id))
+    errors.extend(find_meta_dangling(by_id))
     warnings.extend(find_unlinked(by_id))
     return errors, warnings
+
+
+def filter_product_issues(
+    by_id: dict[str, ndx.Clause],
+    errors: list[Issue],
+    warnings: list[Issue],
+) -> tuple[list[Issue], list[Issue]]:
+    """Keep issues that touch at least one product (non-meta) clause.
+
+    Full graph is still used for edge resolution (product→meta targets stay valid).
+    Meta-only defects (e.g. process-profile cycles) are suppressed.
+    """
+    product = {cid for cid, c in by_id.items() if not ndx.is_meta_clause(c)}
+
+    def touches_product(issue: Issue) -> bool:
+        return any(s in product for s in issue.seeds)
+
+    return (
+        [i for i in errors if touches_product(i)],
+        [i for i in warnings if touches_product(i)],
+    )
 
 
 def build_report(
@@ -471,6 +490,11 @@ def main() -> int:
         action="store_true",
         help="META-only: check process-profile graph (meta/ or scope=ndf-process)",
     )
+    ap.add_argument(
+        "--product",
+        action="store_true",
+        help="PRODUCT-focus: full graph resolve, report only issues touching non-meta clauses",
+    )
     ap.add_argument("--max-issues", type=int, default=20, help="max issues printed per severity class")
     ap.add_argument("--hop", type=int, default=1, help="context hops around error seeds")
     ap.add_argument(
@@ -482,16 +506,28 @@ def main() -> int:
     ap.add_argument("--report", type=Path, help="write Markdown report to PATH")
     args = ap.parse_args()
 
+    if args.meta and args.product:
+        print("error: --meta and --product are mutually exclusive", file=sys.stderr)
+        return 2
+
     by_id = ndx.load_graph(
         include_archive=args.archive,
         include_open=args.open,
         meta_only=args.meta,
     )
     errors, warnings = run_checks(by_id)
+    if args.product:
+        errors, warnings = filter_product_issues(by_id, errors, warnings)
 
-    scope = "META" if args.meta else "full"
+    if args.meta:
+        scope = "META"
+    elif args.product:
+        scope = "PRODUCT"
+        n_prod = sum(1 for c in by_id.values() if not ndx.is_meta_clause(c))
+    else:
+        scope = "full"
     print(f"# ndf_graphcheck ({scope})")
-    print(f"clauses: {len(by_id)}")
+    print(f"clauses: {len(by_id)}" + (f" (product≈{n_prod})" if args.product else ""))
     print(f"hard_errors: {len(errors)}")
     print(f"warnings: {len(warnings)}")
     print()

@@ -135,15 +135,16 @@ python3 spec/meta/tools/ndf_graphcheck.py --meta   # MUST hard_errors: 0
 ```text
 [A] poc/<topic>/ndf 装订器稳定
 [B] ndf_close plan --mode promote|reject|partial
-    （promote/partial：plan 含 §4b 语义核决策清单 [[META-004]]/[[BEH-019]]；reject：N/A）
+    （promote/partial：§4b 语义核；§4c 基线 stale；§4d 表面冲突；reject：N/A）
 [C] 人工合入 Trunk（产品提案 / draft→stable；可选 models/ + model=）
-[D] TOPIC=promoted|rejected；COMMITS 记 src/spec commit
+[D] TOPIC=promoted|rejected|exploring(partial)；COMMITS；兄弟 TOPIC baseline_status=stale
 [E] MUST：ndf_index index + ndf_graphcheck
 [F] 可选：ndf_bindcheck --topic <id>
 ```
 
 `ndf_close` **只读 plan**；无 `apply`。Promote 后图面再走 §2 主链清洗残留环 / stable_dep。
 缺 `model=` **不是** close/graphcheck 失败条件（造核为 MAY；决策为 MUST）。
+基线 stale / 表面冲突清单 **是** promote 收口 MUST 处理项（[[BEH-019]] §7 / [[BEH-025]]）。
 
 ---
 

@@ -456,6 +456,11 @@ def cmd_poc_topics() -> int:
     if not poc_root.is_dir():
         print("(no poc/ directory)")
         return 0
+
+    def header_field(text: str, key: str) -> str:
+        m = re.search(rf"(?im)^>\s*{re.escape(key)}\s*:\s*(.+)$", text)
+        return m.group(1).strip() if m else "—"
+
     topics = []
     for topic_dir in sorted(poc_root.iterdir()):
         if not topic_dir.is_dir() or topic_dir.name.startswith("."):
@@ -464,7 +469,17 @@ def cmd_poc_topics() -> int:
             continue
         topic_md = topic_dir / "ndf" / "TOPIC.md"
         if not topic_md.is_file():
-            topics.append((topic_dir.name, "MISSING", str(topic_md.relative_to(ROOT)), 0, "—"))
+            topics.append(
+                {
+                    "name": topic_dir.name,
+                    "status": "MISSING",
+                    "path": str(topic_md.relative_to(ROOT)),
+                    "nprop": 0,
+                    "surface": "—",
+                    "b_status": "—",
+                    "b_sha": "—",
+                }
+            )
             continue
         text = topic_md.read_text(encoding="utf-8", errors="replace")
         status = "unknown"
@@ -479,29 +494,39 @@ def cmd_poc_topics() -> int:
         n_prop = 0
         if prop_dir.is_dir():
             n_prop = sum(1 for p in prop_dir.iterdir() if p.suffix == ".md")
-        # also count proposal links in TOPIC
         n_link = len(re.findall(r"proposal-[a-z0-9_-]+\.md", text, flags=re.I))
-        baseline = "—"
-        mb = re.search(r"(?im)baseline_protocol\s*[:=]\s*(.+)$", text)
-        if mb:
-            baseline = mb.group(1).strip()[:80]
+        surface = header_field(text, "explore_surface")
+        if surface == "—":
+            surface = "unspecified"
+        b_status = header_field(text, "baseline_status")
+        b_sha = header_field(text, "baseline_trunk_sha")
+        if b_sha != "—" and len(b_sha) > 12:
+            b_sha = b_sha[:12]
         topics.append(
-            (
-                topic_dir.name,
-                status,
-                str(topic_md.relative_to(ROOT)),
-                max(n_prop, n_link),
-                baseline,
-            )
+            {
+                "name": topic_dir.name,
+                "status": status,
+                "path": str(topic_md.relative_to(ROOT)),
+                "nprop": max(n_prop, n_link),
+                "surface": surface[:40],
+                "b_status": b_status if b_status != "—" else "—",
+                "b_sha": b_sha,
+            }
         )
     if not topics:
         print("(no topic directories under poc/)")
         return 0
-    print(f"{'topic':<24} {'status':<12} {'proposals~':>10}  path")
+    print(
+        f"{'topic':<22} {'status':<10} {'base':<8} {'sha':<12} "
+        f"{'surface':<28} {'props':>5}  path"
+    )
     missing = 0
-    for name, status, path, nprop, _bl in topics:
-        print(f"{name:<24} {status:<12} {nprop:>10}  {path}")
-        if status == "MISSING":
+    for t in topics:
+        print(
+            f"{t['name']:<22} {t['status']:<10} {t['b_status']:<8} {t['b_sha']:<12} "
+            f"{t['surface']:<28} {t['nprop']:>5}  {t['path']}"
+        )
+        if t["status"] == "MISSING":
             missing += 1
     print(f"\ntopics: {len(topics)}; missing_binder: {missing}")
     return 1 if missing else 0

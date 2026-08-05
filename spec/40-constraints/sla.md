@@ -225,3 +225,21 @@ SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` +
 **用途**: 内存极度受限场景（嵌入式/多租户），memory 效率 2.0x vs hnswlib unlimited。
 
 **证据**: `poc/perf-gap-4t/ndf/evidence/d6-256mb-cgroup-20260805.md`
+
+## SIFT1M 优化配置 SLA (A2+C2) {#CON-SLA-017}
+<!-- ndf: kind=constraint level=must status=stable depends-on=CON-SLA-014,BEH-024,BEH-027,DEC-074 source=observed -->
+
+SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160` 配置下
+的性能下限：
+
+| 指标 | 基线 (2026-08-05) | SLA |
+|------|-------------------|-----|
+| SIFT1M 16T QPS | 30,332 | ≥ 20,000 |
+| SIFT1M 16T Recall@10 | 95.75% | ≥ 95% |
+| cgroup oom | 0 | = 0 |
+
+**配置**: `L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14 FINE_PREAD=1 FLAT_VEC_MB=160`
+
+**用途**: 高并发场景，QPS/MB 内存效率 1.05x vs hnswlib unlimited。
+
+**证据**: `poc/multi-thread-scaling/ndf/evidence/comprehensive-sweep-20260805.md`

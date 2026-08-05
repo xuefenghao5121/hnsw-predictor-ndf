@@ -459,6 +459,13 @@ def build_plan_report(
         lines.append("")
         lines.append("Semantic core: **N/A (reject)** — no distill decision required ([[META-004]]).")
         lines.append("")
+        lines.append("## 4c / 4d. Baseline & surface")
+        lines.append("")
+        lines.append(
+            "Baseline invalidation / surface overlap: **N/A (reject)** "
+            "([[BEH-025]])."
+        )
+        lines.append("")
     else:
         lines.append(
             "## 4b. Semantic core decision (MAY deliver; MUST decide; "
@@ -494,6 +501,64 @@ def build_plan_report(
         lines.append(
             "- [ ] If Yes: after land, `python3 spec/meta/tools/ndf_index.py index` "
             "(model node + edge visible)"
+        )
+        lines.append("")
+
+        lines.append(
+            "## 4c. Baseline invalidation (Trunk moved; [[BEH-025]] / [[BEH-019]])"
+        )
+        lines.append("")
+        lines.append("Not executed by this tool. Checklist for Agent/human after merge.")
+        lines.append("")
+        lines.append(
+            "- [ ] Note new Trunk `src` SHA after this close "
+            f"(topic=`{topic.topic_id}`, mode=`{mode}`)"
+        )
+        lines.append(
+            "- [ ] List exploring topics: "
+            "`python3 spec/meta/tools/ndf_index.py poc-topics`"
+        )
+        lines.append(
+            "- [ ] Set `baseline_status=stale` on affected exploring topics "
+            "(**including this topic if still exploring** after partial)"
+        )
+        lines.append(
+            "- [ ] Disjoint-surface siblings MAY mark N/A + reason "
+            "(still SHOULD refresh `baseline_trunk_sha` when convenient)"
+        )
+        lines.append(
+            "- [ ] Do NOT treat pre-promote R0 tables as current-Trunk baseline"
+        )
+        lines.append(
+            "- [ ] Before next round on a stale topic: re-measure R0 @ current Trunk"
+        )
+        lines.append("")
+
+        lines.append(
+            "## 4d. Surface overlap / conflict check ([[BEH-025]] / [[BEH-018]] §9)"
+        )
+        lines.append("")
+        lines.append(
+            "- [ ] Read this topic `explore_surface` from TOPIC.md"
+        )
+        lines.append(
+            "- [ ] List exploring topics whose `explore_surface` intersects "
+            "(from `poc-topics`)"
+        )
+        lines.append(
+            "- [ ] For each overlap: confirm `depends_on_topics` / "
+            "`conflicts_with_topics` OR resolve before claiming additive gains"
+        )
+        lines.append(
+            "- [ ] Overlapping exploring siblings: `baseline_status=stale` "
+            "AND `next_gate` includes conflict re-check vs promoted slice"
+        )
+        lines.append(
+            "- [ ] MUST NOT promote two overlapping topics in the same close"
+        )
+        lines.append(
+            "- [ ] Cross-topic ΔQPS: re-measure on same "
+            "`baseline_trunk_sha` + protocol (gains not default-additive)"
         )
         lines.append("")
 

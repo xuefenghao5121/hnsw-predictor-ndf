@@ -46,11 +46,13 @@
    干净切片），干净合入 `src/`，并可用 `ndf_close --mode partial` 收口子集而主题继续
    exploring。仅当缺陷已确认与当前假设无关且需紧急修生产路径时，允许 track=bug
    直改 Trunk，事后 MUST 补 DEC/VER。
+9. 开题前 MUST 扫描活跃 exploring 主题的 `explore_surface`（[[BEH-025]]）：
+   相交则 MUST 串行（`depends_on_topics`）或声明 `conflicts_with_topics`，MUST NOT 默认可并行。
 
 > rationale: 过早把探索写进 Trunk stable 或直接改 `src/`，是 NDF/`src/` 漂移的主因
 > （反面样板见产品负结果 DEC；曾有探索误改 `src/` 后迁 `poc/` 的矫正）。
 > 主题装订器提供多提案收敛与 commit 可复现入口，而不引入第二套 must SoT。
-> POC 内发现主线 bug 的默认路径见第 8 条。
+> POC 内发现主线 bug 的默认路径见第 8 条；有条件并行见第 9 条与 [[BEH-025]]。
 
 ## 晋升闸门 {#BEH-019}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.7 source=deduced scope=ndf-process -->
@@ -74,6 +76,11 @@
    `model=`）；MUST NOT 用 poc/patch/ledger 冒充金标；**不**替代 VER。
    决策清单承载面：`python3 spec/meta/tools/ndf_close.py plan --mode promote|partial`
    （只读 plan；缺 MODEL 不是工具失败条件）。
+7. **基线失效与表面冲突**（[[BEH-025]]）：promote 或 partial 合入后 MUST：
+   - 将受影响 exploring 主题（**含本主题若仍 exploring**）`baseline_status` → `stale`；
+   - 对 `explore_surface` 相交的活跃主题做冲突/依赖复核（`conflicts_with_topics` /
+     `depends_on_topics`）；MUST NOT 默认可加跨主题收益。
+   清单承载：`ndf_close` plan §4c / §4d。
 
 禁止：先合主线再补 stable 契约；或先写 stable must 再补 POC 证据。
 
@@ -119,9 +126,31 @@ poc/<topic>/ndf/
 ### TOPIC.md
 
 MUST 记录至少：`topic_id`；`status` ∈ {`exploring`,`blocked`,`promoted`,`rejected`}；
-`baseline_protocol`（如产品树现行验收协议路径 + 数据集/线程）；`proposals[]`（路径、Status、
-角色 root/amend/process-hygiene）；`draft_clauses[]`；`active_hypothesis` / `next_gate`；
-可选 `depends_on_topics[]`。
+`baseline_protocol`（如产品树现行验收协议路径 + 数据集/线程）；
+`explore_surface`（逗号分隔短标签，开题 MUST；例：`fine-rerank` / `page-cache-l4` /
+`pq-codes` / `mt-scaling`）；
+`baseline_trunk_sha`（首次 R0 后 MUST：当时 Trunk `src` 短 SHA）；
+`baseline_status` ∈ {`current`,`stale`,`n/a`}（R0 后默认 `current`；关闭主题可用 `n/a`）；
+`proposals[]`（路径、Status、角色 root/amend/process-hygiene）；`draft_clauses[]`；
+`active_hypothesis` / `next_gate`；可选 `depends_on_topics[]`；互斥时 MUST
+`conflicts_with_topics[]`。
+
+### 有条件并行（探索表面）
+
+- **Trunk 时间线线性**：唯一现行实现由 promote/partial 推进。
+- **POC 主题有条件并行**：两主题 `explore_surface` 交集为空时 MAY 并行；交集非空时 MUST
+  **串行**（`depends_on_topics` 或等待对方 close）或声明 **`conflicts_with_topics`**。
+- MUST NOT 将多主题 Δ 性能默认可加；跨主题结论 MUST 在同一 `baseline_trunk_sha` +
+  同一 `baseline_protocol` 下重测，或引用冲突 DEC。
+- 开题前 MUST 扫描活跃 exploring 的 `explore_surface`（见 [[BEH-018]] 第 9 条）。
+
+### 基线 stale 与重测
+
+- Promote 或 **partial** 推进 Trunk 后：受影响 exploring（**含未关闭的本主题**）MUST
+  `baseline_status=stale`。表面不相交的兄弟 MAY 在 close plan 勾 N/A并注明理由。
+- 继续测量前若 `stale` 或 `baseline_trunk_sha` 与现行相关 Trunk 不一致：MUST **重测 R0**
+  并更新 SHA/`current`，或 evidence 显式 `vs_trunk=<old>` 且 MUST NOT 当作现行 Trunk 基线叙事。
+- Partial promote 不创造「半新基线」：禁止用合入前 R0 报相对合入后 Trunk 的加速比。
 
 ### 探索延长与主题边界
 
@@ -131,6 +160,7 @@ MUST 记录至少：`topic_id`；`status` ∈ {`exploring`,`blocked`,`promoted`,
   声明依赖；各自主题独立 promote/reject。
 - MUST NOT 嵌套「子 POC」目录，也 MUST NOT 将子主题「晋升」进父 POC 目录。
   Promote 目标仅为 Trunk（[[BEH-019]]）。
+- 欲同时 promote 两 `explore_surface` 相交主题：MUST NOT；先串行或先冲突闭环。
 
 ### COMMITS.md
 
@@ -159,8 +189,10 @@ promote 另加 `Promotes: <topic>`；负结果 DEC 相关 commit 加 `Rejects: <
 为准；装订器仅服务探索进度与可复现。
 
 > rationale: 多轮提案下用主题装订收敛进度，用 ledger/trailer 绑定 commit↔NDF，
-> 使「只读文档可复现测量」成为可检查纪律。提案见
-> `spec/archive/2026-08/proposal-meta-poc-topic-binder.md`。
+> 使「只读文档可复现测量」成为可检查纪律。有条件并行与基线 stale 防止
+> Trunk 推进后旧 R0 与默认可加收益。提案见
+> `spec/archive/2026-08/proposal-meta-poc-topic-binder.md` 与
+> `spec/meta/open/proposal-meta-poc-baseline-staleness.md`。
 
 ## NDF 缺陷分类（指针） {#BEH-026}
 <!-- ndf: kind=info level=may layer=L1 status=stable since=0.9 source=deduced scope=ndf-process -->
