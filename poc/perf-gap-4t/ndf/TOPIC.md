@@ -44,11 +44,11 @@
 
 | ID | 方向 | 复杂度 | 预期 | 状态 |
 |----|------|--------|------|------|
-| 1 | flat_vec_cache 调优 (64/96/128/160/192MB) | 低 | +5-15% QPS | pending |
-| 2 | PQ 质量 (M=48/64, OPQ) | 中 | +1-2pp recall | pending |
+| 1 | flat_vec_cache 调优 (64/96/128/160/192MB) | 低 | +23.4% QPS ✅ | done (optimal=160) |
+| 2 | PQ 质量 (M=16/64) | 中 | ❌ H2 否定 | done (M=32 最优) |
 | 3 | FineRerank I/O (批量 pread, 页合并) | 中高 | +5-10% QPS | pending |
 | 4 | VisitedList 池化 | 中 | +3-5% QPS | pending |
-| 5 | ef/refine_ef 调优 | 低 | trade-off | pending |
+| 5 | ef/refine_ef 调优 | 低 | ❌ 无收益 | done (EF=100 最优) |
 
 ## Evidence
 
