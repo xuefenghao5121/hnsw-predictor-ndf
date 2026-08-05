@@ -212,3 +212,20 @@ thread_local VisitedList（`reset()` 递增 curV），而非每次创建新实�
 > A2 无锁后台线程消除锁竞争，16T +72.8% QPS。C2 自适应池化消除 cache bouncing。
 > 详见 [[DEC-074]] / `poc/multi-thread-scaling/ndf/TOPIC.md`。
 > source: poc/multi-thread-scaling/ndf/evidence/a2-lockless-bg-20260805.md ; comprehensive-sweep-20260805.md
+
+## WILLNEED BG 页合并 {#BEH-028}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.6 source=observed topic=l4-cache-mgmt -->
+<!-- ndf: refines=BEH-027 depends-on=DEC-070,DEC-074,DEC-075,CON-SLA-014 -->
+
+> **track: promoted (partial)** - 提案 `spec/open/proposal-promote-l4-d2.md`（2026-08-06）。
+> 装订器: `poc/l4-cache-mgmt/ndf/TOPIC.md`。
+
+当 `WILLNEED_BG=1` 且 `PAGE_MERGE_BG=1` 时，后台线程 MUST 对每个 slot 中的 pages
+排序后合并连续页为单次 `posix_fadvise` 调用，减少 syscall 数量。
+
+**适用场景**: 仅 256MB cgroup 高并发 (12T+)。512MB 下有害 (readahead 窗口过大挤占热页)。
+**不推荐默认开启**。用户 MUST 仅在 256MB cgroup 场景下设置 `PAGE_MERGE_BG=1`。
+
+> rationale: 256MB page cache 极度紧张时 syscall 开销占比大，合并减少 ~60% fadvise 调用。
+> 512MB page cache 充裕时排序开销 > syscall 节省收益。
+> source: poc/l4-cache-mgmt/ndf/evidence/d2-bg-page-merge-20260805.md

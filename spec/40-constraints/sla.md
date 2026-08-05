@@ -243,3 +243,21 @@ SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160`
 **用途**: 高并发场景，QPS/MB 内存效率 1.05x vs hnswlib unlimited。
 
 **证据**: `poc/multi-thread-scaling/ndf/evidence/comprehensive-sweep-20260805.md`
+
+## SIFT1M 256MB BG+Merge SLA {#CON-SLA-018}
+<!-- ndf: kind=constraint level=must status=stable depends-on=CON-SLA-016,BEH-027,BEH-028,DEC-075 source=observed -->
+
+SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14` 配置下
+的性能下限：
+
+| 指标 | 基线 (2026-08-05) | SLA |
+|------|-------------------|-----|
+| SIFT1M 16T QPS | 18,675 | ≥ 12,000 |
+| SIFT1M 16T Recall@10 | 95.80% | ≥ 95% |
+| cgroup oom | 0 | = 0 |
+
+**配置**: `L4_WILLNEED=1 WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=64`
+
+**用途**: 256MB 极度内存受限 + 高并发场景。
+
+**证据**: `poc/l4-cache-mgmt/ndf/evidence/d2-bg-page-merge-20260805.md`

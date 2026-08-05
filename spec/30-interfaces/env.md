@@ -118,3 +118,12 @@
 - 作用: 自适应 VisitedList 池化，高并发时复用 thread_local 实例
 - 适用场景: 16T+ 高并发，与 WILLNEED_BG=1 叠加使用
 - 不适用: 12T- (thread_local 开销 > memset 节省，自动跳过)
+
+### PAGE_MERGE_BG
+
+- 类型: bool (0/1)
+- 默认: 0 (关闭)
+- 作用: WILLNEED_BG 后台线程中合并连续页为单次 fadvise，减少 syscall
+- 前置条件: `WILLNEED_BG=1`
+- 适用场景: **仅 256MB cgroup 12T+** (+11~18% QPS)
+- 不适用: 512MB cgroup (有害 -24~-3%，readahead 窗口过大挤占热页)
