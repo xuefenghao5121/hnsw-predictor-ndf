@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-015`  
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`  
 > CON-POC-001 正文在 `spec/meta/constraints.md`（adopted 见下文）
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
@@ -207,8 +207,8 @@ MUST NOT 作为 SLA 验收依据。
 > page cache 在 cgroup 预算内（limit - RSS）是核心合法加速层，
 > 本协议保障其在预算内被诚实利用。提案见 `spec/open/proposal-strict-cgroup-test.md`。
 
-## SIFT1M 紧凑 cgroup 配置 SLA {#CON-SLA-015}
-<!-- ndf: kind=constraint depends-on=CON-SLA-014,DEC-070,BEH-024 source=observed -->
+## SIFT1M 紧凑 cgroup 配置 SLA {#CON-SLA-016}
+<!-- ndf: kind=constraint level=must status=stable depends-on=CON-SLA-014,DEC-070,BEH-024 source=observed -->
 
 SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` + `FLAT_VEC_MB=64`
 配置下的性能下限：

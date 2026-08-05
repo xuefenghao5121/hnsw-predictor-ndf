@@ -36,24 +36,24 @@
 // 旧:
 size_t vec_max_bytes = 4 * 1024 * 1024;  // 4MB 默认
 // 新:
-size_t vec_max_bytes = 64 * 1024 * 1024;  // 64MB 默认 (perf-gap-4t D1, DEC-072)
+size_t vec_max_bytes = 64 * 1024 * 1024;  // 64MB 默认 (perf-gap-4t D1, DEC-073)
 ```
 
 注释更新: 推荐值 64MB (256MB cgroup) / 160MB (512MB cgroup)
 
 ### spec/ 改动 (D6)
 
-新增 SLA 条款 `{#CON-SLA-015}`: SIFT1M 紧凑 cgroup 配置
+新增 SLA 条款 `{#CON-SLA-016}`: SIFT1M 紧凑 cgroup 配置
 
 ### 新增 DEC
 
-`DEC-072`: flat_vec_cache 默认值调优
+`DEC-073`: flat_vec_cache 默认值调优
 
 ## 3. draft → stable ID 清单
 
 | ID | 变更 | 类型 |
 |----|------|------|
-| `CON-SLA-015` | 新增: SIFT1M 256MB cgroup SLA | new stable |
+| `CON-SLA-016` | 新增: SIFT1M 256MB cgroup SLA | new stable |
 
 现有条款无变更 (BEH-024 / DEC-068 / DEC-069 / DEC-070 不修改)
 
@@ -68,7 +68,15 @@ size_t vec_max_bytes = 64 * 1024 * 1024;  // 64MB 默认 (perf-gap-4t D1, DEC-07
 | D4 | VisitedList pool | 8,276 | - | ❌ 否定 |
 | D5 | REFINE_EF=200 | 5,703 | 97.20% | ❌ 无收益 |
 
-## 5. 不做的事
+## 5. 语义核决策 ([[META-004]] / [[BEH-019]] §6)
+
+**决策: 不要**
+
+理由: 本次 promote 是参数调优 (FLAT_VEC_MB 默认值) + 新增 SLA 配置点，
+不涉及新行为或新接口。现有 L1 条款 [[BEH-024]] (L4 cache 管理) + [[CON-SLA-014]] 
+已覆盖语义。VER 验证通过即可，无需蒸馏 L3 语义核模型。
+
+## 6. 不做的事
 
 - 不改 WILLNEED 默认值 (保持 opt-in)
 - 不改 REFINE_EF 默认值 (保持 100)

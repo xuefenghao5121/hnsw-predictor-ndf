@@ -2,7 +2,7 @@
 
 > track: poc
 > 日期: 2026-08-05
-> Status: Pending
+> Status: Implemented on 2026-08-05
 > 关联: [[CHR-006]]、[[CON-SLA-014]]、[[CON-HONEST-002]]、[[CON-POC-001]]、[[BEH-001]]、[[BEH-007]]
 > 依赖主题: `poc/multi-thread-scaling/`（平级新 topic，`depends_on_topics`）
 

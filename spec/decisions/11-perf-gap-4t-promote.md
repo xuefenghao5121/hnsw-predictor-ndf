@@ -1,9 +1,9 @@
-# Decisions - flat_vec_cache 默认值调优 (DEC-072)
+# Decisions - flat_vec_cache 默认值调优 (DEC-073)
 
-> 条款索引: `DEC-072`
+> 条款索引: `DEC-073`
 
-## D-072: flat_vec_cache 默认值 4MB → 64MB {#DEC-072}
-<!-- ndf: kind=decision date=2026-08-05 affects=BEH-024,CON-SLA-014,CON-SLA-015 source=observed -->
+## D-073: flat_vec_cache 默认值 4MB → 64MB {#DEC-073}
+<!-- ndf: kind=decision status=stable date=2026-08-05 affects=BEH-024,CON-SLA-014,CON-SLA-016 source=observed -->
 <!-- ndf: depends-on=DEC-068,DEC-069,DEC-070,CON-SLA-014 -->
 
 **Context.** perf-gap-4t POC 系统测试发现 flat_vec_cache (FLAT_VEC_MB) 默认值 4MB 过小：
