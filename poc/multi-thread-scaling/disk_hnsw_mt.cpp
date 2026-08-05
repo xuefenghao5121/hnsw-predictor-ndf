@@ -18,6 +18,8 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <condition_variable>
+#include <vector>
 #include <unordered_map>
 #include <iomanip>
 #include <immintrin.h>
@@ -1774,18 +1776,55 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             }
 
             // L4 WILLNEED: hint kernel to prefetch fine rerank pages (BEH-024, DEC-070)
-            // Direction B: adaptive disable at high thread count to avoid kernel lock contention
+            // Direction A: background thread fadvise (eliminate kernel lock contention)
+            // Direction B: adaptive disable (kept for comparison)
             static const bool kL4Willneed = std::getenv("L4_WILLNEED") && std::atoi(std::getenv("L4_WILLNEED")) != 0;
+            static const bool kWillneedBg = std::getenv("WILLNEED_BG") && std::atoi(std::getenv("WILLNEED_BG")) != 0;
             static const int kWillneedDisableThreads = []() {
                 const char* e = std::getenv("WILLNEED_DISABLE_THREADS");
-                return e ? std::atoi(e) : 0;  // 0=never disable
+                return e ? std::atoi(e) : 0;
             }();
             static const int kNumThreads = []() {
                 const char* e = std::getenv("NUM_THREADS");
                 return e ? std::atoi(e) : 1;
             }();
             bool willneed_active = kL4Willneed && (kWillneedDisableThreads == 0 || kNumThreads < kWillneedDisableThreads);
-            if (willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
+
+            if (kWillneedBg && willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
+                // Direction A: batch fadvise from a single background thread
+                // Uses a simple mutex + condition_variable pipeline
+                static std::mutex bg_mtx;
+                static std::condition_variable bg_cv;
+                static std::vector<std::pair<off_t, size_t>> bg_queue;
+                static bool bg_stop = false;
+                static std::thread bg_thread([&]() {
+                    int fd = vec_blocks_fd_;  // capture fd once
+                    while (true) {
+                        std::vector<std::pair<off_t, size_t>> work;
+                        {
+                            std::unique_lock<std::mutex> lk(bg_mtx);
+                            bg_cv.wait(lk, []{ return !bg_queue.empty() || bg_stop; });
+                            if (bg_stop && bg_queue.empty()) return;
+                            work = std::move(bg_queue);
+                            bg_queue.clear();
+                        }
+                        // Submit all fadvise calls from single thread (no contention)
+                        for (auto& [off, len] : work) {
+                            posix_fadvise(fd, off, len, POSIX_FADV_WILLNEED);
+                        }
+                    }
+                });
+                // Enqueue pages
+                {
+                    std::lock_guard<std::mutex> lk(bg_mtx);
+                    for (uint32_t pg : pages_needed) {
+                        bg_queue.emplace_back((off_t)pg << 12, 4096);
+                    }
+                }
+                bg_cv.notify_one();
+                // Note: fadvise is async hint, we don't wait for bg_thread to process
+                // The kernel readahead happens in background regardless
+            } else if (willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
                 for (uint32_t pg : pages_needed) {
                     posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
                 }
