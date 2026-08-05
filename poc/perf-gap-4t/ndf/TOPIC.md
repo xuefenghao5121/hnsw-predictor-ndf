@@ -1,7 +1,7 @@
 # TOPIC: perf-gap-4t
 
 > topic_id: perf-gap-4t
-> status: exploring
+> status: promoted
 > created: 2026-08-05
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M@512MB + 4T
 > depends_on_topics: [multi-thread-scaling]
