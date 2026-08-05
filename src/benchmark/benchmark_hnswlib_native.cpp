@@ -12,6 +12,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <atomic>
+#include <thread>
 
 static size_t getRSS_MB() {
     std::ifstream f("/proc/self/status");
@@ -90,22 +92,70 @@ int main(int argc, char** argv) {
     if (warm_sink < 0) std::cerr << "(warmup sink)";
 
     // Search warmup: run all queries once to warm cache + CPU
-    for (int i = 0; i < num_queries; i++)
-        alg.searchKnn(&query_data[i * dim], k);
+    const char* nt_env_warm = std::getenv("NUM_THREADS");
+    int num_threads_warm = nt_env_warm ? atoi(nt_env_warm) : 0;
+    if (num_threads_warm > 0) {
+        std::atomic<size_t> warm_idx{0};
+        auto warm_worker = [&]() {
+            while (true) {
+                size_t i = warm_idx.fetch_add(1);
+                if ((int)i >= num_queries) break;
+                alg.searchKnn(&query_data[i * dim], k);
+            }
+        };
+        std::vector<std::thread> warm_threads;
+        warm_threads.reserve(num_threads_warm);
+        for (int t = 0; t < num_threads_warm; t++)
+            warm_threads.emplace_back(warm_worker);
+        for (auto& t : warm_threads) t.join();
+    } else {
+        for (int i = 0; i < num_queries; i++)
+            alg.searchKnn(&query_data[i * dim], k);
+    }
+
+    // NUM_THREADS: >0 = concurrent search
+    const char* nt_env = std::getenv("NUM_THREADS");
+    int num_threads = nt_env ? atoi(nt_env) : 0;
 
     // Timed search
     std::vector<double> latencies(num_queries);
     std::vector<std::vector<std::pair<float, uint32_t>>> all_results(num_queries);
+
     auto tt0 = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < num_queries; i++) {
-        auto q0 = std::chrono::high_resolution_clock::now();
-        auto result = alg.searchKnn(&query_data[i * dim], k);
-        auto q1 = std::chrono::high_resolution_clock::now();
-        latencies[i] = std::chrono::duration<double, std::micro>(q1 - q0).count();
-        while (!result.empty()) {
-            auto& [dist, id] = result.top();
-            all_results[i].push_back({(float)dist, (uint32_t)id});
-            result.pop();
+    if (num_threads > 0) {
+        std::cout << "Mode: CONCURRENT (threads=" << num_threads << ")" << std::endl;
+        std::atomic<size_t> next_idx{0};
+        auto worker = [&]() {
+            while (true) {
+                size_t i = next_idx.fetch_add(1);
+                if ((int)i >= num_queries) break;
+                auto q0 = std::chrono::high_resolution_clock::now();
+                auto result = alg.searchKnn(&query_data[i * dim], k);
+                auto q1 = std::chrono::high_resolution_clock::now();
+                latencies[i] = std::chrono::duration<double, std::micro>(q1 - q0).count();
+                while (!result.empty()) {
+                    auto& [dist, id] = result.top();
+                    all_results[i].push_back({(float)dist, (uint32_t)id});
+                    result.pop();
+                }
+            }
+        };
+        std::vector<std::thread> threads;
+        threads.reserve(num_threads);
+        for (int t = 0; t < num_threads; t++)
+            threads.emplace_back(worker);
+        for (auto& t : threads) t.join();
+    } else {
+        for (int i = 0; i < num_queries; i++) {
+            auto q0 = std::chrono::high_resolution_clock::now();
+            auto result = alg.searchKnn(&query_data[i * dim], k);
+            auto q1 = std::chrono::high_resolution_clock::now();
+            latencies[i] = std::chrono::duration<double, std::micro>(q1 - q0).count();
+            while (!result.empty()) {
+                auto& [dist, id] = result.top();
+                all_results[i].push_back({(float)dist, (uint32_t)id});
+                result.pop();
+            }
         }
     }
     auto tt1 = std::chrono::high_resolution_clock::now();

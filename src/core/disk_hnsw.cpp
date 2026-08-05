@@ -17,6 +17,7 @@
 #include <stdexcept>
 #include <thread>
 #include <atomic>
+#include <mutex>
 #include <unordered_map>
 #include <iomanip>
 #include <immintrin.h>
@@ -1690,9 +1691,15 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
         static const bool kFineRerank = std::getenv("FINE_RERANK") && std::atoi(std::getenv("FINE_RERANK")) != 0;
         if (kFineRerank) {
             // 懒初始化 (VEC_BLOCKS_PATH 或复用 cache blocks 路径)
+            // 多线程安全: std::call_once 保证只初始化一次
             if (!fine_rerank_ok_) {
+                static std::once_flag fine_init_flag;
                 const char* bp = std::getenv("VEC_BLOCKS_PATH");
-                if (bp) fine_rerank_ok_ = buildFineRerank(bp, graph_.num_nodes);
+                if (bp) {
+                    std::call_once(fine_init_flag, [&]() {
+                        fine_rerank_ok_ = buildFineRerank(bp, graph_.num_nodes);
+                    });
+                }
                 if (!fine_rerank_ok_) {
                     std::cerr << "[FineRerank] init failed, fallback to block rerank" << std::endl;
                 }
@@ -2777,20 +2784,15 @@ DiskHNSW::batchSearchConcurrent(const std::vector<float>& queries, size_t k, siz
     size_t total = queries.size() / dim;
     std::vector<std::vector<SearchResult>> results(total);
     
-    std::mutex mtx;
     std::atomic<size_t> next_idx{0};
     
+    // Multi-threaded concurrent search
+    // No mutex needed: each thread writes results[i] for distinct i (from atomic counter)
     auto worker = [&]() {
         while (true) {
             size_t i = next_idx.fetch_add(1);
             if (i >= total) break;
-            
-            auto res = searchKnn(&queries[i * dim], k);
-            
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                results[i] = std::move(res);
-            }
+            results[i] = searchKnn(&queries[i * dim], k);
         }
     };
     

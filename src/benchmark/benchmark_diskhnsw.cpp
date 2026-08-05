@@ -19,6 +19,8 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <atomic>
+#include <thread>
 
 using SearchResult = std::pair<float, uint64_t>;
 
@@ -135,7 +137,27 @@ int main(int argc, char** argv) {
     const char* bs_env = std::getenv("BATCH_SIZE");
     int batch_size = bs_env ? atoi(bs_env) : 0;  // 0 = blocking, >0 = non-blocking batchSearch
     
-    if (batch_size > 0) {
+    // NUM_THREADS: >0 = concurrent search
+    const char* nt_env = std::getenv("NUM_THREADS");
+    int num_threads = nt_env ? atoi(nt_env) : 0;
+    
+    if (num_threads > 0) {
+        std::cout << "Mode: CONCURRENT (threads=" << num_threads << ")" << std::endl;
+        // Multi-threaded warmup
+        std::atomic<size_t> warm_idx{0};
+        auto warm_worker = [&]() {
+            while (true) {
+                size_t i = warm_idx.fetch_add(1);
+                if ((int)i >= num_query) break;
+                hnsw->searchKnn(&query_data[i * dim], k);
+            }
+        };
+        std::vector<std::thread> warm_threads;
+        warm_threads.reserve(num_threads);
+        for (int t = 0; t < num_threads; t++)
+            warm_threads.emplace_back(warm_worker);
+        for (auto& t : warm_threads) t.join();
+    } else if (batch_size > 0) {
         std::cout << "Mode: NON-BLOCKING (batch_size=" << batch_size << ")" << std::endl;
         std::vector<float> warmup_q(std::min(num_query, 10) * dim);
         std::memcpy(warmup_q.data(), query_data.data(), warmup_q.size() * sizeof(float));
@@ -150,23 +172,37 @@ int main(int argc, char** argv) {
     std::vector<double> latencies(num_query);
     std::vector<std::vector<SearchResult>> results(num_query);
     
-    // NUM_THREADS: >0 = concurrent search
-    const char* nt_env = std::getenv("NUM_THREADS");
-    int num_threads = nt_env ? atoi(nt_env) : 0;
-    
     auto t0 = std::chrono::high_resolution_clock::now();
     if (num_threads > 0) {
-        // Multi-threaded concurrent search
+        // Multi-threaded concurrent search with per-query latency
         std::cout << "Mode: CONCURRENT (threads=" << num_threads << ")" << std::endl;
         std::vector<float> all_q(num_query * dim);
         std::memcpy(all_q.data(), query_data.data(), all_q.size() * sizeof(float));
-        auto batch_results = hnsw->batchSearchConcurrent(all_q, k, num_threads);
+
+        std::atomic<size_t> next_idx{0};
+        std::vector<double> mt_latencies(num_query);
+
+        auto worker = [&]() {
+            while (true) {
+                size_t i = next_idx.fetch_add(1);
+                if ((int)i >= num_query) break;
+                auto q0 = std::chrono::high_resolution_clock::now();
+                results[i] = hnsw->searchKnn(&all_q[i * dim], k);
+                auto q1 = std::chrono::high_resolution_clock::now();
+                mt_latencies[i] = std::chrono::duration<double, std::micro>(q1 - q0).count();
+            }
+        };
+
+        std::vector<std::thread> threads;
+        threads.reserve(num_threads);
+        for (int t = 0; t < num_threads; t++)
+            threads.emplace_back(worker);
+        for (auto& t : threads)
+            t.join();
+
         auto t1 = std::chrono::high_resolution_clock::now();
         double total_s = std::chrono::duration<double>(t1 - t0).count();
-        for (int i = 0; i < num_query; i++) {
-            results[i] = batch_results[i];
-            latencies[i] = total_s / num_query * 1e6;
-        }
+        latencies = std::move(mt_latencies);
     } else if (batch_size > 0) {
         // Non-blocking batch search
         std::vector<float> all_q(num_query * dim);
