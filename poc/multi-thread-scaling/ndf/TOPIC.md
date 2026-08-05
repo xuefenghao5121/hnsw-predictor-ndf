@@ -4,7 +4,11 @@
 > status: exploring (resumed 2026-08-05)
 > created: 2026-08-05
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M@512MB / DEEP10M@2GB
+> explore_surface: mt-scaling,fine-rerank
+> baseline_trunk_sha: unknown-pre-policy
+> baseline_status: stale
 > depends_on_topics: []
+> conflicts_with_topics: []
 
 ## 概述
 

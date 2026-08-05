@@ -1,0 +1,109 @@
+=== SIFT1M 512MB cgroup Scaling RE-BASELINE (CON-SLA-014) ===
+Trunk: post-race-fix (1d14de7) + FVC default 64MB (d922f83)
+Config: WILLNEED=1, FLAT_VEC_MB=160, REFINE_EF=100, FINE_PREAD=1
+
+Mode: CONCURRENT (threads=1)
+Mode: CONCURRENT (threads=1)
+Recall: 95.75%
+Mean:   0.32 ms
+P50:    0.31 ms
+P95:    0.46 ms
+P99:    0.66 ms
+QPS:    3146.5
+RSS:    214 MB
+peak: 536870912
+oom: oom 0
+anon: anon 253952
+file: file 312823808
+--- 1T done ---
+
+Mode: CONCURRENT (threads=2)
+Mode: CONCURRENT (threads=2)
+Recall: 95.75%
+Mean:   0.36 ms
+P50:    0.33 ms
+P95:    0.58 ms
+P99:    0.66 ms
+QPS:    5485.0
+RSS:    216 MB
+peak: 536870912
+oom: oom 0
+anon: anon 249856
+file: file 311021568
+--- 2T done ---
+
+Mode: CONCURRENT (threads=4)
+Mode: CONCURRENT (threads=4)
+Recall: 95.75%
+Mean:   0.36 ms
+P50:    0.33 ms
+P95:    0.56 ms
+P99:    0.63 ms
+QPS:    10722.5
+RSS:    220 MB
+peak: 536870912
+oom: oom 0
+anon: anon 249856
+file: file 307089408
+--- 4T done ---
+
+Mode: CONCURRENT (threads=8)
+Mode: CONCURRENT (threads=8)
+Recall: 95.75%
+Mean:   0.53 ms
+P50:    0.50 ms
+P95:    1.14 ms
+P99:    1.31 ms
+QPS:    14223.7
+RSS:    227 MB
+peak: 536870912
+oom: oom 0
+anon: anon 253952
+file: file 298999808
+--- 8T done ---
+
+Mode: CONCURRENT (threads=12)
+Mode: CONCURRENT (threads=12)
+Recall: 95.75%
+Mean:   0.64 ms
+P50:    0.57 ms
+P95:    1.44 ms
+P99:    1.54 ms
+QPS:    17207.1
+RSS:    235 MB
+peak: 536870912
+oom: oom 0
+anon: anon 245760
+file: file 290082816
+--- 12T done ---
+
+Mode: CONCURRENT (threads=16)
+Mode: CONCURRENT (threads=16)
+Recall: 95.75%
+Mean:   0.80 ms
+P50:    0.68 ms
+P95:    1.51 ms
+P99:    1.68 ms
+QPS:    18317.1
+RSS:    242 MB
+peak: 536870912
+oom: oom 0
+anon: anon 249856
+file: file 282480640
+--- 16T done ---
+
+Mode: CONCURRENT (threads=24)
+Mode: CONCURRENT (threads=24)
+Recall: 95.75%
+Mean:   1.11 ms
+P50:    0.91 ms
+P95:    1.90 ms
+P99:    1.97 ms
+QPS:    19765.9
+RSS:    257 MB
+peak: 536870912
+oom: oom 0
+anon: anon 249856
+file: file 266682368
+--- 24T done ---
+
