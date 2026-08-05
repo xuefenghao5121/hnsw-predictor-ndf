@@ -20,6 +20,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <vector>
+#include <array>
 #include <unordered_map>
 #include <iomanip>
 #include <immintrin.h>
@@ -1800,39 +1801,42 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             bool willneed_active = kL4Willneed && (kWillneedDisableThreads == 0 || kNumThreads < kWillneedDisableThreads);
 
             if (kWillneedBg && willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
-                // Direction A: batch fadvise from a single background thread
-                // Uses a simple mutex + condition_variable pipeline
-                static std::mutex bg_mtx;
-                static std::condition_variable bg_cv;
-                static std::vector<std::pair<off_t, size_t>> bg_queue;
-                static bool bg_stop = false;
+                // Direction A2: lockless background fadvise
+                // Each search thread has its own SPSC buffer (atomic flag + vector).
+                // Background thread polls all buffers without any mutex.
+                static constexpr int MAX_THREADS = 128;
+                struct BgSlot {
+                    std::atomic<bool> ready{false};
+                    std::vector<uint32_t> pages;
+                };
+                static std::array<BgSlot, MAX_THREADS> bg_slots;
+                static std::atomic<bool> bg_stop{false};
                 static std::thread bg_thread([&]() {
-                    int fd = vec_blocks_fd_;  // capture fd once
-                    while (true) {
-                        std::vector<std::pair<off_t, size_t>> work;
-                        {
-                            std::unique_lock<std::mutex> lk(bg_mtx);
-                            bg_cv.wait(lk, []{ return !bg_queue.empty() || bg_stop; });
-                            if (bg_stop && bg_queue.empty()) return;
-                            work = std::move(bg_queue);
-                            bg_queue.clear();
+                    int fd = vec_blocks_fd_;
+                    while (!bg_stop.load(std::memory_order_relaxed)) {
+                        for (int i = 0; i < MAX_THREADS; i++) {
+                            if (bg_slots[i].ready.load(std::memory_order_acquire)) {
+                                for (uint32_t pg : bg_slots[i].pages) {
+                                    posix_fadvise(fd, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                                }
+                                bg_slots[i].ready.store(false, std::memory_order_release);
+                            }
                         }
-                        // Submit all fadvise calls from single thread (no contention)
-                        for (auto& [off, len] : work) {
-                            posix_fadvise(fd, off, len, POSIX_FADV_WILLNEED);
-                        }
+                        // Yield to avoid burning CPU
+                        std::this_thread::yield();
                     }
                 });
-                // Enqueue pages
-                {
-                    std::lock_guard<std::mutex> lk(bg_mtx);
-                    for (uint32_t pg : pages_needed) {
-                        bg_queue.emplace_back((off_t)pg << 12, 4096);
-                    }
+                // Use thread-local slot index
+                static std::atomic<int> next_slot{0};
+                static thread_local int my_slot = next_slot.fetch_add(1);
+                if (my_slot >= MAX_THREADS) my_slot = my_slot % MAX_THREADS;
+                // Write pages to our slot (SPSC: only we write, only bg reads)
+                auto& slot = bg_slots[my_slot];
+                slot.pages.clear();
+                for (uint32_t pg : pages_needed) {
+                    slot.pages.push_back(pg);
                 }
-                bg_cv.notify_one();
-                // Note: fadvise is async hint, we don't wait for bg_thread to process
-                // The kernel readahead happens in background regardless
+                slot.ready.store(true, std::memory_order_release);
             } else if (willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
                 // Direction A3: merge contiguous pages to reduce syscall count
                 static const bool kPageMerge = std::getenv("PAGE_MERGE") && std::atoi(std::getenv("PAGE_MERGE")) != 0;
