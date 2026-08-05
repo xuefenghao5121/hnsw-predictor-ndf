@@ -1,8 +1,9 @@
 # DiskHNSW - 内存受限环境下的磁盘向量搜索
 
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
-> SIFT1M @512MB: 95.70% recall / 2406 QPS (1T) / 5808 QPS (4T) / RSS 155MB
-> DEEP10M @2GB: 95.05% recall / 2340 QPS (12T) / RSS 1612MB (hnswlib OOM)
+> SIFT1M @512MB: 95.75% recall / 3147 QPS (1T) / 9914 QPS (4T) / RSS 220MB
+> SIFT1M @256MB: 95.80% recall / 8838 QPS (4T) / RSS 200MB (35% of hnswlib memory)
+> DEEP10M @2GB: 95.15% recall / 2340 QPS (12T) / RSS 1612MB (hnswlib OOM)
 
 ## 项目背景
 
@@ -47,7 +48,7 @@ bash scripts/compare_benchmark.sh
 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1 \
 VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin \
 PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin \
-CACHE_MB=64 FLAT_VEC_MB=64 REFINE_EF=100 \
+CACHE_MB=64 FLAT_VEC_MB=160 REFINE_EF=100 \
 ./build/benchmark_diskhnsw \
     output/sift1m_graph.bin output/sift1m_bfs.bin \
     output/sift1m_blocks_64k.bin output/sift1m_route_64k.bin \
@@ -70,7 +71,7 @@ TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1 \
 L4_EVICT_META=1 L4_WILLNEED=1 \
 VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin \
 PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin \
-CACHE_MB=64 FLAT_VEC_MB=64 REFINE_EF=100 \
+CACHE_MB=64 FLAT_VEC_MB=160 REFINE_EF=100 \
 ./build/benchmark_diskhnsw \
     output/sift1m_graph.bin output/sift1m_bfs.bin \
     output/sift1m_blocks_64k.bin output/sift1m_route_64k.bin \
@@ -131,19 +132,29 @@ L4_WILLNEED=1 ./build/benchmark_diskhnsw ...
 | 基线 | 134 | 95.75% | 153MB | 27718 | pread 串行阻塞 |
 | +WILLNEED=1 | **2379** | 95.75% | 153MB | 74 | **17.7x**，readahead 流水线 |
 
-**4T 并发 (512MB):**
+**多线程 Scaling (CON-SLA-014, 512MB cgroup, +WILLNEED):**
 
-| QPS | Recall | RSS |
-|-----|--------|-----|
-| 5808 | 95.70% | 286MB |
+| 线程数 | QPS | Recall | RSS | Scaling |
+|--------|-----|--------|-----|--------|
+| 1T | 3,147 | 95.75% | 214MB | 1.0x |
+| 4T | 9,914 | 95.75% | 220MB | 3.1x |
+| 12T | 17,610 | 95.75% | 217MB | 5.6x |
+| 16T (peak) | 18,044 | 95.75% | 225MB | 5.7x |
 
-**对比 hnswlib:**
+**256MB cgroup (CON-SLA-016, +WILLNEED, FLAT_VEC_MB=64):**
 
-| 指标 | hnswlib (全内存) | DiskHNSW (512MB cgroup) |
-|------|-----------------|------------------------|
-| Recall | 95.25% | **95.70%** |
-| RSS | 726MB (OOM@512MB) | **155MB** |
-| 内存节省 | - | **4.7x** |
+| 线程数 | QPS | Recall | RSS |
+|--------|-----|--------|-----|
+| 1T | 2,379 | 95.75% | 153MB |
+| 4T | 8,838 | 95.80% | 200MB |
+
+**对比 hnswlib (4T):**
+
+| 配置 | QPS | Recall | 内存 | QPS/MB 效率 |
+|------|-----|--------|------|------------|
+| hnswlib (unlimited) | 18,496 | 98.30% | 732MB | 25.3 |
+| DiskHNSW 512MB | 11,421 | 95.75% | 512MB (70%) | 22.3 |
+| **DiskHNSW 256MB** | **8,838** | **95.80%** | **256MB (35%)** | **34.5 (2.0x)** |
 
 ### DEEP10M (96维, 1000万向量)
 
@@ -260,6 +271,9 @@ L4_WILLNEED=1 ./build/benchmark_diskhnsw ...
 | **flat_vec_cache** | 2309 | 95.7% | 155MB | fine rerank 命中热向量 |
 | **WILLNEED** | 2379@256MB | 95.7% | 153MB | 内核 readahead 流水线 |
 | **DEEP10M** | 2340 | 95.15% | 1612MB | 10M 规模验证 |
+| **FineRerank thread safety** | 9914@4T | 95.75% | 220MB | std::call_once 修复 race |
+| **FVC default 64MB** | 11421@4T | 95.75% | 220MB | +23.4% QPS (perf-gap-4t D1) |
+| **256MB cgroup SLA** | 8838@4T | 95.80% | 200MB | 35% memory, 2.0x efficiency |
 
 ---
 
@@ -321,6 +335,8 @@ hnsw-predictor-ndf/
 | P0.5: 双路由表修复 | vec_route_table 分离 | ✅ 完成 |
 | P1: 图裁剪 | MRNG R_max 减边 | ✅ 负结果（1M 无净收益） |
 | P2: 10M 规模 | DEEP10M @2GB, recall≥95% | ✅ 完成 (95.15%, 2340 QPS) |
+| P2.1: 多线程 Scaling | SIFT1M 1-24T 曲线 + hnswlib 对比 | ✅ 完成 (peak 16T=18044) |
+| P2.2: 性能差距优化 | FVC 调优 + 256MB cgroup | ✅ 完成 (+23.4%, 2.0x 效率) |
 | P3: CSR 上磁盘 | 100M 必需，4.7GB 装不进内存 | 待启动 |
 | P4: 分级存储 | hot/warm/cold 三层 + 增量插入 | 长期 |
 | P5: 硬件亲和 | NUMA/SPDK/GPU/PMEM | 探索 |
