@@ -1,7 +1,7 @@
 # TOPIC: multi-thread-scaling
 
 > topic_id: multi-thread-scaling
-> status: exploring
+> status: exploring (paused 2026-08-05)
 > created: 2026-08-05
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M@512MB / DEEP10M@2GB
 > depends_on_topics: []
