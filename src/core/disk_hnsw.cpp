@@ -1799,11 +1799,26 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     static std::atomic<bool> bg_stop{false};
                     static std::thread bg_thread([&]() {
                         int fd = vec_blocks_fd_;
+                        static const bool kPageMergeBg = std::getenv("PAGE_MERGE_BG") && std::atoi(std::getenv("PAGE_MERGE_BG")) != 0;
                         while (!bg_stop.load(std::memory_order_relaxed)) {
                             for (int i = 0; i < MAX_THREADS; i++) {
                                 if (bg_slots[i].ready.load(std::memory_order_acquire)) {
-                                    for (uint32_t pg : bg_slots[i].pages) {
-                                        posix_fadvise(fd, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                                    if (kPageMergeBg && bg_slots[i].pages.size() > 1) {
+                                        // BEH-028: merge contiguous pages to reduce syscall count
+                                        std::vector<uint32_t> sorted(bg_slots[i].pages.begin(), bg_slots[i].pages.end());
+                                        std::sort(sorted.begin(), sorted.end());
+                                        size_t j = 0;
+                                        while (j < sorted.size()) {
+                                            uint32_t start = sorted[j];
+                                            size_t end = j + 1;
+                                            while (end < sorted.size() && sorted[end] == sorted[end-1] + 1) end++;
+                                            posix_fadvise(fd, (off_t)start << 12, (end - j) << 12, POSIX_FADV_WILLNEED);
+                                            j = end;
+                                        }
+                                    } else {
+                                        for (uint32_t pg : bg_slots[i].pages) {
+                                            posix_fadvise(fd, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                                        }
                                     }
                                     bg_slots[i].ready.store(false, std::memory_order_release);
                                 }
