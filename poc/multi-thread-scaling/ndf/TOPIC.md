@@ -32,7 +32,9 @@
 1. **H1**: `batchSearchConcurrent` 的 mutex 去除在高并发下有可测量收益（>2% QPS）- ⚠️ 难以独立量化（与 race fix 混合）
 2. **H2**: DiskHNSW scaling 在 8T-12T 后偏离线性 - ✅ 确认（8T=5.23x, 12T=6.42x, 16T=peak）
 3. **H3**: hnswlib native scaling 也非完美线性 - ✅ 确认（512MB 下被内存饿死；unlimited 下 16T peak 后回退）
-4. **H4**: DiskHNSW vs hnswlib(unlimited) 差距随数据规模拉大 - ✅ 确认（SIFT1M 44-52%, DEEP10M 5-17%）
+5. **H5**: WILLNEED 后台线程化可消除 12T+ 内核锁竞争，QPS +10-15%
+6. **H6**: WILLNEED 自适应禁用 (T≥8) 是低复杂度高收益方案，QPS +5-10%
+7. **H7**: VisitedList 池化在 12T+ 有收益 (4T 无收益不代表 12T 无收益)
 
 ## POC 发现
 

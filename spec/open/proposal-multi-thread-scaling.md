@@ -1,71 +1,93 @@
-# Proposal: 多线程 Scaling 严格基线
+# Proposal: 多线程 Scaling 基线 + 拓展性优化
 
 > track: poc
-> 日期: 2026-08-05
+> 日期: 2026-08-05 (amended 2026-08-05)
 > Status: Implemented on 2026-08-05
-> 关联: [[CHR-006]]、[[CON-SLA-014]]、[[CON-HONEST-002]]、[[CON-POC-001]]、[[BEH-018]]、[[BEH-025]]
-> 扩展: `proposal-4t-scaling-investigation.md`（旧提案聚焦 pipe 4T，本提案扩展为完整 scaling 基线）
+> 关联: [[CHR-006]]、[[CON-SLA-014]]、[[CON-SLA-016]]、[[CON-HONEST-002]]、[[CON-POC-001]]、[[BEH-018]]、[[BEH-025]]
+> 扩展: `proposal-4t-scaling-investigation.md`（旧提案聚焦 pipe 4T，本提案扩展）
+> 依赖主题: `perf-gap-4t`（已 promoted，FVC 默认值 + 256MB SLA）
 
 ## 1. 问题陈述
 
-当前 [[CHR-006]] 严格隔离基线只有 1T 和 4T 两个数据点（SIFT1M: 2309/6060 QPS）。
-缺少完整的 scaling 曲线（2T/8T/12T/16T/24T），无法判断：
+### 1.1 基线建立 (已完成)
 
-- 线性扩展区间在哪里结束
-- 瓶颈是什么（BlockCache 锁、pread VFS 竞争、分配器、GraphPrefetcher、io_uring）
-- hnswlib native 在同等线程数下的对比（当前 native benchmark 只支持单线程）
-- DEEP10M 多线程 scaling 特性（当前只有 12T 一个点：2340 QPS）
+建立完整的 DiskHNSW 多线程 scaling 曲线，同步建立 hnswlib native 多线程对比基线。
 
-### 已知问题
+### 1.2 拓展性优化 (本阶段目标)
 
-1. `batchSearchConcurrent` 中有不必要的 `std::mutex`（每个线程写 `results[i]`，i 互斥，无竞争）
-2. benchmark_diskhnsw 多线程模式无 per-query latency（用 `total_s / num_query` 近似）
-3. benchmark_hnswlib_native 完全不支持多线程，无法做公平对比
-4. 多线程 warmup 缺失（首次并发搜索有噪声）
+**新基线 (post-race-fix Trunk, FVC=160, 512MB cgroup) 显示 scaling 效率递减：**
 
-## 2. 探索目标（非 Trunk SLA）
+| 线程数 | QPS | Scaling | 效率 |
+|--------|-----|---------|------|
+| 1T | 3,147 | 1.0x | 100% |
+| 4T | 10,723 | 3.4x | 85% |
+| 12T | 17,207 | 5.5x | 46% |
+| **24T (peak)** | **19,766** | **6.3x** | **26%** |
 
-### 2.1 建立完整 scaling 曲线
+**256MB cgroup 更早进入平台期：**
 
-**协议**: [[CON-SLA-014]] 严格 cgroup 隔离
+| 线程数 | QPS | Scaling | 效率 |
+|--------|-----|---------|------|
+| 1T | 2,564 | 1.0x | 100% |
+| 4T | 6,882 | 2.7x | 67% |
+| **12T+ (plateau)** | **~10,700** | **4.2x** | **~18%** |
 
-| 数据集 | cgroup | 线程数 | 指标 |
-|--------|--------|--------|------|
-| SIFT1M | 512MB | 1/2/4/8/12/16/24 | QPS, recall, mean/p50/p95/p99, RSS |
-| DEEP10M | 2GB | 1/2/4/8/12 | QPS, recall, mean/p50/p95/p99, RSS |
+**perf 已定位的瓶颈 (12T)：**
+1. `posix_fadvise(WILLNEED)` 内核锁竞争 -- 6.27% (osq_lock + queued_spin_lock + down_read)
+2. VisitedList memset -- 10.29% (1MB memset per search, cache bouncing)
 
-### 2.2 hnswlib native 多线程对比
+**目标：通过消除 12T+ 瓶颈，提升高并发 scaling 效率。**
 
-同等线程数下对比，量化 DiskHNSW 的相对性能。
+## 2. 探索方向 (优化阶段)
 
-### 2.3 瓶颈定位（若 scaling < 线性）
+### 方向 A: WILLNEED 后台线程化 (中复杂度)
 
-候选瓶颈：
-- BlockCache 内部锁（LRU 更新、hash table）
-- pread/VFS 层竞争（多线程同时读不同 offset）
-- GraphPrefetcher 锁
-- 内存分配器（VisitedList alloc/free）
-- io_uring 提交队列竞争
+将 `posix_fadvise(WILLNEED)` 从搜索线程移到后台 I/O 线程，消除 kernel 锁竞争。
 
-## 3. 代码变更（全部在 `poc/` 内）
+- 预期: 512MB 12T +10-15% QPS (消除 6.27% 锁开销)
+- 风险: 后台线程增加 anon 内存 (~8MB stack + queue)，256MB 下需验证
 
-| 文件 | 变更 | 说明 |
-|------|------|------|
-| `poc/multi-thread-scaling/benchmark_diskhnsw_mt.cpp` | 基于 Trunk 修改 | 加 per-query latency、MT warmup |
-| `poc/multi-thread-scaling/benchmark_hnswlib_native_mt.cpp` | 基于 Trunk 修改 | 加 NUM_THREADS 支持 |
-| `poc/multi-thread-scaling/disk_hnsw_mt.cpp` | 基于 Trunk 修改 | 去掉 batchSearchConcurrent 无用 mutex |
-| `poc/multi-thread-scaling/run_scaling.sh` | 新建 | 自动 sweep 脚本 |
+### 方向 B: WILLNEED 自适应禁用 (低复杂度)
 
-**不修改 Trunk `src/`**（[[BEH-018]] 第 6 条）。
+T≥8 时自动禁用 WILLNEED（锁竞争 > readahead 收益）。
 
-## 4. 不做的事
+- 预期: 512MB 12T +5-10% QPS
+- 风险: 256MB 1T 仍需 WILLNEED (17.7x 加速)，不能全局禁用
 
-- 不改 Trunk `src/` 生产代码
+### 方向 C: VisitedList 线程局部池 (中复杂度)
+
+复用 VisitedList 避免每次 1MB memset。
+
+- 预期: 512MB 12T +3-5% QPS
+- 注: perf-gap-4t D4 测试 thread_local 池化反而 -15% (但那是 4T，12T 收益可能不同)
+- 替代方案: pre-allocated pool (非 thread_local)
+
+## 3. 已完成的工作
+
+### 3.1 基线 (512MB, 256MB, 1-24T) ✅
+- SIFT1M 512MB scaling sweep (post-race-fix re-baseline)
+- SIFT1M 256MB scaling sweep
+- hnswlib unlimited memory 对比 (SIFT1M + DEEP10M)
+- DEEP10M scaling sweep
+
+### 3.2 发现 ✅
+- FineRerank race condition → 已 promote (Trunk commit 1d14de7)
+- 瓶颈定位: WILLNEED 锁 + VisitedList memset
+- 6 个优化方向已记录
+
+## 4. 验证协议
+
+所有测试对齐 [[CON-SLA-014]]：drop_caches + cgroup。
+512MB 用 FVC=160，256MB 用 FVC=64。
+对比目标：新基线 (512MB 24T=19766, 256MB 24T=10922)。
+
+## 5. 不做的事
+
+- 不改 Trunk `src/`（方向 A/B/C 在 POC 内实现验证）
 - 不写 stable must SLA
-- 不引用旧白嫖 era 数据作为基线
-- 不把 POC 数字写入 [[CON-SLA-*]]
+- 不引用旧白嫖 era 数据
 
-## 5. 晋升条件（未来）
+## 6. 晋升条件
 
-若 POC 发现有效的优化（如去 mutex 有可测量收益），另开 **promote** 提案，
-引用本主题 `TOPIC.md`，走 [[BEH-019]] 干净合入。
+若某方向验证有效（12T+ QPS 提升 >5%），另开 promote 提案，
+引用本主题 TOPIC.md，走 [[BEH-019]] 干净合入。
