@@ -38,7 +38,7 @@
 1. **H1**: flat_vec_cache 调大可减少 FineRerank I/O，提升 QPS >5%
 2. **H2**: PQ M=48/64 可提升 recall >1pp，同时可能提升 QPS
 3. **H3**: FineRerank 候选页批量 pread 可减少 syscall 开销
-4. **H4**: VisitedList 池化可减少 4T 下 5% memset 开销
+5. **H5**: 256MB cgroup + WILLNEED 在 4T 下可行，QPS > 5000 - ✅ 确认 (8838 QPS)
 
 ## 探索方向
 
@@ -46,9 +46,10 @@
 |----|------|--------|------|------|
 | 1 | flat_vec_cache 调优 (64/96/128/160/192MB) | 低 | +23.4% QPS ✅ | done (optimal=160) |
 | 2 | PQ 质量 (M=16/64) | 中 | ❌ H2 否定 | done (M=32 最优) |
-| 3 | FineRerank I/O (批量 pread, 页合并) | 中高 | +5-10% QPS | pending |
-| 4 | VisitedList 池化 | 中 | +3-5% QPS | pending |
+| 3 | FineRerank I/O (批量 pread, 页合并) | 中高 | ❌ -30% QPS | done (排序开销>I/O收益) |
+| 4 | VisitedList 池化 | 中 | ❌ -15% QPS | done (thread_local 开销>memset 节省) |
 | 5 | ef/refine_ef 调优 | 低 | ❌ 无收益 | done (EF=100 最优) |
+| 6 | 256MB cgroup + WILLNEED | 低 | ✅ 8838 QPS (48%) | done (optimal FVC=64) |
 
 ## Evidence
 
