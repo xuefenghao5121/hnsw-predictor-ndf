@@ -1813,11 +1813,16 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                                         // D2: merge contiguous pages in BG thread
                                         std::vector<uint32_t> sorted(bg_slots[i].pages.begin(), bg_slots[i].pages.end());
                                         std::sort(sorted.begin(), sorted.end());
+                                        // D6: limit merge window (MAX_MERGE_PAGES env, default=999=unlimited)
+                                        static const int kMaxMerge = []() {
+                                            const char* e = std::getenv("MAX_MERGE_PAGES");
+                                            return e ? std::atoi(e) : 999;
+                                        }();
                                         size_t j = 0;
                                         while (j < sorted.size()) {
                                             uint32_t start = sorted[j];
                                             size_t end = j + 1;
-                                            while (end < sorted.size() && sorted[end] == sorted[end-1] + 1) end++;
+                                            while (end < sorted.size() && sorted[end] == sorted[end-1] + 1 && (end - j) < (size_t)kMaxMerge) end++;
                                             posix_fadvise(fd, (off_t)start << 12, (end - j) << 12, POSIX_FADV_WILLNEED);
                                             j = end;
                                         }
