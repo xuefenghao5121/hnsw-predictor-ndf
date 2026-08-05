@@ -1,7 +1,7 @@
 # TOPIC: multi-thread-scaling
 
 > topic_id: multi-thread-scaling
-> status: promoted
+> status: exploring
 > created: 2026-08-05
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M@512MB / DEEP10M@2GB
 > depends_on_topics: []
@@ -64,8 +64,9 @@
 
 ## Next Gate
 
-1. **Bug fix promote**: FineRerank race condition -> bug track 提案
-2. 瓶颈定位 (SIFT1M 12T+ / DEEP10M 4T+ scaling 停滞)
+1. ~~Bug fix promote~~ ✅ Trunk commit 1d14de7
+2. ~~瓶颈定位~~ ✅ WILLNEED 内核锁竞争 (6.27%) + VisitedList memset (10.29%)
+3. **决策**: 优化方向 A/B/C 或关闭主题
 
 ## Notes
 
