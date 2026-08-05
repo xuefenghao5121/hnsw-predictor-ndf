@@ -18,6 +18,8 @@
 #include <thread>
 #include <atomic>
 #include <mutex>
+#include <array>
+#include <condition_variable>
 #include <unordered_map>
 #include <iomanip>
 #include <immintrin.h>
@@ -1629,8 +1631,31 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     // Phase 2: Layer 0搜索（BlockCache按需加载，new_id空间）
     size_t ef = std::max(ef_search_, k);
 
-    // 创建VisitedList（new_id空间）
-    VisitedList visited(graph_.num_nodes);
+    // VL_POOL: adaptive VisitedList reuse (BEH-027, DEC-074)
+    // Only active when NUM_THREADS >= VL_POOL_THREADS (avoids low-T regression)
+    static const int kVLPoolThreads = []() {
+        const char* e = std::getenv("VL_POOL_THREADS");
+        return e ? std::atoi(e) : 999;  // default: never
+    }();
+    static const int kNumThreadsForVL = []() {
+        const char* e = std::getenv("NUM_THREADS");
+        return e ? std::atoi(e) : 1;
+    }();
+    static const bool kVLPoolActive = (kNumThreadsForVL >= kVLPoolThreads);
+    static thread_local std::unique_ptr<VisitedList> tl_vl_pool;
+    std::unique_ptr<VisitedList> vl_scratch;
+    VisitedList* vp;
+    if (kVLPoolActive) {
+        if (!tl_vl_pool || tl_vl_pool->mass.size() < graph_.num_nodes) {
+            tl_vl_pool = std::make_unique<VisitedList>(graph_.num_nodes);
+        }
+        tl_vl_pool->reset();
+        vp = tl_vl_pool.get();
+    } else {
+        vl_scratch = std::make_unique<VisitedList>(graph_.num_nodes);
+        vp = vl_scratch.get();
+    }
+    VisitedList& visited = *vp;
 
     // 环境变量 BEAM_WIDTH 控制 beam search (0=标准 best-first, >0=beam search)
     static const int kBeamWidth = []() {
@@ -1759,10 +1784,44 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             }
 
             // L4 WILLNEED: hint kernel to prefetch fine rerank pages (BEH-024, DEC-070)
+            // WILLNEED_BG=1: lockless background thread (BEH-027, DEC-074)
             static const bool kL4Willneed = std::getenv("L4_WILLNEED") && std::atoi(std::getenv("L4_WILLNEED")) != 0;
+            static const bool kWillneedBg = std::getenv("WILLNEED_BG") && std::atoi(std::getenv("WILLNEED_BG")) != 0;
             if (kL4Willneed && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
-                for (uint32_t pg : pages_needed) {
-                    posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                if (kWillneedBg) {
+                    // A2: SPSC per-thread slot + atomic flag (zero mutex)
+                    static constexpr int MAX_THREADS = 128;
+                    struct BgSlot {
+                        std::atomic<bool> ready{false};
+                        std::vector<uint32_t> pages;
+                    };
+                    static std::array<BgSlot, MAX_THREADS> bg_slots;
+                    static std::atomic<bool> bg_stop{false};
+                    static std::thread bg_thread([&]() {
+                        int fd = vec_blocks_fd_;
+                        while (!bg_stop.load(std::memory_order_relaxed)) {
+                            for (int i = 0; i < MAX_THREADS; i++) {
+                                if (bg_slots[i].ready.load(std::memory_order_acquire)) {
+                                    for (uint32_t pg : bg_slots[i].pages) {
+                                        posix_fadvise(fd, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                                    }
+                                    bg_slots[i].ready.store(false, std::memory_order_release);
+                                }
+                            }
+                            std::this_thread::yield();
+                        }
+                    });
+                    static std::atomic<int> next_slot{0};
+                    static thread_local int my_slot = next_slot.fetch_add(1);
+                    if (my_slot >= MAX_THREADS) my_slot = my_slot % MAX_THREADS;
+                    auto& slot = bg_slots[my_slot];
+                    slot.pages.clear();
+                    for (uint32_t pg : pages_needed) slot.pages.push_back(pg);
+                    slot.ready.store(true, std::memory_order_release);
+                } else {
+                    for (uint32_t pg : pages_needed) {
+                        posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                    }
                 }
             }
 
