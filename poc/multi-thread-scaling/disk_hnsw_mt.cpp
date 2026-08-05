@@ -1631,13 +1631,22 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
     // Phase 2: Layer 0搜索（BlockCache按需加载，new_id空间）
     size_t ef = std::max(ef_search_, k);
 
-    // Direction C: pool VisitedList (opt-in via VL_POOL=1)
-    // Uses thread_local pointer, set by batchSearchConcurrent per-thread
-    static const bool kVLPool = std::getenv("VL_POOL") && std::atoi(std::getenv("VL_POOL")) != 0;
+    // Direction C2: adaptive VL_POOL - only active when num_threads >= threshold
+    // C1 (always-on) caused -15% at 4T due to thread_local overhead.
+    // C2 skips pool at low concurrency, eliminates regression.
+    static const int kVLPoolThreads = []() {
+        const char* e = std::getenv("VL_POOL_THREADS");
+        return e ? std::atoi(e) : 999;  // default: never (must opt-in)
+    }();
+    static const int kNumThreadsForVL = []() {
+        const char* e = std::getenv("NUM_THREADS");
+        return e ? std::atoi(e) : 1;
+    }();
+    static const bool kVLPoolActive = (kNumThreadsForVL >= kVLPoolThreads);
     static thread_local std::unique_ptr<VisitedList> tl_vl_pool;
-    std::unique_ptr<VisitedList> vl_scratch;  // fallback if pool not active
+    std::unique_ptr<VisitedList> vl_scratch;
     VisitedList* vp;
-    if (kVLPool) {
+    if (kVLPoolActive) {
         if (!tl_vl_pool || tl_vl_pool->mass.size() < graph_.num_nodes) {
             tl_vl_pool = std::make_unique<VisitedList>(graph_.num_nodes);
         }
@@ -1825,8 +1834,25 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 // Note: fadvise is async hint, we don't wait for bg_thread to process
                 // The kernel readahead happens in background regardless
             } else if (willneed_active && !pages_needed.empty() && vec_blocks_fd_ >= 0) {
-                for (uint32_t pg : pages_needed) {
-                    posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                // Direction A3: merge contiguous pages to reduce syscall count
+                static const bool kPageMerge = std::getenv("PAGE_MERGE") && std::atoi(std::getenv("PAGE_MERGE")) != 0;
+                if (kPageMerge && pages_needed.size() > 1) {
+                    std::vector<uint32_t> sorted_pgs(pages_needed.begin(), pages_needed.end());
+                    std::sort(sorted_pgs.begin(), sorted_pgs.end());
+                    size_t i = 0;
+                    while (i < sorted_pgs.size()) {
+                        uint32_t start = sorted_pgs[i];
+                        size_t end = i + 1;
+                        while (end < sorted_pgs.size() && sorted_pgs[end] == sorted_pgs[end-1] + 1) end++;
+                        off_t off = (off_t)start << 12;
+                        size_t len = (end - i) << 12;
+                        posix_fadvise(vec_blocks_fd_, off, len, POSIX_FADV_WILLNEED);
+                        i = end;
+                    }
+                } else {
+                    for (uint32_t pg : pages_needed) {
+                        posix_fadvise(vec_blocks_fd_, (off_t)pg << 12, 4096, POSIX_FADV_WILLNEED);
+                    }
                 }
             }
 
