@@ -2,6 +2,8 @@ CXX = g++
 CXXFLAGS = -O3 -std=c++17 -Wall -Wextra -I./hnswlib -I./include -march=native
 LDFLAGS = -pthread
 
+# 架构检测 (-march=native 在 x86/ARM 上均可工作, 自动展开为 AVX2/NEON)
+
 BUILD_DIR = build
 
 # 核心库 (benchmark 和大部分 test 共享)

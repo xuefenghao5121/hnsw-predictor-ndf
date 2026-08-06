@@ -22,7 +22,7 @@
 #include <condition_variable>
 #include <unordered_map>
 #include <iomanip>
-#include <immintrin.h>
+#include "simd.h"  // 架构无关 SIMD 封装 (AVX2/NEON/Scalar)
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>  // malloc_trim (DEC-064)
@@ -267,33 +267,12 @@ void DiskHNSW::buildPqDistTable(const float* query) {
     const float* cb = pq_codebook_.data();
 
     if (dsub == 4) {
-        // AVX2: 一次处理 2 个 centroid (8 floats)
+        // SIMD: x86 AVX2 (2 centroids/iter) / ARM NEON (1 centroid/iter) / Scalar
         for (uint32_t m = 0; m < M; m++) {
             const float* q_sub = query + (size_t)m * 4;
             const float* cb_m = cb + (size_t)m * ksub * 4;
             float* t = &pq_dist_table_[(size_t)m * ksub];
-            __m128 qv = _mm_loadu_ps(q_sub);
-            __m256 q2 = _mm256_insertf128_ps(_mm256_castps128_ps256(qv), qv, 1);
-            uint32_t k = 0;
-            for (; k + 2 <= ksub; k += 2) {
-                __m256 c2 = _mm256_loadu_ps(cb_m + (size_t)k * 4);
-                __m256 d = _mm256_sub_ps(q2, c2);
-                __m256 sq = _mm256_mul_ps(d, d);
-                __m128 lo = _mm256_castps256_ps128(sq);
-                __m128 hi = _mm256_extractf128_ps(sq, 1);
-                __m128 h = _mm_hadd_ps(lo, hi);   // [l01, l23, h01, h23]
-                h = _mm_hadd_ps(h, h);            // [lsum, hsum, ...]
-                t[k]   = _mm_cvtss_f32(h);
-                t[k+1] = _mm_cvtss_f32(_mm_shuffle_ps(h, h, 0x55));
-            }
-            for (; k < ksub; k++) {
-                __m128 c = _mm_loadu_ps(cb_m + (size_t)k * 4);
-                __m128 d = _mm_sub_ps(qv, c);
-                __m128 sq = _mm_mul_ps(d, d);
-                __m128 h = _mm_hadd_ps(sq, sq);
-                h = _mm_hadd_ps(h, h);
-                t[k] = _mm_cvtss_f32(h);
-            }
+            pqBuildTable_dsub4(q_sub, cb_m, t, ksub);
         }
     } else {
         for (uint32_t m = 0; m < M; m++) {
@@ -538,9 +517,9 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
                 if (kPrefetchSW2 && j + kPfDist2 < local_neighbors.size()) {
                     uint32_t pfn = local_neighbors[j + kPfDist2];
                     if (pfn < graph_.num_nodes) {
-                        if (route_table_) _mm_prefetch((const char*)&(*route_table_)[pfn], _MM_HINT_T0);
+                        if (route_table_) SIMD_PREFETCH(&(*route_table_)[pfn]);
                         if (pq_enabled_) {
-                            _mm_prefetch((const char*)&pq_codes_[(size_t)pfn * pq_params_.M], _MM_HINT_T0);
+                            SIMD_PREFETCH(&pq_codes_[(size_t)pfn * pq_params_.M]);
                             cache_->prefetchFlatSlot(pfn);
                         }
                     }
@@ -664,9 +643,9 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             if (kPrefetchSW && j + kPfDist < local_neighbors.size()) {
                 uint32_t pfn = local_neighbors[j + kPfDist];
                 if (pfn < graph_.num_nodes) {
-                    if (route_table_) _mm_prefetch((const char*)&(*route_table_)[pfn], _MM_HINT_T0);
+                    if (route_table_) SIMD_PREFETCH(&(*route_table_)[pfn]);
                     if (pq_enabled_) {
-                        _mm_prefetch((const char*)&pq_codes_[(size_t)pfn * pq_params_.M], _MM_HINT_T0);
+                        SIMD_PREFETCH(&pq_codes_[(size_t)pfn * pq_params_.M]);
                         cache_->prefetchFlatSlot(pfn);
                     }
                 }
@@ -1757,8 +1736,8 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             static const bool kPfCollect = !std::getenv("PREFETCH_SW") || std::atoi(std::getenv("PREFETCH_SW")) != 0;
             if (kPfCollect) {
                 for (uint32_t nid : cand_ids) {
-                    if (route_table_) _mm_prefetch((const char*)&(*route_table_)[nid], _MM_HINT_T0);
-                    _mm_prefetch((const char*)&node_slot_table_[nid], _MM_HINT_T0);
+                    if (route_table_) SIMD_PREFETCH(&(*route_table_)[nid]);
+                    SIMD_PREFETCH(&node_slot_table_[nid]);
                 }
             }
             for (uint32_t nid : cand_ids) {
