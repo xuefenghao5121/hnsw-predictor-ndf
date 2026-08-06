@@ -4,7 +4,11 @@
 > status: promoted
 > created: 2026-08-05
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M@512MB + 4T
+> explore_surface: mt-scaling,fine-rerank
+> baseline_trunk_sha: n/a
+> baseline_status: n/a
 > depends_on_topics: [multi-thread-scaling]
+> conflicts_with_topics: []
 
 ## 概述
 

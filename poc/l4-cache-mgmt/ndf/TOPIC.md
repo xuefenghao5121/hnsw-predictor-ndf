@@ -1,7 +1,7 @@
 # TOPIC: l4-cache-mgmt
 
 > topic_id: l4-cache-mgmt
-> status: exploring (R5b Selective DONTNEED still POC; R4 flat_vec_cache + R5a WILLNEED promoted to Trunk as BEH-024 stable)
+> status: exploring (R5c mincore diagnostic pending; R4 FVC + R5a WILLNEED + R2 D2 BG-merge promoted to Trunk)
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > explore_surface: page-cache-l4,fine-rerank
 > baseline_trunk_sha: unknown-pre-policy
@@ -48,12 +48,13 @@
 
 - [x] R4: flat_vec_cache 在 fine rerank 中命中 + 增大扫描 -> **promoted** (BEH-024 stable, DEC-068)
 - [x] R5a: WILLNEED 测试 -> **18.5x QPS! 候选 promote**
-- [x] R5b: Selective DONTNEED 测试 -> refault 消除, QPS +14%
+- [x] R5b: Selective DONTNEED 测试 -> refault 消除, QPS +14% (旧 Trunk); R2 D3 重测 -18~27% ❌
 - [x] R5d: 组合测试 -> WILLNEED alone 最优
 - [x] 512MB 回归验证 -> **无回归** ✅ (+3.7%)
 - [x] 决策：WILLNEED promote 到 Trunk -> **promoted** (DEC-070, BEH-024 amend, API-012)
 - [x] DEEP10M WILLNEED 验证 -> 中性（I/O 量是瓶颈，不是时序）
-- [ ] R5c: mincore 诊断 (低优先级)
+- [x] R2 D1-D6: 基于当前 Trunk 重新探索 -> D2 promoted, D1/D3/D4/D5/D6 done/rejected
+- [ ] R5c: mincore 诊断 (低优先级, 最后一步)
 
 ## R4 结果 (2026-08-03)
 
@@ -79,6 +80,8 @@
 | root | `spec/archive/2026-08/proposal-l4-cache-mgmt.md` | Implemented (archived) |
 | root | `spec/open/proposal-promote-l4.md` | Implemented |
 | amend | `poc/l4-cache-mgmt/ndf/proposals/proposal-l4-r5-willneed-selective.md` | Pending |
+| amend | `spec/open/proposal-l4-cache-r2.md` | Implemented (R2 D1-D6 done) |
+| promote | `spec/open/proposal-promote-l4-d2.md` | Implemented (D2 -> Trunk) |
 
 ## Evidence
 
@@ -207,18 +210,38 @@ DEEP10M 不满足条件 2：瓶颈是 majfault 总量（68K次磁盘读），不
 | 16T (peak) | 30,332 | 95.75% |
 | 24T | 29,738 | 95.75% |
 
-### R2 探索方向
+### R2 探索方向与结果
 
-| # | 方向 | 核心问题 | 状态 |
-|---|------|---------|------|
-| 1 | flat_vec_cache 命中率诊断 | FVC 实际命中率？miss 分布？ | pending |
-| 2 | WILLNEED readahead 窗口合并 (BG 内) | BG 线程中合并连续页 | pending |
-| 3 | 选择性 DONTNEED (R5b 重测) | WILLNEED_BG + DONTNEED 组合 | pending |
-| 4 | BlockCache vs FVC 分配优化 | CACHE_MB vs FLAT_VEC_MB 比例 | pending |
+| # | 方向 | 核心问题 | 状态 | 结果 |
+|---|------|---------|------|------|
+| D1 | flat_vec_cache 命中率诊断 | FVC 实际命中率？miss 分布？ | done | 45-49% ceiling (slot 架构上限), H1 否定 |
+| D2 | WILLNEED readahead 窗口合并 (BG 内) | BG 线程中合并连续页 | **promoted** | 256MB +11~18% ✅, 512MB 有害 ❌ (BEH-028, DEC-075) |
+| D3 | 选择性 DONTNEED (R5b 重测) | WILLNEED_BG + DONTNEED 组合 | done | 全面 -18~27% ❌, H3 否定 |
+| D4 | BlockCache vs FVC 分配优化 | CACHE_MB vs FLAT_VEC_MB 比例 | done | 无影响 ❌, H4 否定 |
+| D5 | perf 重新定位 | 当前瓶颈分布 | done | 无单一瓶颈 >10%, 接近 Pareto 前沿 |
+| D6 | readahead 窗口限制 | 限制 WILLNEED 窗口 | done | 无帮助 ❌ |
 
-### R2 Active Hypothesis
+### R2 Hypothesis 验证
 
-1. **H1**: flat_vec_cache 命中率 <30%，有显著优化空间
-2. **H2**: BG 线程中合并连续页 fadvise 可减少 syscall >10%
-3. **H3**: WILLNEED_BG + 选择性 DONTNEED 可在 256MB 下 +5% QPS
-4. **H4**: CACHE_MB=32 + FVC 增大在 256MB 下更优
+| ID | 假设 | 结果 |
+|----|------|------|
+| H1 | FVC 命中率 <30% | ❌ 否定 (实际 45-49%) |
+| H2 | BG 页合并减少 syscall >10% | ✅ 证实 (+11~18% QPS @256MB) |
+| H3 | WILLNEED_BG + DONTNEED +5% | ❌ 否定 (-18~27%) |
+| H4 | CACHE_MB=32 + FVC 增大更优 | ❌ 否定 (无影响) |
+
+### R2 D2 Promote 详情
+
+- **提案**: `spec/open/proposal-promote-l4-d2.md` (Implemented)
+- **Trunk commit**: `edddd23` (PAGE_MERGE_BG contiguous page merge)
+- **新增条款**: BEH-028 (BG 页合并行为), CON-SLA-018 (256MB BG+merge SLA), DEC-075
+- **环境变量**: `PAGE_MERGE_BG=1` (opt-in, 默认关闭, 512MB 有害)
+- **验证**: perf-20260806.md, 所有 SLA 合规
+
+### R2 D5 Perf 瓶颈分析
+
+当前 Trunk (A2+C2+D2) 12T perf profile:
+- 无单一瓶颈 >10%
+- WILLNEED 内核锁竞争已由 BG 线程缓解
+- VisitedList memset 已由 VL_POOL 缓解
+- 接近 Pareto 前沿: 进一步优化需跨层协同 (I/O + CPU + 内存)

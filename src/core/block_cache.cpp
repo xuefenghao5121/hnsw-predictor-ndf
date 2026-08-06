@@ -240,8 +240,8 @@ void BlockCache::initFlatCache(size_t cache_bytes) {
 
     // ---- Flat Vector Cache ----
     // 热向量 cache: FLAT_VEC_MB 环境变量可调 (默认 64MB)
-    // 256MB cgroup 推荐 64MB, 512MB cgroup 推荐 160MB (perf-gap-4t D1, DEC-072)
-    size_t vec_max_bytes = 64 * 1024 * 1024;  // 64MB 默认 (DEC-072)
+    // 256MB cgroup 推荐 64MB, 512MB cgroup 推荐 160MB (perf-gap-4t D1, DEC-073)
+    size_t vec_max_bytes = 64 * 1024 * 1024;  // 64MB 默认 (DEC-073)
     if (const char* env = std::getenv("FLAT_VEC_MB")) {
         int mb = std::atoi(env);
         if (mb > 0) vec_max_bytes = (size_t)mb * 1024 * 1024;

@@ -27,6 +27,7 @@ AGENTS.md
 MEMORY.md
 tmp/
 packages/
+bento/
 
 # 目标文件
 *.o
