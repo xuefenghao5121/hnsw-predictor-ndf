@@ -22,7 +22,96 @@
 #include <atomic>
 #include <thread>
 
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
 using SearchResult = std::pair<float, uint64_t>;
+
+// R5c: mincore diagnostic - snapshot page cache residency of a file
+struct MincoreSnap {
+    size_t total_pages = 0;
+    size_t cached_pages = 0;
+    double hit_rate = 0.0;
+    // Per-block residency (vecblocks file: block_size typically 64KB = 16 pages)
+    std::vector<size_t> pages_per_block;  // cached pages count per block
+    size_t num_blocks = 0;
+};
+
+static MincoreSnap mincore_snapshot(const std::string& path, size_t block_size_bytes = 65536) {
+    MincoreSnap snap;
+    int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0) {
+        std::cerr << "[mincore] open failed: " << path << std::endl;
+        return snap;
+    }
+    struct stat st;
+    if (fstat(fd, &st) < 0) {
+        close(fd);
+        return snap;
+    }
+    size_t file_size = st.st_size;
+    if (file_size == 0) {
+        close(fd);
+        return snap;
+    }
+    // mmap without MAP_POPULATE (doesn't trigger I/O)
+    void* mapped = mmap(nullptr, file_size, PROT_READ, MAP_SHARED, fd, 0);
+    if (mapped == MAP_FAILED) {
+        close(fd);
+        std::cerr << "[mincore] mmap failed: " << path << std::endl;
+        return snap;
+    }
+    size_t page_size = sysconf(_SC_PAGESIZE);
+    snap.total_pages = (file_size + page_size - 1) / page_size;
+    std::vector<unsigned char> vec(snap.total_pages);
+    if (mincore(mapped, file_size, vec.data()) < 0) {
+        std::cerr << "[mincore] mincore failed: " << strerror(errno) << std::endl;
+        munmap(mapped, file_size);
+        close(fd);
+        return snap;
+    }
+    // Count cached pages
+    snap.cached_pages = 0;
+    for (size_t i = 0; i < snap.total_pages; i++) {
+        if (vec[i] & 1) snap.cached_pages++;
+    }
+    snap.hit_rate = snap.total_pages > 0 ?
+        (double)snap.cached_pages / snap.total_pages * 100 : 0;
+    // Per-block analysis
+    size_t pages_per_blk = block_size_bytes / page_size;
+    if (pages_per_blk == 0) pages_per_blk = 1;
+    snap.num_blocks = (snap.total_pages + pages_per_blk - 1) / pages_per_blk;
+    snap.pages_per_block.resize(snap.num_blocks, 0);
+    for (size_t i = 0; i < snap.total_pages; i++) {
+        if (vec[i] & 1) snap.pages_per_block[i / pages_per_blk]++;
+    }
+    munmap(mapped, file_size);
+    close(fd);
+    return snap;
+}
+
+static void print_mincore(const std::string& label, const MincoreSnap& snap) {
+    std::cout << "[mincore] " << label << ": "
+              << snap.cached_pages << "/" << snap.total_pages << " pages cached ("
+              << std::fixed << std::setprecision(1) << snap.hit_rate << "%)";
+    if (snap.num_blocks > 0) {
+        // Block residency distribution
+        size_t full_blocks = 0, partial = 0, empty = 0;
+        size_t pages_per_blk = snap.total_pages / snap.num_blocks;
+        if (pages_per_blk == 0) pages_per_blk = 1;
+        for (size_t b = 0; b < snap.num_blocks; b++) {
+            if (snap.pages_per_block[b] == 0) empty++;
+            else if (snap.pages_per_block[b] == pages_per_blk) full_blocks++;
+            else partial++;
+        }
+        std::cout << " | blocks: " << snap.num_blocks
+                  << " (full=" << full_blocks << " partial=" << partial
+                  << " empty=" << empty << ")";
+    }
+    std::cout << std::endl;
+}
 
 static size_t getRSS_MB() {
     std::ifstream f("/proc/self/status");
@@ -277,6 +366,71 @@ int main(int argc, char** argv) {
     std::cout << "PF:     submitted=" << pf.prefetch_submitted
               << " skipped=" << pf.prefetch_skipped
               << " failed=" << pf.prefetch_failed << std::endl;
+
+    // R5c: mincore diagnostic - snapshot page cache after search
+    static const bool kMincoreDiag = std::getenv("MINCORE_DIAG") && std::atoi(std::getenv("MINCORE_DIAG")) != 0;
+    if (kMincoreDiag) {
+        std::cout << "\n=== R5c mincore diagnostic ===" << std::endl;
+        // Snapshot vecblocks file (main I/O target)
+        const char* vb_env = std::getenv("VEC_BLOCKS_PATH");
+        std::string vb_path = vb_env ? vb_env : "";
+        MincoreSnap snap_vb;
+        if (!vb_path.empty()) {
+            snap_vb = mincore_snapshot(vb_path);
+            print_mincore("vecblocks", snap_vb);
+        }
+        // Snapshot graph file
+        auto snap_graph = mincore_snapshot(graph_path);
+        print_mincore("graph", snap_graph);
+        // Snapshot blocks file (BlockCache source)
+        auto snap_blocks = mincore_snapshot(blocks_path);
+        print_mincore("blocks", snap_blocks);
+        // Detailed block residency for vecblocks
+        if (snap_vb.num_blocks > 0) {
+            size_t pages_per_blk = snap_vb.total_pages / snap_vb.num_blocks;
+            if (pages_per_blk == 0) pages_per_blk = 1;
+            std::cout << "[mincore] vecblocks block residency (page=" << pages_per_blk
+                      << " pages/blk, file=" << snap_vb.total_pages << " pages):";
+            // Distribution histogram
+            int buckets[5] = {0,0,0,0,0}; // 0%, 1-25%, 26-50%, 51-99%, 100%
+            for (size_t b = 0; b < snap_vb.num_blocks; b++) {
+                double r = (double)snap_vb.pages_per_block[b] / pages_per_blk;
+                if (r == 0) buckets[0]++;
+                else if (r <= 0.25) buckets[1]++;
+                else if (r <= 0.50) buckets[2]++;
+                else if (r < 1.0) buckets[3]++;
+                else buckets[4]++;
+            }
+            std::cout << "\n  residency: 0%=" << buckets[0]
+                      << " 1-25%=" << buckets[1]
+                      << " 26-50%=" << buckets[2]
+                      << " 51-99%=" << buckets[3]
+                      << " 100%=" << buckets[4] << std::endl;
+        }
+        // /proc/meminfo snapshot
+        std::ifstream mi("/proc/meminfo");
+        std::string line;
+        size_t mem_free = 0, mem_avail = 0, cached = 0;
+        while (std::getline(mi, line)) {
+            if (line.substr(0,9) == "MemFree:") std::sscanf(line.c_str(), "MemFree: %zu", &mem_free);
+            else if (line.substr(0,12) == "MemAvailable:") std::sscanf(line.c_str(), "MemAvailable: %zu", &mem_avail);
+            else if (line.substr(0,7) == "Cached:") std::sscanf(line.c_str(), "Cached: %zu", &cached);
+        }
+        std::cout << "[mincore] meminfo: MemFree=" << mem_free/1024 << "MB"
+                  << " MemAvail=" << mem_avail/1024 << "MB"
+                  << " Cached=" << cached/1024 << "MB" << std::endl;
+        // cgroup memory.stat
+        std::ifstream ms("/sys/fs/cgroup/hnsw_l4_r5c/memory.stat");
+        if (ms.is_open()) {
+            while (std::getline(ms, line)) {
+                if (line.substr(0,5) == "anon " || line.substr(0,5) == "file " ||
+                    line.find("workingset_refault") != std::string::npos ||
+                    line.find("pgmajfault") != std::string::npos) {
+                    std::cout << "[cgroup] " << line << std::endl;
+                }
+            }
+        }
+    }
 
     return 0;
 }

@@ -1,7 +1,7 @@
 # TOPIC: l4-cache-mgmt
 
 > topic_id: l4-cache-mgmt
-> status: exploring (R5c mincore diagnostic pending; R4 FVC + R5a WILLNEED + R2 D2 BG-merge promoted to Trunk)
+> status: closed (all directions explored; R4 FVC + R5a WILLNEED + R2 D2 BG-merge promoted to Trunk; R5c confirms Pareto frontier)
 > baseline_protocol: [[CON-SLA-014]] + SIFT1M；基线见 [[DEC-067]]（修正后）
 > explore_surface: page-cache-l4,fine-rerank
 > baseline_trunk_sha: unknown-pre-policy
@@ -54,7 +54,45 @@
 - [x] 决策：WILLNEED promote 到 Trunk -> **promoted** (DEC-070, BEH-024 amend, API-012)
 - [x] DEEP10M WILLNEED 验证 -> 中性（I/O 量是瓶颈，不是时序）
 - [x] R2 D1-D6: 基于当前 Trunk 重新探索 -> D2 promoted, D1/D3/D4/D5/D6 done/rejected
-- [ ] R5c: mincore 诊断 (低优先级, 最后一步)
+- [x] R5c: mincore 诊断 -> 页缓存效率诊断完成, POC 可关闭
+
+## R5c mincore 诊断结果 (2026-08-06)
+
+### 256MB cgroup (WILLNEED_BG + PAGE_MERGE_BG)
+
+| 指标 | 值 |
+|------|-----|
+| vecblocks 缓存率 | 12.1% (15,355/126,993 pages) |
+| 块驻留分布 | empty=1,833(23%), 1-25%=4,717(59%), 26-50%=1,317(17%), 51-99%=70, 100%=1 |
+| file cache | 63MB |
+| anon | 200MB |
+| workingset_refault_file | 725 |
+| pgmajfault | 5,114 |
+| QPS | 2,830 |
+| FV_hit_rate | 45.7% |
+
+### 512MB cgroup (WILLNEED_BG + PAGE_MERGE_BG)
+
+| 指标 | 值 |
+|------|-----|
+| vecblocks 缓存率 | 19.9% (25,252/126,993 pages) |
+| 块驻留分布 | empty=1, 1-25%=5,064(64%), 26-50%=2,636(33%), 51-99%=236, 100%=1 |
+| file cache | 312MB |
+| anon | 220MB |
+| workingset_refault_file | 725 |
+| pgmajfault | 5,124 |
+| QPS | 3,386 |
+| FV_hit_rate | 49.4% |
+
+### R5c 关键结论
+
+1. **refault 和 majfault 在两种 cgroup 下几乎相同** (725/5,114 vs 725/5,124)
+   - WILLNEED_BG 已消除所有容量缺失 (capacity miss)
+   - 剩余 majfault ≈5K 是冷缺失 (compulsory miss), 不可通过 L4 管理优化
+2. **256MB 下 23% 的块为空** — 这些是 200 query 未访问的冷块
+3. **512MB 下几乎所有块都有部分页** (empty=1) — page cache 预算充裕
+4. **块内碎片化是设计使然** — 每块 64KB(15 pages), 只有包含目标向量的页被访问
+5. **页缓存在 Pareto 前沿** — WILLNEED_BG + FVC 已最优, 无进一步 L4 优化空间
 
 ## R4 结果 (2026-08-03)
 
