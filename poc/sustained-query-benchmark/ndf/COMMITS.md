@@ -43,3 +43,54 @@
 ### 状态
 
 TOPIC status: exploring → **ready-for-promote**
+
+---
+
+## 2026-08-06 — Promote 到 Trunk
+
+**Topic:** sustained-query-benchmark
+**Proposals:** `spec/open/proposal-promote-sustained-query-benchmark.md`
+**Clauses:** BEH-035, API-019 (draft→stable); CON-SLA-019, CON-SLA-020,
+MODEL-SUSTAINED-001, VER-043, VER-044, DEC-084 (new);
+BEH-033, BEH-034 (must→may), API-018, CON-SLA-014/016/017/018 (amended)
+**Promotes:** sustained-query-benchmark
+
+| Kind | Commit | 说明 |
+|------|--------|------|
+| `src_commit` | `<pending>` | `src/benchmark/benchmark_sustained.cpp` + Makefile + `scripts/run_sustained.sh` |
+| `spec_commit` | `<pending>` | 同一 commit（spec 与 src 一并合入） |
+
+### Trunk 落点
+
+| 路径 | 内容 |
+|------|------|
+| `src/benchmark/benchmark_sustained.cpp` | harness（自 poc 干净合入，补 CSV_AGG last_round_qps、Decay→Ramp-up 语义修正） |
+| `Makefile` | `build/benchmark_sustained` 目标 + 加入 `BENCH` |
+| `scripts/run_sustained.sh` | 隔离运行器（改用 `build/` 路径、`cg_stats_summary`、BEH-035 池来源校验） |
+| `spec/20-behavior/test-infra.md` | `BEH-035` stable |
+| `spec/30-interfaces/cli.md` | `API-019` stable |
+| `spec/40-constraints/sla.md` | `CON-SLA-019` / `CON-SLA-020` + 口径标注 |
+| `spec/models/sustained-query-measurement.md` | `MODEL-SUSTAINED-001` 语义核 |
+| `spec/decisions/20-sustained-benchmark-methodology.md` | `DEC-084` |
+| `spec/50-verification/acceptance-p2.md` | `VER-043` / `VER-044` |
+
+### 验证
+
+| 项 | 结果 |
+|----|------|
+| 编译 | ✅ `make build/benchmark_sustained` 通过（仅 Trunk 预存 warning） |
+| VER-043 复现 | ✅ 512MB/1T/N=1000/R=15 → **1,482.6 QPS / 96.00% / unique 7,942** |
+| vs POC 基线 | ✅ 1,482.6 vs 1,479.5（**0.2%**），recall 与 unique 精确一致 |
+| graphcheck | ✅ **0 error**, 15 warning（全为预存 unlinked） |
+| 条款计数 | 217 → **225** |
+
+### 图修正
+
+初次写入时 `BEH-035 depends-on API-019` 与 `API-019 depends-on BEH-035` 构成环
+（graphcheck 报 1 error）。改为 `API-019 refines API-002`（行为条款单向持有依赖），
+环消除。
+
+### 基线失效（BEH-025 / §4c）
+
+本主题 `baseline_status` → `stale`（Trunk 已移动）。
+无其它活跃 exploring 主题，无需级联标注。

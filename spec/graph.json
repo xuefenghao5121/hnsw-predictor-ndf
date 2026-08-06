@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-06T20:51:18Z",
-  "clause_count": 217,
+  "generated_at": "2026-08-06T21:35:15Z",
+  "clause_count": 225,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -112,7 +112,9 @@
       "scope": "",
       "edges": {},
       "body_refs": [],
-      "backlinks": []
+      "backlinks": [
+        "API-019"
+      ]
     },
     "API-003": {
       "id": "API-003",
@@ -302,10 +304,12 @@
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
+        "CON-SLA-020",
         "DEF-024",
         "VER-040",
         "VER-041",
-        "VER-042"
+        "VER-042",
+        "VER-043"
       ]
     },
     "API-012": {
@@ -334,11 +338,13 @@
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
+        "CON-SLA-020",
         "DEC-070",
         "MODEL-WILLNEED-001",
         "VER-040",
         "VER-041",
-        "VER-042"
+        "VER-042",
+        "VER-043"
       ]
     },
     "API-013": {
@@ -368,10 +374,12 @@
       "backlinks": [
         "CON-SLA-017",
         "CON-SLA-018",
+        "CON-SLA-020",
         "DEC-074",
         "DEF-024",
         "VER-041",
-        "VER-042"
+        "VER-042",
+        "VER-043"
       ]
     },
     "API-016": {
@@ -417,6 +425,7 @@
         "BEH-033"
       ],
       "backlinks": [
+        "API-018",
         "BEH-033"
       ]
     },
@@ -433,14 +442,48 @@
       "scope": "",
       "edges": {
         "depends-on": [
-          "BEH-004"
+          "BEH-004",
+          "DEC-084"
         ]
       },
       "body_refs": [
-        "BEH-034"
+        "BEH-034",
+        "DEC-084",
+        "CON-SLA-019",
+        "API-017",
+        "BEH-033"
       ],
       "backlinks": [
-        "BEH-034"
+        "BEH-034",
+        "DEC-084"
+      ]
+    },
+    "API-019": {
+      "id": "API-019",
+      "title": "多轮采样 benchmark CLI",
+      "file": "30-interfaces/cli.md",
+      "line": 197,
+      "kind": "interface",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "refines": [
+          "API-002"
+        ]
+      },
+      "body_refs": [
+        "BEH-035",
+        "API-002"
+      ],
+      "backlinks": [
+        "BEH-035",
+        "CON-SLA-020",
+        "DEC-084",
+        "MODEL-SUSTAINED-001",
+        "VER-043"
       ]
     },
     "ARCH-001": {
@@ -1176,6 +1219,7 @@
         "CHR-008",
         "CON-SLA-013",
         "DEC-071",
+        "DEC-084",
         "DEF-NDF-ZOMBIE-SPEC"
       ]
     },
@@ -1490,18 +1534,25 @@
           "API-017"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "DEC-084",
+        "CON-SLA-019",
+        "BEH-034"
+      ],
       "backlinks": [
-        "API-017"
+        "API-017",
+        "API-018",
+        "BEH-034",
+        "DEC-084"
       ]
     },
     "BEH-034": {
       "id": "BEH-034",
       "title": "GBDT 学习式候选数预测",
       "file": "20-behavior/search.md",
-      "line": 259,
+      "line": 273,
       "kind": "req",
-      "level": "must",
+      "level": "may",
       "layer": "L1",
       "status": "stable",
       "since": "0.9.9",
@@ -1511,12 +1562,58 @@
           "BEH-004"
         ],
         "depends-on": [
-          "API-018"
+          "API-018",
+          "DEC-084"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "DEC-084",
+        "BEH-035",
+        "BEH-033",
+        "MODEL-SUSTAINED-001"
+      ],
       "backlinks": [
-        "API-018"
+        "API-018",
+        "BEH-033",
+        "DEC-084",
+        "MODEL-SUSTAINED-001"
+      ]
+    },
+    "BEH-035": {
+      "id": "BEH-035",
+      "title": "多轮随机采样持续查询基准",
+      "file": "20-behavior/test-infra.md",
+      "line": 40,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "API-019",
+          "CON-SLA-019",
+          "DEC-084"
+        ],
+        "model": [
+          "MODEL-SUSTAINED-001"
+        ]
+      },
+      "body_refs": [
+        "MODEL-SUSTAINED-001",
+        "DEC-084",
+        "CON-SLA-019"
+      ],
+      "backlinks": [
+        "API-019",
+        "BEH-034",
+        "CON-SLA-018",
+        "CON-SLA-019",
+        "CON-SLA-020",
+        "DEC-084",
+        "MODEL-SUSTAINED-001",
+        "VER-043"
       ]
     },
     "CHR-001": {
@@ -1881,6 +1978,7 @@
         "CHR-006",
         "CON-SLA-011",
         "CON-SLA-014",
+        "CON-SLA-019",
         "DEC-039",
         "DEC-057",
         "DEC-059",
@@ -1890,7 +1988,9 @@
         "DEF-014",
         "DEF-015",
         "DEF-016",
-        "VER-030"
+        "MODEL-SUSTAINED-001",
+        "VER-030",
+        "VER-044"
       ]
     },
     "CON-POC-001": {
@@ -2142,7 +2242,9 @@
         "CON-HONEST-002",
         "CON-SLA-011",
         "DEC-067",
-        "VER-039"
+        "VER-039",
+        "CON-SLA-019",
+        "DEC-084"
       ],
       "backlinks": [
         "API-016",
@@ -2157,6 +2259,8 @@
         "CON-SLA-013",
         "CON-SLA-016",
         "CON-SLA-017",
+        "CON-SLA-019",
+        "CON-SLA-020",
         "DEC-065",
         "DEC-066",
         "DEC-067",
@@ -2167,18 +2271,21 @@
         "DEC-074",
         "DEC-075",
         "DEC-079",
+        "DEC-084",
+        "MODEL-SUSTAINED-001",
         "VER-030",
         "VER-039",
         "VER-040",
         "VER-041",
-        "VER-042"
+        "VER-042",
+        "VER-043"
       ]
     },
     "CON-SLA-016": {
       "id": "CON-SLA-016",
       "title": "SIFT1M 紧凑 cgroup 配置 SLA",
       "file": "40-constraints/sla.md",
-      "line": 210,
+      "line": 216,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -2195,15 +2302,20 @@
         ]
       },
       "body_refs": [
+        "DEC-084",
+        "CON-SLA-020",
         "CON-SLA-014",
         "DEF-024",
         "API-011",
         "API-012"
       ],
       "backlinks": [
+        "CON-SLA-017",
         "CON-SLA-018",
+        "CON-SLA-020",
         "DEC-073",
         "DEC-079",
+        "DEC-084",
         "DEF-024",
         "VER-040"
       ]
@@ -2212,7 +2324,7 @@
       "id": "CON-SLA-017",
       "title": "SIFT1M 优化配置 SLA (A2+C2)",
       "file": "40-constraints/sla.md",
-      "line": 233,
+      "line": 244,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -2231,12 +2343,17 @@
         ]
       },
       "body_refs": [
+        "DEC-084",
+        "CON-SLA-016",
+        "CON-SLA-020",
         "API-011",
         "API-012",
         "API-013"
       ],
       "backlinks": [
+        "CON-SLA-020",
         "DEC-074",
+        "DEC-084",
         "VER-041"
       ]
     },
@@ -2244,7 +2361,7 @@
       "id": "CON-SLA-018",
       "title": "SIFT1M 256MB BG+Merge SLA",
       "file": "40-constraints/sla.md",
-      "line": 255,
+      "line": 270,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -2263,14 +2380,102 @@
         ]
       },
       "body_refs": [
+        "DEC-084",
         "API-011",
         "API-012",
-        "API-013"
+        "API-013",
+        "BEH-035",
+        "CON-SLA-020",
+        "CON-SLA-019"
       ],
       "backlinks": [
+        "CON-SLA-020",
         "DEC-075",
+        "DEC-084",
         "DEF-024",
         "VER-042"
+      ]
+    },
+    "CON-SLA-019": {
+      "id": "CON-SLA-019",
+      "title": "禁止预热被测 query",
+      "file": "40-constraints/sla.md",
+      "line": 316,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "refines": [
+          "CON-SLA-014"
+        ],
+        "depends-on": [
+          "CON-HONEST-002",
+          "DEC-084"
+        ],
+        "model": [
+          "MODEL-SUSTAINED-001"
+        ]
+      },
+      "body_refs": [
+        "MODEL-SUSTAINED-001",
+        "BEH-035",
+        "CON-SLA-014",
+        "DEC-084"
+      ],
+      "backlinks": [
+        "API-018",
+        "BEH-033",
+        "BEH-035",
+        "CON-SLA-014",
+        "CON-SLA-018",
+        "CON-SLA-020",
+        "DEC-084",
+        "MODEL-SUSTAINED-001",
+        "VER-043",
+        "VER-044"
+      ]
+    },
+    "CON-SLA-020": {
+      "id": "CON-SLA-020",
+      "title": "SIFT1M Sustained 基线 SLA",
+      "file": "40-constraints/sla.md",
+      "line": 354,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "CON-SLA-014",
+          "CON-SLA-019",
+          "BEH-035",
+          "API-019",
+          "API-011",
+          "API-012",
+          "API-013",
+          "DEC-084"
+        ]
+      },
+      "body_refs": [
+        "CON-SLA-014",
+        "CON-SLA-019",
+        "BEH-035",
+        "CON-SLA-016",
+        "CON-SLA-017",
+        "CON-SLA-018"
+      ],
+      "backlinks": [
+        "CON-SLA-016",
+        "CON-SLA-017",
+        "CON-SLA-018",
+        "DEC-084",
+        "MODEL-SUSTAINED-001",
+        "VER-043"
       ]
     },
     "DEC-001": {
@@ -3875,6 +4080,50 @@
         "BEH-032"
       ]
     },
+    "DEC-084": {
+      "id": "DEC-084",
+      "title": "决策",
+      "file": "decisions/20-sustained-benchmark-methodology.md",
+      "line": 9,
+      "kind": "decision",
+      "level": "info",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-035",
+        "CON-SLA-019",
+        "MODEL-SUSTAINED-001",
+        "CON-SLA-020",
+        "BEH-034",
+        "CON-SLA-014",
+        "BEH-020",
+        "BEH-033",
+        "DEC-083",
+        "API-019",
+        "VER-043",
+        "CON-SLA-016",
+        "CON-SLA-017",
+        "CON-SLA-018",
+        "API-018"
+      ],
+      "backlinks": [
+        "API-018",
+        "BEH-033",
+        "BEH-034",
+        "BEH-035",
+        "CON-SLA-014",
+        "CON-SLA-016",
+        "CON-SLA-017",
+        "CON-SLA-018",
+        "CON-SLA-019",
+        "CON-SLA-020",
+        "MODEL-SUSTAINED-001",
+        "VER-044"
+      ]
+    },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",
       "title": "ADR: NDF 规范防腐化与双轨 SLA",
@@ -4764,6 +5013,43 @@
         "META-001"
       ]
     },
+    "MODEL-SUSTAINED-001": {
+      "id": "MODEL-SUSTAINED-001",
+      "title": "Sustained 查询测量参考模型",
+      "file": "models/sustained-query-measurement.md",
+      "line": 8,
+      "kind": "def",
+      "level": "must",
+      "layer": "L3",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "DEC-084",
+          "API-019",
+          "CON-SLA-014"
+        ]
+      },
+      "body_refs": [
+        "DEC-084",
+        "CON-SLA-020",
+        "BEH-034",
+        "CON-HONEST-002",
+        "API-019",
+        "VER-043",
+        "BEH-035",
+        "CON-SLA-019"
+      ],
+      "backlinks": [
+        "BEH-034",
+        "BEH-035",
+        "CON-SLA-019",
+        "DEC-084",
+        "VER-043",
+        "VER-044"
+      ]
+    },
     "MODEL-WILLNEED-001": {
       "id": "MODEL-WILLNEED-001",
       "title": "WILLNEED readahead 参考模型",
@@ -5365,6 +5651,68 @@
         "API-011",
         "API-012",
         "API-013"
+      ],
+      "backlinks": []
+    },
+    "VER-043": {
+      "id": "VER-043",
+      "title": "CON-SLA-020 验收（SIFT1M sustained 基线）",
+      "file": "50-verification/acceptance-p2.md",
+      "line": 145,
+      "kind": "verification",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "verifies": [
+          "CON-SLA-020",
+          "CON-SLA-019",
+          "BEH-035"
+        ],
+        "depends-on": [
+          "CON-SLA-014",
+          "API-019",
+          "API-011",
+          "API-012",
+          "API-013"
+        ]
+      },
+      "body_refs": [
+        "API-019",
+        "CON-SLA-020",
+        "MODEL-SUSTAINED-001",
+        "CON-SLA-019"
+      ],
+      "backlinks": [
+        "DEC-084",
+        "MODEL-SUSTAINED-001"
+      ]
+    },
+    "VER-044": {
+      "id": "VER-044",
+      "title": "hnswlib 全内存对照验收",
+      "file": "50-verification/acceptance-p2.md",
+      "line": 181,
+      "kind": "verification",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.10",
+      "scope": "",
+      "edges": {
+        "verifies": [
+          "CON-HONEST-002"
+        ],
+        "depends-on": [
+          "CON-SLA-019",
+          "MODEL-SUSTAINED-001"
+        ]
+      },
+      "body_refs": [
+        "MODEL-SUSTAINED-001",
+        "DEC-084"
       ],
       "backlinks": []
     }

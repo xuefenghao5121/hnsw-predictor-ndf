@@ -25,6 +25,10 @@ $(BUILD_DIR)/benchmark_diskhnsw: src/benchmark/benchmark_diskhnsw.cpp $(CORE_SRC
 $(BUILD_DIR)/benchmark_hnswlib_native: src/benchmark/benchmark_hnswlib_native.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ src/benchmark/benchmark_hnswlib_native.cpp $(LDFLAGS)
 
+# Sustained 多轮随机采样 benchmark (BEH-035 / API-019 / CON-SLA-019)
+$(BUILD_DIR)/benchmark_sustained: src/benchmark/benchmark_sustained.cpp $(CORE_SRC) $(HEADERS) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -o $@ src/benchmark/benchmark_sustained.cpp $(CORE_SRC) $(LDFLAGS)
+
 # 测试
 $(BUILD_DIR)/test_block_cache: src/test/test_block_cache.cpp src/core/block_cache.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ src/test/test_block_cache.cpp src/core/block_cache.cpp $(LDFLAGS)
@@ -42,7 +46,8 @@ PIPELINE = $(BUILD_DIR)/build_index $(BUILD_DIR)/extract_graph $(BUILD_DIR)/bfs_
            $(BUILD_DIR)/prune_graph $(BUILD_DIR)/shuffle_vecblocks
 
 # benchmark
-BENCH = $(BUILD_DIR)/benchmark_diskhnsw $(BUILD_DIR)/benchmark_hnswlib_native
+BENCH = $(BUILD_DIR)/benchmark_diskhnsw $(BUILD_DIR)/benchmark_hnswlib_native \
+        $(BUILD_DIR)/benchmark_sustained
 
 # 测试
 TESTS = $(BUILD_DIR)/test_block_cache $(BUILD_DIR)/test_disk_hnsw $(BUILD_DIR)/test_pq_search_quality

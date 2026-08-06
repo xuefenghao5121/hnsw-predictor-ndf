@@ -1,10 +1,16 @@
 # TOPIC: sustained-query-benchmark
 
-> status: ready-for-promote
+> topic_id: sustained-query-benchmark
+> status: promoted
+> baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + 官方 SIFT1M query 池；基线见 [[CON-SLA-020]] / [[DEC-084]]
 > explore_surface: test-infra,benchmark-methodology
 > baseline_trunk_sha: 4a33f38
-> baseline_status: current
+> baseline_status: stale
+> depends_on_topics: (none)
+> conflicts_with_topics: []
+> binder: [[DEF-022]] / [[BEH-025]]
 > opened: 2026-08-06
+> promoted: 2026-08-06 (DEC-084)
 
 ## 目标
 
@@ -25,12 +31,17 @@ base-sampled query 的 self-match 污染，为真实 I/O bound 场景提供可�
 标准 SIFT query 池（10,000 官方 query + 官方 GT）+ 每轮随机采样 N 个 + 共 R 轮，
 **取消 query warmup**（warmup 被测 query 正是假象来源）。
 
-## Draft 条款
+## Draft clauses
 
-| ID | 状态 | 说明 |
-|----|------|------|
-| BEH-035 | draft | 多轮随机采样持续查询基准 |
-| API-019 | draft | `benchmark_sustained` CLI |
+已全部 promote 到 Trunk（[[DEC-084]]）：
+
+| ID | 原状态 | Trunk 位置 | 现状态 |
+|----|--------|-----------|--------|
+| [[BEH-035]] | draft | `spec/20-behavior/test-infra.md` | **stable / must** |
+| [[API-019]] | draft | `spec/30-interfaces/cli.md` | **stable / must** |
+
+同时新增（非 draft 源）：[[CON-SLA-019]]、[[CON-SLA-020]]、[[MODEL-SUSTAINED-001]]、
+[[VER-043]]、[[VER-044]]、[[DEC-084]]。
 
 ## 数据文件
 
@@ -118,19 +129,35 @@ sustained 下 DiskHNSW QPS/MB 为 hnswlib 的 0.17–0.33×，
 
 ## 后续需处理（promote 阶段）
 
-1. 新增 sustained SLA 条款（基于 R4 矩阵）
-2. 现有 `CON-SLA-014/016/017/018` 标注为 cache-warmed 口径
-3. **`BEH-034` / `API-018`（GBDT）收益描述需修正** —— 走 §6.2d 负结果闭环或
-   rollback 提案。注：默认 `LEARNED_EF=0`，Trunk 默认行为未受影响，无生产风险
-4. `BEH-033`（ADAPTIVE）可扩展说明其在 512MB 下同样有效
-5. README / detailed-design 的 QPS/MB 效率声明需修正
+全部已完成（见 [[DEC-084]] §9）：
+
+- [x] 新增 sustained SLA 条款 → [[CON-SLA-020]]
+- [x] 现有 `CON-SLA-014/016/017/018` 标注 cache-warmed 口径
+- [x] `BEH-034` / `API-018`（GBDT）收益修正：must → **may**，删除 "+33~124%"
+- [x] `BEH-033`（ADAPTIVE）补 512MB 收益，删除“512MB 无收益”误判
+- [x] 语义核 [[MODEL-SUSTAINED-001]] 交付并挂 `model=`
+- [ ] README / detailed-design 的 QPS/MB 效率声明修正（全面测试后执行）
+
+## 归档
+
+本装订器保留在 `poc/sustained-query-benchmark/ndf/` 作为复现入口（摘要指针方式），
+不整包迁入 `spec/archive/`，因：
+1. 本主题产出的是**测量工具**，后续会持续使用（DEEP10M 等）
+2. `benchmark_sustained.cpp` 已合入 Trunk `src/benchmark/`，poc 副本仅作历史对照
+3. evidence 被 [[DEC-084]] 与 [[VER-043]] 直接引用，保持路径稳定更优
+
+## Proposals
+
+| Role | Path | Status |
+|------|------|--------|
+| POC 提案 | `spec/open/proposal-sustained-query-benchmark.md` | Implemented 2026-08-06 |
+| Draft 条款 | `ndf/proposals/draft-clauses.md` | Promoted 2026-08-06 |
+| Promote 提案 | `spec/open/proposal-promote-sustained-query-benchmark.md` | Implemented 2026-08-06 |
 
 ## 装订
 
 | Role | Path | Status |
 |------|------|--------|
-| 提案 | `spec/open/proposal-sustained-query-benchmark.md` | Implemented 2026-08-06 |
-| Draft 条款 | `ndf/proposals/draft-clauses.md` | active |
 | 实现 | `benchmark_sustained.cpp` + `Makefile` + `run_sustained.sh` | done |
 | 证据 | `ndf/evidence/r0,r1-r2,r3-r5,r6` | done |
 | Commits | `ndf/COMMITS.md` | done |

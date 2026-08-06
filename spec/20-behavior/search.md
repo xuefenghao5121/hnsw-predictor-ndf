@@ -245,26 +245,43 @@ dist[k] / dist[k-1]，并据此动态调整 Phase B 候选数：
 - gap_ratio ≤ ADAPTIVE_HARD_GAP → Phase B 限制候选数为 ADAPTIVE_HARD_EF
 - 否则 → Phase B 限制候选数为 REFINE_EF（标准行为）
 
-**默认关闭**（ADAPTIVE_EF 默认 0）。opt-in 仅推荐 256MB cgroup 高并发（≥4T）场景。
-512MB cgroup 下收益不明显或略有退化。
+**默认关闭**（`ADAPTIVE_EF` 默认 0）。opt-in。
 
-**recall 约束**: 启用时 recall MUST ≥ 95%（SIFT1M 校准值 95.30%）。
+**适用场景**（[[DEC-084]] sustained 实测修正）：**256MB 与 512MB cgroup 均有收益**，
+高并发（≥ 4T）收益更明显。sustained 口径实测（N=1000, R=15）：
 
-> rationale: SIFT1M 的 PQ gap 分布极窄 (P50=1.006)，大多数 query 无明显距离拐点。
-> 256MB 高并发下减少候选数直接减少 page cache 压力 → +31% QPS (4T/8T)。
-> 512MB 下 page cache 充裕，减少 I/O 收益不大。
+| cgroup | 线程 | vs BASE（聚合 QPS） | Recall |
+|--------|------|-------------------|--------|
+| 256MB | 4T | **+28.3%** | 95.81% |
+| 256MB | 16T | **+31.4%** | 95.81% |
+| 512MB | 4T | **+12.5%** | 95.80% |
+| 512MB | 16T | **+26.4%** | 95.80% |
+
+> ⚠️ **已修正的历史误判**：本条款原写“512MB cgroup 下收益不明显或略有退化”。
+> 该判断源于 cache-warmed 测量（warmup 后 512MB 确实无 I/O 压力，所以看不到收益）。
+> 诚实测量（[[CON-SLA-019]] 禁预热）下 512MB 依然 I/O bound，+12.5~26.4%。
+
+**recall 约束**: 启用时 recall MUST ≥ 95%（sustained 实测 95.80–95.81%）。
+
+> rationale: SIFT1M 的 PQ gap 分布极窄 (P50=1.006)，大多数 query 无明显距离拐点，
+> 但减少候选数直接减少 page cache 压力 → 提升 QPS。
 > 层次 B (Fine Rerank 早终止) 在 pread 批量读取架构下无效 (DEC-081)。
-> source: poc/helmsman-adaptive/ndf/TOPIC.md
+> 本机制基于**运行时在线信号**（PQ gap_ratio）而非离线训练模型，
+> 因此对 query 分布漂移鲁棒 —— 与 [[BEH-034]] 的对照见 [[DEC-084]] §6。
+> source: poc/helmsman-adaptive/ndf/TOPIC.md ; poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md
 
 ## GBDT 学习式候选数预测 {#BEH-034}
-<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
-<!-- ndf: refines=BEH-004 depends-on=API-018 -->
+<!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
+<!-- ndf: refines=BEH-004 depends-on=API-018,DEC-084 -->
 
 > **track: promoted** - 提案 `spec/open/proposal-promote-gbdt-learned-pruning.md`（2026-08-06）。
 > 装订器: `poc/gbdt-learned-pruning/ndf/TOPIC.md`。
 > Promotes: gbdt-learned-pruning。
+>
+> ⚠️ **收益已证伪，条款降级 must → may**（[[DEC-084]] §5，2026-08-06）。
+> 机制与代码正确且保留；**当前模型的收益在 sustained 场景下不成立**。
 
-当 `LEARNED_EF=1` 时，搜索 MUST 在 Phase A 结束后提取 11 维 PQ 距离特征向量，
+当 `LEARNED_EF=1` 时，搜索 MAY 在 Phase A 结束后提取 11 维 PQ 距离特征向量，
 通过 GBDT 模型（100 棵 LightGBM 决策树, 编译期嵌入 C++ if-else 规则表）预测
 Phase B 最优候选数，并乘以 `GBDT_MARGIN` 系数后截断候选列表。
 
@@ -276,12 +293,29 @@ Phase B 最优候选数，并乘以 `GBDT_MARGIN` 系数后截断候选列表。
 **默认关闭**（LEARNED_EF 默认 0）。opt-in。
 与 ADAPTIVE_EF (BEH-033) 互斥；若两者同时开启，LEARNED_EF 优先。
 
-**recall 约束**: 启用时 recall MUST ≥ 95%。
+**recall 约束**: 启用时 recall MUST ≥ 95%（sustained 实测 95.99%，满足）。
 
-**适用场景**: I/O bound 场景 (working set > cgroup 预算)。10K query 实测 +33~124% QPS。
+### ⚠️ 收益状态：当前模型无效（[[DEC-084]]）
 
-> rationale: 200q benchmark 因 working set (~10MB) 全进 page cache 而非 I/O bound，
-> GBDT 在 200q 下无明显优势。10K query (working set ~488MB) 才是真实 I/O bound 场景。
-> GBDT 多特征预测比单一 gap_ratio 启发式 (BEH-033) 在 I/O bound 下多减少 36% I/O。
-> 模型对训练数据分布敏感 (SIFT1M 训练, DEEP10M 泛化待验证)。
-> source: poc/gbdt-learned-pruning/ndf/TOPIC.md ; sla-reevaluation.md
+| 测量口径 | GBDT 增益 | 有效性 |
+|---------|----------|--------|
+| 200q + query 预热 | +3.3~6.0% | ❌ cache-warmed |
+| base-sampled 10Kq | +33~124% | ❌ GT self-match 污染 |
+| **官方池 sustained** | **−0.9~+1.8%**（噪声内） | ✅ |
+
+**根因**：GBDT 训练数据来自 base-sampled 10K query 的 profiling。那批 query 因
+self-match 而“异常容易”（GT top-1 恒为自己，距离 0），模型学到的候选数分布
+**系统性偏低**。用在官方 query 上预测失准 → `learned_limit` 裁剪失去准确性 → 收益归零。
+
+**复活条件**：用**合规 query 池**（标准 query set，见 [[BEH-035]]）重新 profiling
+并重训模型，在 sustained 口径下重测。若确认收益可发提案重新升为 must。
+
+**当前建议**：生产环境 SHOULD 使用 [[BEH-033]]（`ADAPTIVE_EF`）而非本机制。
+
+> rationale（已修正）: 原 rationale 建立在“200q working set ~10MB 非 I/O bound，
+> 10K query working set ~488MB 才是真实 I/O bound”的模型上——该模型已被 [[DEC-084]] §4 推翻：
+> 真正的 cache 假象源是 harness 预热被测 query，且 query-无关共享状态（图 CSR 47MB +
+> PQ codes 30MB + FVC 160MB ≈ 237MB）无法被随机换 query 驱逐。
+> 本机制依赖离线训练模型，对训练集质量敏感；self-match 污染不仅污染了 recall 指标，
+> 还污染了本模型的训练标签。参见 [[MODEL-SUSTAINED-001]] 不变量 I4 推论。
+> source: poc/gbdt-learned-pruning/ndf/TOPIC.md ; poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md

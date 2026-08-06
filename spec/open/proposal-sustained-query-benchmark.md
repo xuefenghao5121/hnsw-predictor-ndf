@@ -7,6 +7,13 @@
 > 提出日期：2026-08-06
 > 基线 Trunk：`4a33f38`
 >
+> **Status: Promoted on 2026-08-06** — 后续提案
+> `spec/open/proposal-promote-sustained-query-benchmark.md`；决策 [[DEC-084]]。
+> ⚠️ 本提案 §4 R2 预期（“QPS 随轮数下降”）已被实测**证伪**：
+> 实测为 ramp-up（245 → 稳态 1,670，R≈20 饱和）。
+> 根因：随机换 query 无法驱逐 query-无关共享状态（图 CSR 47MB + PQ 30MB +
+> FVC 160MB ≈ 237MB）；真正的假象源是 harness 预热被测 query。详见 [[DEC-084]] §4。
+>
 > Status: Implemented on 2026-08-06
 
 ## 1. 背景与动机

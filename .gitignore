@@ -37,3 +37,4 @@ __pycache__/
 
 # hnswlib 外部依赖 (如需精简可改为 submodule)
 hnswlib/
+results/

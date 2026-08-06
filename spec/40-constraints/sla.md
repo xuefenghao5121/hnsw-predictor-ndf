@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`  
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`, `CON-SLA-019`, `CON-SLA-020`  
 > CON-POC-001 正文在 `spec/meta/constraints.md`（adopted 见下文）
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
@@ -184,6 +184,12 @@ Buffered 模式阈值仍以 [[CHR-006]] 为准，MUST NOT 用本条款覆盖。
 3. benchmark 启动后所有文件 I/O 为首次读取，page cache 在 cgroup 内记账积累
 4. 测试过程中 MUST 监控 `memory.current`、`memory.peak`、`memory.stat`（anon/file）
 5. `memory.events` 中 `oom` MUST = 0（不得触发 OOM）
+6. 计时窗口内 MUST 遵守 [[CON-SLA-019]]（**MUST NOT 预热被测 query**）
+
+> ⚠️ **历史漏洞**（[[DEC-084]]）：本协议原本只规定了 benchmark **启动前**
+> `drop_caches`，未规定**计时窗口内允许什么**。`benchmark_diskhnsw` 在计时前
+> 将全部待测 query 跑一遍以预热 cache，导致测得 in-memory 性能，
+> QPS 高估 **1.73–7.60×**。第 6 条与 [[CON-SLA-019]] 为此补洞。
 
 **模拟场景**：此协议模拟真实部署——数据准备在内存充足机器上完成，
 文件拷贝到内存受限机器上进行检索。部署机器上无预热的 page cache。
@@ -211,6 +217,11 @@ MUST NOT 作为 SLA 验收依据。
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9 source=observed -->
 <!-- ndf: depends-on=CON-SLA-014,DEC-070,BEH-024,API-011,API-012 trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da -->
 
+> ⚠️ **口径：cache-warmed**（[[DEC-084]]）。本条款数字由 `benchmark_diskhnsw`
+> 200q + **query 预热** 测得，代表 page cache 已完全吸收待测 query 后的上限，
+> **不代表** disk-resident sustained 吞吐。sustained 口径基线见 [[CON-SLA-020]]。
+> 本条款作为回归护栏（防性能倒退）仍有效，MUST NOT 单独对外引用为商用吞吐。
+
 SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` + `FLAT_VEC_MB=64`
 配置下的性能下限：
 
@@ -234,6 +245,10 @@ SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` +
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.5 source=observed -->
 <!-- ndf: depends-on=CON-SLA-014,BEH-024,BEH-027,DEC-074,API-011,API-012,API-013 trunk-ref=162377ee75dbb6a3042572bce47686b92a86aa42 -->
 
+> ⚠️ **口径：cache-warmed**（[[DEC-084]]）。同 [[CON-SLA-016]]：200q + query 预热口径，
+> 16T 数字高估约 **4.53×**（30,332 vs sustained 6,694）。仅作回归护栏；
+> 对外吞吐声明 MUST 用 [[CON-SLA-020]]。
+
 SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160` 配置下
 的性能下限：
 
@@ -256,6 +271,9 @@ SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160`
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.6 source=observed -->
 <!-- ndf: depends-on=CON-SLA-016,BEH-027,BEH-028,DEC-075,API-011,API-012,API-013 trunk-ref=edddd232947c5ec5bde27065add3b1a60621cb80 -->
 
+> ⚠️ **口径：cache-warmed**（[[DEC-084]]）。200q + query 预热口径；
+> 16T 数字高估约 **7.60×**（18,675 vs sustained 2,456）。仅作回归护栏。
+
 SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14` 配置下
 的性能下限：
 
@@ -276,7 +294,7 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 
 ## 200q benchmark cache-warmed 注意事项
 
-> **认知记录 (DEC-083)**，非 SLA 条款。
+> **认知记录 (DEC-083)**，非 SLA 条款。已被 [[DEC-084]] **部分超越**（见末尾）。
 >
 > 200q benchmark 的 Phase B working set (~10MB) 全进 page cache，
 > QPS 数字反映 cache-warmed 场景而非 sustained I/O 场景。
@@ -289,3 +307,97 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 > 才能达到 95% recall，不适合直接作为 SLA。cache-hit 假象不影响 recall 数据的
 > 有效性，只影响 QPS 绝对值的生产可参考性。后续需要用**标准 SIFT query set 的
 > 更大规模子集**（如 1000-5000 标准查询）建立 sustained SLA。
+
+> ✅ **后续已完成**（[[DEC-084]]）：上文最后一句的设想已实现 —— 用**官方 SIFT 10K
+> query 池**多轮随机采样（[[BEH-035]]），同时满足 QPS 诚实与 recall 96.00% ≥ 95%，
+> 基线见 [[CON-SLA-020]]。且发现真正的假象源不是 working set 规模，
+> 而是 **harness 内对被测 query 的预热**（[[CON-SLA-019]]）。
+
+## 禁止预热被测 query {#CON-SLA-019}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.10 source=observed topic=sustained-query-benchmark trunk-ref=47ed9e7 -->
+<!-- ndf: refines=CON-SLA-014 depends-on=CON-HONEST-002,DEC-084 model=MODEL-SUSTAINED-001 -->
+
+> **track: promoted** - 提案 `spec/open/proposal-promote-sustained-query-benchmark.md`（2026-08-06）。
+> 参考语义（预言机）: [[MODEL-SUSTAINED-001]]。
+
+声称 **disk-resident sustained 吞吐**的测量，MUST NOT 在计时窗口前或内部
+对**被测 query 本身**执行预热（warmup）。
+
+### MUST
+
+1. MUST NOT 在计时前将待测 query 集合（或其子集）执行一遍以预热 page cache。
+2. 允许的预热仅限：
+   - CPU 频率 spin（不触发索引 I/O）
+   - 使用与统计轮 **disjoint** query 集合的 warmup 轮（见 [[BEH-035]]）
+3. 若 benchmark 提供 warmup 选项，其 seed 空间 MUST 与统计轮 disjoint，
+   且 warmup 结果 MUST NOT 计入统计。
+4. 验收报告 MUST 声明测量口径：`cache-warmed` 或 `sustained`。
+   两种口径的 QPS MUST NOT 直接横向比较。
+
+### 与 [[CON-SLA-014]] 的关系
+
+[[CON-SLA-014]] 约束计时窗口**之前**的环境（`drop_caches` + cgroup）；
+本条款约束计时窗口**内部**允许的行为。二者共同构成完整的诚实测量协议。
+
+### 历史事故
+
+`benchmark_diskhnsw` 长期包含 `// Search warmup: run all queries once to warm cache`，
+使全部 SLA 数字变为 in-memory 性能，高估 **1.73–7.60×**（细节见 [[DEC-084]]）。
+高级级别下高估更严重（512MB 16T 达 4.53×，256MB 16T 达 7.60×），
+因 warmup 使全部线程命中 page cache，掩盖 I/O 争用。
+
+> rationale: 预热被测 query 等于把待测数据搬进内存后再测“磁盘性能”。
+> 这不是实现 bug 而是**协议漏洞**：[[CON-SLA-014]] 只规定了边界前做什么，
+> 没规定边界内禁止什么。写 MUST 类约束时需同时界定两者。
+> source: poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md @ 4a33f38
+
+## SIFT1M Sustained 基线 SLA {#CON-SLA-020}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.10 source=observed topic=sustained-query-benchmark trunk-ref=47ed9e7 -->
+<!-- ndf: depends-on=CON-SLA-014,CON-SLA-019,BEH-035,API-019,API-011,API-012,API-013,DEC-084 -->
+
+> **track: promoted** - 提案 `spec/open/proposal-promote-sustained-query-benchmark.md`（2026-08-06）。
+> 口径：**sustained**（对外吞吐声明的权威基线）。
+
+SIFT1M 在 [[CON-SLA-014]] 严格隔离 + [[CON-SLA-019]] 禁预热前提下，
+用**官方 10K query 池**多轮随机采样（[[BEH-035]]）的性能下限。
+
+### 测量配置
+
+```
+N=1000  R=15  seed=42  k=10  ef=100
+query_pool = data/sift_query_official10k.fvecs
+gt         = data/sift_groundtruth_official.ivecs
+TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1 REFINE_EF=100
+PAGE_MERGE_BG=1 L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14
+FLAT_VEC_MB=160 (512MB) / 64 (256MB)
+```
+
+### 基线（2026-08-06）
+
+| cgroup | 线程 | 聚合 QPS | 稳态 QPS | Recall@10 | SLA（聚合） |
+|--------|------|---------|---------|----------|------------|
+| 512MB | 1T | 1,479.5 | 1,728.9 | 96.00% | ≥ 1,350 |
+| 512MB | 4T | 3,875.4 | 5,246.9 | 96.00% | ≥ 3,500 |
+| 512MB | 16T | 4,371.4 | 6,694.4 | 96.00% | ≥ 3,900 |
+| 256MB | 1T | 1,075.5 | 1,174.0 | 96.00% | ≥ 950 |
+| 256MB | 4T | 2,181.0 | 2,518.9 | 96.00% | ≥ 1,950 |
+| 256MB | 16T | 2,077.5 | 2,456.1 | 96.00% | ≥ 1,850 |
+
+### MUST
+
+1. Recall@10 MUST ≥ 95%（实测 96.00%）。
+2. 聚合 QPS MUST ≥ 表中 SLA 列（基线的 ~90%，留噪声余量）。
+3. 报告 MUST 同时给出聚合与末轮（稳态）QPS。
+4. 对外文档（README 等）引用吞吐时 MUST 以本条款为主；
+   引用 [[CON-SLA-016]]/[[CON-SLA-017]]/[[CON-SLA-018]] 时 MUST 标注 cache-warmed 口径。
+
+### 稳态与聚合的选型
+
+SLA 阈值基于**聚合 QPS**（包含冷启动，更保守）。稳态 QPS 仅作参考上限，
+MUST NOT 单独作为对外宣传数字。
+
+> rationale: 多轮随机采样 + 禁预热是首个同时满足 QPS 诚实与 recall ≥ 95% 的测法。
+> 稳态 QPS 与采样规模 N 无关（N=200/1000/10000 均收敛 1,649–1,722），
+> 证明测得的是物理量。选 N=1000/R=15 作为验收点是因其 ~40s/组，
+> 适合日常回归，无需跑满 10K。
+> source: poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md @ 4a33f38

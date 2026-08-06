@@ -155,7 +155,7 @@
 
 ## GBDT 学习式候选数预测环境变量 {#API-018}
 <!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
-<!-- ndf: depends-on=BEH-004 trunk-ref=7f59fae -->
+<!-- ndf: depends-on=BEH-004,DEC-084 trunk-ref=7f59fae -->
 
 | 环境变量 | 类型 | Trunk 默认 | 取值范围 | 说明 | 关联 |
 |----------|------|-----------|---------|------|------|
@@ -165,5 +165,11 @@
 > 前置条件: `TWO_STAGE=1` + `FINE_RERANK=1`
 > 与 `ADAPTIVE_EF` 互斥；若同时开启，`LEARNED_EF` 优先。
 > 模型: SIFT1M 训练的 100 棵 LightGBM 树，编译期嵌入 C++ if-else 规则表 (186KB)。
-> 适用场景: I/O bound (working set > cgroup 预算)。10K query +33~124% QPS。
-> recall 约束: 启用时 recall ≥ 95%。
+> recall 约束: 启用时 recall ≥ 95%（sustained 实测 95.99%）。
+>
+> ⚠️ **收益状态：当前模型无效**（[[DEC-084]] §5）。原声明“10K query +33~124% QPS”
+> 基于被 self-match 污染的 base-sampled query 池；sustained 口径（[[CON-SLA-019]] 禁预热
+> + 官方 query 池）实测增益仅 **−0.9~+1.8%**（噪声内）。
+> 根因：训练标签取自污染池，模型学到的候选数分布系统性偏低。
+> 生产环境 SHOULD 用 `ADAPTIVE_EF`（[[API-017]] / [[BEH-033]]）代替；
+> 本旋钮保留供重训后重测。
