@@ -35,10 +35,33 @@
 
 ## 决策
 
-1. 当前 SLA QPS 数字标注为 "cache-warmed"，保留用于回归验证
-2. 新增 10K query 基线作为 "sustained" 场景 SLA
-3. CON-SLA-014/016/017 的 QPS 下限保留不变（数字是下限，高估的数字仍满足下限）
-4. 后续提案修正 SLA 数字
+1. 当前 SLA QPS 数字保留不变（200q 标准数据集，recall ≥ 95%，具有商用价值）
+2. **不建立基于 10K random query 的 SLA**
+3. 记录 cache-hit 认知，作为后续建立 sustained SLA 的输入
+
+## ❗ 10K random query 不可用的原因 (2026-08-06 补充)
+
+### self-match bug
+
+10K query 从 base 随机抽取 → query 向量本身就在 base 中 →
+sklearn `kneighbors(n_neighbors=10)` 会返回 self-match (距离=0) →
+GT top-1 永远是 query 自己 → recall 白送 ~10%。
+
+### 排除 self-match 后的真实 recall
+
+| 配置 | 修正前 (含 self) | 修正后 (排除 self) |
+|------|------------------|-------------------|
+| hnswlib unlimited | 99.47% | **89.90%** |
+| DiskHNSW 256MB baseline | 97.67% | **89.71%** |
+| DiskHNSW 256MB GBDT | 97.33% | **89.59%** |
+
+### 结论
+
+10K random query 在 ef=100 下 recall 仅 ~89.7%，**远低于 95% 商用门槛**。
+random query 的难度分布不同于标准 200q。需更大 ef 才能达 95%，但那会降 QPS。
+
+**因此不建立任何基于 10K random query 的 SLA 条款。**
+200q 标准数据集（recall 95.75%）仍是唯一具商用价值的 SLA 基准。
 
 ## 证据
 

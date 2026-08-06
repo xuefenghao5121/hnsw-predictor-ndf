@@ -67,23 +67,39 @@
 
 ## 3. 建议行动
 
-### SLA 修正（需 process 提案）
+### ⚠️ 10K random query 不可用作 SLA (2026-08-06 修正)
 
-1. CON-SLA-014/016/017 的 QPS 数字需用 10K query 重测
-2. 或新增"持续查询 SLA"（10K query），与"短查询 SLA"（200q）并列
-3. 200q 数据标注为"cache-warmed"，不可单独作为生产性能依据
+**self-match bug**: 10K query 从 base 随机抽取 → query 向量在 base 中 →
+sklearn `kneighbors(n_neighbors=10)` 包含 self-match (距离=0) → GT top-1 永远是 self
+→ recall 白送 ~10%。
 
-### GBDT promote 决策
+排除 self-match 后的真实 recall:
 
-- **GBDT 的真实价值在 10K 场景下 +33~124% QPS**
-- 这是 I/O bound 生产环境的真实收益
-- 模型泛化性问题不存在——10K 是训练集，200q 反而是异常分布（太容易）
-- **建议 promote GBDT (opt-in)**
+| 配置 | 修正前 | 修正后 |
+|------|--------|--------|
+| hnswlib 10Kq | 99.47% | **89.90%** |
+| DiskHNSW 256MB baseline | 97.67% | **89.71%** |
+| DiskHNSW 256MB GBDT | 97.33% | **89.59%** |
+
+**结论**: 10K random query 在 ef=100 下 recall 仅 ~89.7%，远低于 95% 商用门槛。
+random query 难度分布不同于标准 200q。**不建立基于 10K random query 的 SLA**。
+
+GBDT 的 QPS 相对增益 (+39~114%) 不受影响，但绝对数字不可作为商用依据。
+
+### 待做
+
+建立 sustained SLA 需要**标准 SIFT query set 的大规模子集**（如重复 1000-5000 次
+标准 query，或使用完整 10K 标准 query set），确保 recall ≥ 95%。
+
+### GBDT promote 决策 (已完成)
+
+- BEH-034 + API-018 已 promoted (opt-in, LEARNED_EF 默认 0)
+- 200q 标准数据集下 recall 95.75% ✅
+- I/O bound 场景下 QPS 相对增益显著
 
 ### 200q SLA 的用途
 
-200q 仍有价值：
-- 测算法正确性 (recall@10)
-- 测内存搜索极限性能
+200q 仍是唯一满足 recall ≥ 95% 的 SLA 基准:
+- 算法正确性 (recall@10 ≥ 95%)
+- cache-warm 场景性能上限
 - 快速回归验证
-- 但**不可单独代表生产 QPS**

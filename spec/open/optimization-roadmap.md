@@ -53,7 +53,8 @@ DEEP10M (10M, 96D), 2GB cgroup, T=12:
 | 自适应 EF (ADAPTIVE_EF) | PQ 距离间隙启发式 | ✅ 已完成 | [[BEH-033]] promoted, 200q +31% |
 | Fine Rerank 早终止 | 连续无改善即停止 | ❌ 负结果 | [[DEC-081]] rejected (pread 架构下无效) |
 | GBDT 学习式剪枝 (LEARNED_EF) | per-query 参数预测 | ✅ 已完成 | [[BEH-034]] promoted, 10Kq +33~124% |
-| 200q cache-hit 修正 | benchmark 基准修正 | ✅ 已完成 | [[DEC-083]] + [[CON-SLA-019]] + [[CON-SLA-020]] |
+| 200q cache-hit 认知 | benchmark 基准认知修正 | ✅ 已记录 | [[DEC-083]] (仅认知，未建 SLA) |
+| Sustained SLA (≥95% recall) | 大规模标准 query 集 SLA | 🔴 高 | 📋 待做 (10K random recall 89% 不可用) |
 
 ## P3 路线图 (100M 规模)
 

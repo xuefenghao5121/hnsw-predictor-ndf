@@ -2,11 +2,12 @@
 
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
 >
-> **200q (cache-warmed) @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB
-> **200q (cache-warmed) @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB
-> **10Kq (sustained I/O) @512MB 16T**: 97.67% recall / 5,583 QPS / RSS 242MB
-> **10Kq + GBDT (sustained I/O) @512MB 16T**: 97.33% recall / 11,149 QPS / RSS 242MB
+> **SIFT1M @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB (QPS/MB 1.10× hnswlib)
+> **SIFT1M @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB (QPS/MB 1.36× hnswlib)
 > **DEEP10M @2GB 12T**: 95.15% recall / 2,340 QPS / RSS 1,612MB (hnswlib OOM)
+>
+> **注**: 以上基于 200q 标准数据集 (cache-warmed, DEC-083)。GBDT (LEARNED_EF) 在
+> I/O bound 场景下 QPS 相对增益 +33~124%，recall ≥ 95%。
 >
 > **平台**: x86_64 (AVX2) ✅ | ARMv9 AArch64 (NEON) ✅
 

@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`, `CON-SLA-019`, `CON-SLA-020`  
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`  
 > CON-POC-001 正文在 `spec/meta/constraints.md`（adopted 见下文）
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
@@ -274,63 +274,18 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 
 **证据**: `poc/l4-cache-mgmt/ndf/evidence/d2-bg-page-merge-20260805.md`
 
-## Cache-warmed 基线标注 (200q) {#CON-SLA-019}
-<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.9 source=observed -->
-<!-- ndf: depends-on=CON-SLA-014 -->
+## 200q benchmark cache-warmed 注意事项
 
-> **track: process** — 200q benchmark 的 cache-hit 假象发现 ([[DEC-083]])
-
-所有基于 **200 query** 的 QPS 数字 MUST 标注为 **cache-warmed**。
-
-200q 的 Phase B working set (~10MB) 全进 page cache，实测 QPS 系统性高估 2-5x：
-
-| SLA 条款 | 200q 标称 | 10K 实测 | 高估倍数 |
-|----------|----------|---------|----------|
-| CON-SLA-014 (512MB 1T) | 3,241 | 1,428 | 2.27x |
-| CON-SLA-014 (512MB 4T) | 9,090 | 4,129 | 2.20x |
-| CON-SLA-014 (512MB 16T) | 30,332 | 5,583 | 5.43x |
-| CON-SLA-016 (256MB 4T) | 8,838 | 2,341 | 3.78x |
-
-200q 数据保留用于：算法正确性验证 (recall)、快速回归、cache-warm 场景参考。
-**MUST NOT** 单独作为生产 QPS 依据。
-
-> rationale: 200q warmup 把全部 working set 打入 page cache → 实测阶段 I/O ≈ 0。
-> 生产环境 query 持续变化，working set >> cache → I/O 是主瓶颈。
-> source: poc/gbdt-learned-pruning/ndf/sla-reevaluation.md ; DEC-083
-
-## Sustained 查询 SLA (10K query) {#CON-SLA-020}
-<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.9 source=observed -->
-<!-- ndf: depends-on=CON-SLA-014,CON-SLA-016 -->
-
-SIFT1M 在 **10K random query** (持续查询场景, I/O bound) 下的性能基线：
-
-### hnswlib unlimited (in-memory 天花板, 739MB RSS)
-
-| 线程 | QPS | Recall |
-|------|-----|--------|
-| 1T | 6,395 | 99.47% |
-| 4T | 22,808 | 99.47% |
-| 8T | 35,515 | 99.47% |
-| 16T | 41,839 | 99.47% |
-
-### DiskHNSW 512MB cgroup baseline (Trunk 7f59fae)
-
-| 指标 | 基线 (2026-08-06) | SLA 下限 |
-|------|-------------------|----------|
-| 10K 1T QPS | 1,428 | ≥ 800 |
-| 10K 4T QPS | 4,129 | ≥ 2,500 |
-| 10K 16T QPS | 5,583 | ≥ 3,500 |
-| 10K Recall@10 | 97.67% | ≥ 95% |
-| oom | 0 | = 0 |
-
-### DiskHNSW 256MB cgroup baseline
-
-| 指标 | 基线 (2026-08-06) | SLA 下限 |
-|------|-------------------|----------|
-| 10K 4T QPS | 2,341 | ≥ 1,500 |
-| 10K 16T QPS | 2,099 | ≥ 1,500 |
-| 10K Recall@10 | 97.67% | ≥ 95% |
-
-> rationale: 10K random query 的 working set (~488MB) 远超 cgroup 预算，
-> 真实反映 I/O bound 生产场景。SLA 下限设为基线的 ~65%，为波动留余量。
-> source: poc/gbdt-learned-pruning/ndf/sla-reevaluation.md
+> **认知记录 (DEC-083)**，非 SLA 条款。
+>
+> 200q benchmark 的 Phase B working set (~10MB) 全进 page cache，
+> QPS 数字反映 cache-warmed 场景而非 sustained I/O 场景。
+>
+> 尝试用 10K random query (从 base 抽样) 测 sustained I/O，发现 self-match
+> 问题：query 向量在 base 中 → GT 包含 self → recall 虚高。排除 self-match 后
+> recall ~89.7% (< 95% SLA)，说明 random query 难度分布不同于标准 200q。
+>
+> **结论**: 200q 仍是唯一满足 recall ≥ 95% 的 SLA 基准。10K random query 需要更大 ef
+> 才能达到 95% recall，不适合直接作为 SLA。cache-hit 假象不影响 recall 数据的
+> 有效性，只影响 QPS 绝对值的生产可参考性。后续需要用**标准 SIFT query set 的
+> 更大规模子集**（如 1000-5000 标准查询）建立 sustained SLA。

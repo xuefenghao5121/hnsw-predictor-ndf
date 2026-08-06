@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-06T19:11:08Z",
-  "clause_count": 219,
+  "generated_at": "2026-08-06T19:28:12Z",
+  "clause_count": 217,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -2157,8 +2157,6 @@
         "CON-SLA-013",
         "CON-SLA-016",
         "CON-SLA-017",
-        "CON-SLA-019",
-        "CON-SLA-020",
         "DEC-065",
         "DEC-066",
         "DEC-067",
@@ -2204,7 +2202,6 @@
       ],
       "backlinks": [
         "CON-SLA-018",
-        "CON-SLA-020",
         "DEC-073",
         "DEC-079",
         "DEF-024",
@@ -2275,47 +2272,6 @@
         "DEF-024",
         "VER-042"
       ]
-    },
-    "CON-SLA-019": {
-      "id": "CON-SLA-019",
-      "title": "Cache-warmed 基线标注 (200q)",
-      "file": "40-constraints/sla.md",
-      "line": 277,
-      "kind": "constraint",
-      "level": "must",
-      "layer": "L1",
-      "status": "stable",
-      "since": "0.9.9",
-      "scope": "",
-      "edges": {
-        "depends-on": [
-          "CON-SLA-014"
-        ]
-      },
-      "body_refs": [
-        "DEC-083"
-      ],
-      "backlinks": []
-    },
-    "CON-SLA-020": {
-      "id": "CON-SLA-020",
-      "title": "Sustained 查询 SLA (10K query)",
-      "file": "40-constraints/sla.md",
-      "line": 301,
-      "kind": "constraint",
-      "level": "must",
-      "layer": "L1",
-      "status": "stable",
-      "since": "0.9.9",
-      "scope": "",
-      "edges": {
-        "depends-on": [
-          "CON-SLA-014",
-          "CON-SLA-016"
-        ]
-      },
-      "body_refs": [],
-      "backlinks": []
     },
     "DEC-001": {
       "id": "DEC-001",
