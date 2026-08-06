@@ -9,6 +9,7 @@
 // 设计文档: hnsw-research/phase2-design.md
 
 #include "disk_hnsw.h"
+#include "gbdt_model.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -1715,6 +1716,34 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 adaptive_limit = std::min((size_t)kRefineEf, coarse_sorted.size());
             }
             if (cand_ids.size() > adaptive_limit) cand_ids.resize(adaptive_limit);
+        }
+
+        // --- BEH-034: GBDT 学习式候选数预测 ---
+        static const bool kLearnedEf = std::getenv("LEARNED_EF") && std::atoi(std::getenv("LEARNED_EF")) != 0;
+        if (kLearnedEf && coarse_sorted.size() > (size_t)k) {
+            static const float kGbdtMargin = []() { const char* e = std::getenv("GBDT_MARGIN"); return e ? std::stof(e) : 0.8f; }();
+            double sum = 0, sum2 = 0;
+            size_t feat_n = std::min(coarse_sorted.size(), (size_t)200);
+            for (size_t i = 0; i < feat_n; i++) {
+                double d = coarse_sorted[i].first;
+                sum += d; sum2 += d * d;
+            }
+            double mean = sum / feat_n;
+            double stdv = sqrt(std::max(0.0, sum2 / feat_n - mean * mean));
+            float cv = (float)(mean > 0 ? stdv / mean : 0);
+            float r01 = (float)(mean > 0 ? coarse_sorted[0].first / mean : 1);
+            float r09 = coarse_sorted.size() > 9 ? (float)(coarse_sorted[9].first / mean) : r01;
+            float dk_v = coarse_sorted.size() > k ? coarse_sorted[k-1].first : 0;
+            float dk1_v = coarse_sorted.size() > k ? coarse_sorted[k].first : 0;
+            float gap = (dk_v > 0) ? (dk1_v / dk_v) : 1.0f;
+            float feat[11] = {
+                (float)coarse_sorted.size(), coarse_sorted[0].first,
+                coarse_sorted.size() > 9 ? coarse_sorted[9].first : 0,
+                dk_v, dk1_v, gap, (float)mean, (float)stdv, cv, r01, r09
+            };
+            float pred = gbdt_predict(feat);
+            size_t learned_limit = (size_t)std::max(10, std::min(200, (int)std::ceil(pred * kGbdtMargin)));
+            if (cand_ids.size() > learned_limit) cand_ids.resize(learned_limit);
         }
 
         // === Phase B: 精确距离精排 ===

@@ -152,3 +152,18 @@
 > 适用场景: 256MB cgroup 高并发 (≥4T)。SIFT1M 4T/8T 实测 +31% QPS。
 > **不推荐** 512MB cgroup（page cache 充裕，收益不明或略退）。
 > recall 约束: 启用时 recall ≥ 95%（SIFT1M 校准 95.30%）。
+
+## GBDT 学习式候选数预测环境变量 {#API-018}
+<!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
+<!-- ndf: depends-on=BEH-004 trunk-ref=7f59fae -->
+
+| 环境变量 | 类型 | Trunk 默认 | 取值范围 | 说明 | 关联 |
+|----------|------|-----------|---------|------|------|
+| `LEARNED_EF` | int 0/1 | 0 | 0/1 | 1=启用 GBDT 预测 Phase B 候选数 | [[BEH-034]] |
+| `GBDT_MARGIN` | float | 0.8 | 0.1-2.0 | 预测值缩放系数 (越小越激进) | [[BEH-034]] |
+
+> 前置条件: `TWO_STAGE=1` + `FINE_RERANK=1`
+> 与 `ADAPTIVE_EF` 互斥；若同时开启，`LEARNED_EF` 优先。
+> 模型: SIFT1M 训练的 100 棵 LightGBM 树，编译期嵌入 C++ if-else 规则表 (186KB)。
+> 适用场景: I/O bound (working set > cgroup 预算)。10K query +33~124% QPS。
+> recall 约束: 启用时 recall ≥ 95%。

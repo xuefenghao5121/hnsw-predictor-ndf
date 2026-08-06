@@ -2,8 +2,10 @@
 
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
 >
-> **SIFT1M @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB (QPS/MB 1.10× hnswlib)
-> **SIFT1M @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB (QPS/MB 1.36× hnswlib)
+> **200q (cache-warmed) @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB
+> **200q (cache-warmed) @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB
+> **10Kq (sustained I/O) @512MB 16T**: 97.67% recall / 5,583 QPS / RSS 242MB
+> **10Kq + GBDT (sustained I/O) @512MB 16T**: 97.33% recall / 11,149 QPS / RSS 242MB
 > **DEEP10M @2GB 12T**: 95.15% recall / 2,340 QPS / RSS 1,612MB (hnswlib OOM)
 >
 > **平台**: x86_64 (AVX2) ✅ | ARMv9 AArch64 (NEON) ✅
@@ -166,6 +168,9 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | `L4_EVICT_META` | 0 | 1=init 后驱逐 graph 页缓存 |
 | `WILLNEED_BG` | 0 | 1=无锁后台线程提交 WILLNEED (SPSC, 8T+ 推荐) |
 | `PAGE_MERGE_BG` | 0 | 1=BG 线程合并连续页 fadvise (256MB 推荐, 512MB 有害) |
+| `ADAPTIVE_EF` | 0 | 1=PQ gap 启发式候选数 (BEH-033, cache-warm 场景) |
+| `LEARNED_EF` | 0 | 1=GBDT 多特征候选数预测 (BEH-034, I/O bound 场景) |
+| `GBDT_MARGIN` | 0.8 | LEARNED_EF 预测值缩放系数 |
 
 ### 多线程
 
@@ -222,6 +227,8 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | WILLNEED_BG | 无锁 SPSC 后台线程提交 | DEC-074 | 16T 下 +72.8% QPS |
 | PAGE_MERGE_BG | 合并连续页减少 syscall | DEC-075 | 256MB 16T 下 +17.5% |
 | VL_POOL | 自适应 VisitedList 池化 | DEC-074 | 12T+ 下 +7.1% |
+| ADAPTIVE_EF | PQ gap 启发式候选数 | BEH-033 | 200q 256MB 4T +31% (cache-warmed) |
+| LEARNED_EF | GBDT 多特征候选数预测 | BEH-034 | 10Kq 256MB 4T +88.7% (I/O bound) |
 
 ---
 

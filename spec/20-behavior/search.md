@@ -1,6 +1,6 @@
 # Behavior - 搜索路径
 
-> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(deprecated), `BEH-022`(deprecated), `BEH-023`(deprecated), `BEH-024`(stable, model=MODEL-WILLNEED-001), `BEH-033`(stable)
+> 条款索引: `BEH-001`, `BEH-002`, `BEH-003`, `BEH-004`, `BEH-005`, `BEH-006`, `BEH-008`, `BEH-021`(deprecated), `BEH-022`(deprecated), `BEH-023`(deprecated), `BEH-024`(stable, model=MODEL-WILLNEED-001), `BEH-033`(stable), `BEH-034`(stable)
 
 ## 搜索流程状态机 {#BEH-001}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.1 source=observed -->
@@ -255,3 +255,33 @@ dist[k] / dist[k-1]，并据此动态调整 Phase B 候选数：
 > 512MB 下 page cache 充裕，减少 I/O 收益不大。
 > 层次 B (Fine Rerank 早终止) 在 pread 批量读取架构下无效 (DEC-081)。
 > source: poc/helmsman-adaptive/ndf/TOPIC.md
+
+## GBDT 学习式候选数预测 {#BEH-034}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
+<!-- ndf: refines=BEH-004 depends-on=API-018 -->
+
+> **track: promoted** - 提案 `spec/open/proposal-promote-gbdt-learned-pruning.md`（2026-08-06）。
+> 装订器: `poc/gbdt-learned-pruning/ndf/TOPIC.md`。
+> Promotes: gbdt-learned-pruning。
+
+当 `LEARNED_EF=1` 时，搜索 MUST 在 Phase A 结束后提取 11 维 PQ 距离特征向量，
+通过 GBDT 模型（100 棵 LightGBM 决策树, 编译期嵌入 C++ if-else 规则表）预测
+Phase B 最优候选数，并乘以 `GBDT_MARGIN` 系数后截断候选列表。
+
+**特征**: n_coarse, d0, d9, dk, dk1, gap_ratio, d_mean, d_std, d_cv, d_ratio_01, d_ratio_09
+
+**模型**: SIFT1M 训练，100 棵树, max_depth=4, 186KB C++ 规则表。
+推理延迟 <0.1μs，无运行时 Python 依赖。
+
+**默认关闭**（LEARNED_EF 默认 0）。opt-in。
+与 ADAPTIVE_EF (BEH-033) 互斥；若两者同时开启，LEARNED_EF 优先。
+
+**recall 约束**: 启用时 recall MUST ≥ 95%。
+
+**适用场景**: I/O bound 场景 (working set > cgroup 预算)。10K query 实测 +33~124% QPS。
+
+> rationale: 200q benchmark 因 working set (~10MB) 全进 page cache 而非 I/O bound，
+> GBDT 在 200q 下无明显优势。10K query (working set ~488MB) 才是真实 I/O bound 场景。
+> GBDT 多特征预测比单一 gap_ratio 启发式 (BEH-033) 在 I/O bound 下多减少 36% I/O。
+> 模型对训练数据分布敏感 (SIFT1M 训练, DEEP10M 泛化待验证)。
+> source: poc/gbdt-learned-pruning/ndf/TOPIC.md ; sla-reevaluation.md
