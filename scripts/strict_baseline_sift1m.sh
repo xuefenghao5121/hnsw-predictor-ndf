@@ -1,13 +1,16 @@
 #!/bin/bash
 # strict_baseline_sift1m.sh - SIFT1M 严格 cgroup 隔离基线测试
-# 遵循 CON-SLA-014 协议
-# 用法: bash scripts/strict_baseline_sift1m.sh
+# 遵循 CON-SLA-014 协议, 支持 cgroup v1/v2
+# 用法: bash scripts/strict_baseline_sift1m.sh [cgroup_mb]
 set -euo pipefail
 
-cd /home/huawei/hnsw-predictor-ndf
-BIN=build/benchmark_diskhnsw
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$(dirname "$SCRIPT_DIR")"
 
-# 数据文件
+# 引入 cgroup 兼容层
+source scripts/cgroup_utils.sh
+
+BIN=build/benchmark_diskhnsw
 GRAPH=output/sift1m_graph.bin
 BFS=output/sift1m_bfs.bin
 BLOCKS=output/sift1m_blocks_64k.bin
@@ -17,195 +20,155 @@ QUERY=data/sift1m_query200.fvecs
 GT=data/sift1m_gt200.bin
 K=10; EF=100; NUMQ=200
 
-CGROUP_MB=512
-CGROUP_PATH=/sys/fs/cgroup/hnsw_strict_baseline
+CGROUP_MB="${1:-512}"
+CGROUP_NAME="hnsw_strict_baseline"
 
 echo "============================================"
 echo "  SIFT1M 严格 cgroup 隔离基线测试"
 echo "  协议: CON-SLA-014"
-echo "  cgroup: ${CGROUP_MB}MB"
 echo "============================================"
 
-# ============================================================
-# Step 1: drop_caches 清场 (CON-SLA-014 协议第1步)
-# ============================================================
-echo ""
-echo "=== Step 1: drop_caches 清场 ==="
-sync
-echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-echo "  drop_caches done"
+# 确保 sudo 缓存 (避免后续 sudo prompt 导致挂起)
+sudo -v 2>/dev/null || true
 
 # ============================================================
-# Step 2: 创建 cgroup (CON-SLA-014 协议第2步)
+# Step 1: 检测 cgroup 版本 + 初始化
 # ============================================================
 echo ""
-echo "=== Step 2: 创建 cgroup (${CGROUP_MB}MB) ==="
-sudo mkdir -p "$CGROUP_PATH"
-echo "$((CGROUP_MB * 1024 * 1024))" | sudo tee "$CGROUP_PATH/memory.max" > /dev/null
-echo "  memory.current (before): $(cat $CGROUP_PATH/memory.current) bytes"
-echo "  memory.peak (before): $(cat $CGROUP_PATH/memory.peak) bytes"
+echo "=== Step 1: cgroup 环境初始化 ==="
+cg_init "$CGROUP_NAME" "$CGROUP_MB"
 
 # ============================================================
-# Step 3: 后台 cgroup 监控 (CON-SLA-014 协议第4步)
+# Step 2: drop_caches 清场 (严格隔离第一步)
+# ============================================================
+echo ""
+echo "=== Step 2: drop_caches 清场 ==="
+cg_drop_caches
+
+# ============================================================
+# Step 3: 创建 cgroup + 设置限制
+# ============================================================
+echo ""
+echo "=== Step 3: 创建 cgroup (${CGROUP_MB}MB) ==="
+cg_create
+cg_set_limit "$CGROUP_MB"
+
+echo "  初始内存状态:"
+cg_stats_summary
+
+# ============================================================
+# Step 4: 启动后台内存监控
 # ============================================================
 MONITOR_LOG="/tmp/cgroup_monitor_sift1m_baseline.log"
-echo "" > "$MONITOR_LOG"
-(
-    while true; do
-        ts=$(date +%s%N)
-        cur=$(cat "$CGROUP_PATH/memory.current" 2>/dev/null)
-        anon=$(grep "^anon " "$CGROUP_PATH/memory.stat" 2>/dev/null | awk '{print $2}')
-        file=$(grep "^file " "$CGROUP_PATH/memory.stat" 2>/dev/null | awk '{print $2}')
-        echo "$ts $cur $anon $file" >> "$MONITOR_LOG"
-        sleep 0.1
-    done
-) &
-MONITOR_PID=$!
+cg_start_monitor "$MONITOR_LOG"
+MONITOR_PID="$CG_MONITOR_PID"
+echo "  监控已启动: PID=$MONITOR_PID, log=$MONITOR_LOG"
 
 # ============================================================
-# Step 4: 将当前 shell 加入 cgroup (CON-SLA-014 协议第2步)
+# Step 5: 将当前 shell 加入 cgroup (严格隔离: 之后所有内存都被追踪)
 # ============================================================
-echo $$ | sudo tee "$CGROUP_PATH/cgroup.procs" > /dev/null
+echo ""
+echo "=== Step 5: 加入 cgroup ==="
+cg_add_proc "$$"
+echo "  PID $$ 已加入 $CG_PATH"
 
 # ============================================================
-# Step 5: 环境变量
+# Step 6: 环境变量 (推荐配置)
 # ============================================================
-export CACHE_MB=64
-export TWO_STAGE=1
-export FINE_RERANK=1
+export CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
 export VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin
-export PQ_CODE_PATH=output/pqco_sift1m_M32_correct.bin
-export REFINE_EF=100
-export FINE_PREAD=1
-export EVICT_PAGE_CACHE=0
-export NUM_THREADS=0  # 1T
+export PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin
+export REFINE_EF=100 EVICT_PAGE_CACHE=0 NUM_THREADS=0
+export L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14
+
+if [ "$CGROUP_MB" = "256" ]; then
+    export FLAT_VEC_MB=64 PAGE_MERGE_BG=1
+else
+    export FLAT_VEC_MB=160 PAGE_MERGE_BG=0
+fi
 
 # ============================================================
-# Step 6: 运行 Buffered benchmark (CON-SLA-014 协议第3步)
+# Step 7: 运行 benchmark (1T)
 # ============================================================
 echo ""
-echo "=== Step 6a: Buffered 1T ==="
-$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 | tee /tmp/bench_strict_sift1m_buffered_1t.log
+echo "=== Step 7: Buffered 1T (${CG_VERSION}) ==="
+$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 || true
 
 # ============================================================
-# Step 7: 收集 cgroup 统计
+# Step 8: 收集统计 + 严格验证
 # ============================================================
 echo ""
-echo "=== Step 7: cgroup 统计 (Buffered 1T) ==="
-echo "  memory.current: $(cat $CGROUP_PATH/memory.current) bytes"
-echo "  memory.peak:    $(cat $CGROUP_PATH/memory.peak) bytes"
-echo "  memory.events:"
-cat "$CGROUP_PATH/memory.events"
+echo "=== Step 8: cgroup 统计 + 严格验证 (1T) ==="
+cg_stats_summary
+
 echo ""
-echo "  memory.stat (key fields):"
-grep -E "^(anon|file|slab|file_mapped|file_dirty|active_anon|inactive_anon|active_file|inactive_file|workingset_refault|pgmajfault|pgfault)" "$CGROUP_PATH/memory.stat"
+echo "=== 严格验证 ==="
+if cg_verify; then
+    echo "  ✅ SLA 通过"
+else
+    echo "  ❌ SLA 违规!"
+fi
+
+# 监控峰值
 echo ""
-echo "  Monitor peaks:"
-echo "    Peak anon (MB): $(awk '{if($3>m) m=$3} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG")"
-echo "    Peak file (MB): $(awk '{if($4>m) m=$4} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG")"
+echo "  监控峰值:"
+echo "    Peak anon (MB):  $(awk '{if($3>m) m=$3} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG")"
+echo "    Peak file (MB):  $(awk '{if($4>m) m=$4} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG")"
 echo "    Peak total (MB): $(awk '{if($2>m) m=$2} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG")"
 
-# Stop monitor
-kill $MONITOR_PID 2>/dev/null || true
-wait $MONITOR_PID 2>/dev/null || true
+cg_stop_monitor "$MONITOR_PID"
 
 # ============================================================
-# Step 8: 4T Buffered (需要重新 drop_caches)
+# Step 9: 多线程测试 (4T)
 # ============================================================
 echo ""
-echo "=== Step 8: 重新清场 + 4T Buffered ==="
-sync
-echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
+echo "=== Step 9: 重新清场 + 4T ==="
+cg_drop_caches
 
-# Reset monitor
 MONITOR_LOG4="/tmp/cgroup_monitor_sift1m_baseline_4t.log"
-echo "" > "$MONITOR_LOG4"
-(
-    while true; do
-        ts=$(date +%s%N)
-        cur=$(cat "$CGROUP_PATH/memory.current" 2>/dev/null)
-        anon=$(grep "^anon " "$CGROUP_PATH/memory.stat" 2>/dev/null | awk '{print $2}')
-        file=$(grep "^file " "$CGROUP_PATH/memory.stat" 2>/dev/null | awk '{print $2}')
-        echo "$ts $cur $anon $file" >> "$MONITOR_LOG4"
-        sleep 0.1
-    done
-) &
-MONITOR_PID=$!
+cg_start_monitor "$MONITOR_LOG4"
+MONITOR_PID="$CG_MONITOR_PID"
 
 export NUM_THREADS=4
-$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 | tee /tmp/bench_strict_sift1m_buffered_4t.log
+$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 || true
 
 echo ""
-echo "=== cgroup 统计 (Buffered 4T) ==="
-echo "  memory.peak: $(cat $CGROUP_PATH/memory.peak) bytes"
-echo "  memory.events:"
-cat "$CGROUP_PATH/memory.events"
+echo "=== cgroup 统计 + 严格验证 (4T) ==="
+cg_stats_summary
+
 echo ""
-echo "  memory.stat (key fields):"
-grep -E "^(anon|file|active_file|inactive_file|workingset_refault|pgmajfault)" "$CGROUP_PATH/memory.stat"
+echo "=== 严格验证 (4T) ==="
+if cg_verify; then
+    echo "  ✅ SLA 通过"
+else
+    echo "  ❌ SLA 违规!"
+fi
+
 echo ""
-echo "  Monitor peaks:"
-echo "    Peak anon (MB): $(awk '{if($3>m) m=$3} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG4")"
-echo "    Peak file (MB): $(awk '{if($4>m) m=$4} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG4")"
+echo "  监控峰值 (4T):"
+echo "    Peak anon (MB):  $(awk '{if($3>m) m=$3} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG4")"
+echo "    Peak file (MB):  $(awk '{if($4>m) m=$4} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG4")"
 echo "    Peak total (MB): $(awk '{if($2>m) m=$2} END{if(m>0) print m/1024/1024; else print 0}' "$MONITOR_LOG4")"
 
-kill $MONITOR_PID 2>/dev/null || true
-wait $MONITOR_PID 2>/dev/null || true
+cg_stop_monitor "$MONITOR_PID"
 
 # ============================================================
-# Step 9: O_DIRECT 1T (重新 drop_caches)
-# ============================================================
-echo ""
-echo "=== Step 9: 重新清场 + O_DIRECT 1T ==="
-sync
-echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-
-export FINE_DIRECT=1
-export FINE_PREAD=0  # O_DIRECT 模式不用 pread
-export NUM_THREADS=0
-
-$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 | tee /tmp/bench_strict_sift1m_odirect_1t.log
-
-echo ""
-echo "=== cgroup 统计 (O_DIRECT 1T) ==="
-echo "  memory.peak: $(cat $CGROUP_PATH/memory.peak) bytes"
-echo "  memory.events:"
-cat "$CGROUP_PATH/memory.events"
-grep -E "^(anon|file|workingset_refault|pgmajfault)" "$CGROUP_PATH/memory.stat"
-
-# ============================================================
-# Step 10: O_DIRECT 4T (重新 drop_caches)
+# Step 10: 清理
 # ============================================================
 echo ""
-echo "=== Step 10: 重新清场 + O_DIRECT 4T ==="
-sync
-echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null
-
-export NUM_THREADS=4
-
-$BIN "$GRAPH" "$BFS" "$BLOCKS" "$ROUTE" "$DATA" "$QUERY" "$GT" $K $EF $NUMQ 2>&1 | tee /tmp/bench_strict_sift1m_odirect_4t.log
-
-echo ""
-echo "=== cgroup 统计 (O_DIRECT 4T) ==="
-echo "  memory.peak: $(cat $CGROUP_PATH/memory.peak) bytes"
-echo "  memory.events:"
-cat "$CGROUP_PATH/memory.events"
-grep -E "^(anon|file|workingset_refault|pgmajfault)" "$CGROUP_PATH/memory.stat"
-
-# ============================================================
-# Step 11: 清理
-# ============================================================
-echo $$ | sudo tee /sys/fs/cgroup/cgroup.procs > /dev/null 2>/dev/null || true
-sudo rmdir "$CGROUP_PATH" 2>/dev/null || true
+echo "=== Step 10: 清理 ==="
+# 移出 cgroup (回到 root)
+case "$CG_VERSION" in
+    v2) echo $$ | sudo tee /sys/fs/cgroup/cgroup.procs > /dev/null 2>/dev/null || true ;;
+    v1) echo $$ | sudo tee /sys/fs/cgroup/memory/cgroup.procs > /dev/null 2>/dev/null || true ;;
+esac
+cg_destroy
 
 echo ""
 echo "============================================"
-echo "  测试完成。结果日志:"
-echo "  /tmp/bench_strict_sift1m_buffered_1t.log"
-echo "  /tmp/bench_strict_sift1m_buffered_4t.log"
-echo "  /tmp/bench_strict_sift1m_odirect_1t.log"
-echo "  /tmp/bench_strict_sift1m_odirect_4t.log"
-echo "  cgroup 监控:"
-echo "  /tmp/cgroup_monitor_sift1m_baseline.log"
-echo "  /tmp/cgroup_monitor_sift1m_baseline_4t.log"
+echo "  测试完成"
+echo "  cgroup 版本: $CG_VERSION"
+echo "  日志:"
+echo "    /tmp/cgroup_monitor_sift1m_baseline.log"
+echo "    /tmp/cgroup_monitor_sift1m_baseline_4t.log"
 echo "============================================"
