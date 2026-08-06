@@ -57,8 +57,8 @@ BEH-033, BEH-034 (must→may), API-018, CON-SLA-014/016/017/018 (amended)
 
 | Kind | Commit | 说明 |
 |------|--------|------|
-| `src_commit` | `<pending>` | `src/benchmark/benchmark_sustained.cpp` + Makefile + `scripts/run_sustained.sh` |
-| `spec_commit` | `<pending>` | 同一 commit（spec 与 src 一并合入） |
+| `src_commit` | `eee4ef7` | `src/benchmark/benchmark_sustained.cpp` + Makefile + `scripts/run_sustained.sh` |
+| `spec_commit` | `eee4ef7` | 同一 commit（spec 与 src 一并合入） |
 
 ### Trunk 落点
 
