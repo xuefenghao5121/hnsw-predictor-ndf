@@ -1686,9 +1686,35 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
 
         std::vector<uint32_t> cand_ids;
         cand_ids.reserve(coarse.size());
+        // 同时收集 (dist, id) 用于 gap 计算
+        static const bool kAdaptiveEf = std::getenv("ADAPTIVE_EF") && std::atoi(std::getenv("ADAPTIVE_EF")) != 0;
+        static const float kEasyGap = []() { const char* e = std::getenv("ADAPTIVE_EASY_GAP"); return e ? std::stof(e) : 1.006f; }();
+        static const float kHardGap = []() { const char* e = std::getenv("ADAPTIVE_HARD_GAP"); return e ? std::stof(e) : 1.002f; }();
+        static const int kEasyEf    = []() { const char* e = std::getenv("ADAPTIVE_EASY_EF"); return e ? std::atoi(e) : 50; }();
+        static const int kHardEf    = []() { const char* e = std::getenv("ADAPTIVE_HARD_EF"); return e ? std::atoi(e) : 200; }();
+        static const int kRefineEf  = []() { const char* e = std::getenv("REFINE_EF"); return e ? std::atoi(e) : 100; }();
+        std::vector<std::pair<float,uint32_t>> coarse_sorted;
         while (!coarse.empty()) {
-            cand_ids.push_back(coarse.top().second);
+            coarse_sorted.push_back({coarse.top().first, coarse.top().second});
             coarse.pop();
+        }
+        // coarse_sorted 是 min-heap 弹出顺序: 升序 (最小距离在前)
+        for (const auto& cs : coarse_sorted) cand_ids.push_back(cs.second);
+
+        // --- BEH-033: PQ 距离间隙自适应 EF ---
+        if (kAdaptiveEf && coarse_sorted.size() > (size_t)k) {
+            float dk = coarse_sorted[k-1].first;
+            float dk1 = coarse_sorted[k].first;
+            float gap_ratio = (dk > 0) ? (dk1 / dk) : 1.0f;
+            size_t adaptive_limit = coarse_sorted.size();
+            if (gap_ratio >= kEasyGap) {
+                adaptive_limit = std::min((size_t)kEasyEf, coarse_sorted.size());
+            } else if (gap_ratio <= kHardGap) {
+                adaptive_limit = std::min((size_t)kHardEf, coarse_sorted.size());
+            } else {
+                adaptive_limit = std::min((size_t)kRefineEf, coarse_sorted.size());
+            }
+            if (cand_ids.size() > adaptive_limit) cand_ids.resize(adaptive_limit);
         }
 
         // === Phase B: 精确距离精排 ===
