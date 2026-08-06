@@ -3,8 +3,10 @@
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
 >
 > **SIFT1M @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB (QPS/MB 1.10× hnswlib)
-> **SIFT1M @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB (QPS/MB 1.23× hnswlib)
+> **SIFT1M @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB (QPS/MB 1.36× hnswlib)
 > **DEEP10M @2GB 12T**: 95.15% recall / 2,340 QPS / RSS 1,612MB (hnswlib OOM)
+>
+> **平台**: x86_64 (AVX2) ✅ | ARMv9 AArch64 (NEON) ✅
 
 ## 项目背景
 
@@ -17,6 +19,7 @@ DiskHNSW 的核心思路：
 3. **PQ 粗筛** — Product Quantization 压缩向量常驻内存，零 I/O 近似距离搜索
 4. **精确精排 (Fine Rerank)** — 对粗筛候选集按 4KB 页粒度读真实向量做精确 L2
 5. **I/O 优化** — WILLNEED_BG 无锁后台预取 + flat_vec_cache 热向量缓存 + PAGE_MERGE_BG 连续页合并
+6. **跨架构** — SIMD 抽象层 (simd.h) 统一 x86 AVX2 / ARM NEON, 编译时自动选择
 
 ---
 
@@ -26,7 +29,8 @@ DiskHNSW 的核心思路：
 
 ```bash
 # 依赖: Linux 5.1+ (io_uring), g++ C++17, Python 3 + faiss
-make all   # pipeline 工具 + benchmark + 测试
+# 支持: x86_64 (AVX2) / ARMv9 AArch64 (NEON)
+make all   # 自动检测架构, pipeline 工具 + benchmark + 测试
 ```
 
 ### 一键准备数据（SIFT1M）
@@ -234,6 +238,10 @@ hnsw-predictor-ndf/
 │   ├── benchmark/          # 基准测试
 │   └── test/               # 单元测试
 ├── include/                # 头文件
+│   ├── simd.h              #   SIMD 架构分发 (x86/ARM/scalar)
+│   ├── simd_x86.h          #   AVX2 实现
+│   ├── simd_arm.h          #   NEON 实现
+│   └── simd_scalar.h       #   标量 fallback
 ├── scripts/                # 数据准备 + 测试脚本
 ├── docs/
 │   └── detailed-design.md  # 详细设计文档
@@ -253,6 +261,21 @@ hnsw-predictor-ndf/
 | cgroup 下 QPS 虚高 | page cache 白嫖 | `echo 3 > drop_caches` 清场 |
 | 4T+ 必崩 | FineRerank 懒初始化 race | 已修复 (std::call_once) |
 
+## 平台支持
+
+| 平台 | SIMD | 状态 | 说明 |
+|------|------|------|------|
+| x86_64 | AVX2 (256-bit) | ✅ 生产就绪 | i7-13700 实测验证 |
+| ARMv9 AArch64 | NEON (128-bit) | ✅ 代码就绪 | 待真实 ARM 平台验证 |
+| 任意 | Scalar | ✅ fallback | 无 SIMD, 性能较低 |
+
+SIMD 抽象层 (`include/simd.h`) 在编译时根据 CPU 架构自动选择:
+- `__x86_64__` → `simd_x86.h` (AVX2 intrinsic)
+- `__aarch64__` → `simd_arm.h` (NEON intrinsic)
+- 其他 → `simd_scalar.h` (纯标量)
+
+数据格式跨架构兼容: x86 上生成的索引/图/PQ 编码可直接在 ARM 上使用。
+
 ---
 
 ## 已知限制
@@ -262,6 +285,8 @@ hnsw-predictor-ndf/
 3. **blocks 和 vecblocks 的 block_id 不一致** — 各有独立 route 表
 4. **PAGE_MERGE_BG 仅 256MB 推荐** — 512MB 下有害 (-2.9%)
 5. **WILLNEED 在 I/O 量主导场景无效** — DEEP10M 瓶颈是 majfault 总量，非时序
+6. **io_uring (buffered) 不优于 WILLNEED+pread** — 实测 4 种方案均不超越基线 (DEC-076)
+7. **ARM NEON 性能预期低于 x86** — 128-bit vs 256-bit, 多线程可弥补
 
 ---
 
@@ -293,7 +318,8 @@ hnsw-predictor-ndf/
 | P2.2: 性能差距优化 | FVC 调优 + 256MB cgroup | ✅ 完成 |
 | P2.3: 多线程拓展性 | WILLNEED_BG + VL_POOL | ✅ 完成 |
 | P2.4: L4 cache 管理 | page cache 优化 | ✅ 完成 (Pareto 前沿) |
-| P2.5: Fine Rerank I/O | per-thread io_uring 替代 pread | 🔬 探索中 |
-| P2.6: 自适应 EF | PQ 距离间隙启发式 | 📋 提案 |
+| P2.5: Fine Rerank I/O | io_uring 替代 pread | ❌ 负结果 (DEC-076) |
+| P2.6: ARMv9 架构支持 | NEON SIMD 兼容 | ✅ 代码就绪 (待验证) |
+| P2.7: 自适应 EF | PQ 距离间隙启发式 | 📋 提案 |
 | P3: CSR 上磁盘 | 100M 必需 | 待启动 |
 | P4: 分级存储 | hot/warm/cold 三层 | 长期 |
