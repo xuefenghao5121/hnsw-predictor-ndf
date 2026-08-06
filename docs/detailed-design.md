@@ -1,26 +1,27 @@
 # DiskHNSW 详细设计文档
 
-> 版本: v1.0 | 日期: 2026-08-04  
-> 基于 NDF 规范 spec/00-50 + DEC-059~070 编写
+> 版本: v2.0 | 日期: 2026-08-06
+> 基于 Trunk commit 476b953 (WILLNEED_BG + PAGE_MERGE_BG + VL_POOL + FineRerank race fix)
 
 ---
 
 ## 1. 系统目标
 
-在 cgroup 内存限额（≥512MB）下，使用磁盘驻留向量数据，实现与全内存 HNSW 可比的搜索召回率（≥95%），同时将常驻内存控制在限额内。
+在 cgroup 内存限额下，使用磁盘驻留向量数据，实现与全内存 HNSW 可比的搜索召回率（≥95%），
+同时将常驻内存控制在限额内。
 
-**核心指标（SIFT1M, 512MB cgroup, 严格隔离 CON-SLA-014）**：
+**核心指标（SIFT1M, 严格 cgroup 隔离）:**
 
-| 指标 | 目标 | 实测 |
-|------|------|------|
-| Recall@10 | ≥ 95% | 95.75% |
-| QPS (1T) | ≥ 2000 | 2406 |
-| QPS (4T) | ≥ 5000 | 5808 |
-| RSS | ≤ 300MB | 155MB |
-| cgroup peak | ≤ 512MB | 512MB |
-| oom | = 0 | 0 |
+| 配置 | 指标 | 目标 | 实测 |
+|------|------|------|------|
+| 512MB 1T | Recall@10 | ≥95% | 95.75% |
+| 512MB 1T | QPS | ≥2000 | 3,366 |
+| 512MB 16T | QPS | ≥20000 | 30,332 |
+| 256MB 16T | QPS | ≥10000 | 18,675 |
+| 256MB | RSS | ≤256MB | 223MB |
+| 所有配置 | oom | =0 | 0 |
 
-**对比 hnswlib**：hnswlib 需 726MB RSS（OOM@512MB），DiskHNSW 内存节省 4.7x。
+**对比 hnswlib**: hnswlib 需 732MB RSS (OOM@512MB)，DiskHNSW 内存节省 2.9× (512MB) / 5.7× (256MB)。
 
 ---
 
@@ -29,43 +30,138 @@
 ### 2.1 模块分层
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ L5: 应用层 (benchmark, tests, pipeline tools)           │
-├─────────────────────────────────────────────────────────┤
-│ L4: 搜索引擎 DiskHNSW                                   │
-│   搜索流程 │ PQ 粗筛 │ Fine Rerank 精排 │ CSR 邻接表    │
-├─────────────────────────────────────────────────────────┤
-│ L3: 图引导预取 GraphPrefetcher                          │
-├─────────────────────────────────────────────────────────┤
-│ L2: 缓存层 BlockCache + IoUring + FlatVecCache          │
-├─────────────────────────────────────────────────────────┤
-│ L1: 策略接口 LayoutProvider / ReplacementPolicy          │
-├─────────────────────────────────────────────────────────┤
-│ L0: 数据格式 common.h (fvecs, varint, CSR)              │
-└─────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ 应用层: benchmark, tests, pipeline tools                    │
+├─────────────────────────────────────────────────────────────┤
+│ 搜索引擎 DiskHNSW                                           │
+│   两阶段搜索: PQ 粗筛 → Fine Rerank 精排                    │
+│   I/O 优化: WILLNEED_BG + PAGE_MERGE_BG + flat_vec_cache   │
+│   多线程: per-thread SPSC slots + VL_POOL 自适应池化        │
+├─────────────────────────────────────────────────────────────┤
+│ 缓存层: BlockCache (O_DIRECT, 64KB) + FlatVecCache (LRU)    │
+├─────────────────────────────────────────────────────────────┤
+│ I/O 层: GraphPrefetcher (io_uring, PQ 模式禁用)             │
+│         Fine Rerank I/O (pread + WILLNEED_BG fadvise)       │
+├─────────────────────────────────────────────────────────────┤
+│ 数据格式: common.h (fvecs, varint, CSR, BFS reorder)        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 内存布局
 
-常驻内存（SIFT1M, 512MB cgroup, 约 155MB RSS）：
+**常驻内存 (SIFT1M, ~155-242MB):**
 
 | 组件 | 大小 | 说明 |
 |------|------|------|
 | 上层图 + 向量 | 30MB | Layer 1+ 节点（贪心下降用） |
-| L0 CSR 邻接表 | 47MB | Delta+Varint 压缩的邻接表 |
+| L0 CSR 邻接表 | 47MB | Delta+Varint 压缩 (1.8× 压缩比) |
 | PQ Codes | 30MB | M=32 子量化器编码（全量常驻） |
-| flat_vec_cache | 64MB | 热向量 LRU 缓存（命中跳过 I/O） |
-| route/slot/labels | 18MB | 路由表 + slot 偏移 + 标签映射 |
-| VisitedList 池 | ~10MB | uint8 访问标记（DEEP10M 优化关键） |
-| BlockCache | 64MB | 64KB 粗筛块 LRU 缓存（O_DIRECT） |
+| flat_vec_cache | 64-160MB | 热向量 LRU 缓存（命中跳过 I/O） |
+| route/slot/labels | 18MB | 双路由表 + slot 偏移 + 标签映射 |
+| VisitedList 池 | ~10MB | uint8 访问标记（thread_local 池化） |
+| BlockCache | 64MB | 64KB 块 LRU 缓存（O_DIRECT） |
 
-按需 I/O（不常驻，走 page cache）：
+**按需 I/O (page cache 热区):**
 
 | 组件 | 大小 | 说明 |
 |------|------|------|
 | VecBlocks | 496MB | BFS 重排后的 4KB 向量页（Fine Rerank 读取） |
 
-### 2.3 数据 Pipeline（7 步）
+**R5c mincore 诊断 (256MB cgroup):**
+- vecblocks 总页数: 126,993
+- page cache 命中: 12.1% (15,355 页)
+- 磁盘 I/O: 87.9% 需读取
+- refault_file: 725 (WILLNEED_BG 已消除容量缺失)
+- pgmajfault: ~25/query (冷缺失，不可优化)
+
+### 2.3 两阶段搜索流程
+
+```
+查询到达
+  │
+  ├─ Step 1: 贪心下降 [纯内存]
+  │   上层图 (Layer 1+) 遍历，找 Layer 0 入口节点
+  │
+  ├─ Step 2: Phase A - PQ 粗筛 [纯内存, 无 I/O]
+  │   buildPqDistTable(query) → SIMD 查表
+  │   searchLayer0():
+  │     CSR 邻接表遍历 + PQ ADC 近似距离
+  │     _mm_prefetch: route_table + PQ codes (CPU L1/L2)
+  │     → 产出 top-EF 候选集 (cand_ids)
+  │
+  └─ Step 3: Phase B - 精确精排 [按需 I/O]
+      │
+      ├─ 收集 pages_needed (查 vec_route_table_)
+      │
+      ├─ WILLNEED_BG: 搜索线程提交页号到 SPSC slot
+      │   BG 线程: yield 轮询 → fadvise(WILLNEED) 逐页/合并
+      │   内核: 异步 readahead
+      │
+      ├─ pread: 逐页读 (固定顺序, 阻塞等待 readahead)
+      │   page_cache 命中? → 内存拷贝 (快)
+      │   miss? → 磁盘 I/O (阻塞)
+      │
+      └─ 精确 L2 重排 → top-K 结果
+```
+
+### 2.4 I/O 优化机制详解
+
+#### flat_vec_cache (DEC-068)
+
+进程内 LRU 缓存，存储 Fine Rerank 中访问过的热向量。
+- 粒度: 单向量 (SIFT: 512 bytes)
+- 命中率: 45.7% (SIFT1M 256MB)
+- 效果: 256MB 下 7.5× QPS (减少 pread)
+- 配置: `FLAT_VEC_MB` (256MB 推荐 64, 512MB 推荐 160)
+
+#### WILLNEED (DEC-070)
+
+`posix_fadvise(POSIX_FADV_WILLNEED)` 在 pread 前批量调用，
+内核启动异步 readahead，pread 从阻塞磁盘 I/O 变为内存拷贝。
+
+- 适用条件: page cache 严重受限 + pread 是瓶颈 + refault 暴涨
+- 效果: 256MB 下 17.7× QPS, 512MB 下 +5.5%, DEEP10M 下 ~0%
+- 配置: `L4_WILLNEED=1`
+
+#### WILLNEED_BG (DEC-074, BEH-027)
+
+无锁后台线程替代主线程 fadvise 调用，消除内核锁竞争。
+
+- 架构: Per-thread SPSC slot + atomic flag (零 mutex)
+  - 搜索线程: 写页号到 slot → 设 ready flag → 继续 pread
+  - BG 线程: yield 轮询 → 处理 ready slot → fadvise
+- 效果: 16T 下 +72.8% QPS (vs 主线程 fadvise)
+- 配置: `WILLNEED_BG=1`
+
+#### PAGE_MERGE_BG (DEC-075, BEH-028)
+
+在 WILLNEED_BG 线程中合并连续页为单次 fadvise 调用，减少 syscall 数量。
+
+- 效果: 256MB 16T 下 +17.5% QPS
+- 注意: 512MB 下有害 (-2.9%)，仅 256MB 推荐
+- 配置: `PAGE_MERGE_BG=1` (需 `WILLNEED_BG=1` 前置)
+
+#### VL_POOL (DEC-074, BEH-027)
+
+自适应 VisitedList 池化，避免高并发下频繁内存分配。
+
+- 机制: thread_local VisitedList 复用，T≥阈值时启用
+- 效果: 12T 下 +7.1% QPS
+- 配置: `VL_POOL_THREADS=14` (推荐)
+
+### 2.5 GraphPrefetcher (PQ 模式下禁用)
+
+GraphPrefetcher 使用 io_uring + O_DIRECT 预取 64KB 图块。
+在 PQ 模式下，图遍历使用 CSR 内存邻接表 + PQ ADC 距离，不需要读取向量块，
+因此 GraphPrefetcher 被条件禁用 (`!pq_enabled_`)。
+
+Fine Rerank 的 I/O 由 WILLNEED_BG + pread 处理。
+GraphPrefetcher 的 io_uring 机制可作为未来 Fine Rerank I/O 优化的参考
+(per-thread io_uring 替代 WILLNEED_BG + pread)。
+
+---
+
+## 3. 数据 Pipeline（7 步）
 
 ```
 base.fvecs
@@ -73,282 +169,121 @@ base.fvecs
   ├─ Step 1: build_index (hnswlib M=16 efC=200)
   │    └─ index.bin
   ├─ Step 2: extract_graph (maxM=128)
-  │    └─ graph.bin
+  │    └─ graph.bin [slim+adj 格式: 上层向量 + L0 邻接表]
   ├─ Step 3: bfs_reorder
-  │    └─ bfs.bin (old↔new 映射)
+  │    └─ bfs.bin (old↔new 映射, 提升空间局部性)
   ├─ Step 4: write_blocks_veconly (blockSize=64KB)
   │    └─ vecblocks_64k.bin (Fine Rerank 数据源)
   ├─ Step 5: write_blocks + gen_route
   │    └─ blocks_64k.bin + route_64k.bin (BlockCache 用)
-  ├─ Step 6: train_pq (faiss, M=32 SIFT / M=24 DEEP)
-  │    └─ pqco_*_M*.bin
-  └─ Step 7: gen_gt (faiss IndexFlatL2)
-       └─ gt200.bin
+  ├─ Step 6: train_pq (faiss, M=32)
+  │    └─ pqco_*_M32_correct.bin (PQ 编码)
+  └─ Step 7: gen_gt
+       └─ gt200.bin (Ground Truth)
 ```
 
-**三条铁律**：① 一套数据从头到尾 ② graph 与 blocks 同批生成 ③ PQ 的 M 匹配维度
+**关键**: vecblocks 和 blocks 是两个独立文件，各有独立 route 表，block_id 不一致。
 
 ---
 
-## 3. 两阶段搜索流程
+## 4. 多线程架构
 
-### 3.1 状态机
+### 4.1 线程模型
 
 ```
-[查询到达]
+主线程
+  ├─ 搜索线程 × N (NUM_THREADS)
+  │   每线程独立: VisitedList (pool), candidate_set, top_candidates
+  │   共享: BlockCache (O_DIRECT, 线程安全), CSR 邻接表 (只读)
   │
-  ├─ Phase 0: greedyDescent (L_max → L1)
-  │    纯内存，零 I/O。遍历上层图找 Layer 0 入口节点。
-  │
-  ├─ Phase A: searchLayer0 (PQ ADC 粗筛)
-  │    CSR 邻接表遍历 + PQ ADC 查表近似距离
-  │    → 输出 top-REFINE_EF 候选集
-  │    纯内存（PQ Codes 常驻 + CSR 常驻 + BlockCache O_DIRECT）
-  │
-  └─ Phase B: FineRerank (4KB 页粒度精排)
-       遍历候选:
-       ├─ flat_vec_cache 命中? → 精确 L2 (零 I/O)
-       ├─ BlockCache 命中? → 精确 L2 (零 I/O)
-       └─ miss → 4KB 页读取:
-            ├─ L4_WILLNEED=1 → fadvise(WILLNEED) 批量预取
-            ├─ FINE_PREAD=1 → pread 同步读
-            └─ FINE_PREAD=0 → io_uring 异步读
-            → 精确 L2 → consider() → putFlatVector()
-       → 输出 top-K 结果
+  └─ WILLNEED_BG 线程 × 1
+      SPSC slots: 每搜索线程一个 slot
+      轮询 → fadvise → 内核 readahead
 ```
 
-### 3.2 PQ 距离计算（Phase A）
+### 4.2 FineRerank 线程安全
 
-Product Quantization 将 d 维向量切分为 M 个子向量，每个子向量用 256 个 centroid 量化。
+`buildFineRerank()` 懒初始化使用 `std::call_once` 保证多线程安全。
+`pread` 天然线程安全。io_uring 路径 (`vec_ring_`) 非线程安全（共享 SQ/CQ），
+多线程必须使用 `FINE_PREAD=1`。
 
-**ADC（Asymmetric Distance Computation）**：查询向量不做量化，对每个子向量预计算 query_sub 到 256 个 centroid 的距离表（`pq_dist_table_`，thread_local），然后查表累加。
+### 4.3 扩展性
 
-- `dsub == 4`：AVX2 路径，一次处理 2 个 centroid（8 floats），`_mm256_sub_ps` + `_mm256_mul_ps` + `_mm_hadd_ps`
-- `dsub != 4`：标量三重循环
-
-**PQ_HYBRID=1**：BlockCache 命中的候选用精确 L2 替代 PQ 近似，提高 Phase A 精度。
-
-### 3.3 CSR 邻接表压缩
-
-Layer 0 邻接表使用 Delta+Varint 压缩，压缩比约 1.8x：
-
-- 邻居 ID 经 BFS 重排后空间局部性好，delta 值小
-- Varint 编码：小数字 1 字节，大数字 2-5 字节
-- 解码：从 `adj_csr_byte_offsets_[new_id]` 读取，解码到 thread_local `csr_decode_buf_`
-
-### 3.4 Fine Rerank（Phase B）
-
-对 Phase A 输出的候选集，按 4KB 页粒度读取真实向量做精确 L2 重排：
-
-1. **候选遍历**：对每个候选检查 flat_vec_cache → BlockCache → 磁盘 I/O
-2. **页收集**：miss 的候选收集到 `io_cands`（记录 nid, page0, offset_in_page, cross_page）
-3. **WILLNEED 预取**（opt-in）：`L4_WILLNEED=1` 时，对 `pages_needed` 中所有页调用 `posix_fadvise(WILLNEED)`，内核启动异步 readahead
-4. **批量读取**：pread（同步，多线程安全）或 io_uring（异步，单线程）
-5. **精确距离**：对每个候选计算 L2 距离，插入 `refined` 优先队列
-6. **结果合并**：`refined` 中的候选提升到 `top_candidates`
-
-### 3.5 WILLNEED readahead 机制
-
-**原理**：`posix_fadvise(POSIX_FADV_WILLNEED)` 提示内核即将读取指定文件区域。内核启动异步 readahead，将页预读入 page cache。后续 pread 从内存拷贝而非阻塞磁盘 I/O。
-
-**效果**（CON-SLA-014 标准协议验证）：
-
-| 场景 | 基线 QPS | +WILLNEED | 提升 | 原因 |
-|------|---------|-----------|------|------|
-| SIFT1M 256MB | 134 | 2379 | 17.7x | pread 是瓶颈，readahead 流水线化 |
-| SIFT1M 512MB | 2267 | 2392 | +5.5% | pread 非瓶颈，微正 |
-| DEEP10M 2GB | 570 | 568 | ~0% | I/O 量是瓶颈（68K majfault），非时序 |
-
-**适用条件**：① page cache 严重受限 ② pread 是延迟主导 ③ refault 暴涨
-
-**cgroup 合规**：`file` 用量不变（103MB），`majfault` 不变（~5100），`peak` = cgroup limit，`oom` = 0。WILLNEED 不多占内存，只改变 I/O 时序。
+| 线程数 | 512MB QPS | 256MB QPS | Scaling |
+|--------|-----------|-----------|---------|
+| 1T | 3,366 | 2,830 | 1.0× |
+| 4T | 9,041 | 7,721 | 2.7× |
+| 8T | 14,901 | - | 4.4× |
+| 12T | 18,459 | 13,799 | 5.5× |
+| 16T | 30,332 | 18,675 | 9.0× |
+| 24T | 29,738 | - | 8.8× |
 
 ---
 
-## 4. 严格 cgroup 隔离测试协议（CON-SLA-014）
+## 5. cgroup 严格隔离协议
 
-### 4.1 为什么需要严格隔离
+### 5.1 测试协议 (CON-SLA-014)
 
-cgroup v2 page cache 记账规则为"首次读取者归属"。当数据准备（root cgroup）和检索（子 cgroup）在同一台机器上时，数据准备阶段预热的 page cache 不会被重新记账到 benchmark cgroup，导致实际可用内存远超限制——称为"白嫖"。
+1. `sync; echo 3 > /proc/sys/vm/drop_caches` 清场
+2. 创建 cgroup: `memory.max = 限制值`
+3. 进程写入 cgroup.procs
+4. 运行 benchmark
+5. 检查: `memory.peak ≤ memory.max`, `memory.events.oom = 0`
 
-### 4.2 记账陷阱
+### 5.2 SLA 清单
 
-| 陷阱 | 描述 |
-|------|------|
-| 首次读取归属 | page cache 记账归属首次读取者，不是当前使用者 |
-| RSS 不含 page cache | VmRSS 只含匿名页 + mmap，不含 read() 产生的 page cache |
-| memory.current 漏计 | 别人（root cgroup）读过的页对你免费 |
-
-### 4.3 协议步骤
-
-```bash
-# 1. 清场：驱逐所有 page cache（模拟"文件刚到达"）
-sync && echo 3 | sudo tee /proc/sys/vm/drop_caches
-
-# 2. 创建受限 cgroup
-sudo mkdir -p /sys/fs/cgroup/hnsw_bench
-echo $((512 * 1024 * 1024)) | sudo tee /sys/fs/cgroup/hnsw_bench/memory.max
-
-# 3. 将当前 shell 加入 cgroup
-echo $$ | sudo tee /sys/fs/cgroup/hnsw_bench/cgroup.procs
-
-# 4. 运行 benchmark（所有 I/O 首次读取，全部记入 cgroup）
-L4_WILLNEED=1 TWO_STAGE=1 FINE_RERANK=1 FINE_PREAD=1 FINE_BUFFERED=1 \
-CACHE_MB=64 FLAT_VEC_MB=64 L4_EVICT_META=1 \
-VEC_BLOCKS_PATH=... PQ_CODES_PATH=... \
-./build/benchmark_diskhnsw ... 10 100 200
-
-# 5. 收集验收数据
-cat /sys/fs/cgroup/hnsw_bench/memory.peak    # ≤ limit
-cat /sys/fs/cgroup/hnsw_bench/memory.events  # oom=0
-grep -E "^(anon|file|workingset_refault_file|pgmajfault)" \
-    /sys/fs/cgroup/hnsw_bench/memory.stat
-```
-
-### 4.4 验收报告必须包含
-
-1. `memory.peak`（证明总内存未超限）
-2. `memory.stat` 中 `anon` 和 `file` 分项（证明 page cache 在预算内）
-3. `memory.events` 中 `oom` = 0（证明未触发 OOM）
-
-### 4.5 监控指标
-
-| 指标 | 含义 | 关注点 |
-|------|------|--------|
-| `memory.current` | 总内存（anon + file） | 应 ≤ memory.max |
-| `anon` | 匿名页（堆/栈/数据结构） | 进程实际占用 |
-| `file` | 文件页（page cache，本 cgroup 产生） | 真实 I/O 缓存 |
-| `workingset_refault_file` | 文件页回收后再次访问 | 高 = cache 抖动 |
-| `pgmajfault` | major page fault | 高 = I/O 瓶颈 |
+| SLA | 配置 | Recall | QPS | 内存 |
+|-----|------|--------|-----|------|
+| CON-SLA-014 | SIFT1M 512MB 1T | ≥95% | ≥2000 | ≤512MB |
+| CON-SLA-016 | SIFT1M 256MB 4T | ≥95% | ≥5000 | ≤256MB |
+| CON-SLA-017 | SIFT1M 512MB 16T | ≥95% | ≥20000 | ≤512MB |
+| CON-SLA-018 | SIFT1M 256MB 16T+merge | ≥95% | ≥12000 | ≤256MB |
 
 ---
 
-## 5. 多线程并发
+## 6. 已知限制
 
-### 5.1 线程安全设计
-
-- `FINE_PREAD=1`：多线程必须启用。pread 替代 io_uring（io_uring 非线程安全）
-- `pq_dist_table_`：thread_local，每线程独立 PQ 距离表
-- `csr_decode_buf_`：thread_local，每线程独立 CSR 解码缓冲区
-- `VisitedList` 池：预分配，每线程从池中获取
-
-### 5.2 VisitedList 优化（DEEP10M 关键）
-
-10M 规模下 VisitedList 的内存分配是隐藏瓶颈：
-
-- `uint32_t` → `uint8_t`：10M 节点 40MB → 10MB per VisitedList，12 线程省 360MB
-- 每次 searchKnn 创建/销毁 VisitedList，malloc/free 是隐藏瓶颈
-- 优化后 DEEP10M QPS 从 1170 提升到 2340（2x）
+1. **vecblocks 与 route table 必须配套** - 混用不同版本导致 offset 错误
+2. **io_uring 非线程安全** - 多线程必须 `FINE_PREAD=1`
+3. **blocks 和 vecblocks 的 block_id 不一致** - 各有独立 route 表
+4. **PAGE_MERGE_BG 仅 256MB 推荐** - 512MB 下排序开销 > syscall 节省
+5. **WILLNEED 在 I/O 量主导场景无效** - DEEP10M 瓶颈是 majfault 总量 (68K)
+6. **Fine Rerank I/O 路径** - WILLNEED_BG + pread 存在 BG 轮询延迟和 pread 顺序阻塞
 
 ---
 
-## 6. 性能数据汇总
-
-### 6.1 SIFT1M（128 维，100 万向量）
-
-| 配置 | QPS | Recall | RSS | cgroup | 备注 |
-|------|-----|--------|-----|--------|------|
-| 1T 512MB | 2406 | 95.75% | 155MB | 512MB | 生产默认 |
-| 1T 512MB +WILLNEED | 2459 | 95.75% | 155MB | 512MB | +2.2% |
-| 4T 512MB | 5808 | 95.70% | 286MB | 512MB | 4 线程并发 |
-| 1T 256MB | 134 | 95.75% | 153MB | 256MB | page cache 不足 |
-| 1T 256MB +WILLNEED | 2379 | 95.75% | 153MB | 256MB | **17.7x** |
-| hnswlib 全内存 | - | 95.25% | 726MB | - | OOM@512MB |
-
-### 6.2 DEEP10M（96 维，1000 万向量）
-
-| 配置 | QPS | Recall | RSS | cgroup | 备注 |
-|------|-----|--------|-----|--------|------|
-| 12T 2GB | 2340 | 95.15% | 1612MB | 2GB | hnswlib OOM@2GB |
-| hnswlib 全内存 | 1557 | 95.60% | ~6GB | - | ef=400, 1T |
-
-**DEEP10M 优化路径**：
-
-| 优化 | QPS | 收益 |
-|------|-----|------|
-| VisitedList uint32→uint8 | 1170→2340 | 2x |
-| flat_vec_cache 128MB | 698 | +20% |
-| PQ M=24 | 963 | +82% vs M=32 |
-| REFINE_EF=300 | 95.15% recall | 达标 |
-| FINE_PREAD=1 | 修复 io_uring bug | recall 恢复 |
-
-### 6.3 cgroup 可行性（DEEP10M）
-
-| cgroup | 可行 | RSS 峰值 | 说明 |
-|--------|------|---------|------|
-| 1GB | ❌ | OOM | 核心数据 1.1GB |
-| 1.8GB | ✅ | 941MB init / 1395MB peak | 最小可行 |
-| 2GB | ✅ | 1088MB init / 1612MB peak | 推荐 |
-
----
-
-## 7. 环境变量完整参考
-
-### 核心搜索
-
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `TWO_STAGE` | 0 | 1=PQ 粗筛 + 精排两阶段 |
-| `PQ_CODES_PATH` | - | PQ 编码文件路径 |
-| `PQ_HYBRID` | 0 | 1=cache 命中用精确距离 |
-| `REFINE_EF` | 200 | 粗筛 ef 值 |
-| `CACHE_MB` | 必填 | BlockCache 大小 |
-| `FLAT_VEC_MB` | 0 | 热向量 LRU cache |
-
-### Fine Rerank
-
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `FINE_RERANK` | 0 | 1=4KB 页精排 |
-| `FINE_BUFFERED` | 0 | 1=buffered I/O |
-| `FINE_PREAD` | 0 | 1=pread（多线程必须） |
-| `VEC_BLOCKS_PATH` | - | Vec-Only 块文件 |
-
-### L4 Page Cache 管理
-
-| 变量 | 默认 | 说明 |
-|------|------|------|
-| `L4_WILLNEED` | 0 | 1=pread 前 fadvise(WILLNEED) |
-| `L4_EVICT_META` | 0 | 1=驱逐 graph/BFS 页缓存 |
-| `FINE_FADVISE` | 0 | 1=精排后驱逐页（512MB 有害） |
-
-### 多线程 / 调试
-
-| 变量 | 说明 |
-|------|------|
-| `NUM_THREADS` | >0=并发线程数 |
-| `PROFILE_TS` | 1=两阶段计时 |
-| `PROFILE_FINE` | 1=精排细粒度计时 |
-
----
-
-## 8. 已知限制
-
-1. **io_uring 非线程安全**：多线程必须 `FINE_PREAD=1`
-2. **vecblocks 与 route 必须配套**：混用不同版本导致 offset 错误
-3. **blocks 和 vecblocks 的 block_id 不一致**：各有独立 route 表
-4. **cgroup memory.file ≠ page cache 总量**：首次读入在 cgroup 外时不计入
-5. **WILLNEED 在 I/O 量主导场景无效**：DEEP10M 瓶颈是 majfault 总量
-
----
-
-## 9. 优化历史与未来方向
+## 7. 优化历程与方向
 
 ### 已完成
 
-| 里程碑 | 技术 | 效果 |
-|--------|------|------|
-| P0: CSR 压缩 | delta+varint | 1.8x 压缩，RSS 337→269MB |
-| P0.5: 双路由表修复 | vec_route_table 分离 | 修复 block_id 不一致 bug |
-| P1: 图裁剪试验 | MRNG R_max | 负结果（1M 无净收益） |
-| P2: DEEP10M | VisitedList + PQ + flat_vec | 95.15% recall, 2340 QPS |
-| flat_vec_cache | fine rerank 命中检查 | 7.5x@256MB |
-| WILLNEED | fadvise readahead | 17.7x@256MB, 无回归@512MB |
+| 阶段 | 优化 | 效果 | 决策 |
+|------|------|------|------|
+| P0 | CSR 压缩 | RSS 337→269MB | DEC-006 |
+| P0.5 | 双路由表修复 | recall 修复 | DEC-012 |
+| P1 | VisitedList uint32→uint8 | 2× QPS | DEC-034 |
+| P1 | Fine Rerank pread 修复 | recall 70→95% | DEC-035 |
+| P1 | PQ dsub=3 SIMD | +5% QPS | DEC-036 |
+| P2 | flat_vec_cache | 7.5× QPS @256MB | DEC-068 |
+| P2 | WILLNEED | 17.7× QPS @256MB | DEC-070 |
+| P2 | FineRerank 线程安全 | 4T+ 稳定 | DEC-073 |
+| P2 | FVC 默认 64MB | +23.4% QPS | DEC-073 |
+| P2 | WILLNEED_BG (A2) | +72.8% QPS @16T | DEC-074 |
+| P2 | VL_POOL (C2) | +7.1% QPS @12T | DEC-074 |
+| P2 | PAGE_MERGE_BG | +17.5% QPS @256MB | DEC-075 |
+| P2 | L4 cache 诊断 | Pareto 前沿确认 | BEH-024 |
+
+### 探索中
+
+| 方向 | 描述 | 预期 |
+|------|------|------|
+| Fine Rerank io_uring | per-thread io_uring 替代 WILLNEED_BG+pread | +5-20% QPS |
+| 自适应 EF | PQ 距离间隙启发式调整 REFINE_EF | +15-25% QPS |
+| Fine Rerank 早终止 | 连续无改善即停止 | -20-40% I/O |
 
 ### 未来
 
-| 阶段 | 目标 |
+| 阶段 | 描述 |
 |------|------|
-| P3 | CSR 上磁盘（100M 必需，4.7GB 装不进内存） |
-| P4 | 分级存储 + 增量插入 + 多租户 |
-| P5 | 硬件亲和（NUMA/SPDK/GPU/PMEM） |
+| P3 | CSR 上磁盘 (100M 规模) |
+| P4 | 分级存储 (hot/warm/cold) |
+| P5 | SPDK / GPU / NUMA 亲和 |
