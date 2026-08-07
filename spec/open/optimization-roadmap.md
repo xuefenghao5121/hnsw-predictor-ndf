@@ -1,9 +1,13 @@
 # 优化路线图 v3.0 (2026-08-06 更新)
 
-> 基准: SIFT1M 30,332 QPS (16T 512MB) / 18,675 QPS (16T 256MB) / 95.75-95.80% recall
-> 基准: DEEP10M 2,340 QPS (12T 2GB) / 95.15% recall / 1,612MB RSS
-> 日期: 2026-08-06
-> 关联: DEC-068~076, BEH-024~028, CON-SLA-014~018
+> 基准 (sustained, 官方 10K query 池, 禁预热):
+> SIFT1M 512MB 16T: 6,694 稳态 QPS / 96.00% recall / RSS 242MB
+> SIFT1M 512MB 16T +ADAPTIVE: 9,862 稳态 QPS / 95.80% recall
+> SIFT1M 256MB 16T: 2,456 稳态 QPS / 96.00% recall / RSS 223MB
+> DEEP10M 2GB 12T: 2,340 QPS (cache-warmed) / 95.15% recall / 1,612MB RSS
+> 对照: hnswlib unlimited 16T = 42,947 QPS / 98.25% recall / 763MB RSS
+> 日期: 2026-08-07
+> 关联: DEC-068~076, BEH-024~035, CON-SLA-014~020, DEC-084
 
 ## P2 完成状态
 
@@ -26,11 +30,16 @@
 ## P2 最终成绩
 
 ```
-SIFT1M (1M, 128D):
-  512MB 16T: 30,332 QPS / 95.75% recall / RSS 242MB (QPS/MB 1.10x hnswlib)
-  256MB 16T: 18,675 QPS / 95.80% recall / RSS 223MB (QPS/MB 1.36x hnswlib)
+SIFT1M (1M, 128D) - Sustained (官方 10K query 池, N=1000, R=15):
+  512MB 16T: 6,694 稳态 QPS / 96.00% recall / RSS 242MB (hnswlib 16%)
+  512MB 16T +ADAPTIVE: 9,862 稳态 QPS / 95.80% recall (hnswlib 23%)
+  256MB 16T: 2,456 稳态 QPS / 96.00% recall / RSS 223MB (hnswlib 6%)
 
-DEEP10M (10M, 96D), 2GB cgroup, T=12:
+Cache-warmed (回归护栏, 高估 1.73-7.60x):
+  512MB 16T: 30,332 QPS / 95.75% recall (高估 4.53x)
+  256MB 16T: 18,675 QPS / 95.80% recall (高估 7.60x)
+
+DEEP10M (10M, 96D), 2GB cgroup, T=12 (cache-warmed):
   Recall: 95.15% ✅
   QPS:    2,340  ✅
   RSS:    1,612MB (hnswlib OOM@2GB)
@@ -52,7 +61,7 @@ DEEP10M (10M, 96D), 2GB cgroup, T=12:
 |------|------|--------|------|
 | 自适应 EF (ADAPTIVE_EF) | PQ 距离间隙启发式 | ✅ 已完成 | [[BEH-033]] promoted, 200q +31% |
 | Fine Rerank 早终止 | 连续无改善即停止 | ❌ 负结果 | [[DEC-081]] rejected (pread 架构下无效) |
-| GBDT 学习式剪枝 (LEARNED_EF) | per-query 参数预测 | ✅ 已完成 | [[BEH-034]] promoted, 10Kq +33~124% |
+| GBDT 学习式剪枝 (LEARNED_EF) | per-query 参数预测 | ⚠️ 降级 | [[BEH-034]] may, sustained 收益不成立 |
 | 200q cache-hit 认知 | benchmark 基准认知修正 | ✅ 已记录 | [[DEC-083]] (仅认知，未建 SLA) |
 | Sustained SLA (≥95% recall) | 大规模标准 query 集 SLA | 🔴 高 | 📋 待做 (10K random recall 89% 不可用) |
 

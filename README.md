@@ -1,15 +1,25 @@
-# DiskHNSW — 内存受限环境下的磁盘向量搜索
+# DiskHNSW - 内存受限环境下的磁盘向量搜索
 
 > 在 cgroup 内存限额下，用磁盘驻留向量做接近全内存 HNSW 的召回（≥95%）。
 >
-> **SIFT1M @512MB 16T**: 95.75% recall / 30,332 QPS / RSS 242MB (QPS/MB 1.10× hnswlib)
-> **SIFT1M @256MB 16T**: 95.80% recall / 18,675 QPS / RSS 223MB (QPS/MB 1.36× hnswlib)
-> **DEEP10M @2GB 12T**: 95.15% recall / 2,340 QPS / RSS 1,612MB (hnswlib OOM)
+> **Sustained（官方 10K query 池, N=1000, R=15, 禁预热）:**
 >
-> **注**: 以上基于 200q 标准数据集 (cache-warmed, DEC-083)。GBDT (LEARNED_EF) 在
-> I/O bound 场景下 QPS 相对增益 +33~124%，recall ≥ 95%。
+> | 配置 | 聚合 QPS | 稳态 QPS | Recall | RSS |
+> |------|---------|---------|--------|-----|
+> | SIFT1M 512MB 16T | 4,475 | 6,831 | 96.00% | ~242MB |
+> | SIFT1M 512MB 16T +ADAPTIVE | 5,651 | 9,862 | 95.80% | ~242MB |
+> | SIFT1M 256MB 16T | 2,092 | 2,413 | 96.00% | ~223MB |
+> | DEEP10M 2GB 12T | - | - | 95.15% | 1,612MB |
 >
-> **平台**: x86_64 (AVX2) ✅ | ARMv9 AArch64 (NEON) ✅
+> **对照 hnswlib unlimited (16T):** 42,947 QPS / 98.25% recall / 763MB RSS
+>
+> **真实定位:** 能在内存预算不足时工作（hnswlib 在 DEEP10M 直接 OOM），
+> 绝对内存占用低（256MB vs 763MB = 33%），吞吐为 trade-off。
+>
+> **平台:** x86_64 (AVX2) ✅ | ARMv9 AArch64 (NEON) ✅
+>
+> ⚠️ 早期文档中的 30,332 / 18,675 QPS 为 **cache-warmed 口径**（200q + query 预热），
+> 高估 1.73–7.60×，仅作回归护栏。详见 [[DEC-084]]、[[CON-SLA-019]]。
 
 ## 项目背景
 
@@ -17,12 +27,12 @@
 
 DiskHNSW 的核心思路：
 
-1. **图结构常驻内存** — 上层节点向量 + L0 邻接表 CSR 压缩
-2. **向量数据存磁盘** — BFS 重排后分块，利用空间局部性
-3. **PQ 粗筛** — Product Quantization 压缩向量常驻内存，零 I/O 近似距离搜索
-4. **精确精排 (Fine Rerank)** — 对粗筛候选集按 4KB 页粒度读真实向量做精确 L2
-5. **I/O 优化** — WILLNEED_BG 无锁后台预取 + flat_vec_cache 热向量缓存 + PAGE_MERGE_BG 连续页合并
-6. **跨架构** — SIMD 抽象层 (simd.h) 统一 x86 AVX2 / ARM NEON, 编译时自动选择
+1. **图结构常驻内存** - 上层节点向量 + L0 邻接表 CSR 压缩
+2. **向量数据存磁盘** - BFS 重排后分块，利用空间局部性
+3. **PQ 粗筛** - Product Quantization 压缩向量常驻内存，零 I/O 近似距离搜索
+4. **精确精排 (Fine Rerank)** - 对粗筛候选集按 4KB 页粒度读真实向量做精确 L2
+5. **I/O 优化** - WILLNEED_BG 无锁后台预取 + flat_vec_cache 热向量缓存 + PAGE_MERGE_BG 连续页合并
+6. **跨架构** - SIMD 抽象层 (simd.h) 统一 x86 AVX2 / ARM NEON, 编译时自动选择
 
 ---
 
@@ -45,10 +55,33 @@ bash scripts/build_pipeline.sh data/sift_base.fvecs sift1m 32
 #       output/pqco_sift1m_M32_correct.bin
 ```
 
-### 运行 Benchmark
+### 运行 Sustained Benchmark（推荐）
 
 ```bash
-# 推荐配置 (512MB cgroup)
+# Sustained 基准（官方 10K query 池, 多轮随机采样, 禁预热）
+# 这是对外吞吐声明的权威口径 (CON-SLA-020)
+sync; echo 3 | sudo tee /proc/sys/vm/drop_caches
+sudo mkdir -p /sys/fs/cgroup/hnsw_test
+echo $((512 * 1024 * 1024)) | sudo tee /sys/fs/cgroup/hnsw_test/memory.max
+echo $$ | sudo tee /sys/fs/cgroup/hnsw_test/cgroup.procs
+
+TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1 \
+L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14 \
+VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin \
+PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin \
+CACHE_MB=64 FLAT_VEC_MB=160 REFINE_EF=100 \
+./build/benchmark_sustained \
+    output/sift1m_graph.bin output/sift1m_bfs.bin \
+    output/sift1m_blocks_64k.bin output/sift1m_route_64k.bin \
+    data/sift_base.fvecs data/sift_query_official10k.fvecs data/sift_groundtruth_official.ivecs \
+    10 100 1000 --rounds 15 --seed 42
+```
+
+### 运行 Cache-warmed Benchmark（回归护栏）
+
+```bash
+# 200q 标准 benchmark (cache-warmed, 仅作回归基线)
+# ⚠️ 数字高估 1.73-7.60x, 不可对外引用为商用吞吐
 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1 \
 L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14 \
 VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin \
@@ -96,47 +129,67 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 
 ## 性能数据
 
-### SIFT1M (128维, 100万向量)
+### Sustained 基准（权威口径）
 
-**512MB cgroup, 多线程 Scaling:**
+> 测量协议: 官方 SIFT 10K query 池, N=1000, R=15, seed=42, 禁预热 (CON-SLA-019/020)
+> 对照: hnswlib unlimited memory, 同官方 query + 同官方 GT
 
-| 线程数 | QPS | Recall | Scaling |
-|--------|-----|--------|---------|
-| 1T | 3,366 | 95.75% | 1.0× |
-| 4T | 9,041 | 95.75% | 2.7× |
-| 8T | 14,901 | 95.75% | 4.4× |
-| 12T | 18,459 | 95.75% | 5.5× |
-| **16T (peak)** | **30,332** | 95.75% | **9.0×** |
-| 24T | 29,738 | 95.75% | 8.8× |
+**SIFT1M (128维, 100万向量) - Sustained QPS:**
 
-> 配置: `WILLNEED_BG=1 VL_POOL_THREADS=14 PAGE_MERGE_BG=0 FLAT_VEC_MB=160`
+| 配置 | 模式 | 聚合 QPS | 稳态 QPS | Recall |
+|------|------|---------|---------|--------|
+| 512MB 1T | BASE | 1,493 | 1,698 | 96.00% |
+| 512MB 1T | ADAPTIVE | 1,654 | 1,943 | 95.80% |
+| 512MB 4T | BASE | 3,920 | 5,355 | 96.00% |
+| 512MB 4T | ADAPTIVE | 4,328 | 6,176 | 95.80% |
+| 512MB 8T | BASE | 4,525 | 6,885 | 96.00% |
+| 512MB 8T | ADAPTIVE | 5,352 | 8,466 | 95.80% |
+| 512MB 16T | BASE | 4,475 | 6,831 | 96.00% |
+| 512MB 16T | ADAPTIVE | 5,651 | 9,862 | 95.80% |
+| 256MB 1T | BASE | 1,090 | 1,160 | 96.00% |
+| 256MB 4T | BASE | 2,201 | 2,518 | 96.00% |
+| 256MB 4T | ADAPTIVE | 2,828 | 3,329 | 95.81% |
+| 256MB 8T | BASE | 2,185 | 2,551 | 96.00% |
+| 256MB 8T | ADAPTIVE | 2,920 | 3,536 | 95.81% |
+| 256MB 16T | BASE | 2,092 | 2,413 | 96.00% |
+| 256MB 16T | ADAPTIVE | 2,777 | 3,416 | 95.81% |
 
-**256MB cgroup (极致内存效率):**
+> ADAPTIVE = `ADAPTIVE_EF=1`（PQ 距离间隙启发式候选数，sustained 下 +12.5~31.4%）
+> GBDT (`LEARNED_EF=1`) 在 sustained 下收益不成立（-0.9~+1.8%，噪声内），需用官方 query 池重新训练
 
-| 线程数 | QPS | Recall | RSS |
-|--------|-----|--------|-----|
-| 1T | 2,830 | 95.80% | 197MB |
-| 4T | 7,721 | 95.80% | 200MB |
-| 12T | 13,799 | 95.80% | 215MB |
-| **16T (peak)** | **18,675** | 95.80% | 223MB |
+**vs hnswlib unlimited (sustained):**
 
-> 配置: `WILLNEED_BG=1 VL_POOL_THREADS=14 PAGE_MERGE_BG=1 FLAT_VEC_MB=64`
+| 配置 | 稳态 QPS | 内存 | vs hnswlib QPS | QPS/MB | vs hnswlib QPS/MB |
+|------|---------|------|---------------|--------|------------------|
+| hnswlib 16T | 42,947 | 763MB | 100% | 56.3 | 1.0× |
+| DiskHNSW 512MB 16T | 6,694 | 512MB | 15.6% | 13.1 | 0.23× |
+| DiskHNSW 512MB 16T +ADAPTIVE | 9,560 | 512MB | 22.2% | 18.7 | 0.33× |
+| DiskHNSW 256MB 16T | 2,456 | 256MB | 5.7% | 9.6 | 0.17× |
 
-**对比 hnswlib (16T):**
+**真实定位（trade-off, 非全面胜出）:**
+- ✅ 能在内存预算不足时工作（hnswlib 在 DEEP10M 直接 OOM）
+- ✅ 绝对内存占用低（256MB vs 763MB = 33%）
+- ❌ 吞吐代价显著（sustained 5.7–26.9% of hnswlib）
 
-| 配置 | QPS (16T) | Recall | 内存 | QPS/MB | vs hnswlib |
-|------|-----------|--------|------|--------|-----------|
-| hnswlib (unlimited) | 39,322 | 98.30% | 732MB | 53.7 | 1.0× |
-| DiskHNSW 512MB | 30,332 | 95.75% | 512MB | 59.2 | **1.10×** |
-| DiskHNSW 256MB | 18,675 | 95.80% | 256MB | 72.9 | **1.36×** |
+### Cache-warmed 基准（回归护栏, 非商用吞吐）
 
-> DiskHNSW 的 QPS/MB 内存效率在两种 cgroup 下均超过 hnswlib
+> ⚠️ 以下数字基于 200q + query 预热, 高估 1.73–7.60×, 仅用于回归测试防性能倒退。
+> 对外吞吐声明 MUST 使用 sustained 口径 (CON-SLA-020)。
+
+| 配置 | QPS | Recall | 备注 |
+|------|-----|--------|------|
+| 512MB 1T | 3,241 | 95.75% | 高估 1.87× |
+| 512MB 16T | 30,332 | 95.75% | 高估 4.53× |
+| 256MB 4T | 8,838 | 95.80% | 高估 3.51× |
+| 256MB 16T | 18,675 | 95.80% | 高估 7.60× |
 
 ### DEEP10M (96维, 1000万向量)
 
 | QPS | Recall | RSS | cgroup | hnswlib |
 |-----|--------|-----|--------|---------|
 | 2,340 (12T) | 95.15% | 1,612MB | 2GB | OOM (需 ~7GB) |
+
+> DEEP10M 为 cache-warmed 口径, sustained 测量待补
 
 ---
 
@@ -147,7 +200,7 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | 变量 | 默认 | 说明 |
 |------|------|------|
 | `TWO_STAGE` | 0 | 1=PQ 粗筛 + 精确精排两阶段搜索 |
-| `PQ_CODES_PATH` | — | PQ 编码文件路径（必填） |
+| `PQ_CODES_PATH` | - | PQ 编码文件路径（必填） |
 | `REFINE_EF` | 200 | 粗筛 ef 值（推荐 100） |
 | `CACHE_MB` | **必填** | BlockCache 大小 (MB) |
 | `FLAT_VEC_MB` | 64 | 热向量 LRU cache (MB)，512MB 推荐 160 |
@@ -159,7 +212,7 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | `FINE_RERANK` | 0 | 1=4KB 页粒度精排（核心优化） |
 | `FINE_BUFFERED` | 0 | 1=buffered I/O 吃 page cache |
 | `FINE_PREAD` | 0 | 1=pread 替代 io_uring（多线程必须） |
-| `VEC_BLOCKS_PATH` | — | Vec-Only 块文件路径（必填） |
+| `VEC_BLOCKS_PATH` | - | Vec-Only 块文件路径（必填） |
 
 ### L4 Page Cache + 预取
 
@@ -169,8 +222,8 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | `L4_EVICT_META` | 0 | 1=init 后驱逐 graph 页缓存 |
 | `WILLNEED_BG` | 0 | 1=无锁后台线程提交 WILLNEED (SPSC, 8T+ 推荐) |
 | `PAGE_MERGE_BG` | 0 | 1=BG 线程合并连续页 fadvise (256MB 推荐, 512MB 有害) |
-| `ADAPTIVE_EF` | 0 | 1=PQ gap 启发式候选数 (BEH-033, cache-warm 场景) |
-| `LEARNED_EF` | 0 | 1=GBDT 多特征候选数预测 (BEH-034, I/O bound 场景) |
+| `ADAPTIVE_EF` | 0 | 1=PQ gap 启发式候选数 (BEH-033, sustained +12.5~31.4%) |
+| `LEARNED_EF` | 0 | 1=GBDT 多特征候选数预测 (BEH-034, sustained 收益不成立, 需重训练) |
 | `GBDT_MARGIN` | 0.8 | LEARNED_EF 预测值缩放系数 |
 
 ### 多线程
@@ -212,24 +265,26 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 ```
 查询到达
   ├─ Step 1: 贪心下降 [纯内存] 上层图找 Layer 0 入口
-  ├─ Step 2: Phase A — PQ 粗筛 [纯内存]
-  │   CSR 邻接表遍历 + PQ ADC 近似距离 → top-100 候选
-  └─ Step 3: Phase B — 精确精排 [按需 I/O]
-      flat_vec_cache 命中? → 跳过 I/O (45.7% 命中率)
-      miss → WILLNEED_BG 预取 → pread 4KB 页 → 精确 L2 重排 → top-K
+  ├─ Step 2: Phase A - PQ 粗筛 [纯内存]
+  │   CSR 邻接表遍历 + PQ ADC 近似距离 -> top-100 候选
+  └─ Step 3: Phase B - 精确精排 [按需 I/O]
+      flat_vec_cache 命中? -> 跳过 I/O
+      miss -> WILLNEED_BG 预取 -> pread 4KB 页 -> 精确 L2 重排 -> top-K
 ```
 
 ### I/O 优化层次
 
 | 层级 | 机制 | 条款 | 效果 |
 |------|------|------|------|
-| flat_vec_cache | 进程内 LRU 热向量缓存 | DEC-068 | 256MB 下 7.5× QPS |
-| WILLNEED | fadvise 内核异步 readahead | DEC-070 | 256MB 下 17.7× QPS |
-| WILLNEED_BG | 无锁 SPSC 后台线程提交 | DEC-074 | 16T 下 +72.8% QPS |
-| PAGE_MERGE_BG | 合并连续页减少 syscall | DEC-075 | 256MB 16T 下 +17.5% |
-| VL_POOL | 自适应 VisitedList 池化 | DEC-074 | 12T+ 下 +7.1% |
-| ADAPTIVE_EF | PQ gap 启发式候选数 | BEH-033 | 200q 256MB 4T +31% (cache-warmed) |
-| LEARNED_EF | GBDT 多特征候选数预测 | BEH-034 | 10Kq 256MB 4T +88.7% (I/O bound) |
+| flat_vec_cache | 进程内 LRU 热向量缓存 | DEC-068 | 256MB 下 7.5× QPS (cache-warmed) |
+| WILLNEED | fadvise 内核异步 readahead | DEC-070 | 256MB 下 17.7× QPS (cache-warmed) |
+| WILLNEED_BG | 无锁 SPSC 后台线程提交 | DEC-074 | 16T 下 +72.8% QPS (cache-warmed) |
+| PAGE_MERGE_BG | 合并连续页减少 syscall | DEC-075 | 256MB 16T 下 +17.5% (cache-warmed) |
+| VL_POOL | 自适应 VisitedList 池化 | DEC-074 | 12T+ 下 +7.1% (cache-warmed) |
+| ADAPTIVE_EF | PQ gap 启发式候选数 | BEH-033 | sustained +12.5~31.4% ✅ |
+| LEARNED_EF | GBDT 多特征候选数预测 | BEH-034 | sustained 收益不成立 ❌ (需重训练) |
+
+> ⚠️ cache-warmed 口径的优化收益在 sustained 下可能不同。ADAPTIVE_EF 已在 sustained 下验证有效。
 
 ---
 
@@ -244,6 +299,8 @@ hnsw-predictor-ndf/
 │   │   └── graph_prefetcher.cpp
 │   ├── pipeline/           # 索引构建 (Step 1-7)
 │   ├── benchmark/          # 基准测试
+│   │   ├── benchmark_diskhnsw.cpp      # 200q cache-warmed (回归护栏)
+│   │   └── benchmark_sustained.cpp     # 多轮采样 sustained (权威口径)
 │   └── test/               # 单元测试
 ├── include/                # 头文件
 │   ├── simd.h              #   SIMD 架构分发 (x86/ARM/scalar)
@@ -251,6 +308,9 @@ hnsw-predictor-ndf/
 │   ├── simd_arm.h          #   NEON 实现
 │   └── simd_scalar.h       #   标量 fallback
 ├── scripts/                # 数据准备 + 测试脚本
+│   ├── run_sustained.sh    #   sustained benchmark 运行脚本
+│   ├── comprehensive_sweep.sh #  全面测试矩阵
+│   └── cgroup_utils.sh     #   cgroup v1/v2 兼容层
 ├── docs/
 │   └── detailed-design.md  # 详细设计文档
 └── Makefile
@@ -266,7 +326,7 @@ hnsw-predictor-ndf/
 | recall ≈ 0.x% | graph 与 blocks 不配套 | 同一批重新生成 Step 2-5 |
 | 4T recall 崩到 12% | O_DIRECT + io_uring 非线程安全 | 设 `FINE_PREAD=1` |
 | QPS 异常低 | CPU 热保护降频 | `grep MHz /proc/cpuinfo` |
-| cgroup 下 QPS 虚高 | page cache 白嫖 | `echo 3 > drop_caches` 清场 |
+| cgroup 下 QPS 虚高 | page cache 白嫖 / query 预热 | `echo 3 > drop_caches` + 用 `benchmark_sustained` |
 | 4T+ 必崩 | FineRerank 懒初始化 race | 已修复 (std::call_once) |
 
 ## 平台支持
@@ -278,9 +338,9 @@ hnsw-predictor-ndf/
 | 任意 | Scalar | ✅ fallback | 无 SIMD, 性能较低 |
 
 SIMD 抽象层 (`include/simd.h`) 在编译时根据 CPU 架构自动选择:
-- `__x86_64__` → `simd_x86.h` (AVX2 intrinsic)
-- `__aarch64__` → `simd_arm.h` (NEON intrinsic)
-- 其他 → `simd_scalar.h` (纯标量)
+- `__x86_64__` -> `simd_x86.h` (AVX2 intrinsic)
+- `__aarch64__` -> `simd_arm.h` (NEON intrinsic)
+- 其他 -> `simd_scalar.h` (纯标量)
 
 数据格式跨架构兼容: x86 上生成的索引/图/PQ 编码可直接在 ARM 上使用。
 
@@ -288,32 +348,53 @@ SIMD 抽象层 (`include/simd.h`) 在编译时根据 CPU 架构自动选择:
 
 ## 已知限制
 
-1. **vecblocks 与 route table 必须配套** — 混用不同版本导致 offset 错误
-2. **io_uring 非线程安全** — 多线程必须 `FINE_PREAD=1`
-3. **blocks 和 vecblocks 的 block_id 不一致** — 各有独立 route 表
-4. **PAGE_MERGE_BG 仅 256MB 推荐** — 512MB 下有害 (-2.9%)
-5. **WILLNEED 在 I/O 量主导场景无效** — DEEP10M 瓶颈是 majfault 总量，非时序
-6. **io_uring (buffered) 不优于 WILLNEED+pread** — 实测 4 种方案均不超越基线 (DEC-076)
-7. **ARM NEON 性能预期低于 x86** — 128-bit vs 256-bit, 多线程可弥补
+1. **vecblocks 与 route table 必须配套** - 混用不同版本导致 offset 错误
+2. **io_uring 非线程安全** - 多线程必须 `FINE_PREAD=1`
+3. **blocks 和 vecblocks 的 block_id 不一致** - 各有独立 route 表
+4. **PAGE_MERGE_BG 仅 256MB 推荐** - 512MB 下有害 (-2.9%)
+5. **WILLNEED 在 I/O 量主导场景无效** - DEEP10M 瓶颈是 majfault 总量，非时序
+6. **io_uring (buffered) 不优于 WILLNEED+pread** - 实测 4 种方案均不超越基线 (DEC-076)
+7. **ARM NEON 性能预期低于 x86** - 128-bit vs 256-bit, 多线程可弥补
+8. **LEARNED_EF (GBDT) 收益在 sustained 下不成立** - 训练数据被 self-match 污染, 需用官方 query 池重训练
+9. **cache-warmed QPS 不可对外引用** - 高估 1.73-7.60×, 仅作回归护栏
 
 ---
 
 ## 优化历史
 
-| 里程碑 | QPS | Recall | RSS | 技术 |
-|--------|-----|--------|-----|------|
-| 基线 | 53 | 95.7% | 337MB | 64KB 块同步读 |
-| Fine Rerank | 867 | 95.7% | 337MB | 4KB 页粒度精排 |
-| SIMD PQ LUT | 2643 | 95.7% | 337MB | AVX2 距离表 |
-| CSR 压缩 | 2092 | 95.7% | 269MB | delta+varint 1.8× |
-| flat_vec_cache | 2309 | 95.7% | 155MB | Fine Rerank 命中热向量 |
-| WILLNEED | 2379 | 95.7% | 153MB | 内核 readahead (256MB 17.7×) |
-| DEEP10M | 2340 | 95.15% | 1612MB | 10M 规模验证 |
-| FineRerank 线程安全 | 9914@4T | 95.75% | 220MB | std::call_once |
-| FVC 默认 64MB | 11421@4T | 95.75% | 220MB | +23.4% QPS |
-| WILLNEED_BG (A2) | 30332@16T | 95.75% | 242MB | 无锁后台线程 +72.8% |
-| VL_POOL (C2) | 30332@16T | 95.75% | 242MB | 自适应池化 +7.1% |
-| PAGE_MERGE_BG | 18675@16T | 95.80% | 223MB | 256MB 下 +17.5% |
+| 里程碑 | QPS (cache-warmed) | QPS (sustained) | Recall | 技术 |
+|--------|-------------------|-----------------|--------|------|
+| 基线 | 53 | - | 95.7% | 64KB 块同步读 |
+| Fine Rerank | 867 | - | 95.7% | 4KB 页粒度精排 |
+| SIMD PQ LUT | 2643 | - | 95.7% | AVX2 距离表 |
+| CSR 压缩 | 2092 | - | 95.7% | delta+varint 1.8× |
+| flat_vec_cache | 2309 | - | 95.7% | Fine Rerank 命中热向量 |
+| WILLNEED | 2379 | - | 95.7% | 内核 readahead (256MB 17.7×) |
+| DEEP10M | 2340 | - | 95.15% | 10M 规模验证 |
+| FineRerank 线程安全 | 9914@4T | - | 95.75% | std::call_once |
+| FVC 默认 64MB | 11421@4T | - | 95.75% | +23.4% QPS |
+| WILLNEED_BG (A2) | 30332@16T | 6694@16T | 95.75% | 无锁后台线程 +72.8% |
+| VL_POOL (C2) | 30332@16T | - | 95.75% | 自适应池化 +7.1% |
+| PAGE_MERGE_BG | 18675@16T | 2456@16T | 95.80% | 256MB 下 +17.5% |
+| ADAPTIVE_EF | - | 9862@16T | 95.80% | PQ gap 启发式 sustained +26.4% |
+| Sustained Benchmark | - | 6694@16T | 96.00% | 诚实测量方法论 (DEC-084) |
+
+---
+
+## 测量口径说明
+
+本项目有两种测量口径，MUST NOT 混比：
+
+| 口径 | 工具 | 预热 | 用途 |
+|------|------|------|------|
+| **Sustained** | `benchmark_sustained` | 禁预热 | 对外吞吐声明 (CON-SLA-020) |
+| **Cache-warmed** | `benchmark_diskhnsw` | 200q 预热 | 回归护栏 (CON-SLA-016/017/018) |
+
+Sustained 口径使用官方 SIFT 10K query 池多轮随机采样（N=1000, R=15, seed=42），
+禁止对被测 query 预热（CON-SLA-019），recall 96.00% 基于Official groundtruth。
+
+Cache-warmed 口径在计时前将全部 200q 跑一遍预热 page cache，
+导致测得 in-memory 性能，高估 1.73–7.60×（DEC-084）。
 
 ---
 
@@ -328,6 +409,8 @@ SIMD 抽象层 (`include/simd.h`) 在编译时根据 CPU 架构自动选择:
 | P2.4: L4 cache 管理 | page cache 优化 | ✅ 完成 (Pareto 前沿) |
 | P2.5: Fine Rerank I/O | io_uring 替代 pread | ❌ 负结果 (DEC-076) |
 | P2.6: ARMv9 架构支持 | NEON SIMD 兼容 | ✅ 代码就绪 (待验证) |
-| P2.7: 自适应 EF | PQ 距离间隙启发式 | 📋 提案 |
+| P2.7: 自适应 EF | PQ 距离间隙启发式 | ✅ promoted (BEH-033) |
+| P2.8: GBDT 学习式剪枝 | per-query 参数预测 | ⚠️ 降级 (BEH-034 may, 需重训练) |
+| P2.9: Sustained Benchmark | 诚实测量方法论 | ✅ promoted (BEH-035, DEC-084) |
 | P3: CSR 上磁盘 | 100M 必需 | 待启动 |
 | P4: 分级存储 | hot/warm/cold 三层 | 长期 |
