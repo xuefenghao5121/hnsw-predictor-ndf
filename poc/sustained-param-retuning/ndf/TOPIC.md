@@ -1,7 +1,7 @@
 # TOPIC: sustained-param-retuning
 
 > topic_id: sustained-param-retuning
-> status: exploring
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: bd52c80
 > baseline_status: current

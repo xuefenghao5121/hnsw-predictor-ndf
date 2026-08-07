@@ -93,18 +93,23 @@
 
 > **Trunk**: `trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da`（FLAT_VEC 默认 4→64，[[DEC-073]]）。  
 > 下表「Trunk 默认」对齐该 SHA 的 `src/`；「测量常用」供 SLA 正文引用，**不是**代码默认。  
-> 性能配置点定义见 [[DEF-024]]。
+> 性能配置点定义见 [[DEF-024]]。  
+> **Sustained 调参推荐**（[[DEC-086]]，2026-08-07）：
+> - `FLAT_VEC_MB`: 512MB cgroup 下 agg QPS 最优为 64（sustained），160 为 steady QPS 最优
+> - `REFINE_EF`: 256MB cgroup 下 sustained 推荐值为 90（recall 95.56%, +13.6% QPS vs EF=100）
+>
+> source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md ; r2-r3-fvc-combo-20260807.md
 
 | 环境变量 | 类型 | Trunk 默认 | 测量常用 | 说明 |
 |----------|------|-----------|---------|------|
-| `FLAT_VEC_MB` | int (MB) | **64** | 64 / 160 | 热向量 LRU；覆盖见 [[CON-002]] |
+| `FLAT_VEC_MB` | int (MB) | **64** | 64 / 160 | 热向量 LRU；512MB sustained agg 最优=64, steady 最优=160 ([[DEC-086]])；覆盖见 [[CON-002]] |
 | `CACHE_MB` | int (MB) | （benchmark **必填**） | 64 | BlockCache 大小 |
 | `FINE_PREAD` | int 0/1 | 0 | 1 | 1=pread 替代 io_uring（多线程推荐） |
 | `FINE_BUFFERED` | int 0/1 | 0 | 1 | 1=buffered I/O（含 page cache） |
 | `FINE_RERANK` | int 0/1 | 0 | 1 | 1=4KB 页粒度精排 |
 | `TWO_STAGE` | int 0/1 | 0 | 1 | 1=PQ 粗筛 + 精排 |
 | `NUM_THREADS` | int | 1（未设时） | 4 / 16 | 并发搜索线程数 |
-| `REFINE_EF` | int | 200 | 100 | Phase A 粗筛 ef |
+| `REFINE_EF` | int | 200 | 100 | Phase A 粗筛 ef；256MB sustained 推荐 90 ([[DEC-086]]) |
 
 ## L4 WILLNEED 环境变量 {#API-012}
 <!-- ndf: kind=req level=may layer=L1 status=stable since=0.9 source=observed topic=l4-cache-mgmt -->
@@ -152,6 +157,13 @@
 > 适用场景: 256MB cgroup 高并发 (≥4T)。SIFT1M 4T/8T 实测 +31% QPS。
 > **不推荐** 512MB cgroup（page cache 充裕，收益不明或略退）。
 > recall 约束: 启用时 recall ≥ 95%（SIFT1M 校准 95.30%）。
+>
+> **Sustained 调参推荐**（[[DEC-086]]，2026-08-07）：
+> - 256MB sustained: `ADAPTIVE_EASY_EF=40`（recall 95.10%, +12.7% QPS vs eef=50）
+> - 需配合 `REFINE_EF=90` 使用
+> - 200q 下 eef=40 因 recall < 95% 被否；sustained 下 recall 基线更高 (96.00% vs 95.75%)，达标
+>
+> source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md
 
 ## GBDT 学习式候选数预测环境变量 {#API-018}
 <!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->

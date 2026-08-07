@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-07T09:30:46Z",
+  "generated_at": "2026-08-07T14:36:26Z",
   "clause_count": 225,
   "meta_only": false,
   "nodes": {
@@ -296,6 +296,7 @@
       "body_refs": [
         "DEC-073",
         "DEF-024",
+        "DEC-086",
         "CON-002"
       ],
       "backlinks": [
@@ -316,7 +317,7 @@
       "id": "API-012",
       "title": "L4 WILLNEED 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 109,
+      "line": 114,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -351,7 +352,7 @@
       "id": "API-013",
       "title": "WILLNEED 多线程扩展环境变量",
       "file": "30-interfaces/env.md",
-      "line": 124,
+      "line": 129,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -409,7 +410,7 @@
       "id": "API-017",
       "title": "PQ 距离间隙自适应 EF 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 139,
+      "line": 144,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -422,7 +423,8 @@
         ]
       },
       "body_refs": [
-        "BEH-033"
+        "BEH-033",
+        "DEC-086"
       ],
       "backlinks": [
         "API-018",
@@ -433,7 +435,7 @@
       "id": "API-018",
       "title": "GBDT 学习式候选数预测环境变量",
       "file": "30-interfaces/env.md",
-      "line": 156,
+      "line": 168,
       "kind": "req",
       "level": "may",
       "layer": "L1",

@@ -4,7 +4,7 @@
 > 提出日期：2026-08-07
 > 基线 Trunk：`85ec98c`
 >
-> Status: Implemented on 2026-08-07
+> Status: Implemented on 2026-08-07 (promoted)
 
 ## 1. 调研洞察
 

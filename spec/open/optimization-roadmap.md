@@ -76,6 +76,15 @@ DEEP10M (10M, 96D), 2GB cgroup, T=12 (cache-warmed):
 | P3-5 | io_uring + O_DIRECT 重评估 | page cache 失效时 | 高 | ⚪ | DEC-076 |
 | P3-6 | SPDK 评估 | I/O 带宽 | 高 | ⚪ | DEC-027 |
 
+## P2+ 调参优化 (sustained 口径)
+
+| # | 优化项 | 结果 | 条款 |
+|---|--------|------|------|
+| P2+.1 | REFINE_EF 256MB sustained 调优 | 100->90, +13.6% QPS ✅ | DEC-086 |
+| P2+.2 | ADAPTIVE_EASY_EF 256MB sustained 调优 | 50->40, +12.7% QPS ✅ | DEC-086 |
+| P2+.3 | FLAT_VEC_MB 512MB sustained 调优 | 160->64 (agg), +3-4% QPS ✅ | DEC-086 |
+| P2+.4 | VL_POOL_THREADS / CACHE_MB | 不变 (噪声内) | DEC-086 |
+
 ## 关键教训
 
 1. **隐藏瓶颈 > 显式瓶颈**: VisitedList 分配 (隐藏) 比 PQ 计算 (显式 80%) 影响更大
