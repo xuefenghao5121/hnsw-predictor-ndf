@@ -1,155 +1,144 @@
-# 提案：Pipeline 参数在 Sustained 口径下的优化空间
+# 提案：Pipeline 参数在 Sustained 口径下的优化空间（修订版）
 
 > track: poc
-> 提出日期：2026-08-07
+> 提出日期：2026-08-07（修订）
 > 基线 Trunk：`c63694f`
 >
 > Status: Proposed（等待人工确认）
+> 修订说明：初版仅考虑"减内存"方向（M↓, PQ M↓）。用户指出需考虑 DiskHNSW 独特优势
+> ——只有向量卸载才能使能的优化。修订后方向反转：**用被释放的内存预算投资 I/O 减少**。
 
 ## 1. 调研洞察
 
-### 1.1 核心问题
+### 1.1 核心洞察：DiskHNSW 的独特优势
 
-继 `sustained-param-retuning`（搜索调参）之后，本提案关注 **pipeline 构建参数**。
-这些参数在建图/分块/PQ 编码阶段确定，影响图结构、磁盘布局、内存占用，
-进而影响 sustained 性能。
+DiskHNSW 将向量卸载到磁盘，释放了 ~458MB 内存（SIFT1M：向量 488MB → PQ codes 30MB）。
+这段被释放的内存可以**重新投资到减少 I/O 的方向**，这是全内存方案无法做到的。
 
-所有 pipeline 参数的最优值均来自早期实践或 cache-warmed 口径，sustained 下从未验证。
+**hnswlib 内存约束**：
 
-### 1.2 Pipeline 参数审计
+| M | 内存/node | 向量占比 | M↑ 代价 |
+|---|----------|---------|---------|
+| 16 | 576B | 89% | 向量主导，M↑ 代价大 |
+| 32 | 640B | 80% | +64B (图边), 但向量仍占 80% |
 
-| 参数 | 当前值 | 确定依据 | 口径 | 影响机制 | Sustained 重测？ |
-|------|--------|---------|------|---------|----------------|
-| **Block size** | 64KB | DEC-008 硬编码 | cache-warmed | BlockCache 粒度 + BFS 布局 | ❌ |
-| **HNSW M** | 16 | hnswlib 默认 | N/A (建图) | CSR 大小 + recall + 搜索计算量 | ❌ |
-| **HNSW efConstruction** | 200 | hnswlib 默认 | N/A (建图) | 图质量 | ❌ |
-| **PQ M** | 32 | DEC-014 (L1 fit) | cache-warmed | PQ codes 内存 + ADC recall | ❌ |
-| **Fine Rerank page** | 4KB | DEC-009 | cache-warmed | Phase B I/O 粒度 | ❌ |
+**DiskHNSW 内存约束**：
 
-### 1.3 各参数在 sustained 下的影响分析
+| M | 内存/node | 图占比 | M↑ 代价 |
+|---|----------|-------|---------|
+| 16 | 69B | 54% | 图边，M↑ 仅 +37B/node |
+| 32 | 106B | 70% | 无向量代价! |
+| 48 | 142B | 77% | 仍远小于 hnswlib 的 640B |
 
-#### Block size (64KB)
+**关键区别**：hnswlib 中 M↑ 的代价包含向量增长（因为向量在内存）。
+DiskHNSW 中 M↑ 只增加图边的内存，向量始终在磁盘。**M↑ 的代价在 DiskHNSW 中远小于 hnswlib。**
 
-**当前路径**：Fine Rerank (FINE_RERANK=1) 读 4KB page，已绕过 64KB block 粒度。
-block size 主要影响：
-1. **vecblocks 文件物理布局**：大 block = 更多 BFS 相邻节点在同一文件区域 = 更好的 kernel page cache 局部性
-2. **BlockCache 效率**：Phase A fallback 路径（FINE_RERANK=0 时），但生产环境都开 FINE_RERANK=1
-3. **readahead 粒度**：kernel 默认 readahead 以 page (4KB) 为单位，block size 不直接影响
+### 1.2 DiskHNSW 独有的优化链条
 
-**sustained 假设**：block size 从 16KB 到 256KB 可能影响 page cache 局部性，但因 Fine Rerank 已用 4KB page，影响可能有限。
+**链条 1：M↑ → EF↓ → I/O↓ → QPS↑**
 
-**实验价值**：中。值得扫描但预期收益不大。
+```
+更高图 M → 图更连通 → 同 recall 需要的 EF 更低
+         → EF↓ → Phase A 候选数↓ → Phase B Fine Rerank I/O↓
+         → I/O↓ → QPS↑
+```
 
-#### HNSW M (16)
+这在 hnswlib 中不存在（EF↓ 不减 I/O，因为向量全在内存）。
+在 DiskHNSW 中 EF↓ **直接减少磁盘 I/O**。
 
-**当前值 M=16**：hnswlib maxM0 = 2×16 = 32，实际 avg 21.2 edges/node。
+**链条 2：PQ 质量↑ → I/O↓ 的双重回报**
 
-M 影响：
-1. **CSR 大小**：线性正比（M=8 → CSR ~22MB, M=16 → 47MB, M=24 → 68MB）
-2. **ADC recall**：更多边 = 更好的图连通性 = 更高 recall
-3. **Phase A 计算量**：更多邻居 = 更多 PQ ADC 距离计算
-4. **sustained 关键**：CSR 在内存中，小 M = 省 CSR 内存 = 更多 page cache 给 vecblocks
+```
+标准 HNSW: PQ↑ → recall↑ (单一回报)
+DiskHNSW:  PQ↑ → ADC recall↑
+         → Phase A 候选集质量↑ (更少 false positive)
+         → Phase B 每个 I/O 更可能读到 top-K 向量
+         → 同 recall 可用更低 EF → I/O↓ → QPS↑
+         → 双重回报: recall↑ + I/O↓
+```
 
-**sustained 假设**：
-- **M=12**：CSR ~33MB (-14MB)，recall 可能下降但可用更大 EF 弥补。省下的 14MB 内存给 page cache。
-- **M=8**：CSR ~22MB (-25MB)，recall 下降显著，可能需要 EF=150+ 补偿，反而增加 I/O。
-- M=16 可能仍是平衡点，但值得验证 M=12。
+**链条 3：内存预算再分配**
 
-**实验价值**：高。M 直接影响内存布局和 recall-I/O 权衡，sustained 下可能有不同最优点。
+被向量释放的 ~458MB 可投资到：
+1. **更高图 M**（+37MB for M=32）→ 链条 1
+2. **更好 PQ**（OPQ 或 M=48，+15MB）→ 链条 2
+3. **更多 FVC**（+96MB）→ 减 page fault
+4. **更多 page cache**（隐式）→ 减 majfault
 
-#### PQ M (32)
+问题：**最优分配是什么？**
 
-**当前值 M=32**：PQ codes 30MB，dist table 32KB（L1 fit）。
+### 1.3 量化分析
 
-PQ M 影响：
-1. **PQ codes 内存**：M=32 → 30MB, M=24 → 24MB (-6MB), M=16 → 16MB (-14MB)
-2. **ADC recall**：小 M = 更粗糙的距离近似 = 更低 recall
-3. **dist table 大小**：M=32 → 32KB (L1 fit), M=24 → 24KB, M=16 → 16KB
-4. **sustained 关键**：PQ codes 在内存，小 M 省内存但 recall 降
+| 配置 | CSR (MB) | 图总内存 (MB) | 预估最低 EF | I/O/query (KB) | vs M=16/EF=100 |
+|------|---------|-------------|-----------|---------------|----------------|
+| M=16, EF=100 | 46 | 124 | 100 | 400 | baseline |
+| M=24, EF=80 | 68 | 146 | ~80 | 320 | **-20%** |
+| M=32, EF=70 | 92 | 170 | ~70 | 280 | **-30%** |
+| M=48, EF=60 | 138 | 216 | ~60 | 240 | **-40%** |
 
-**sustained 假设**：
-- M=32 的 L1 cache fit 是性能甜点（DEC-014），sustained 下可能仍成立
-- 但省 6-14MB 内存在 256MB cgroup 下有意义
-- recall 下降可用 EF 弥补（M=24 + EF=120 vs M=32 + EF=100）
+> 注：EF 与 M 的关系需实测确定。表中 EF 为基于 HNSW 文献经验的粗略估计。
 
-**实验价值**：中高。PQ M=24 值得验证。
+**M=32 的成本/收益分析（256MB cgroup）**：
+- 成本：CSR +46MB = cgroup 预算的 18%
+- 收益：如果 EF 100→70 可行，I/O -30%
+- 256MB 下 page cache 预算减少 46MB，但 I/O 减少 30% 可能净赢
 
-#### Fine Rerank page size (4KB)
+### 1.4 PQ 质量投资
 
-**当前值 4KB**：DEC-009 确定，比 64KB block 减少 128x I/O。
+| PQ 方案 | PQ codes (MB) | dist table (KB) | 预期 ADC recall 提升 | DiskHNSW 双重回报 |
+|---------|-------------|----------------|---------------------|------------------|
+| M=32（当前） | 30 | 32 (L1 fit) | baseline | - |
+| OPQ M=32 | 30 | 32 | +1-3% | recall↑ + I/O↓ |
+| M=48 | 45 | 48 (超 L1) | +2-4% | recall↑ + I/O↓, 但 dist table 超 L1 |
+| OPQ M=24 | 24 | 24 | ~M=32 baseline | 省 6MB, 可能 OPQ 补偿 recall |
 
-**sustained 影响**：4KB 是 Linux page size，无法更小。2KB sub-page 被否决（需用户态拼接）。
-8KB/16KB 会增加 I/O 放大。
+**OPQ（Optimized PQ）特别值得关注**：
+- 离线训练一次性旋转矩阵，推理时零开销
+- ADC recall +1-3% at same M
+- 在 DiskHNSW 中通过链条 2 放大为 I/O 减少
 
-**结论**：4KB 是系统约束，无优化空间。不改。
+## 2. 调参空间（修订后优先级）
 
-#### HNSW efConstruction (200)
+### P1: HNSW M↑ 扫描（最高优先，方向反转）
 
-**影响**：仅影响建图质量（图的连通性），不影响搜索参数。200 是 hnswlib 默认值，
-已足够好。更高值（500）建图慢但图质量略好，对 sustained 无直接影响。
+建不同 M 的图（M=16, 24, 32, 48），在 sustained 下找 recall-QPS Pareto 前沿。
 
-**结论**：不改。
+核心假设：M=24/32 能以更低的总 I/O（EF↓ 抵消 CSR↑）达到更高 QPS。
 
-## 2. 调参空间（按优先级）
+扫描：M={16, 24, 32, 48} × EF={60, 80, 100, 120} × 256/512MB
 
-### P1: HNSW M 扫描（最高优先）
+### P2: OPQ 评估（高优先，DiskHNSW 独有回报）
 
-建不同 M 的图（M=8, 12, 16, 24），测量 sustained 性能。
+训练 OPQ 旋转矩阵，比较 OPQ vs PQ 在同 M 下的：
+- ADC recall（离线评估）
+- sustained QPS（Fine Rerank I/O 是否减少）
 
-需重建 graph + blocks + vecblocks + PQ（全套 pipeline）。
-每个 M 需跑一次完整 pipeline + sustained benchmark。
+### P3: 内存预算最优分配（中优先）
 
-扫描范围：{8, 12, 16, 24}
-- recall 约束：≥ 95%
-- 关注 256MB：小 M 省 CSR = 更多 page cache = 可能 +QPS
+在 P1+P2 确定的最优 M 和 PQ 方案上，扫描 FVC 和 page cache 分配。
 
-### P2: PQ M 扫描（高优先）
+### P4: Block size 扫描（低优先，预期收益有限）
 
-建不同 M 的 PQ codes（M=16, 24, 32），测量 sustained 性能。
-
-仅需重新训练 PQ，不需重建图/blocks。
-但不同 PQ M 影响 ADC recall，需重新校准 EF。
-
-扫描范围：{16, 24, 32}
-- 配合 P1 的最优 M 一起测
-
-### P3: Block size 扫描（中等优先）
-
-建不同 block size 的 vecblocks（16KB, 32KB, 64KB, 128KB），测量 sustained 性能。
-
-需重建 blocks + vecblocks + route（但不需重建图和 PQ）。
-
-扫描范围：{16384, 32768, 65536, 131072}
-- 预期影响有限（Fine Rerank 已用 4KB page）
-
-### P4: 组合优化
-
-P1+P2 确定的最优 M + PQ M 组合，跑完整 sustained 矩阵。
+Fine Rerank 已用 4KB page，block size 主要影响 vecblocks 物理布局。
 
 ## 3. 实验成本评估
 
-| 实验 | 需重建 | 每配置耗时 | 配置数 | 总时间 |
-|------|--------|----------|-------|-------|
-| P1 (HNSW M) | 全套 pipeline | ~5min pipeline + ~3min/bench | 4M × 6config = 24 | ~120min |
-| P2 (PQ M) | PQ only | ~2min PQ + ~3min/bench | 3M × 6config = 18 | ~90min |
-| P3 (Block size) | blocks + vecblocks | ~3min + ~3min/bench | 4BS × 6config = 24 | ~120min |
-| P4 (组合) | 无（用 P1/P2 最优） | ~3min/bench | 6config | ~18min |
+| 实验 | 需重建 | 每配置 pipeline | 配置数 | 总时间 |
+|------|--------|---------------|-------|-------|
+| P1 (HNSW M) | 全套 pipeline | ~5min | 4M × 4EF × 2cg = 32 | ~3h |
+| P2 (OPQ) | PQ only | ~5min (含 OPQ 训练) | 2方案 × 6config = 12 | ~1h |
+| P3 (分配) | 无 | 0 | 6config | ~30min |
+| P4 (Block) | blocks+vecblocks | ~3min | 4BS × 6config = 24 | ~2h |
 
-## 4. 关键风险
+P1 是最重投入但也最有潜力的实验。
 
-1. **M 改变需重建全套数据**：graph + blocks + vecblocks + PQ，工作量大
-2. **PQ M 改变需重新校准 EF**：小 M = 低 recall = 需更大 EF = 更多 I/O
-3. **Block size 改变需重建 blocks + vecblocks**：但不影响图和 PQ
-4. **跨参数交互**：M 和 PQ M 有交互（图连通性 × PQ 精度），需联合调优
+## 4. 不做的事
+
+- ~~M↓ (M=8, M=12)~~：方向反转，DiskHNSW 应试 M↑ 不是 M↓
+- ~~PQ M↓ (M=16, M=24)~~：除非 OPQ M=24 能补偿 recall
+- 不改 Fine Rerank page size（4KB 系统约束）
+- 不改 efConstruction / BFS reorder
 
 ## 5. 表面冲突检查
 
-无活跃 exploring 主题（sustained-param-retuning 刚 promoted）。
-`explore_surface: graph-structure,pq-encoding,block-layout` 与已 promoted 主题不冲突。
-
-## 6. 不做的事
-
-- 不改 Fine Rerank page size（4KB 是系统约束）
-- 不改 efConstruction（不影响搜索）
-- 不改 BFS reorder（DEC-006 已确定，无替代方案）
-- 不在 POC 阶段考虑 DEEP10M / 100M（先 SIFT1M 验证）
+无活跃 exploring 主题。`explore_surface: graph-structure,pq-encoding,block-layout` 不冲突。
