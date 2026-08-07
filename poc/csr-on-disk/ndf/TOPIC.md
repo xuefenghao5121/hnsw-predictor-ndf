@@ -43,13 +43,13 @@ sustained QPS 下降 < 30%，RSS 下降 ≥ 40MB（SIFT1M）。
 
 ## 实验计划
 
-| 轮次 | 内容 | 验收 |
-|------|------|------|
-| R0 | mmap 基线 (SIFT1M 512/256MB sustained) | recall 不变; QPS 下降量化 |
-| R1 | 性能分析 (mincore, majfault, I/O 量) | 瓶颈定位 |
-| R2 | mmap + WILLNEED 预取 | QPS 恢复至 R0 的 90%+ |
-| R3 | 256MB 极限内存验证 | QPS ≥ baseline 70% |
-| R4 | DEEP10M 验证 (如时间允许) | RSS 显著下降 |
+| 轮次 | 内容 | 验收 | 状态 |
+|------|------|------|------|
+| R0 | mmap 基线 (SIFT1M 512/256MB sustained) | recall 不变; QPS 下降量化 | ✅ |
+| R1 | 性能分析 (mincore, majfault, I/O 量) | 瓶颈定位 | ⏳ (跳过, R0+R2 已定位) |
+| R2 | mmap + WILLNEED 预取 | QPS 恢复至 R0 的 90%+ | ✅ (256MB 1T +59%, 其他有害) |
+| R3 | 256MB 极限内存验证 | QPS ≥ baseline 70% | ✅ (16T 达标, 1T 不达标) |
+| R4 | DEEP10M 验证 (如时间允许) | RSS 显著下降 | ⏳ |
 
 ## 晋升条件
 

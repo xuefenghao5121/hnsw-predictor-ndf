@@ -341,4 +341,5 @@ private:
     // 解码单个节点的压缩 CSR 邻居列表到 buffer
     // 返回解码的邻居数量, neighbors 指向 csr_decode_buf_
     uint32_t decodeCsrNeighbors(uint32_t new_id);
+    void prefetchCsrNeighbors(const uint32_t* neighbor_ids, uint32_t count);
 };

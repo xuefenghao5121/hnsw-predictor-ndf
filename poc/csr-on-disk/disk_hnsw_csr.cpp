@@ -490,6 +490,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
             const uint32_t* neighbors = nullptr;
             if (has_inmem_adjacency_) {
                 neighbors = getInMemNeighbors(candidateId, neighborCount);
+                prefetchCsrNeighbors(neighbors, neighborCount);
             }
             if (!neighbors) {
                 neighbors = cache_->getNodeNeighbors(candidateId, neighborCount);
@@ -590,6 +591,7 @@ DiskHNSW::searchLayer0(uint32_t entry_new_id, const float* query, size_t ef,
         const uint32_t* neighbors = nullptr;
         if (has_inmem_adjacency_) {
             neighbors = getInMemNeighbors(candidateId, neighborCount);
+            prefetchCsrNeighbors(neighbors, neighborCount);
         }
         if (!neighbors) {
             neighbors = candidateBlock->getNeighbors(candidateId, neighborCount);
@@ -2787,6 +2789,45 @@ uint32_t DiskHNSW::decodeCsrNeighbors(uint32_t new_id) {
         available -= n;
     }
     return (uint32_t)csr_decode_buf_.size();
+}
+
+// POC csr-on-disk R2: 预取邻居的 CSR 页 (madvise WILLNEED)
+void DiskHNSW::prefetchCsrNeighbors(const uint32_t* neighbor_ids, uint32_t count) {
+    if (!csr_on_disk_ || !csr_mmap_ptr_) return;
+    static const bool kPrefetchEnabled = std::getenv("CSR_PREFETCH") && std::atoi(std::getenv("CSR_PREFETCH")) != 0;
+    if (!kPrefetchEnabled) return;
+
+    // 收集需要预取的页地址 (去重)
+    // 每个邻居的 CSR entry: [byte_offsets_[nid], byte_offsets_[nid+1])
+    // 页范围: align down to 4096
+    static thread_local std::vector<uintptr_t> pages;
+    pages.clear();
+
+    for (uint32_t i = 0; i < count; i++) {
+        uint32_t nid = neighbor_ids[i];
+        if (nid >= graph_.num_nodes) continue;
+        uint32_t byte_start = adj_csr_byte_offsets_[nid];
+        // 页对齐
+        uintptr_t page_addr = (uintptr_t)(csr_mmap_ptr_ + byte_start) & ~0xFFFULL;
+        // 去重 (简单: 检查最后一个)
+        if (pages.empty() || pages.back() != page_addr) {
+            pages.push_back(page_addr);
+        }
+    }
+
+    // 批量 madvise (合并连续页)
+    size_t i = 0;
+    while (i < pages.size()) {
+        uintptr_t start = pages[i];
+        size_t len = 4096;
+        // 合并连续页
+        while (i + 1 < pages.size() && pages[i + 1] == pages[i] + 4096) {
+            len += 4096;
+            i++;
+        }
+        madvise((void*)start, len, MADV_WILLNEED);
+        i++;
+    }
 }
 
 // 从内存 CSR 邻接表获取邻居 (new_id 空间)
