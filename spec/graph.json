@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-07T01:43:29Z",
+  "generated_at": "2026-08-07T06:14:45Z",
   "clause_count": 225,
   "meta_only": false,
   "nodes": {
@@ -1552,10 +1552,10 @@
       "file": "20-behavior/search.md",
       "line": 273,
       "kind": "req",
-      "level": "may",
+      "level": "must",
       "layer": "L1",
       "status": "stable",
-      "since": "0.9.9",
+      "since": "0.9.11",
       "scope": "",
       "edges": {
         "refines": [
@@ -1568,7 +1568,6 @@
       },
       "body_refs": [
         "DEC-084",
-        "BEH-035",
         "BEH-033",
         "MODEL-SUSTAINED-001"
       ],
@@ -1607,7 +1606,6 @@
       ],
       "backlinks": [
         "API-019",
-        "BEH-034",
         "CON-SLA-018",
         "CON-SLA-019",
         "CON-SLA-020",

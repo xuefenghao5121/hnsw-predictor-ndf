@@ -271,7 +271,7 @@ dist[k] / dist[k-1]，并据此动态调整 Phase B 候选数：
 > source: poc/helmsman-adaptive/ndf/TOPIC.md ; poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md
 
 ## GBDT 学习式候选数预测 {#BEH-034}
-<!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.11 source=observed topic=gbdt-retrain -->
 <!-- ndf: refines=BEH-004 depends-on=API-018,DEC-084 -->
 
 > **track: promoted** - 提案 `spec/open/proposal-promote-gbdt-learned-pruning.md`（2026-08-06）。
@@ -281,41 +281,52 @@ dist[k] / dist[k-1]，并据此动态调整 Phase B 候选数：
 > ⚠️ **收益已证伪，条款降级 must → may**（[[DEC-084]] §5，2026-08-06）。
 > 机制与代码正确且保留；**当前模型的收益在 sustained 场景下不成立**。
 
-当 `LEARNED_EF=1` 时，搜索 MAY 在 Phase A 结束后提取 11 维 PQ 距离特征向量，
+当 `LEARNED_EF=1` 时，搜索 MUST 在 Phase A 结束后提取 11 维 PQ 距离特征向量，
 通过 GBDT 模型（100 棵 LightGBM 决策树, 编译期嵌入 C++ if-else 规则表）预测
 Phase B 最优候选数，并乘以 `GBDT_MARGIN` 系数后截断候选列表。
 
 **特征**: n_coarse, d0, d9, dk, dk1, gap_ratio, d_mean, d_std, d_cv, d_ratio_01, d_ratio_09
 
-**模型**: SIFT1M 训练，100 棵树, max_depth=4, 186KB C++ 规则表。
+**模型**: SIFT1M 官方 10K query 池训练，100 棵树, max_depth=4, 182KB C++ 规则表。
 推理延迟 <0.1μs，无运行时 Python 依赖。
 
 **默认关闭**（LEARNED_EF 默认 0）。opt-in。
 与 ADAPTIVE_EF (BEH-033) 互斥；若两者同时开启，LEARNED_EF 优先。
 
-**recall 约束**: 启用时 recall MUST ≥ 95%（sustained 实测 95.99%，满足）。
+**recall 约束**: 启用时 recall MUST ≥ 95%（sustained 实测 95.87%，满足）。
 
-### ⚠️ 收益状态：当前模型无效（[[DEC-084]]）
+### 收益状态：重训练后有效 ✅
 
 | 测量口径 | GBDT 增益 | 有效性 |
 |---------|----------|--------|
 | 200q + query 预热 | +3.3~6.0% | ❌ cache-warmed |
-| base-sampled 10Kq | +33~124% | ❌ GT self-match 污染 |
-| **官方池 sustained** | **−0.9~+1.8%**（噪声内） | ✅ |
+| base-sampled 10Kq (原模型) | +33~124% | ❌ GT self-match 污染 |
+| 官方池 sustained (原模型) | −0.9~+1.8% | ❌ 训练数据污染 |
+| **官方池 sustained (GBDT-v2)** | **+12.3~47.4%** | ✅ |
 
-**根因**：GBDT 训练数据来自 base-sampled 10K query 的 profiling。那批 query 因
-self-match 而“异常容易”（GT top-1 恒为自己，距离 0），模型学到的候选数分布
-**系统性偏低**。用在官方 query 上预测失准 → `learned_limit` 裁剪失去准确性 → 收益归零。
+**GBDT-v2 vs ADAPTIVE_EF (sustained, 聚合 QPS)**:
 
-**复活条件**：用**合规 query 池**（标准 query set，见 [[BEH-035]]）重新 profiling
-并重训模型，在 sustained 口径下重测。若确认收益可发提案重新升为 must。
+| 配置 | GBDT vs ADAPT |
+|------|---------------|
+| 512MB 1T | +0.7% |
+| 512MB 4T | -1.2% |
+| 512MB 16T | +11.4% |
+| 256MB 1T | +3.6% |
+| 256MB 4T | +8.4% |
+| 256MB 16T | +8.4% |
 
-**当前建议**：生产环境 SHOULD 使用 [[BEH-033]]（`ADAPTIVE_EF`）而非本机制。
+GBDT-v2 在高并发 (16T) 下显著优于 ADAPTIVE，多特征建模在高 I/O 争用下信息量更高。
 
-> rationale（已修正）: 原 rationale 建立在“200q working set ~10MB 非 I/O bound，
-> 10K query working set ~488MB 才是真实 I/O bound”的模型上——该模型已被 [[DEC-084]] §4 推翻：
-> 真正的 cache 假象源是 harness 预热被测 query，且 query-无关共享状态（图 CSR 47MB +
-> PQ codes 30MB + FVC 160MB ≈ 237MB）无法被随机换 query 驱逐。
-> 本机制依赖离线训练模型，对训练集质量敏感；self-match 污染不仅污染了 recall 指标，
-> 还污染了本模型的训练标签。参见 [[MODEL-SUSTAINED-001]] 不变量 I4 推论。
-> source: poc/gbdt-learned-pruning/ndf/TOPIC.md ; poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md
+**复活根因**: 原模型训练数据来自 base-sampled 10K query（self-match 污染），
+标签 P50=21 系统性偏低。用官方 10K query 池重训后，标签 P50=26（+24%），
+模型预测 avg_n=60.3（vs 原 ~30），更保守但有效。
+
+**margin 推荐**: 0.8（默认）。0.7 为激进选项；0.9 为保守选项。
+
+> rationale: GBDT 多特征建模利用 11 维 PQ 距离分布预测 per-query 候选数，
+> 在 I/O bound 场景下减少不必要的 Fine Rerank I/O。与 [[BEH-033]]（ADAPTIVE_EF）
+> 互为补充：ADAPTIVE 使用单一 gap_ratio 信号（在线自适应），GBDT 使用多特征
+> 离线模型（更精准但依赖训练数据质量）。高并发下 GBDT 优势显著。
+> 训练数据质量是关键：self-match 污染不仅影响 recall 指标，还污染训练标签
+> （[[MODEL-SUSTAINED-001]] 不变量 I4 推论）。参见 [[DEC-084]] §5 复活记录。
+> source: poc/gbdt-retrain/ndf/evidence/r4-sustained-three-way-20260807.md

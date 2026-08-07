@@ -1,7 +1,7 @@
 # TOPIC: gbdt-retrain
 
 > topic_id: gbdt-retrain
-> status: ready-for-promote
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: 7c91280
 > baseline_status: current

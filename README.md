@@ -155,7 +155,7 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | 256MB 16T | ADAPTIVE | 2,777 | 3,416 | 95.81% |
 
 > ADAPTIVE = `ADAPTIVE_EF=1`（PQ 距离间隙启发式候选数，sustained 下 +12.5~31.4%）
-> GBDT (`LEARNED_EF=1`) 在 sustained 下收益不成立（-0.9~+1.8%，噪声内），需用官方 query 池重新训练
+> GBDT (`LEARNED_EF=1`) 在 sustained 下 +12.3~47.4% (重训练复活, BEH-034 must)
 
 **vs hnswlib unlimited (sustained):**
 
@@ -223,7 +223,7 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | `WILLNEED_BG` | 0 | 1=无锁后台线程提交 WILLNEED (SPSC, 8T+ 推荐) |
 | `PAGE_MERGE_BG` | 0 | 1=BG 线程合并连续页 fadvise (256MB 推荐, 512MB 有害) |
 | `ADAPTIVE_EF` | 0 | 1=PQ gap 启发式候选数 (BEH-033, sustained +12.5~31.4%) |
-| `LEARNED_EF` | 0 | 1=GBDT 多特征候选数预测 (BEH-034, sustained 收益不成立, 需重训练) |
+| `LEARNED_EF` | 0 | 1=GBDT 多特征候选数预测 (BEH-034, sustained +12.3~47.4%) |
 | `GBDT_MARGIN` | 0.8 | LEARNED_EF 预测值缩放系数 |
 
 ### 多线程
@@ -282,7 +282,7 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 | PAGE_MERGE_BG | 合并连续页减少 syscall | DEC-075 | 256MB 16T 下 +17.5% (cache-warmed) |
 | VL_POOL | 自适应 VisitedList 池化 | DEC-074 | 12T+ 下 +7.1% (cache-warmed) |
 | ADAPTIVE_EF | PQ gap 启发式候选数 | BEH-033 | sustained +12.5~31.4% ✅ |
-| LEARNED_EF | GBDT 多特征候选数预测 | BEH-034 | sustained 收益不成立 ❌ (需重训练) |
+| LEARNED_EF | GBDT 多特征候选数预测 | BEH-034 | sustained +12.3~47.4% ✅ (重训练复活) |
 
 > ⚠️ cache-warmed 口径的优化收益在 sustained 下可能不同。ADAPTIVE_EF 已在 sustained 下验证有效。
 
@@ -355,7 +355,7 @@ SIMD 抽象层 (`include/simd.h`) 在编译时根据 CPU 架构自动选择:
 5. **WILLNEED 在 I/O 量主导场景无效** - DEEP10M 瓶颈是 majfault 总量，非时序
 6. **io_uring (buffered) 不优于 WILLNEED+pread** - 实测 4 种方案均不超越基线 (DEC-076)
 7. **ARM NEON 性能预期低于 x86** - 128-bit vs 256-bit, 多线程可弥补
-8. **LEARNED_EF (GBDT) 收益在 sustained 下不成立** - 训练数据被 self-match 污染, 需用官方 query 池重训练
+8. **LEARNED_EF (GBDT) 重训练后复活** - 用官方 query 池重训, sustained +12.3~47.4%
 9. **cache-warmed QPS 不可对外引用** - 高估 1.73-7.60×, 仅作回归护栏
 
 ---
@@ -410,7 +410,7 @@ Cache-warmed 口径在计时前将全部 200q 跑一遍预热 page cache，
 | P2.5: Fine Rerank I/O | io_uring 替代 pread | ❌ 负结果 (DEC-076) |
 | P2.6: ARMv9 架构支持 | NEON SIMD 兼容 | ✅ 代码就绪 (待验证) |
 | P2.7: 自适应 EF | PQ 距离间隙启发式 | ✅ promoted (BEH-033) |
-| P2.8: GBDT 学习式剪枝 | per-query 参数预测 | ⚠️ 降级 (BEH-034 may, 需重训练) |
+| P2.8: GBDT 学习式剪枝 | per-query 参数预测 | ✅ promoted (BEH-034 must, 重训练复活) |
 | P2.9: Sustained Benchmark | 诚实测量方法论 | ✅ promoted (BEH-035, DEC-084) |
 | P3: CSR 上磁盘 | 100M 必需 | 待启动 |
 | P4: 分级存储 | hot/warm/cold 三层 | 长期 |
