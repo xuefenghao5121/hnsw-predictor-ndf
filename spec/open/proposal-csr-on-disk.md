@@ -4,7 +4,7 @@
 > 提出日期：2026-08-07
 > 基线 Trunk：`346cd1c`
 >
-> Status: Proposed（等待人工确认）
+> Status: Implemented on 2026-08-07
 
 ## 1. 调研洞察
 
