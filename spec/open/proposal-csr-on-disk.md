@@ -4,7 +4,7 @@
 > 提出日期：2026-08-07
 > 基线 Trunk：`346cd1c`
 >
-> Status: Implemented on 2026-08-07
+> Status: Rejected on 2026-08-07 (DEC-085: 性能恶化不可接受)
 
 ## 1. 调研洞察
 

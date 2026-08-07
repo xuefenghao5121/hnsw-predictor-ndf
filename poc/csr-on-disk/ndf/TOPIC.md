@@ -1,7 +1,7 @@
 # TOPIC: csr-on-disk
 
 > topic_id: csr-on-disk
-> status: exploring
+> status: rejected
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: 8520366
 > baseline_status: current
@@ -9,7 +9,7 @@
 > depends_on_topics: sustained-query-benchmark (promoted), l4-cache-mgmt (promoted)
 > conflicts_with_topics: []
 > binder: [[DEF-022]]
-> opened: 2026-08-07
+> closed: 2026-08-07 (rejected, DEC-085: 性能恶化不可接受)
 
 ## 目标
 
