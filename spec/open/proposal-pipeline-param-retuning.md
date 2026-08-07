@@ -97,40 +97,91 @@ DiskHNSW:  PQ↑ → ADC recall↑
 - ADC recall +1-3% at same M
 - 在 DiskHNSW 中通过链条 2 放大为 I/O 减少
 
-## 2. 调参空间（修订后优先级）
+## 2. Pipeline 系统性约束
 
-### P1: HNSW M↑ 扫描（最高优先，方向反转）
+### 2.1 步骤依赖链
 
-建不同 M 的图（M=16, 24, 32, 48），在 sustained 下找 recall-QPS Pareto 前沿。
+```
+Step 1: build_index (M_graph, efC=200)
+  ↓ M_graph 决定图的连通性, 影响所有后续步骤
+Step 2: extract_graph (dim)
+  ↓ 依赖 Step 1 的图
+Step 3: bfs_reorder
+  ↓ 依赖 Step 2 的图结构; BFS 映射是后续物理布局的基础
+Step 4: write_blocks_veconly (BS)
+  ↓ 依赖 Step 3 的 BFS 映射 + BS
+Step 5: write_blocks + gen_route (BS)
+  ↓ 依赖 Step 3 + BS; BS 必须与 Step 4 相同
+Step 6: train_pq (M_pq)
+  ↓ 依赖原始 base 数据 (不依赖图); M_pq 必须整除 dim
+Step 7: gen_gt
+  ↓ 独立
+```
 
-核心假设：M=24/32 能以更低的总 I/O（EF↓ 抵消 CSR↑）达到更高 QPS。
+### 2.2 参数修改的级联影响
 
-扫描：M={16, 24, 32, 48} × EF={60, 80, 100, 120} × 256/512MB
+| 参数变更 | 需重做的步骤 | 不受影响 | 原因 |
+|---------|-----------|---------|------|
+| M_graph (16→32) | Step 1-5 | Step 6-7 | 图结构变了 → BFS 映射变了 → blocks/vecblocks 变了; PQ/GT 不依赖图 |
+| M_pq (32→24) | Step 6 | Step 1-5, 7 | PQ 编码与图/blocks 独立 |
+| BS (64K→32K) | Step 4-5 | Step 1-3, 6-7 | 仅物理布局变化; 图/BFS/PQ/GT 不变 |
+| M_graph + M_pq | Step 1-6 | Step 7 | 两个独立变更的组合 |
+| M_graph + BS | Step 1-5 | Step 6-7 | BFS 映射变了 → vecblocks 必须重建; BS 同时改变 |
 
-### P2: OPQ 评估（高优先，DiskHNSW 独有回报）
+### 2.3 系统性交互效应
 
-训练 OPQ 旋转矩阵，比较 OPQ vs PQ 在同 M 下的：
-- ADC recall（离线评估）
-- sustained QPS（Fine Rerank I/O 是否减少）
+参数间不仅有依赖关系，还有性能交互：
 
-### P3: 内存预算最优分配（中优先）
+1. **M_graph × BS**: M↑ → 图更密 → BFS 局部性可能变化 → 影响 vecblocks page cache 命中率
+2. **M_graph × M_pq**: M_graph↑ → 更好图连通性 + M_pq↓ → 更粗 PQ → recall 由两者共同决定
+3. **M_pq × EF**: M_pq↓ → ADC recall↓ → 需更大 EF 补偿 → I/O↑ (抵消小 M_pq 的内存节省)
+4. **BS × Fine Rerank**: Fine Rerank 读 4KB page，BS 影响物理布局和 readahead 局部性
 
-在 P1+P2 确定的最优 M 和 PQ 方案上，扫描 FVC 和 page cache 分配。
+**关键：不能独立调单个参数。必须联合考虑 recall = f(M_graph, M_pq, EF) 的三维空间。**
 
-### P4: Block size 扫描（低优先，预期收益有限）
+## 3. 调参空间（修订后优先级）
 
-Fine Rerank 已用 4KB page，block size 主要影响 vecblocks 物理布局。
+### P1: M_graph↑ 扫描（最高优先，DiskHNSW 独有链条）
+
+建不同 M_graph 的图（16, 24, 32, 48），全套 pipeline 重建 Step 1-5。
+固定 M_pq=32, BS=64K。
+
+扫描：M_graph={16, 24, 32, 48} × EF={60, 80, 100, 120}
+→ 找 recall-QPS Pareto 前沿
+→ 核心验证：M↑ 能否通过 EF↓ 减少 I/O 提升 sustained QPS
+
+### P2: M_pq 扫描 + OPQ 评估
+
+在 P1 最优 M_graph 上，扫描 M_pq={24, 32, 48} + OPQ M=32。
+仅需重做 Step 6。
+
+→ 核心验证：DiskHNSW 双重回报（PQ↑ → recall↑ + I/O↓）
+→ OPQ：离线训练旋转矩阵，推理零开销，+1-3% recall
+
+### P3: BS 扫描（中优先）
+
+在 P1+P2 最优组合上，扫描 BS={32K, 64K, 128K}。
+需重做 Step 4-5。
+
+→ 核心验证：BS 对 page cache 局部性的影响（预期收益有限）
+
+### P4: 最优组合验证
+
+P1+P2+P3 确定的最优组合，跑完整 sustained 矩阵。
+对比：当前参数 vs 新参数的三方（BASE/ADAPTIVE/GBDT）表现。
 
 ## 3. 实验成本评估
 
-| 实验 | 需重建 | 每配置 pipeline | 配置数 | 总时间 |
-|------|--------|---------------|-------|-------|
-| P1 (HNSW M) | 全套 pipeline | ~5min | 4M × 4EF × 2cg = 32 | ~3h |
-| P2 (OPQ) | PQ only | ~5min (含 OPQ 训练) | 2方案 × 6config = 12 | ~1h |
-| P3 (分配) | 无 | 0 | 6config | ~30min |
-| P4 (Block) | blocks+vecblocks | ~3min | 4BS × 6config = 24 | ~2h |
+分阶段剪枝（避免 4×4×4=64 组合爆炸）：
 
-P1 是最重投入但也最有潜力的实验。
+| 阶段 | 固定参数 | 扫描参数 | 需重建步骤 | 配置数 | 估时 |
+|------|---------|---------|-----------|-------|------|
+| P1 | M_pq=32, BS=64K | M_graph={16,24,32,48} × EF={60,80,100,120} | Step 1-5 | 4 pipeline × 4 EF × 2cg = 32 | ~3h |
+| P2 | P1最优 M_graph, BS=64K | M_pq={24,32,48} + OPQ | Step 6 | 4方案 × 6config = 24 | ~1.5h |
+| P3 | P1+P2最优 | BS={32K,64K,128K} | Step 4-5 | 3 pipeline × 6config = 18 | ~1.5h |
+| P4 | P1+P2+P3最优 | 完整矩阵 | 无 | 6config | ~30min |
+
+总重建次数：约 7 次 pipeline（P1: 4 + P3: 3）
 
 ## 4. 不做的事
 
