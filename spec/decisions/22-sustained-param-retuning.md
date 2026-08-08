@@ -1,4 +1,8 @@
-# DEC-086: Sustained 口径下主线调参结论
+# DEC-086: Sustained 口径下主线调参结论 {#DEC-086}
+<!-- ndf: kind=decision status=stable date=2026-08-07 affects=API-011,API-017 source=observed -->
+<!-- ndf: depends-on=DEC-084 -->
+<!-- ndf: promotes=sustained-param-retuning -->
+
 
 > date: 2026-08-07
 > affects: API-011, API-017, DEC-072, DEC-073, DEC-080

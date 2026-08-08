@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-07T14:36:26Z",
-  "clause_count": 225,
+  "generated_at": "2026-08-08T09:34:39Z",
+  "clause_count": 226,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -290,13 +290,14 @@
       "edges": {
         "depends-on": [
           "CON-002",
-          "DEC-073"
+          "DEC-073",
+          "DEC-086"
         ]
       },
       "body_refs": [
+        "DEC-086",
         "DEC-073",
         "DEF-024",
-        "DEC-086",
         "CON-002"
       ],
       "backlinks": [
@@ -306,6 +307,7 @@
         "CON-SLA-017",
         "CON-SLA-018",
         "CON-SLA-020",
+        "DEC-086",
         "DEF-024",
         "VER-040",
         "VER-041",
@@ -419,7 +421,8 @@
       "scope": "",
       "edges": {
         "depends-on": [
-          "BEH-004"
+          "BEH-004",
+          "DEC-086"
         ]
       },
       "body_refs": [
@@ -428,7 +431,8 @@
       ],
       "backlinks": [
         "API-018",
-        "BEH-033"
+        "BEH-033",
+        "DEC-086"
       ]
     },
     "API-018": {
@@ -2298,7 +2302,8 @@
           "DEC-070",
           "BEH-024",
           "API-011",
-          "API-012"
+          "API-012",
+          "DEC-086"
         ]
       },
       "body_refs": [
@@ -2339,7 +2344,8 @@
           "DEC-074",
           "API-011",
           "API-012",
-          "API-013"
+          "API-013",
+          "DEC-086"
         ]
       },
       "body_refs": [
@@ -2376,7 +2382,8 @@
           "DEC-075",
           "API-011",
           "API-012",
-          "API-013"
+          "API-013",
+          "DEC-086"
         ]
       },
       "body_refs": [
@@ -2458,7 +2465,8 @@
           "API-011",
           "API-012",
           "API-013",
-          "DEC-084"
+          "DEC-084",
+          "DEC-086"
         ]
       },
       "body_refs": [
@@ -2467,7 +2475,8 @@
         "BEH-035",
         "CON-SLA-016",
         "CON-SLA-017",
-        "CON-SLA-018"
+        "CON-SLA-018",
+        "DEC-086"
       ],
       "backlinks": [
         "CON-SLA-016",
@@ -4120,8 +4129,41 @@
         "CON-SLA-018",
         "CON-SLA-019",
         "CON-SLA-020",
+        "DEC-086",
         "MODEL-SUSTAINED-001",
         "VER-044"
+      ]
+    },
+    "DEC-086": {
+      "id": "DEC-086",
+      "title": "DEC-086: Sustained 口径下主线调参结论",
+      "file": "decisions/22-sustained-param-retuning.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "API-011",
+          "API-017"
+        ],
+        "depends-on": [
+          "DEC-084"
+        ]
+      },
+      "body_refs": [
+        "DEC-084"
+      ],
+      "backlinks": [
+        "API-011",
+        "API-017",
+        "CON-SLA-016",
+        "CON-SLA-017",
+        "CON-SLA-018",
+        "CON-SLA-020"
       ]
     },
     "DEC-HYGIENE-001": {

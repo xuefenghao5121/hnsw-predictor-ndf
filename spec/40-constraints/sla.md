@@ -215,7 +215,7 @@ MUST NOT 作为 SLA 验收依据。
 
 ## SIFT1M 紧凑 cgroup 配置 SLA {#CON-SLA-016}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9 source=observed -->
-<!-- ndf: depends-on=CON-SLA-014,DEC-070,BEH-024,API-011,API-012 trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da -->
+<!-- ndf: depends-on=CON-SLA-014,DEC-070,BEH-024,API-011,API-012,DEC-086 trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
 
 > ⚠️ **口径：cache-warmed**（[[DEC-084]]）。本条款数字由 `benchmark_diskhnsw`
 > 200q + **query 预热** 测得，代表 page cache 已完全吸收待测 query 后的上限，
@@ -235,7 +235,7 @@ SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` +
 **配置**（测量取值，非 Trunk 默认；见 [[DEF-024]]）:
 `L4_WILLNEED=1 FINE_PREAD=1 FLAT_VEC_MB=64 CACHE_MB=64 REFINE_EF=100 NUM_THREADS=4`
 
-**Trunk**: `trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da` — 旋钮接口 [[API-011]] [[API-012]]。
+**Trunk**: `trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1` — 旋钮接口 [[API-011]] [[API-012]]。
 
 **用途**: 内存极度受限场景（嵌入式/多租户），memory 效率 2.0x vs hnswlib unlimited。
 
@@ -243,7 +243,7 @@ SIFT1M 在 **256MB cgroup**（[[CON-SLA-014]] 严格隔离）+ `L4_WILLNEED=1` +
 
 ## SIFT1M 优化配置 SLA (A2+C2) {#CON-SLA-017}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.5 source=observed -->
-<!-- ndf: depends-on=CON-SLA-014,BEH-024,BEH-027,DEC-074,API-011,API-012,API-013 trunk-ref=162377ee75dbb6a3042572bce47686b92a86aa42 -->
+<!-- ndf: depends-on=CON-SLA-014,BEH-024,BEH-027,DEC-074,API-011,API-012,API-013,DEC-086 trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
 
 > ⚠️ **口径：cache-warmed**（[[DEC-084]]）。同 [[CON-SLA-016]]：200q + query 预热口径，
 > 16T 数字高估约 **4.53×**（30,332 vs sustained 6,694）。仅作回归护栏；
@@ -261,7 +261,7 @@ SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160`
 **配置**（测量取值；`FLAT_VEC_MB=160` ≠ Trunk 默认 64，见 [[API-011]]）:
 `L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14 FINE_PREAD=1 FLAT_VEC_MB=160`
 
-**Trunk**: `trunk-ref=162377ee75dbb6a3042572bce47686b92a86aa42` — [[API-011]] [[API-012]] [[API-013]]。
+**Trunk**: `trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1` — [[API-011]] [[API-012]] [[API-013]]。
 
 **用途**: 高并发场景，QPS/MB 内存效率 1.05x vs hnswlib unlimited。
 
@@ -269,7 +269,7 @@ SIFT1M 在 **512MB cgroup** + `WILLNEED_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=160`
 
 ## SIFT1M 256MB BG+Merge SLA {#CON-SLA-018}
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.6 source=observed -->
-<!-- ndf: depends-on=CON-SLA-016,BEH-027,BEH-028,DEC-075,API-011,API-012,API-013 trunk-ref=edddd232947c5ec5bde27065add3b1a60621cb80 -->
+<!-- ndf: depends-on=CON-SLA-016,BEH-027,BEH-028,DEC-075,API-011,API-012,API-013,DEC-086 trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
 
 > ⚠️ **口径：cache-warmed**（[[DEC-084]]）。200q + query 预热口径；
 > 16T 数字高估约 **7.60×**（18,675 vs sustained 2,456）。仅作回归护栏。
@@ -286,7 +286,7 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 **配置**（测量取值，非默认）:
 `L4_WILLNEED=1 WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14 FLAT_VEC_MB=64`
 
-**Trunk**: `trunk-ref=edddd232947c5ec5bde27065add3b1a60621cb80` — [[API-011]] [[API-012]] [[API-013]]。
+**Trunk**: `trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1` — [[API-011]] [[API-012]] [[API-013]]。
 
 **用途**: 256MB 极度内存受限 + 高并发场景。
 
@@ -352,8 +352,8 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 > source: poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md @ 4a33f38
 
 ## SIFT1M Sustained 基线 SLA {#CON-SLA-020}
-<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.10 source=observed topic=sustained-query-benchmark trunk-ref=47ed9e7 -->
-<!-- ndf: depends-on=CON-SLA-014,CON-SLA-019,BEH-035,API-019,API-011,API-012,API-013,DEC-084 -->
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.10 source=observed topic=sustained-query-benchmark trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
+<!-- ndf: depends-on=CON-SLA-014,CON-SLA-019,BEH-035,API-019,API-011,API-012,API-013,DEC-084,DEC-086 -->
 
 > **track: promoted** - 提案 `spec/open/proposal-promote-sustained-query-benchmark.md`（2026-08-06）。
 > 口径：**sustained**（对外吞吐声明的权威基线）。
@@ -401,3 +401,13 @@ MUST NOT 单独作为对外宣传数字。
 > 证明测得的是物理量。选 N=1000/R=15 作为验收点是因其 ~40s/组，
 > 适合日常回归，无需跑满 10K。
 > source: poc/sustained-query-benchmark/ndf/evidence/r3-r5-sweep-20260806.md @ 4a33f38
+
+### ADAPTIVE 模式参考性能（[[DEC-086]]，2026-08-07）
+
+> 以下为 sustained-param-retuning POC 结论，**非 SLA must**。作为 ADAPTIVE 模式优化参考。
+
+256MB cgroup 下 EF=90 + ADAPTIVE_EF=1 + ADAPTIVE_EASY_EF=40（[[DEC-086]] 最优组合）：
+- 256MB 16T: agg=3,176 / steady=4,111 / recall=95.10%（vs BASE 基线 agg=2,078, +52.7%）
+- 256MB 1T: agg ~1,200（估算）
+
+> source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md

@@ -89,9 +89,9 @@
 
 ## Benchmark / 调参环境变量 {#API-011}
 <!-- ndf: kind=req level=should layer=L1 status=stable since=0.1 source=observed -->
-<!-- ndf: depends-on=CON-002,DEC-073 trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da -->
+<!-- ndf: depends-on=CON-002,DEC-073,DEC-086 trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
 
-> **Trunk**: `trunk-ref=d922f8388e3769072ad6f7f621f1a54f45ca26da`（FLAT_VEC 默认 4→64，[[DEC-073]]）。  
+> **Trunk**: `trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1`（sustained-param-retuning promote，[[DEC-086]] 追加 sustained 调参推荐；FLAT_VEC 默认 4->64 见 [[DEC-073]]）。
 > 下表「Trunk 默认」对齐该 SHA 的 `src/`；「测量常用」供 SLA 正文引用，**不是**代码默认。  
 > 性能配置点定义见 [[DEF-024]]。  
 > **Sustained 调参推荐**（[[DEC-086]]，2026-08-07）：
@@ -143,7 +143,7 @@
 
 ## PQ 距离间隙自适应 EF 环境变量 {#API-017}
 <!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.8 source=observed topic=helmsman-adaptive -->
-<!-- ndf: depends-on=BEH-004 trunk-ref=589e903 -->
+<!-- ndf: depends-on=BEH-004,DEC-086 trunk-ref=c63694fe44762fea06443b78496c546e216d8cd1 -->
 
 | 环境变量 | 类型 | Trunk 默认 | 取值范围 | 说明 | 关联 |
 |----------|------|-----------|---------|------|------|
