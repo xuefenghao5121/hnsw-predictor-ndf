@@ -4,7 +4,7 @@
 > status: exploring
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: c63694f
-> baseline_status: stale (R0-R5 旧数据废弃, env 配置错误)
+> baseline_status: current (R0' 基线对齐 CON-SLA-020, 差 0.5%)
 > explore_surface: graph-structure,pq-encoding,block-layout
 > depends_on_topics: sustained-param-retuning (promoted), gbdt-retrain (promoted)
 > conflicts_with_topics: []
