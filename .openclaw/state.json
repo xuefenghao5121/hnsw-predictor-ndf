@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-pipeline-param-retuning-redo",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "null",
+  "scenario_type": "null",
+  "track": "null",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-08T15:30:00Z",
-  "notes": "R0'-R4' complete. Baseline verified (1081 vs 1076, +0.5%). M=24 EF=60 Pareto optimal. ADAPTIVE +72.3%. BS 32K +52.5%. Next: user decides promote or more experiments."
+  "last_activity": "2026-08-08T19:52:00Z",
+  "notes": "pipeline-param-retuning promoted (DEC-087). All proposals archived to spec/archive/2026-08/. Topic status=promoted."
 }
