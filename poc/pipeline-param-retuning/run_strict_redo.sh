@@ -296,3 +296,52 @@ for M in 24; do
 done
 
 fi
+
+# === R5.2: M=16 EF=65 ADAPTIVE + Multi-thread ===
+if [ "${1:-}" = "r52" ] || [ "${1:-}" = "all" ]; then
+echo ""
+echo "============================================"
+echo "  R5.2: M=16 EF=65 ADAPTIVE + Multi-thread"
+echo "============================================"
+
+# ADAPTIVE (eef=40, aligned with DEC-086)
+run_strict "m16_ef65_adapt_1t" $M16G $M16B $M16BK $M16R $M16V 65 1 \
+    "ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=40 ADAPTIVE_HARD_EF=200"
+
+# ADAPTIVE with lower eef (35, 30) - EF=65 is more aggressive, may need lower eef
+run_strict "m16_ef65_adapt_eef35_1t" $M16G $M16B $M16BK $M16R $M16V 65 1 \
+    "ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=35 ADAPTIVE_HARD_EF=200"
+
+run_strict "m16_ef65_adapt_eef30_1t" $M16G $M16B $M16BK $M16R $M16V 65 1 \
+    "ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=30 ADAPTIVE_HARD_EF=200"
+
+# Multi-thread BASE
+for T in 4 8 16; do
+    run_strict "m16_ef65_${T}t" $M16G $M16B $M16BK $M16R $M16V 65 $T
+done
+
+# Multi-thread ADAPTIVE (best eef from above)
+run_strict "m16_ef65_adapt_4t" $M16G $M16B $M16BK $M16R $M16V 65 4 \
+    "ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=40 ADAPTIVE_HARD_EF=200"
+
+run_strict "m16_ef65_adapt_16t" $M16G $M16B $M16BK $M16R $M16V 65 16 \
+    "ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=40 ADAPTIVE_HARD_EF=200"
+
+echo ""
+echo "=== R5.2 Summary ==="
+printf "%-28s %-10s %-10s %-8s %-6s\n" "Config" "Agg_QPS" "Steady" "Recall" "RSS"
+echo "--------------------------------------------------------"
+for tag in m16_ef65_adapt_1t m16_ef65_adapt_eef35_1t m16_ef65_adapt_eef30_1t \
+           m16_ef65_4t m16_ef65_8t m16_ef65_16t \
+           m16_ef65_adapt_4t m16_ef65_adapt_16t; do
+    FILE="${RESULTS}/${tag}.log"
+    [ -f "$FILE" ] || continue
+    LINE=$(grep "CSV_AGG" "$FILE" | tail -1)
+    AGG=$(echo "$LINE" | cut -d, -f5)
+    RECALL=$(echo "$LINE" | cut -d, -f6)
+    STEADY=$(echo "$LINE" | cut -d, -f8)
+    RSS=$(grep "RSS:" "$FILE" | tail -1 | awk '{print $2}')
+    printf "%-28s %-10s %-10s %-8s %-6s\n" "$tag" "${AGG:-FAIL}" "${STEADY:-?}" "${RECALL:-?}" "${RSS:-?}"
+done
+
+fi
