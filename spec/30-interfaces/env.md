@@ -96,9 +96,16 @@
 > 性能配置点定义见 [[DEF-024]]。  
 > **Sustained 调参推荐**（[[DEC-086]]，2026-08-07）：
 > - `FLAT_VEC_MB`: 512MB cgroup 下 agg QPS 最优为 64（sustained），160 为 steady QPS 最优
-> - `REFINE_EF`: 256MB cgroup 下 sustained 推荐值为 90（recall 95.56%, +13.6% QPS vs EF=100）
+> - `REFINE_EF`: 256MB cgroup 下 sustained 推荐值为 90（ADAPTIVE 模式, recall 95.56%, +13.6% QPS vs EF=100）
 >
 > source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md ; r2-r3-fvc-combo-20260807.md
+>
+> **Pipeline 调参推荐**（[[DEC-087]]，2026-08-08）：
+> - `REFINE_EF`: 256MB sustained **BASE** 模式推荐 65（recall 95.52%, +127% QPS vs EF=100）
+> - `M_graph`: 16（Trunk 默认已正确，无需更改）
+> - Block size 32K vs 64K: +52.5% QPS（延期验证，需 pipeline 重建）
+>
+> source: poc/pipeline-param-retuning/ndf/evidence/r0-r4-redo-20260808.md
 
 | 环境变量 | 类型 | Trunk 默认 | 测量常用 | 说明 |
 |----------|------|-----------|---------|------|
@@ -164,6 +171,13 @@
 > - 200q 下 eef=40 因 recall < 95% 被否；sustained 下 recall 基线更高 (96.00% vs 95.75%)，达标
 >
 > source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md
+
+> **Pipeline 调参补充**（[[DEC-087]]，2026-08-08）：
+> - ADAPTIVE 增益与 recall 余量强相关：M=24 EF=60 (余量 1.60pp) +68%，M=16 EF=65 (余量 0.52pp) +3-7%
+> - M=16 EF=65 +ADAPTIVE 16T: agg=4,057（最高吞吐）但 recall 仅 95.17%（余量紧）
+> - GBDT-v3 重训在 256MB 低 EF 下无效（负结果，见 [[DEC-087]]）
+>
+> source: poc/pipeline-param-retuning/ndf/evidence/r0-r4-redo-20260808.md
 
 ## GBDT 学习式候选数预测环境变量 {#API-018}
 <!-- ndf: kind=req level=may layer=L1 status=stable since=0.9.9 source=observed topic=gbdt-learned-pruning -->

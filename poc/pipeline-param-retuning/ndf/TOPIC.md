@@ -1,7 +1,7 @@
 # TOPIC: pipeline-param-retuning
 
 > topic_id: pipeline-param-retuning
-> status: exploring
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: c63694f
 > baseline_status: current (R0' 基线对齐 CON-SLA-020, 差 0.5%)

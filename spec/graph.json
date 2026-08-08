@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-08T09:34:39Z",
-  "clause_count": 226,
+  "generated_at": "2026-08-08T16:29:36Z",
+  "clause_count": 227,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -298,6 +298,7 @@
         "DEC-086",
         "DEC-073",
         "DEF-024",
+        "DEC-087",
         "CON-002"
       ],
       "backlinks": [
@@ -308,6 +309,7 @@
         "CON-SLA-018",
         "CON-SLA-020",
         "DEC-086",
+        "DEC-087",
         "DEF-024",
         "VER-040",
         "VER-041",
@@ -319,7 +321,7 @@
       "id": "API-012",
       "title": "L4 WILLNEED 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 114,
+      "line": 121,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -354,7 +356,7 @@
       "id": "API-013",
       "title": "WILLNEED 多线程扩展环境变量",
       "file": "30-interfaces/env.md",
-      "line": 129,
+      "line": 136,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -412,7 +414,7 @@
       "id": "API-017",
       "title": "PQ 距离间隙自适应 EF 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 144,
+      "line": 151,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -427,19 +429,21 @@
       },
       "body_refs": [
         "BEH-033",
-        "DEC-086"
+        "DEC-086",
+        "DEC-087"
       ],
       "backlinks": [
         "API-018",
         "BEH-033",
-        "DEC-086"
+        "DEC-086",
+        "DEC-087"
       ]
     },
     "API-018": {
       "id": "API-018",
       "title": "GBDT 学习式候选数预测环境变量",
       "file": "30-interfaces/env.md",
-      "line": 168,
+      "line": 182,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -640,6 +644,7 @@
         ]
       },
       "body_refs": [
+        "BEH-018",
         "DEF-022",
         "BEH-025",
         "DEF-023",
@@ -1153,6 +1158,7 @@
       ],
       "backlinks": [
         "ADR-META-001",
+        "ARCH-008",
         "BEH-025",
         "CHR-008",
         "DEF-020",
@@ -1164,7 +1170,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "meta/process.md",
-      "line": 57,
+      "line": 64,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1202,7 +1208,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 92,
+      "line": 99,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1373,7 +1379,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 110,
+      "line": 119,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1412,7 +1418,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 214,
+      "line": 240,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -2483,6 +2489,7 @@
         "CON-SLA-017",
         "CON-SLA-018",
         "DEC-084",
+        "DEC-087",
         "MODEL-SUSTAINED-001",
         "VER-043"
       ]
@@ -4163,7 +4170,37 @@
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
-        "CON-SLA-020"
+        "CON-SLA-020",
+        "DEC-087"
+      ]
+    },
+    "DEC-087": {
+      "id": "DEC-087",
+      "title": "DEC-087: Pipeline 参数调优结论 (256MB sustained)",
+      "file": "decisions/23-pipeline-param-retuning.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "API-011",
+          "API-017"
+        ],
+        "depends-on": [
+          "DEC-086",
+          "CON-SLA-020"
+        ]
+      },
+      "body_refs": [
+        "DEC-086"
+      ],
+      "backlinks": [
+        "API-011",
+        "API-017"
       ]
     },
     "DEC-HYGIENE-001": {
