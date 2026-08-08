@@ -247,3 +247,52 @@ done
 
 echo ""
 echo "DONE."
+
+# === R5.1: M=16 EF fine-grained scan (65, 70, 75) ===
+if [ "${1:-}" = "fine" ] || [ "${1:-}" = "all" ]; then
+echo ""
+echo "============================================"
+echo "  R5.1: M=16 EF fine scan {65,70,75} (1T, BASE)"
+echo "============================================"
+
+for EF in 65 70 75; do
+    run_strict "m16_ef${EF}_1t" $M16G $M16B $M16BK $M16R $M16V $EF 1
+done
+
+# Also fine scan M=24 at lower EF (55, 50) to see if it can go even lower
+echo ""
+echo "--- M=24 EF fine scan {55, 50} (1T, BASE) ---"
+for EF in 55 50; do
+    run_strict "m24_ef${EF}_1t" $M24G $M24B $M24BK $M24R $M24V $EF 1
+done
+
+echo ""
+echo "=== R5.1 Summary ==="
+printf "%-16s %-10s %-10s %-8s %-6s\n" "Config" "Agg_QPS" "Steady" "Recall" "RSS"
+echo "------------------------------------------------"
+for M in 16; do
+    for EF in 65 70 75; do
+        FILE="${RESULTS}/m${M}_ef${EF}_1t.log"
+        [ -f "$FILE" ] || continue
+        LINE=$(grep "CSV_AGG" "$FILE" | tail -1)
+        AGG=$(echo "$LINE" | cut -d, -f5)
+        RECALL=$(echo "$LINE" | cut -d, -f6)
+        STEADY=$(echo "$LINE" | cut -d, -f8)
+        RSS=$(grep "RSS:" "$FILE" | tail -1 | awk '{print $2}')
+        printf "M=%-2s EF=%-3s   %-10s %-10s %-8s %-6s\n" "$M" "$EF" "${AGG:-FAIL}" "${STEADY:-?}" "${RECALL:-?}" "${RSS:-?}"
+    done
+done
+for M in 24; do
+    for EF in 50 55; do
+        FILE="${RESULTS}/m${M}_ef${EF}_1t.log"
+        [ -f "$FILE" ] || continue
+        LINE=$(grep "CSV_AGG" "$FILE" | tail -1)
+        AGG=$(echo "$LINE" | cut -d, -f5)
+        RECALL=$(echo "$LINE" | cut -d, -f6)
+        STEADY=$(echo "$LINE" | cut -d, -f8)
+        RSS=$(grep "RSS:" "$FILE" | tail -1 | awk '{print $2}')
+        printf "M=%-2s EF=%-3s   %-10s %-10s %-8s %-6s\n" "$M" "$EF" "${AGG:-FAIL}" "${STEADY:-?}" "${RECALL:-?}" "${RSS:-?}"
+    done
+done
+
+fi
