@@ -58,9 +58,9 @@ run_strict() {
             data/sift_base.fvecs $POOL $GT \
             10 $EF \
             --rounds 15 --per-round 1000 --seed 42 \
-            > $OUT 2>&1
+            > $OUT 2>&1 || true
 
-        cg_stats >> $OUT 2>&1
+        cg_stats_summary >> $OUT 2>&1 || true
         cg_cleanup
     " 2>/dev/null
 
@@ -152,8 +152,8 @@ echo "$PASS" | sudo -S bash -c "
     export L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
     export VEC_BLOCKS_PATH=$M24V PQ_CODES_PATH=output/pqco_sift1m_M16.bin
     export REFINE_EF=60 FLAT_VEC_MB=64 NUM_THREADS=1 ADAPTIVE_EF=0
-    ./build/benchmark_sustained $M24G $M24B $M24BK $M24R data/sift_base.fvecs $POOL $GT 10 60 --rounds 15 --per-round 1000 --seed 42 > $RESULTS/m24_ef60_pqm16_1t.log 2>&1
-    cg_stats >> $RESULTS/m24_ef60_pqm16_1t.log 2>&1; cg_cleanup
+    ./build/benchmark_sustained $M24G $M24B $M24BK $M24R data/sift_base.fvecs $POOL $GT 10 60 --rounds 15 --per-round 1000 --seed 42 > $RESULTS/m24_ef60_pqm16_1t.log 2>&1 || true
+    cg_stats_summary >> $RESULTS/m24_ef60_pqm16_1t.log 2>&1; cg_cleanup
 " 2>/dev/null
 echo -n "m24_ef60_pqm16_1t: "; grep "CSV_AGG" "$RESULTS/m24_ef60_pqm16_1t.log" | tail -1
 
@@ -167,8 +167,8 @@ echo "$PASS" | sudo -S bash -c "
     export L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
     export VEC_BLOCKS_PATH=$M24V PQ_CODES_PATH=output/pqco_sift1m_M64.bin
     export REFINE_EF=60 FLAT_VEC_MB=64 NUM_THREADS=1 ADAPTIVE_EF=0
-    ./build/benchmark_sustained $M24G $M24B $M24BK $M24R data/sift_base.fvecs $POOL $GT 10 60 --rounds 15 --per-round 1000 --seed 42 > $RESULTS/m24_ef60_pqm64_1t.log 2>&1
-    cg_stats >> $RESULTS/m24_ef60_pqm64_1t.log 2>&1; cg_cleanup
+    ./build/benchmark_sustained $M24G $M24B $M24BK $M24R data/sift_base.fvecs $POOL $GT 10 60 --rounds 15 --per-round 1000 --seed 42 > $RESULTS/m24_ef60_pqm64_1t.log 2>&1 || true
+    cg_stats_summary >> $RESULTS/m24_ef60_pqm64_1t.log 2>&1; cg_cleanup
 " 2>/dev/null
 echo -n "m24_ef60_pqm64_1t: "; grep "CSV_AGG" "$RESULTS/m24_ef60_pqm64_1t.log" | tail -1
 fi
