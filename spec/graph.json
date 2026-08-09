@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T11:52:24Z",
-  "clause_count": 230,
+  "generated_at": "2026-08-09T12:59:37Z",
+  "clause_count": 231,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -4221,7 +4221,8 @@
       "backlinks": [
         "API-011",
         "DEC-088-REF",
-        "DEC-089"
+        "DEC-089",
+        "DEC-090"
       ]
     },
     "DEC-088-REF": {
@@ -4255,6 +4256,25 @@
       "edges": {
         "depends-on": [
           "DEC-087",
+          "DEC-088"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEC-090": {
+      "id": "DEC-090",
+      "title": "DEC-090: Fine Rerank 增量早终止负结果",
+      "file": "decisions/26-fine-rerank-incremental-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
           "DEC-088"
         ]
       },
