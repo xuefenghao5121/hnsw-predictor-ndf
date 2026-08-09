@@ -1,7 +1,7 @@
 # TOPIC: framework-driven-optimization
 
 > topic_id: framework-driven-optimization
-> status: exploring
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: 2e0ac9f
 > baseline_status: current

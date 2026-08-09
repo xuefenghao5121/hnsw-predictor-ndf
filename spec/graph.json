@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T13:02:06Z",
-  "clause_count": 231,
+  "generated_at": "2026-08-09T13:09:23Z",
+  "clause_count": 232,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -4222,7 +4222,8 @@
         "API-011",
         "DEC-088-REF",
         "DEC-089",
-        "DEC-090"
+        "DEC-090",
+        "DEC-091"
       ]
     },
     "DEC-088-REF": {
@@ -4266,6 +4267,25 @@
       "id": "DEC-090",
       "title": "DEC-090: Fine Rerank 增量早终止负结果",
       "file": "decisions/26-fine-rerank-incremental-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "DEC-088"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEC-091": {
+      "id": "DEC-091",
+      "title": "DEC-091: 框架决策树系统性重扫结果 + DEC-087 数据修正",
+      "file": "decisions/27-framework-driven-optimization-results.md",
       "line": 1,
       "kind": "",
       "level": "",
