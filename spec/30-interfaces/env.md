@@ -106,6 +106,12 @@
 > - Block size 32K vs 64K: +52.5% QPS（延期验证，需 pipeline 重建）
 >
 > source: poc/pipeline-param-retuning/ndf/evidence/r0-r4-redo-20260808.md
+>
+> **参数调优框架**（[[DEC-088]]，2026-08-09）：
+> 后续调优实验 MUST 按决策树顺序设计（cgroup → M_graph → EF → ADAPTIVE → block size → GBDT）。
+> 参数全表及因果模型见 `spec/30-interfaces/tuning-reference.md`。
+>
+> source: spec/decisions/24-tuning-framework.md
 
 | 环境变量 | 类型 | Trunk 默认 | 测量常用 | 说明 |
 |----------|------|-----------|---------|------|

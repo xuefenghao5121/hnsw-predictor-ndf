@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-08T16:29:36Z",
-  "clause_count": 227,
+  "generated_at": "2026-08-09T07:19:24Z",
+  "clause_count": 229,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -299,6 +299,7 @@
         "DEC-073",
         "DEF-024",
         "DEC-087",
+        "DEC-088",
         "CON-002"
       ],
       "backlinks": [
@@ -321,7 +322,7 @@
       "id": "API-012",
       "title": "L4 WILLNEED 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 121,
+      "line": 127,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -356,7 +357,7 @@
       "id": "API-013",
       "title": "WILLNEED 多线程扩展环境变量",
       "file": "30-interfaces/env.md",
-      "line": 136,
+      "line": 142,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -414,7 +415,7 @@
       "id": "API-017",
       "title": "PQ 距离间隙自适应 EF 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 151,
+      "line": 157,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -443,7 +444,7 @@
       "id": "API-018",
       "title": "GBDT 学习式候选数预测环境变量",
       "file": "30-interfaces/env.md",
-      "line": 182,
+      "line": 188,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -4202,6 +4203,41 @@
         "API-011",
         "API-017"
       ]
+    },
+    "DEC-088": {
+      "id": "DEC-088",
+      "title": "DEC-088: DiskHNSW 参数调优框架 — 内存预算驱动因果模型",
+      "file": "decisions/24-tuning-framework.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "API-011",
+        "DEC-088-REF"
+      ]
+    },
+    "DEC-088-REF": {
+      "id": "DEC-088-REF",
+      "title": "DiskHNSW 参数调优参考",
+      "file": "30-interfaces/tuning-reference.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "DEC-088"
+      ],
+      "backlinks": []
     },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",

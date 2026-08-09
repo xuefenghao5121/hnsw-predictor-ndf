@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-08T19:52:00Z",
-  "notes": "pipeline-param-retuning promoted (DEC-087). All proposals archived to spec/archive/2026-08/. Topic status=promoted."
+  "last_activity": "2026-08-09T10:30:00Z",
+  "notes": "tuning-framework (DEC-088) landed. Parameter reference doc created. 229 clauses, 0 graphcheck errors."
 }
