@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T16:05:57Z",
-  "clause_count": 233,
+  "generated_at": "2026-08-09T17:22:20Z",
+  "clause_count": 235,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -305,6 +305,7 @@
       "backlinks": [
         "API-001",
         "CON-002",
+        "CON-GOLDEN-001",
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
@@ -341,6 +342,7 @@
       ],
       "backlinks": [
         "API-013",
+        "CON-GOLDEN-001",
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
@@ -378,6 +380,7 @@
         "BEH-028"
       ],
       "backlinks": [
+        "CON-GOLDEN-001",
         "CON-SLA-017",
         "CON-SLA-018",
         "CON-SLA-020",
@@ -436,6 +439,7 @@
       "backlinks": [
         "API-018",
         "BEH-033",
+        "CON-GOLDEN-001",
         "DEC-086",
         "DEC-087"
       ]
@@ -1202,14 +1206,15 @@
         "DEF-NDF-SPEC-DRIFT",
         "DEF-NDF-STABLE-DRAFT",
         "META-004",
-        "META-005"
+        "META-005",
+        "META-006"
       ]
     },
     "BEH-020": {
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 99,
+      "line": 120,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1380,7 +1385,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 119,
+      "line": 140,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1419,7 +1424,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 240,
+      "line": 261,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1955,6 +1960,38 @@
         "DEC-037"
       ]
     },
+    "CON-GOLDEN-001": {
+      "id": "CON-GOLDEN-001",
+      "title": "性能金标配置",
+      "file": "40-constraints/sla.md",
+      "line": 415,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.11",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "CON-SLA-020",
+          "API-011",
+          "API-012",
+          "API-013",
+          "API-017",
+          "DEC-086",
+          "DEC-087"
+        ]
+      },
+      "body_refs": [
+        "CON-SLA-020",
+        "DEC-086",
+        "DEC-087",
+        "META-006"
+      ],
+      "backlinks": [
+        "META-006"
+      ]
+    },
     "CON-HONEST-002": {
       "id": "CON-HONEST-002",
       "title": "诚实 I/O 基准协议",
@@ -2486,6 +2523,7 @@
         "DEC-086"
       ],
       "backlinks": [
+        "CON-GOLDEN-001",
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
@@ -4168,6 +4206,7 @@
       "backlinks": [
         "API-011",
         "API-017",
+        "CON-GOLDEN-001",
         "CON-SLA-016",
         "CON-SLA-017",
         "CON-SLA-018",
@@ -4202,6 +4241,7 @@
       "backlinks": [
         "API-011",
         "API-017",
+        "CON-GOLDEN-001",
         "DEC-089"
       ]
     },
@@ -5211,6 +5251,29 @@
         "BEH-019",
         "DEF-024",
         "META-001"
+      ]
+    },
+    "META-006": {
+      "id": "META-006",
+      "title": "金标更新义务",
+      "file": "meta/process.md",
+      "line": 99,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.11",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-019"
+        ]
+      },
+      "body_refs": [
+        "CON-GOLDEN-001"
+      ],
+      "backlinks": [
+        "CON-GOLDEN-001"
       ]
     },
     "MODEL-SUSTAINED-001": {

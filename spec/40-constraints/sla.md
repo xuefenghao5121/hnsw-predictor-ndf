@@ -411,3 +411,82 @@ MUST NOT 单独作为对外宣传数字。
 - 256MB 1T: agg ~1,200（估算）
 
 > source: poc/sustained-param-retuning/ndf/evidence/r0-r1-ef-adaptive-retuning-20260807.md
+
+## 性能金标配置 {#CON-GOLDEN-001}
+<!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.11 source=deduced -->
+<!-- ndf: depends-on=CON-SLA-020,API-011,API-012,API-013,API-017,DEC-086,DEC-087 -->
+
+性能金标由三组标准测试配置组成，锁定代码 + 配置 + 性能三要素。
+每次主线性能测试 MUST 同时测试三组配置，并对照
+`spec/50-verification/golden-baseline.md` 的金标数据验证无回归。
+
+### 配置 A: SLA 基线
+
+> 保守配置，recall 优先。对齐 [[CON-SLA-020]]。
+
+| 参数 | 值 |
+|------|-----|
+| M_graph | 16 |
+| REFINE_EF | 100 |
+| ADAPTIVE_EF | 0 |
+| FLAT_VEC_MB | 64 |
+| 数据路径 | output/sift1m_m16/ |
+
+### 配置 B: DEC-086 优化
+
+> 均衡配置，QPS/recall 平衡。sustained 调参最优 ([[DEC-086]])。
+
+| 参数 | 值 |
+|------|-----|
+| M_graph | 16 |
+| REFINE_EF | 90 |
+| ADAPTIVE_EF | 1 |
+| ADAPTIVE_EASY_EF | 40 |
+| ADAPTIVE_EASY_GAP | 1.006 |
+| FLAT_VEC_MB | 64 |
+| 数据路径 | output/sift1m_m16/ |
+
+### 配置 C: DEC-087 Pareto 最优
+
+> 激进配置，QPS 优先。pipeline 调参最优 ([[DEC-087]])。
+
+| 参数 | 值 |
+|------|-----|
+| M_graph | 24 |
+| REFINE_EF | 60 |
+| ADAPTIVE_EF | 0 |
+| FLAT_VEC_MB | 64 |
+| 数据路径 | output/sift1m_m24/ |
+
+### 公共环境变量（三组共用）
+
+```
+CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
+L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
+```
+
+### 测试矩阵
+
+| 配置 | 256MB 1T | 256MB 16T | 512MB 1T | 512MB 16T |
+|------|----------|-----------|----------|-----------|
+| A (SLA) | ✅ | ✅ | ✅ | ✅ |
+| B (DEC-086) | ✅ | ✅ | ✅ | ✅ |
+| C (DEC-087) | ✅ | ✅ | ✅ | ✅ |
+
+共 12 数据点，每点至少 2 轮。
+
+### 金标更新触发条件
+
+1. Trunk `src/` 代码变更（promote / bug / refactor）
+2. 管线参数变更（M_graph / PQ_M / block_size 重建）
+3. 新的 DEC 调参结论 promote
+
+### 回归判定
+
+- agg/steady QPS 落在金标 ±2CV 内 = 无回归
+- Recall 下降 > 0.3pp = 回归
+- CV > 3% = 结果不可信，需重跑
+
+> 金标数据: `spec/50-verification/golden-baseline.md`
+> 测试脚本: `scripts/run_golden.sh`（配置 A 自动化）
+> 流程义务: [[META-006]]
