@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "spec/open/proposal-poc-mmap-budget-shift.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 1,
   "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 REJECTED \u2014 layout optimization ceiling ~4%, below threshold",
-  "notes": "BFS gives 2-6% CL reduction. PQ code 32B limits CL sharing to 1.02 nbrs/CL. Theoretical max ~4% QPS."
+  "last_activity": "Proposal created: mmap read-only data to shift anon\u2192file budget",
+  "notes": "User insight: cgroup budget = anon + file. mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed \u2192 5x page cache"
 }
