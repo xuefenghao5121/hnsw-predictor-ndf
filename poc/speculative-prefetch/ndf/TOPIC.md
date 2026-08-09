@@ -1,34 +1,24 @@
 # Topic: Speculative Prefetch (VelesDB-inspired)
 
-> status: exploring
+> status: rejected
 > track: poc
 > created: 2026-08-09
+> closed: 2026-08-09
 > baseline_trunk_sha: 3e98f3e
 > baseline_status: current
-> proposals: spec/open/proposal-poc-speculative-prefetch.md
+> close_reason: VelesDB prefetch inapplicable — bottleneck is LLC miss (58.1%) not disk I/O (3%) or L1 miss (2.2%)
 
-## 探索表面
+## 研究结果
 
-- `src/core/disk_hnsw.cpp` — searchLayer0() Phase 1-3 (block loading + candidate expansion)
-- `src/core/disk_hnsw.cpp` — graph_prefetcher_ 1-hop prefetch (submitPrefetch)
-- `src/core/disk_hnsw.cpp` — FineRerank (post-search, WILLNEED bg_thread)
-- `src/core/block_cache.cpp` — getBlockById() cache miss → disk read
-- `src/core/graph_prefetcher.cpp` — io_uring async prefetch
+R0 gold standard profiling 证实：
+- Disk I/O: major fault 仅 0.50/query (3%) — WILLNEED 已覆盖
+- CPU L1 miss: 2.2% — PQ ADC 在 cache
+- LLC miss: 58.1% — 真正瓶颈 (DRAM latency on ~240MB data > L3 ~30MB)
+- graph_prefetcher_: PQ 模式下完全跳过 (useful=0)
 
-## 冲突/依赖检查
-
-- bg-thread-futex (REJECTED): 不同瓶颈(CPU cache vs fadvise path), 无表面冲突
-- sustained-param-retuning (PROMOTED): EF/ADAPTIVE 参数, 无代码冲突
-- pipeline-param-retuning (PROMOTED): M_graph/PQ 参数, 无代码冲突
-
-## 研究方向
-
-| Round | 方向 | 瓶颈目标 | 方法 |
-|-------|------|---------|------|
-| R0 | Baseline profiling (金标环境) | 定位 | PROFILE_TS + perf stat under golden cgroup |
+VelesDB 的 prefetch 策略 (CPU cache prefetch + I/O prefetch) 均不适用。
 
 ## 关联条款
 
 - BEH-024 (WILLNEED), BEH-027 (WILLNEED_BG), DEC-070, DEC-074
-- API-012 (L4 WILLNEED env), API-013 (WILLNEED_BG/VL_POOL env)
-- CON-GOLDEN-001 (golden config), META-006 (golden update)
+- CON-GOLDEN-001 (golden config)

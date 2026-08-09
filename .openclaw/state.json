@@ -1,12 +1,12 @@
 {
-  "current_proposal": "spec/open/proposal-poc-speculative-prefetch.md",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "null",
+  "scenario_type": "null",
+  "track": "null",
   "validation_round": 1,
   "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 gold-standard profiling done, disk I/O 47% confirmed",
-  "notes": "R0: disk I/O 47%, LLC miss 58.1%, page faults 9/q. R1=adaptive prefetch depth, R2=block layout"
+  "last_activity": "R0 done \u2014 POC rejected. VelesDB prefetch inapplicable.",
+  "notes": "LLC miss 58.1% is real bottleneck, not disk I/O (3%) or L1 (2.2%). graph_prefetcher_ skipped in PQ mode."
 }
