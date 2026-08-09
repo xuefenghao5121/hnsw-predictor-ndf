@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-poc-fine-rerank-incremental.md",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "null",
+  "scenario_type": "null",
+  "track": "null",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-09T14:55:00Z",
-  "notes": "fine-rerank-incremental POC opened. Explore surface: io-path,fine-rerank. Baseline: M=16 EF=65 256MB 1T agg=2483 QPS."
+  "last_activity": "2026-08-09T17:08:00Z",
+  "notes": "All 19 POC topics closed (11 promoted, 7 rejected, 1 closed). spec/open/ cleaned: 19 proposals archived. Active: optimization-roadmap (living doc), proposal-armv9-support (draft pending)."
 }
