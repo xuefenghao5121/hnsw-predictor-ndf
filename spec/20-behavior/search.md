@@ -208,15 +208,9 @@ Fine rerank 候选循环 MUST 先查 flat_vec_cache (`getFlatVector()`)，
 thread_local VisitedList（`reset()` 递增 curV），而非每次创建新实例。
 `NUM_THREADS < N` 时 MUST 走原始创建路径（避免低并发 thread_local 开销）。
 
-后台线程在每轮 slot 扫描完成后，MUST 先执行 8 次 `_mm_pause`（~100ns CPU
-自旋提示），再调用 `sched_yield()` 让出 CPU（DEC-093）。该节流策略减少
-sched_yield 频率（降低内核调度开销），同时保持 bg_thread 的快速响应能力
-（pause 期间 CPU 流水线停顿，不消耗执行资源）。
-
 > rationale: 12T+ 时 posix_fadvise 内核锁竞争占 6.27%，VisitedList memset 占 10.29%。
 > A2 无锁后台线程消除锁竞争，16T +72.8% QPS。C2 自适应池化消除 cache bouncing。
-> DEC-093 hybrid pause+yield 全场景 +0.2~5.1% steady QPS。
-> 详见 [[DEC-074]] / [[DEC-093]] / `poc/multi-thread-scaling/ndf/TOPIC.md`。
+> 详见 [[DEC-074]] / `poc/multi-thread-scaling/ndf/TOPIC.md`。
 > source: poc/multi-thread-scaling/ndf/evidence/a2-lockless-bg-20260805.md ; comprehensive-sweep-20260805.md
 
 ## WILLNEED BG 页合并 {#BEH-028}

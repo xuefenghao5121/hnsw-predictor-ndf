@@ -18,7 +18,6 @@
 #include <stdexcept>
 #include <thread>
 #include <atomic>
-#include <emmintrin.h>  // _mm_pause for bg_thread yield throttling (DEC-093)
 #include <mutex>
 #include <array>
 #include <condition_variable>
@@ -1858,9 +1857,6 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                                     bg_slots[i].ready.store(false, std::memory_order_release);
                                 }
                             }
-                            // Hybrid: 8x _mm_pause (~100ns) then yield (DEC-093, BEH-027)
-                            _mm_pause(); _mm_pause(); _mm_pause(); _mm_pause();
-                            _mm_pause(); _mm_pause(); _mm_pause(); _mm_pause();
                             std::this_thread::yield();
                         }
                     });
