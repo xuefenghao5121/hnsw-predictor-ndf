@@ -1,11 +1,10 @@
 # Topic: Speculative Prefetch (VelesDB-inspired)
 
-> status: rejected
+> status: exploring
 > track: poc
 > created: 2026-08-09
 > baseline_trunk_sha: 3e98f3e
 > baseline_status: current
-> close_reason: R0 negative result — FineRerank 0.06% of query time, no ceiling for prefetch
 > proposals: spec/open/proposal-poc-speculative-prefetch.md
 
 ## 探索表面

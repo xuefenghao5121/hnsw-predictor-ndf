@@ -2,79 +2,107 @@
 
 > 日期: 2026-08-09
 > Trunk SHA: 3e98f3e
-> 配置: SIFT1M 1T 256MB EF=100 (配置 A)
-> 协议: PROFILE_TS=1, 1000 queries, seed=42
+> 配置: SIFT1M 1T 256MB EF=100 (配置 A), cgroup v2 drop_caches
+> 协议: PROFILE_TS=1, perf stat, 3 rounds × 1000 queries, seed=42
 
-## 方法
+## 重要纠正
 
-使用内置 `PROFILE_TS=1` 插桩，输出 cumulative timing:
-- PhaseA: graph search 时间 (含 PQ ADC + block I/O)
-- pread: FineRerank pread I/O 时间
-- rerank: FineRerank 距离计算时间
+初次 R0 测量 **未使用 cgroup**，导致 page cache 充足，FineRerank 显得不是瓶颈。
+在 256MB cgroup + drop_caches 下重新测量后，发现真正的 disk I/O 瓶颈在 graph search 内部。
 
-## 原始数据
+## 修正数据 (256MB cgroup, 3 rounds × 1000q)
 
-### CSV_AGG
+### 整体性能
+
 ```
-CSV_AGG,1,1000,0.715221,1398.2,97.65,1000,1398.2
+CSV_AGG,3,3000,3.607761,831.5,97.71,2714,1099.2
 ```
-→ 1000 queries in 0.715s = **715 us/query**
+- agg QPS: 831.5
+- steady QPS: 1099.2
+- per-query latency: 1203 us (agg)
 
-### PROFILE_TS (cumulative)
+### Perf stat (3000 queries total)
 
-| n | PhaseA (us) | pread (us) | rerank (us) |
-|---|------------|-----------|------------|
-| 200 | -62 | 146 | 70 |
-| 400 | -42 | 356 | 49 |
-| 600 | -35 | 387 | 38 |
-| 800 | -31 | 393 | 31 |
-| 1000 | -29 | 384 | 27 |
+| 指标 | 总计 | Per-query |
+|------|------|-----------|
+| Instructions | 47.2B | 15.7M |
+| Cycles | 21.3B | 7.1M |
+| IPC | 2.21 | — |
+| L1-dcache misses | 228.4M | 76,119 |
+| **LLC loads** | 48.4M | 16,131 |
+| **LLC misses** | 24.8M | **8,270** |
+| **LLC miss rate** | — | **51.3%** |
+| Cache references | 367.6M | 122,547 |
+| Cache misses | 173.2M | 57,730 |
+| Cache miss rate | — | 47.1% |
+| Branch misses | 86.8M | 28,935 |
+| Context switches | 45,449 | 15.1 |
+| Page faults | 134,467 | **44.8** |
 
-PhaseA 为负 → 计时噪声（graph search 时间在 PhaseA 外测量）
+### PROFILE_TS timing
 
-## 分析
+| n | pread (us) | rerank (us) |
+|---|-----------|------------|
+| 200 | 3441 | 77 |
+| 1000 | 1363 | 34 |
+| 2000 | 986 | 21 |
+| 3000 | 853 | 17 |
+
+Per-query (steady state, n=3000): pread=0.284 us, rerank=0.006 us
+
+### 时间分解
 
 | 组件 | 时间/query | 占比 |
 |------|-----------|------|
-| Graph search (Phase A) | ~714.6 us | **99.94%** |
-| FineRerank pread | 0.384 us | 0.054% |
-| FineRerank rerank | 0.027 us | 0.004% |
+| Graph search (含 block I/O) | 1202 us | **99.98%** |
+| FineRerank pread | 0.284 us | 0.024% |
+| FineRerank rerank | 0.006 us | 0.001% |
 
-## 结论
+## 分析
 
-**FineRerank 已完全优化（0.4 us/query）。瓶颈在 graph search（99.94%）。**
+### 为什么 FineRerank 不是瓶颈？
 
-Graph search 时间分布：
-- PQ ADC 距离计算（CPU-bound）
-- Block I/O（neighbor list 加载，通过 graph_prefetcher_ 1-hop 预取）
-- VisitedList 操作
+WILLNEED bg_thread 在 graph search 期间预读了 FineRerank 需要的页。
+当 FineRerank 开始时，页面已在 page cache，pread 命中内存而非磁盘。
 
-VelesDB 的 prefetch 策略针对 **内存中向量遍历** 的 CPU cache miss。
-我们的 DiskHNSW 在 PQ 模式下：
-- 距离计算用 PQ ADC（32 字节/向量，已在 L1/L2 cache）
-- Block I/O 用 graph_prefetcher_（io_uring 预取 neighbor blocks）
-- FineRerank 用 WILLNEED bg_thread（fadvise 预读向量页）
+### 真正的 disk I/O 瓶颈在哪里？
 
-**所有 prefetch 路径已被前序 POC 优化。speculative prefetch 在当前架构下无收益空间。**
+**Graph search 内部的 block loading:**
+1. `cache_->getBlockById()` cache miss → 同步磁盘读取 (64KB block)
+2. `graph_prefetcher_->submitPrefetch()` 做了 1-hop 预取，减轻了但不能消除
+3. LLC miss rate 51.3% 证实了大量内存/磁盘访问
+4. Page faults 44.8/query 证实了 page cache miss → kernel 分配新页面 → disk I/O
+
+### 对比：无 cgroup vs 256MB cgroup
+
+| 配置 | QPS | FineRerank pread (us/q) |
+|------|-----|------------------------|
+| 无 cgroup (热缓存) | 1398 | 0.384 |
+| 256MB cgroup | 831 | 0.284 |
+
+FineRerank 两者都极小（< 1 us），因为 WILLNEED 在两种情况下都有效。
 
 ## 方向裁决
 
-| 方向 | 目标 | 占比上限 | 裁决 | 理由 |
-|------|------|---------|------|------|
-| R1 CPU prefetch PQ ADC | rerank compute | 0.004% | ❌ REJECT | 占比可忽略 |
-| R2 Speculative WILLNEED | FineRerank pread | 0.054% | ❌ REJECT | 占比可忽略 |
-| R3 Batch prefetch pipeline | FineRerank overlap | 0.058% | ❌ REJECT | 占比可忽略 |
+原方向 (R1/R2/R3) 针对的 FineRerank 不是瓶颈。POC 方向需要重新定义。
 
-**POC 整体裁决: REJECTED（负结果）**
+| 原方向 | 目标 | 占比 | 裁决 | 理由 |
+|--------|------|------|------|------|
+| R1 CPU prefetch PQ ADC | rerank compute | 0.001% | ❌ REJECT | 占比可忽略 |
+| R2 Speculative WILLNEED | FineRerank pread | 0.024% | ❌ REJECT | 占比可忽略 |
+| R3 Batch prefetch pipeline | FineRerank overlap | 0.025% | ❌ REJECT | 占比可忽略 |
 
-FineRerank 在 EF=100 下仅占 0.06% 的查询时间。即使将 FineRerank 降到 0，
-QPS 提升也不到 0.1%。VelesDB 的 prefetch 策略不适用于我们的 PQ-based disk ANN 架构。
+### 新方向候选
 
-真正的优化方向是 graph search 内部：PQ ADC SIMD 优化、visited list 优化、
-graph layout 优化——但这些已在前序 POC 中探索（DEC-034/036/074）。
+| 新方向 | 目标 | 估算收益 |
+|--------|------|---------|
+| R4 block layout 优化 | 减少 page fault 次数 | 取决于 BFS locality 改进 |
+| R5 graph_prefetcher 2-hop | 减少 block cache miss | 可能减少同步等待 |
+| R6 PQ codebook cache | 减少 L2 miss | L1 miss 已 0.5%, 收益有限 |
 
 ## 来源
 
-- profile log: `/tmp/r0_ts_1000.log`
-- CSV output: `/tmp/r0_out_1000.log`
-- code: `src/core/disk_hnsw.cpp:searchKnn()` (line 1598)
+- perf log: `/tmp/r0_perf2.log`
+- CSV output: `/tmp/r0_perf2_out.log`
+- PROFILE_TS: `/tmp/r0_perf2.log`
+- code: `src/core/disk_hnsw.cpp:searchLayer0()` (line 390+)

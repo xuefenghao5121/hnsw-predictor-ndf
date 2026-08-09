@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
-  "validation_round": 1,
+  "current_proposal": "spec/open/proposal-poc-speculative-prefetch.md",
+  "scenario_type": "poc",
+  "track": "poc",
+  "validation_round": 0,
   "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 rejected \u2014 speculative prefetch POC closed",
-  "notes": "speculative-prefetch POC: REJECTED. FineRerank only 0.06% of query time."
+  "last_activity": "R0 corrected under cgroup \u2014 FineRerank NOT bottleneck, graph search block I/O is",
+  "notes": "R0 corrected: LLC miss 51.3%, page faults 44.8/q. Disk I/O in graph search. R1/R2/R3 rejected, need new directions R4/R5/R6."
 }

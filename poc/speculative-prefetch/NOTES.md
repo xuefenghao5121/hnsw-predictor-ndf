@@ -2,7 +2,7 @@
 
 > 创建: 2026-08-09
 > Trunk SHA: 3e98f3e
-> Status: EXPLORING
+> Status: EXPLORING (R0 corrected, directions revised)
 
 ## 背景
 
@@ -18,17 +18,38 @@ VelesDB prefetch 策略：
 2. Multi-level: L1/L2/L3 分层预取
 3. `calculate_prefetch_distance(dimension)` 按维度动态计算
 
-## R0: Baseline Profiling — DONE (2026-08-09)
+## R0: Baseline Profiling — CORRECTED (cgroup, 2026-08-09)
 
-**结果: REJECTED (负结果)**
+**初次测量错误**: 未使用 cgroup, page cache 充足, FineRerank 显得不重要
+**修正后**: 在 256MB cgroup + drop_caches 下重新测量
 
-FineRerank 仅占 0.06% 查询时间（0.4 us/query），graph search 占 99.94%（714.6 us/query）。
-所有 prefetch 路径已被前序 POC 优化，speculative prefetch 无收益空间。
+### 修正数据 (3轮×1000q, 256MB cgroup, perf stat)
 
-| 方向 | 裁决 | 理由 |
-|------|------|------|
-| R1 CPU prefetch PQ ADC | ❌ REJECT | 占 0.004% |
-| R2 Speculative WILLNEED | ❌ REJECT | 占 0.054% |
-| R3 Batch prefetch pipeline | ❌ REJECT | 占 0.058% |
+**整体性能**: agg=831 QPS / steady=1099 QPS / 1203 us/query
+
+**CPU/Cache Profile (per query)**:
+- Instructions: 15.7M, IPC=2.21
+- **LLC miss rate: 51.3%** (8,270 次/query) ← disk I/O 体现
+- L1-dcache miss: 0.5% (PQ ADC 在 cache 中)
+- Cache miss rate: 47.1%
+- **Page faults: 44.8/query** ← page cache miss → disk read
+- Context switches: 15.1/query
+
+**时间分解**:
+- Graph search (含 block I/O): 1202 us (99.98%) ← **真正瓶颈**
+- FineRerank: 0.29 us (0.02%) ← WILLNEED 已预读
+
+### 结论
+
+**DiskHNSW 确实是 disk I/O 密集型**。瓶颈在 graph search 内部的 block loading,
+不在 FineRerank。
+
+原 R1/R2/R3 针对的 FineRerank 不是瓶颈。需要重新定向:
+
+| 新方向 | 目标 | 方法 |
+|--------|------|------|
+| R4 | block layout | BFS → 优化 page locality |
+| R5 | graph_prefetcher 增强 | 2-hop / 推测性 block 预取 |
+| R6 | PQ ADC cache | codebook 布局 (但 L1 miss 已低, 可能无收益) |
 
 Evidence: `ndf/evidence/r0-baseline-profiling-20260809.md`
