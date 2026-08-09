@@ -2,11 +2,11 @@
   "current_proposal": "null",
   "scenario_type": "null",
   "track": "null",
-  "validation_round": 0,
-  "max_validation_rounds": 3,
+  "validation_round": 1,
+  "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
-  "perf_status": "golden-434c6f5",
-  "last_activity": "2026-08-09T19:20:00Z",
-  "notes": "Golden baseline established. Trunk SHA=434c6f5. 4 configs × 3 runs. All SLA pass."
+  "perf_status": "n/a",
+  "last_activity": "R0 rejected \u2014 speculative prefetch POC closed",
+  "notes": "speculative-prefetch POC: REJECTED. FineRerank only 0.06% of query time."
 }
