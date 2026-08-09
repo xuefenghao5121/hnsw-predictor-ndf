@@ -1,7 +1,7 @@
 # TOPIC: param-expansion-sweep
 
 > topic_id: param-expansion-sweep
-> status: exploring
+> status: promoted
 > baseline_protocol: [[CON-SLA-014]] + [[CON-SLA-019]] + [[CON-SLA-020]] (sustained)
 > baseline_trunk_sha: 054ff92
 > baseline_status: current

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T13:26:11Z",
-  "clause_count": 232,
+  "generated_at": "2026-08-09T13:34:48Z",
+  "clause_count": 233,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -4223,7 +4223,8 @@
         "DEC-088-REF",
         "DEC-089",
         "DEC-090",
-        "DEC-091"
+        "DEC-091",
+        "DEC-092"
       ]
     },
     "DEC-088-REF": {
@@ -4296,6 +4297,28 @@
       "edges": {
         "depends-on": [
           "DEC-088"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "DEC-092"
+      ]
+    },
+    "DEC-092": {
+      "id": "DEC-092",
+      "title": "DEC-092: 全参数展开扫描结果 — 256MB SIFT1M 1T 性能图谱",
+      "file": "decisions/28-param-expansion-sweep-results.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "DEC-088",
+          "DEC-091"
         ]
       },
       "body_refs": [],
