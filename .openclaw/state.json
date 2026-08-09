@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-09T10:30:00Z",
-  "notes": "tuning-framework (DEC-088) landed. Parameter reference doc created. 229 clauses, 0 graphcheck errors."
+  "last_activity": "2026-08-09T10:55:00Z",
+  "notes": "block-size-tuning rejected (DEC-089). tuning-framework landed (DEC-088). 230 clauses, 0 errors."
 }

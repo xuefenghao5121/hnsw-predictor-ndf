@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T07:19:24Z",
-  "clause_count": 229,
+  "generated_at": "2026-08-09T07:50:41Z",
+  "clause_count": 230,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -4201,7 +4201,8 @@
       ],
       "backlinks": [
         "API-011",
-        "API-017"
+        "API-017",
+        "DEC-089"
       ]
     },
     "DEC-088": {
@@ -4219,7 +4220,8 @@
       "body_refs": [],
       "backlinks": [
         "API-011",
-        "DEC-088-REF"
+        "DEC-088-REF",
+        "DEC-089"
       ]
     },
     "DEC-088-REF": {
@@ -4237,6 +4239,26 @@
       "body_refs": [
         "DEC-088"
       ],
+      "backlinks": []
+    },
+    "DEC-089": {
+      "id": "DEC-089",
+      "title": "DEC-089: Block Size 调优负结果 — M=16 下无收益",
+      "file": "decisions/25-block-size-tuning-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "DEC-087",
+          "DEC-088"
+        ]
+      },
+      "body_refs": [],
       "backlinks": []
     },
     "DEC-HYGIENE-001": {
