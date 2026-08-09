@@ -9,10 +9,11 @@
 
 ## 探索表面
 
-- `src/core/disk_hnsw.cpp` — search loop, FineRerank PQ ADC
-- `src/core/disk_hnsw.cpp` — bg_thread WILLNEED path (BEH-024/BEH-027)
-- FineRerank batch distance computation (CPU cache behavior)
-- Layer switching I/O wait window
+- `src/core/disk_hnsw.cpp` — searchLayer0() Phase 1-3 (block loading + candidate expansion)
+- `src/core/disk_hnsw.cpp` — graph_prefetcher_ 1-hop prefetch (submitPrefetch)
+- `src/core/disk_hnsw.cpp` — FineRerank (post-search, WILLNEED bg_thread)
+- `src/core/block_cache.cpp` — getBlockById() cache miss → disk read
+- `src/core/graph_prefetcher.cpp` — io_uring async prefetch
 
 ## 冲突/依赖检查
 
@@ -24,10 +25,7 @@
 
 | Round | 方向 | 瓶颈目标 | 方法 |
 |-------|------|---------|------|
-| R0 | Baseline profiling | 定位 | perf cache-miss + strace pread latency |
-| R1 | CPU prefetch PQ ADC | CPU L1/L2 miss | `_mm_prefetch` in PQ ADC loop |
-| R2 | Speculative WILLNEED | Disk I/O wait | next-layer candidate prediction |
-| R3 | Batch prefetch pipeline | Memory latency | candidate list batching |
+| R0 | Baseline profiling (金标环境) | 定位 | PROFILE_TS + perf stat under golden cgroup |
 
 ## 关联条款
 

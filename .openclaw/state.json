@@ -2,11 +2,11 @@
   "current_proposal": "spec/open/proposal-poc-speculative-prefetch.md",
   "scenario_type": "poc",
   "track": "poc",
-  "validation_round": 0,
+  "validation_round": 1,
   "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 corrected under cgroup \u2014 FineRerank NOT bottleneck, graph search block I/O is",
-  "notes": "R0 corrected: LLC miss 51.3%, page faults 44.8/q. Disk I/O in graph search. R1/R2/R3 rejected, need new directions R4/R5/R6."
+  "last_activity": "R0 gold-standard profiling done, disk I/O 47% confirmed",
+  "notes": "R0: disk I/O 47%, LLC miss 58.1%, page faults 9/q. R1=adaptive prefetch depth, R2=block layout"
 }

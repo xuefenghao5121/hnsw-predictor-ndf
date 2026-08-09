@@ -2,54 +2,41 @@
 
 > 创建: 2026-08-09
 > Trunk SHA: 3e98f3e
-> Status: EXPLORING (R0 corrected, directions revised)
+> Status: EXPLORING — R0 done, R1/R2 方向已定
 
-## 背景
+## 历史教训
 
-DiskHNSW 的 I/O 路径：`bg_thread sched_yield → fadvise(WILLNEED) → kernel readahead → pread`
+**R0 第一/二次**: 测量环境不规范（无 cgroup / 手动拼环境）。**废弃。**
+**R0 第三次**: 基于金标脚本环境。**有效。**
 
-Trunk profiling (SHA=4697c0d, 256MB 1T EF=100):
-- 内核 43.7% > 用户 38.5% > libc 8.4%
-- bg_thread sched_yield 自旋 ~18.4%, PQ ADC 10.3%, 图搜索 6.4%
-- 每 query: pread=50.8, fadvise=42.4, sched_yield=2,116
+## R0: Gold Standard Profiling — DONE (2026-08-09)
 
-VelesDB prefetch 策略：
-1. CPU cache prefetch (`_mm_prefetch` / ARM `PRFM`) — 在 candidate list 遍历时提前 N 步
-2. Multi-level: L1/L2/L3 分层预取
-3. `calculate_prefetch_distance(dimension)` 按维度动态计算
+配置 A (256MB 1T EF=100, 15轮×1000q, cgroup drop_caches):
 
-## R0: Baseline Profiling — CORRECTED (cgroup, 2026-08-09)
-
-**初次测量错误**: 未使用 cgroup, page cache 充足, FineRerank 显得不重要
-**修正后**: 在 256MB cgroup + drop_caches 下重新测量
-
-### 修正数据 (3轮×1000q, 256MB cgroup, perf stat)
-
-**整体性能**: agg=831 QPS / steady=1099 QPS / 1203 us/query
-
-**CPU/Cache Profile (per query)**:
-- Instructions: 15.7M, IPC=2.21
-- **LLC miss rate: 51.3%** (8,270 次/query) ← disk I/O 体现
-- L1-dcache miss: 0.5% (PQ ADC 在 cache 中)
-- Cache miss rate: 47.1%
-- **Page faults: 44.8/query** ← page cache miss → disk read
-- Context switches: 15.1/query
+**性能**: agg=1052 QPS / steady=1149 QPS / 950 us per query
 
 **时间分解**:
-- Graph search (含 block I/O): 1202 us (99.98%) ← **真正瓶颈**
-- FineRerank: 0.29 us (0.02%) ← WILLNEED 已预读
+- Graph search (含 block I/O): 950 us (100%)
+- FineRerank: 0.04 us (可忽略)
 
-### 结论
+**Disk I/O 证据**:
+- Page faults: 9.0/query → ~36KB disk read/query
+- 估算 disk I/O: ~449 us (47% of latency)
+- LLC miss rate: 58.1% (5,087/query)
+- L1 miss rate: 2.2% (PQ ADC 在 cache)
 
-**DiskHNSW 确实是 disk I/O 密集型**。瓶颈在 graph search 内部的 block loading,
-不在 FineRerank。
+**结论**: disk I/O 占 ~47%, CPU 计算 + memory latency 占 ~53%。
+瓶颈在 graph search 内部的 block loading (cache miss → 同步磁盘读取)。
 
-原 R1/R2/R3 针对的 FineRerank 不是瓶颈。需要重新定向:
+Evidence: `ndf/evidence/r0-gold-standard-20260809.md`
 
-| 新方向 | 目标 | 方法 |
-|--------|------|------|
-| R4 | block layout | BFS → 优化 page locality |
-| R5 | graph_prefetcher 增强 | 2-hop / 推测性 block 预取 |
-| R6 | PQ ADC cache | codebook 布局 (但 L1 miss 已低, 可能无收益) |
+## 下一步方向
 
-Evidence: `ndf/evidence/r0-baseline-profiling-20260809.md`
+R1: graph_prefetcher_ 自适应深度预取 (block-level speculative prefetch)
+- 当前: 固定 1-hop
+- 改进: 高 cache miss 时做 2-hop
+- 借鉴: VelesDB 的 `calculate_prefetch_distance()` 自适应理念
+
+R2: block layout page locality 分析
+- 分析 block 内 page-level access pattern
+- 评估是否需要重排
