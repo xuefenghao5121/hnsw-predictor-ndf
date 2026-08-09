@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "spec/open/proposal-poc-data-layout-optimization.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 1,
   "max_validation_rounds": 4,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 done \u2014 POC rejected. VelesDB prefetch inapplicable.",
-  "notes": "LLC miss 58.1% is real bottleneck, not disk I/O (3%) or L1 (2.2%). graph_prefetcher_ skipped in PQ mode."
+  "last_activity": "R0 \u8bba\u6587\u8c03\u7814\u5b8c\u6210, 3\u7bc7\u6838\u5fc3\u8bba\u6587, R0\u5b9e\u9a8c\u8bbe\u8ba1\u5b8c\u6210",
+  "notes": "LLC miss 58.1% \u662f\u74f6\u9888. BFS reorder \u5df2\u6709\u4f46\u975e\u6700\u4f18. Coleman NeurIPS 2022 \u663e\u793a objective-based reorder +10-40%. R0: \u91cf\u5316 BFS \u6548\u679c\u5929\u82b1\u677f."
 }
