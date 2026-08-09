@@ -1,6 +1,6 @@
 # NOTES: bg-thread-futex
 
-> status: exploring
+> status: promoted (hybrid pause+yield; futex+io_uring rejected)
 > 开题: 2026-08-09
 > Trunk SHA: 4697c0d
 

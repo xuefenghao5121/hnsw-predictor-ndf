@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-09T14:09:29Z",
+  "generated_at": "2026-08-09T15:40:00Z",
   "clause_count": 233,
   "meta_only": false,
   "nodes": {
@@ -1464,7 +1464,8 @@
         ]
       },
       "body_refs": [
-        "DEC-074"
+        "DEC-074",
+        "DEC-093"
       ],
       "backlinks": [
         "API-013",
@@ -1480,7 +1481,7 @@
       "id": "BEH-028",
       "title": "WILLNEED BG 页合并",
       "file": "20-behavior/search.md",
-      "line": 216,
+      "line": 222,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1532,7 +1533,7 @@
       "id": "BEH-033",
       "title": "PQ 距离间隙自适应 EF",
       "file": "20-behavior/search.md",
-      "line": 233,
+      "line": 239,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1563,7 +1564,7 @@
       "id": "BEH-034",
       "title": "GBDT 学习式候选数预测",
       "file": "20-behavior/search.md",
-      "line": 273,
+      "line": 279,
       "kind": "req",
       "level": "must",
       "layer": "L1",
