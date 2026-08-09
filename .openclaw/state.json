@@ -1,12 +1,12 @@
 {
-  "current_proposal": "proposal-poc-bg-thread-futex.md",
-  "scenario_type": "poc",
-  "track": "poc",
+  "current_proposal": "null",
+  "scenario_type": "null",
+  "track": "null",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
-  "perf_status": "n/a",
-  "last_activity": "2026-08-09T18:00:00Z",
-  "notes": "R0 complete. futex (D): 1T -5.3%, 16T +4.0%. hybrid pause+yield (B): all-positive +0.2~5.1%. Close D, promote B."
+  "perf_status": "golden-434c6f5",
+  "last_activity": "2026-08-09T19:20:00Z",
+  "notes": "Golden baseline established. Trunk SHA=434c6f5. 4 configs × 3 runs. All SLA pass."
 }
