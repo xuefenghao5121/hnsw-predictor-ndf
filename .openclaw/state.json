@@ -1,12 +1,12 @@
 {
-  "current_proposal": "null",
-  "scenario_type": "null",
-  "track": "null",
+  "current_proposal": "proposal-poc-bg-thread-futex.md",
+  "scenario_type": "poc",
+  "track": "poc",
   "validation_round": 0,
   "max_validation_rounds": 3,
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-09T17:08:00Z",
-  "notes": "All 19 POC topics closed (11 promoted, 7 rejected, 1 closed). spec/open/ cleaned: 19 proposals archived. Active: optimization-roadmap (living doc), proposal-armv9-support (draft pending)."
+  "last_activity": "2026-08-09T18:00:00Z",
+  "notes": "R0 complete. futex (D): 1T -5.3%, 16T +4.0%. hybrid pause+yield (B): all-positive +0.2~5.1%. Close D, promote B."
 }
