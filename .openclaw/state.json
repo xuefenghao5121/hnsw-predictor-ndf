@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "Proposal updated: audit corrections (upper vectors freed, PQ M_pq=32, CSR compressed, 5x->4x, SHA=434c6f5)",
-  "notes": "Audit corrected: mmap-able 107MB->72-92MB (upper vectors 30MB freed by DEC-034). PQ codes 32MB (M_pq=32). CSR Delta+Varint compressed (DEC-064). Expected page cache 5x->~4x. Baseline: Config C (M=24 EF=60), CON-SLA-020 sustained."
+  "last_activity": "R0 REJECTED: mmap PQ codes 4x QPS regression (page cache thrashing)",
+  "notes": "R0 REJECTED. A(vector)=1407.9 vs B(mmap)=348.2 (-75.3%). Root cause: PQ codes file-backed -> page cache thrashing with vecblocks. R5c Pareto frontier confirmed. No R1."
 }
