@@ -129,19 +129,41 @@ speculative-prefetch R0 发现 major fault 仅 0.50/query（disk I/O 仅 3%）�
 
 ## 协议
 
-- 测试标准: **CON-SLA-020 sustained query measurement**（金标测试）
-  - CON-SLA-019 禁预热：MUST NOT 在计时窗口前或内部预热 query
-  - 15 轮 × 1000 query, seed=42, 官方 10K pool 随机采样
-  - 同时报告 **聚合 QPS**（含冷启动，SLA 判定口径）和 **稳态 QPS**（末轮，参考上限）
-  - 对外吞吐引用 MUST 以 sustained 聚合 QPS 为准
-- 基线配置: **金标 Config C (DEC-087 Pareto 最优)**
+### 测试脚本
+
+复用金标测试脚本 `poc/pipeline-param-retuning/run_strict.sh`（M=24 金标基线载体），
+该脚本实现了完整的 CON-SLA-014 严格隔离协议：
+
+- `cg_init` → `cg_create` → `cg_set_limit` → `cg_drop_caches` → `cg_add_proc`
+  (cgroup_utils.sh, CON-SLA-014 step 1-2)
+- benchmark 运行在 cgroup 内（所有内存被追踪）
+- `cg_stats` 收集完整统计（anon/file/peak/violations/refault/majfault）
+
+R0 脚本 (`poc/mmap-budget-shift/run_r0.sh`) 基于 `run_strict.sh` 模式，A/B 两次运行
+使用相同的 cgroup 初始化、数据路径、环境变量，唯一差异为 `PQ_MMAP_PATH`。
+
+### 测试标准
+
+- **CON-SLA-020** sustained query measurement（金标测试）
+- **CON-SLA-019** 禁预热：MUST NOT 在计时窗口前或内部预热 query
+- **CON-SLA-014** 严格 cgroup 隔离（cgroup_utils.sh 全流程）
+- 15 轮 × 1000 query, seed=42, 官方 10K pool 随机采样
+- 同时报告 **聚合 QPS**（含冷启动，SLA 判定口径）和 **稳态 QPS**（末轮，参考上限）
+- cgroup 完整统计：anon/file/peak/violations/refault/majfault
+
+### 基线配置
+
+- **金标 Config C (DEC-087 Pareto 最优)**
   - M_graph=24, REFINE_EF=60, ADAPTIVE_EF=0, FLAT_VEC_MB=64
   - 数据路径: output/sift1m_m24/
   - 金标基线 (Trunk 434c6f5, 256MB 1T): agg 1,450 / steady 1,702 / recall 96.60%
-- 对比: 当前 vector 加载 (A) vs mmap 加载 (B)
-- 指标: 聚合 QPS, 稳态 QPS, recall, memory.stat (anon/file), major/minor faults
+
+### A/B 对比
+
+- A (vector PQ): `build/benchmark_sustained`, 无 `PQ_MMAP_PATH`
+- B (mmap PQ): `poc/mmap-budget-shift/build/benchmark_mmap`, `PQ_MMAP_PATH=output/sift1m_m24/sift1m_m24_pq_bfs.bin`
+- 指标: 聚合 QPS, 稳态 QPS, recall, anon/file/peak/violations
 - 约束: recall ≥ 95%, 不修改 Trunk src/
-- cgroup: strict 256MB, drop_caches between rounds
 
 ## 关联条款
 

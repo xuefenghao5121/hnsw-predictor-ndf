@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 REJECTED: mmap PQ codes 4x QPS regression (page cache thrashing)",
-  "notes": "R0 REJECTED. A(vector)=1407.9 vs B(mmap)=348.2 (-75.3%). Root cause: PQ codes file-backed -> page cache thrashing with vecblocks. R5c Pareto frontier confirmed. No R1."
+  "last_activity": "Proposal updated: protocol linked to run_strict.sh golden script (cgroup_utils.sh full flow)",
+  "notes": "Protocol revised: use run_strict.sh pattern (cg_stats with anon/file/peak/violations). Previous R0 result invalid (wrong script). R0 needs re-run with correct golden script."
 }

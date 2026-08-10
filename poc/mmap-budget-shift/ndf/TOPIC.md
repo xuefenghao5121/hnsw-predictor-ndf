@@ -1,6 +1,6 @@
 # Topic: mmap Read-Only Data to Shift Anon->File Budget
 
-> status: rejected (R0 negative: 75% QPS regression from page cache thrashing)
+> status: exploring
 > track: poc
 > created: 2026-08-09
 > baseline_trunk_sha: 434c6f5
@@ -40,10 +40,14 @@ mmap 后:
 
 ## 验证计划
 
+- 测试脚本: 复用 run_strict.sh 金标模式 (cgroup_utils.sh 完整流程)
+  - cg_init -> cg_create -> cg_set_limit -> cg_drop_caches -> cg_add_proc
+  - cg_stats: anon/file/peak/violations/refault/majfault
 - 测试标准: **CON-SLA-020 sustained**（金标）
   - CON-SLA-019 禁预热
+  - CON-SLA-014 严格 cgroup 隔离
   - 15轮x1000q, seed=42
-  - 报告聚合 QPS + 稳态 QPS
+  - 报告聚合 QPS + 稳态 QPS + cgroup 完整统计
 - 基线配置: **Config C (DEC-087 Pareto 最优, M=24 EF=60)**
   - 金标基线 (256MB 1T): agg 1,450 / steady 1,702 / recall 96.60%
 - R0: mmap PQ codes -> A/B sustained 金标对比
