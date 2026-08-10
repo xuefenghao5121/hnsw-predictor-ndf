@@ -1,4 +1,4 @@
-# vecblock-cluster-reorder — Notes
+# vecblock-cluster-reorder — promoted
 
 > status: exploring
 > created: 2026-08-10

@@ -1,13 +1,13 @@
 # Topic: vecblock-cluster-reorder
 
 > ndf_topic: vecblock-cluster-reorder
-> status: exploring
+> status: promoted
 > created: 2026-08-10
 > explore_surface: spec/20-behavior/vecblock-layout
 > depends_on_topics: none
 > related_topics: ssd-parallelism-io (promoted)
 > baseline_status: current
-> baseline_trunk_sha: 97ce18e
+> baseline_trunk_sha: dc5696904e2fb0323f5b70286ce2b8029df64230
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > reference: VLDB 2025 §5 "Spatial-Awareness Insertion Reorder" + §7 "Locality-Preserving Co-location"
 

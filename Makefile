@@ -17,6 +17,10 @@ HEADERS = $(wildcard include/*.h)
 $(BUILD_DIR)/%: src/pipeline/%.cpp $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
+# BEH-037: cluster_reorder needs -fopenmp for k-means
+$(BUILD_DIR)/cluster_reorder: src/pipeline/cluster_reorder.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -fopenmp -o $@ $< $(LDFLAGS)
+
 # 主 benchmark (依赖全部 core) —— 原 Makefile 漏了这个, 已补
 $(BUILD_DIR)/benchmark_diskhnsw: src/benchmark/benchmark_diskhnsw.cpp $(CORE_SRC) $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ src/benchmark/benchmark_diskhnsw.cpp $(CORE_SRC) $(LDFLAGS)
@@ -43,7 +47,8 @@ $(BUILD_DIR)/test_pq_search_quality: src/test/test_pq_search_quality.cpp $(CORE_
 PIPELINE = $(BUILD_DIR)/build_index $(BUILD_DIR)/extract_graph $(BUILD_DIR)/bfs_reorder \
            $(BUILD_DIR)/write_blocks $(BUILD_DIR)/write_blocks_veconly \
            $(BUILD_DIR)/write_pq_blocks $(BUILD_DIR)/gen_route $(BUILD_DIR)/verify \
-           $(BUILD_DIR)/prune_graph $(BUILD_DIR)/shuffle_vecblocks
+           $(BUILD_DIR)/prune_graph $(BUILD_DIR)/shuffle_vecblocks \
+           $(BUILD_DIR)/cluster_reorder
 
 # benchmark
 BENCH = $(BUILD_DIR)/benchmark_diskhnsw $(BUILD_DIR)/benchmark_hnswlib_native \
