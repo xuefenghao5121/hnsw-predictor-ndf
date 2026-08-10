@@ -7,6 +7,6 @@
   "pending_decision": "waiting_for_user_confirmation",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "Proposal updated: sustained query measurement (CON-SLA-020) as test standard",
-  "notes": "User insight: cgroup budget = anon + file. mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed -> 5x page cache. Test standard: CON-SLA-020 sustained (金标)."
+  "last_activity": "Proposal updated: baseline = Config C (DEC-087 Pareto optimal M=24 EF=60), test = CON-SLA-020 sustained",
+  "notes": "Baseline: Config C (M=24 EF=60, golden agg 1450/steady 1702 @256MB 1T). Test: CON-SLA-020 sustained (金标). mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed -> 5x page cache."
 }

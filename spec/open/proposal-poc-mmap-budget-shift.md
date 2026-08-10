@@ -99,12 +99,12 @@ file（page cache）预算从 27MB 增至 134MB。
 
 ### 实验
 
-1. **构建 BFS-order PQ codes 文件**（离线工具）
+1. **构建 BFS-order PQ codes 文件**（离线工具，M=24 数据集）
 2. **在 benchmark 中用 mmap 加载 PQ codes**（修改 ~20 行）
-3. **金标 A/B 对比**（256MB 1T EF=100, 15轮×1000q）
+3. **sustained 金标 A/B 对比**（256MB 1T, Config C: M=24 EF=60, 15轮×1000q）
    - A: 当前（vector 加载）
    - B: mmap 加载
-4. **指标**: QPS, recall, anon/file 内存拆分, major faults, LLC miss rate
+4. **指标**: 聚合 QPS, 稳态 QPS, recall, anon/file 内存拆分, major faults, LLC miss rate
 
 ### 预期
 
@@ -130,7 +130,10 @@ speculative-prefetch R0 发现 major fault 仅 0.50/query（disk I/O 仅 3%）�
   - 15 轮 × 1000 query, seed=42, 官方 10K pool 随机采样
   - 同时报告 **聚合 QPS**（含冷启动，SLA 判定口径）和 **稳态 QPS**（末轮，参考上限）
   - 对外吞吐引用 MUST 以 sustained 聚合 QPS 为准
-- 配置: 金标 A (256MB 1T EF=100)
+- 基线配置: **金标 Config C (DEC-087 Pareto 最优)**
+  - M_graph=24, REFINE_EF=60, ADAPTIVE_EF=0, FLAT_VEC_MB=64
+  - 数据路径: output/sift1m_m24/
+  - 金标基线 (Trunk 434c6f5, 256MB 1T): agg 1,450 / steady 1,702 / recall 96.60%
 - 对比: 当前 vector 加载 (A) vs mmap 加载 (B)
 - 指标: 聚合 QPS, 稳态 QPS, recall, memory.stat (anon/file), major/minor faults
 - 约束: recall ≥ 95%, 不修改 Trunk src/
