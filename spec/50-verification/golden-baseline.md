@@ -2,7 +2,7 @@
 
 > 创建: 2026-08-09  
 > 索引化: 2026-08-10（[[META-006]] / [[META-007]]；数字迁入 `baselines/`）  
-> 现行 Trunk 金标: **bl-trunk-golden-68059a6**  
+> 现行 Trunk 金标: **bl-trunk-golden-7ee4ee2**  
 > 条款: [[CON-GOLDEN-001]]  
 > 流程: [[META-006]], [[META-007]]
 
@@ -15,7 +15,7 @@
 | 代码 | `434c6f5874a27c64c26a973f28988d90159e06a3` | git |
 | 配置 A/B/C | `cfg-sla-ef100` / `cfg-adaptive-ef90` / `cfg-m24-ef60` | [configs/](configs/) |
 | 测量 | `measure_script` / `measure_binary`（cfg 或 bl 头字段；人工维护） | [configs/](configs/) / [baselines/](baselines/) |
-| 数字 | `bl-trunk-golden-68059a6` | [baselines/bl-trunk-golden-434c6f5.md](baselines/bl-trunk-golden-434c6f5.md) |
+| 数字 | `bl-trunk-golden-7ee4ee2` | [baselines/bl-trunk-golden-434c6f5.md](baselines/bl-trunk-golden-434c6f5.md) |
 
 ## POC 读路径
 

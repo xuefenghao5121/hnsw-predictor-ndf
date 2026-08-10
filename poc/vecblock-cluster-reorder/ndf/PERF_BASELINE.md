@@ -1,6 +1,6 @@
 # Perf Baseline: vecblock-cluster-reorder
 
-> baseline: bl-trunk-golden-68059a6
+> baseline: bl-trunk-golden-7ee4ee2
 > trunk_sha: 97ce18e
 > protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > config: Config C (M=24, EF=60), SIFT1M
