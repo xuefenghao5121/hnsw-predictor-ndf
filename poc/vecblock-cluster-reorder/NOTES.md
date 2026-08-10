@@ -77,3 +77,35 @@ Within-block cluster sort (k=256) **正向 +9.4% (pread) / +8.5% (CQE peeking)**
 - R1: 全量聚类重排（跨 block 重分配，最大化聚类局部性）
 - R1: 多维 scaling (4T/16T)
 
+
+## R1 结果: 全量聚类重排 k=512 (2026-08-10)
+
+### 方法
+
+替换 within-block sort 为全局 cluster 重排（跨 block 分配 cluster）：
+1. 按 cluster ID 全局排序所有 vector
+2. 顺序写入新 vecblock（每 block = 连续 cluster 的 vectors）
+3. 重建 route table（node_id → new_block_id）
+
+### 结果（金标协议，4 场景）
+
+| 场景 | BFS baseline | Full cluster k=512 | Within-block k=256 |
+|------|:---:|:---:|:---:|
+| 256MB 1T | 1,438 | **1,417 (−1.5%)** ❌ | 1,573 (+9.4%) ✅ |
+| 256MB 16T | 3,483 | N/A | — |
+| 512MB 1T | — | 673 ❌ | — |
+| 512MB 16T | — | 9,179 | — |
+
+### 根因分析
+
+全量 cluster 重排破坏 BFS 遍历顺序 → HNSW graph traversal 的局部性丧失。
+BFS 顺序保证 graph neighbors 在相邻 block → 全量重排把 neighbors 分散到不同 cluster → 更多随机 I/O。
+
+within-block 正确：保留 BFS 块级结构 + 块内 cluster 局部性 → +9.4%。
+
+### 结论
+
+**全量聚类重排 = 负结果 ❌**
+**Within-block cluster sort = 正向 +9.4% ✅**
+
+方向 B 最佳方案: within-block cluster sort (k=256)。
