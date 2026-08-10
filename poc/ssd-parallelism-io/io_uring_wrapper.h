@@ -50,6 +50,26 @@
 #define IORING_OFF_SQES      0x10000000ULL
 #endif
 
+// POC: SQPOLL support (kernel thread polls SQ, eliminates submit syscall)
+#ifndef IORING_SETUP_SQPOLL
+#define IORING_SETUP_SQPOLL  (1U << 1)
+#endif
+#ifndef IORING_SETUP_SQ_AFF
+#define IORING_SETUP_SQ_AFF  (1U << 2)
+#endif
+
+// POC R3: registered buffers (IORING_REGISTER_BUFFERS) + fixed read ops
+// Avoids per-SQE memory pinning in kernel, reduces submit syscall overhead
+#ifndef IORING_REGISTER_BUFFERS
+#define IORING_REGISTER_BUFFERS 0
+#endif
+#ifndef IOSQE_FIXED_FILE
+#define IOSQE_FIXED_FILE  (1U << 0)
+#endif
+#ifndef IORING_OP_READ_FIXED
+#define IORING_OP_READ_FIXED 48
+#endif
+
 // ============================================================
 // IoUring: minimal io_uring wrapper
 // ============================================================
@@ -57,9 +77,15 @@
 class IoUring {
 public:
     explicit IoUring(unsigned entries = 128, int flags = 0)
-        : ring_fd_(-1), sq_entries_(0), cq_entries_(0)
+        : ring_fd_(-1), sq_entries_(0), cq_entries_(0), sqpoll_(false)
     {
         memset(&params_, 0, sizeof(params_));
+
+        // POC: SQPOLL mode - kernel thread polls SQ, no submit() syscall needed
+        if (flags & IORING_SETUP_SQPOLL) {
+            params_.flags |= IORING_SETUP_SQPOLL;
+            sqpoll_ = true;
+        }
 
         // Setup io_uring
         ring_fd_ = (int)syscall(__NR_io_uring_setup, entries, &params_);
@@ -169,6 +195,33 @@ public:
             aligned_buffers_.push_back(buf);
             free_list_.push_back(i);
         }
+        // POC R3: optionally register all buffers with kernel for FIXED reads
+        if (std::getenv("REGBUF") && std::atoi(std::getenv("REGBUF")) != 0) {
+            std::vector<struct iovec> iovs;
+            for (size_t i = 0; i < aligned_buffers_.size(); i++) {
+                struct iovec iov;
+                iov.iov_base = aligned_buffers_[i];
+                iov.iov_len = size;
+                iovs.push_back(iov);
+            }
+            int ret = (int)syscall(__NR_io_uring_register, ring_fd_,
+                                   IORING_REGISTER_BUFFERS, iovs.data(), iovs.size());
+            if (ret == 0) {
+                registered_buffers_ = true;
+                // Also register the vecblocks fd for fixed FD
+                if (ret >= 0 && std::getenv("REGFD") && std::atoi(std::getenv("REGFD")) != 0) {
+                    int fd_ref = registered_fd_;
+                    int r2 = (int)syscall(__NR_io_uring_register, ring_fd_,
+                                          IORING_REGISTER_FILES, &fd_ref, 1);
+                    if (r2 == 0) registered_files_ = true;
+                    else perror("IORING_REGISTER_FILES");
+                }
+                std::cerr << "[IoUring] registered " << aligned_buffers_.size()
+                          << " buffers (FIXED read), files=" << (registered_files_ ? "yes" : "no") << std::endl;
+            } else {
+                perror("IORING_REGISTER_BUFFERS");
+            }
+        }
     }
 
     // Get a free aligned buffer index from the pool
@@ -242,6 +295,7 @@ public:
         inflight_++;
         return 0;
     }
+    void setRegisteredFd(int fd) { registered_fd_ = fd; }
     void flushSqe() {
         if (batch_pending_ == 0) return;
         __sync_synchronize();
@@ -251,7 +305,13 @@ public:
 
     // Submit all pending SQEs to the kernel
     // Returns number of SQEs submitted
+    // POC: SQPOLL mode -> no syscall, just memory barrier (kernel thread polls SQ)
     int submit() {
+        if (sqpoll_) {
+            // SQPOLL: kernel thread sees the updated tail automatically
+            // Just need to ensure memory ordering (already done in flushSqe)
+            return batch_pending_;  // return approximate count
+        }
         // Calculate pending SQEs
         unsigned tail = *sq_tail_;
         unsigned head = *sq_head_;
@@ -331,6 +391,10 @@ private:
     struct io_uring_params params_;
     unsigned sq_entries_;
     unsigned cq_entries_;
+    bool sqpoll_ = false;
+    bool registered_buffers_ = false;
+    bool registered_files_ = false;
+    int registered_fd_ = -1;
 
     void* sq_ring_ptr_ = nullptr;
     void* cq_ring_ptr_ = nullptr;

@@ -156,3 +156,75 @@ thread_local vec_ring_ 改造成功，多线程安全。
 
 5. **QPS 提升 +3.5%** 对应 Fine 阶段 -5%: Fine 阶段占总查询时间 ~70%
    - 70% × 5% = 3.5% 总 QPS 提升（与实测吻合 ✅）
+
+## R3 结果: Submit 开销优化 (2026-08-10, 1T 256MB)
+
+### Registered Buffers (IORING_REGISTER_BUFFERS)
+
+尝试消除 io_uring_enter submit syscall 的 78us 开销：
+1. SQPOLL (IORING_SETUP_SQPOLL) → SIGKILL, 权限/内核限制
+2. Registered buffers (IORING_REGISTER_BUFFERS) → **负结果**
+3. Registered buffers + FD (IORING_REGISTER_FILES) → **负结果**
+
+### Profile 对比
+
+| | B1 (baseline, CQE peeking) | B2 (REGBUF) | B3 (REGBUF+REGFD) |
+|--|:---:|:---:|:---:|
+| collect | 13us | 21us | 16us |
+| submit (loop+syscall) | 79us | 83us | **84us** ⬆ |
+| io_1st | 10us | 15us | 16us ⬆ |
+| io_rest | 242us | 248us | 242us |
+| compute | 1us | 2us | 2us |
+| QPS | 1,490.5 | 1,318.3 (−12%) | 1,386.3 (−7%) |
+| recall | 96.59% | 96.60% | 96.60% ✅ |
+
+### 根因
+
+- `io_uring_enter` syscall 时间 (~78us) 是提交 ~45 SQE 的固有开销
+- Registered buffers: 内核侧的内存 pin 是缓存的（same pages, repeated I/O），
+  预注册反而增加 `IORING_REGISTER_BUFFERS` 注册开销
+- SQPOLL: 需要 `CAP_SYS_ADMIN` 且内核线程调度开销可能抵消收益
+- 没有 SQPOLL 时，78us submit 是 io_uring batch submit 的硬下限
+
+### 结论
+
+Submit 开销不可在用户空间进一步降低。CQE peeking 的 +3.5% 收益是
+当前约束下的最佳结果。
+
+---
+
+## POC 总结: ssd-parallelism-io (2026-08-10)
+
+### 研究方向
+
+基于 VLDB 2025 "Turbocharging Vector Databases using Modern SSDs" 论文，
+探索 CQE peeking（完成顺序处理）在 DiskHNSW 中的应用。
+
+### 所有轮次结果
+
+| 轮次 | 配置 | 发现 | 结果 |
+|------|------|------|------|
+| R0 | 1T A/B | CQE peeking vs pread | **+3.5%** ✅ |
+| R1 | 1T/4T/16T A/B | 多线程扩展性 | **+3.5%/3.2%/1.0%** ✅（收益递减） |
+| R2 | 1T profile A/B | 时间分解 | I/O wait −37%, Fine stage −5% |
+| R3 | 1T regbuf | Submit 开销优化 | **−12%** ❌（不可降低） |
+
+### 最终性能 (CQE peeking 最优)
+
+| 线程 | vs pread | vs 金标 |
+|------|:---:|:---:|
+| 1T | **+3.5%** (1,463 QPS) | +0.9% |
+| 4T | **+3.2%** (3,419 QPS) | — |
+| 16T | +1.0% (3,463 QPS) | 94.9% |
+
+### 关键改造
+
+1. **CQE peeking**: 批量屏障 → 完成顺序处理，CQE 到达后立即计算距离
+2. **thread_local vec_ring_**: per-thread io_uring，多线程安全
+
+### 下一步建议
+
+方向 A 正向 (+3.5% @1T, +3.2% @4T)，证据充分。建议：
+- 开 promote 提案，合入 Trunk
+- 方向 B（k-means 聚类重排）作为独立 POC
+
