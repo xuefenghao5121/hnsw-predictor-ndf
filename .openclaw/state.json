@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R1 CSR mmap: proposal updated, TOPIC amended to exploring",
-  "notes": "R0 PQ codes REJECTED (-80.6%). R1 CSR mmap in progress - different access pattern (BFS locality, varint compressed). Testing with run_sustained.sh golden script."
+  "last_activity": "R1 CSR mmap REJECTED: -66.3% QPS. Both R0+R1 rejected, topic closed.",
+  "notes": "R0 PQ mmap -80.6% + R1 CSR mmap -66.3% = both REJECTED. Page cache thrashing. Pareto frontier confirmed. Awaiting negative result closure (6.2d)."
 }

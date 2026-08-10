@@ -281,6 +281,13 @@ private:
     void* pq_mmap_base_ = nullptr;     // base of mmap (for munmap)
     size_t pq_mmap_total_ = 0;         // total mmap size (header + codes)
     bool pq_codes_mmap_ = false;
+    // mmap-budget-shift R1: mmap CSR (file-backed)
+    uint8_t* csr_mmap_compact_ = nullptr;   // mmap'd adj_csr_compact_
+    uint32_t* csr_mmap_offsets_ = nullptr;  // mmap'd adj_csr_byte_offsets_
+    void* csr_mmap_base_ = nullptr;
+    size_t csr_mmap_total_ = 0;
+    int csr_mmap_fd_ = -1;
+    bool csr_mmap_ = false;
 
     // ---- 距离计算 ----
     float l2Distance(const float* a, const float* b) const;

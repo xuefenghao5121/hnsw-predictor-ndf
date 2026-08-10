@@ -1,6 +1,6 @@
 # Topic: mmap Read-Only Data to Shift Anon->File Budget
 
-> status: exploring (R0 PQ codes rejected, R1 CSR in progress)
+> status: rejected (R0 PQ codes -80.6%, R1 CSR -66.3%, both page cache thrashing)
 > track: poc
 > created: 2026-08-09
 > baseline_trunk_sha: 434c6f5

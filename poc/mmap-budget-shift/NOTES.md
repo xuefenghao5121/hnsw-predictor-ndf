@@ -45,3 +45,34 @@
 **R0 REJECTED**: mmap PQ codes 导致 80.6% QPS 退化。核心假设错误——mmap 释放 anon
 预算的代价是 PQ codes 自身作为 file-backed 数据争夺 page cache。与 R5c 结论一致：
 页缓存在 Pareto 前沿。不继续 R1。
+
+## R1 结果 (2026-08-10, scripts/run_sustained.sh 金标)
+
+### 测试配置
+- 脚本: scripts/run_sustained.sh
+- 配置: Config C (M=24 EF=60), 256MB 1T, 15轮×1000q, seed=42
+
+### A/B 对比
+
+| | A (vector CSR) | B (mmap CSR) | Delta |
+|--|:---:|:---:|:---:|
+| agg QPS | 1,427.7 | 480.6 | **-66.3%** |
+| steady QPS | 1,638.3 | 495.5 | **-69.8%** |
+| recall | 96.60% | 96.60% | 0 ✅ |
+
+A vs 金标 1,450: -1.5% (±2CV 内 ✅)
+
+### 与 R0 对比
+
+| 数据结构 | 大小 | 退化幅度 | 根因 |
+|----------|------|---------|------|
+| PQ codes | 30MB | -80.6% | 纯随机, 无局部性 |
+| CSR | 57MB | -66.3% | BFS 局部性有帮忙, 但 57MB 争夺面更大 |
+
+CSR 的 BFS 局部性确实减轻了 page cache 争夺（退化幅度 -66% vs -80%），
+但 57MB file-backed 面积太大，净效果仍然严重负。
+
+### 最终结论
+
+R0 (PQ codes) + R1 (CSR) 均 REJECTED。mmap anon→file 预算转移方向证伪。
+与 R5c Pareto 前沿结论一致。

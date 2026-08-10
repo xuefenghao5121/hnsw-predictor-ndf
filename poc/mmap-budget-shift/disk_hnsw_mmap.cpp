@@ -2831,15 +2831,81 @@ void DiskHNSW::buildInMemoryAdjacency() {
               << " (raw would be " << raw_mb << "MB, "
               << std::fixed << std::setprecision(1) << (double)raw_mb / (compact_mb + offset_mb)
               << "x compression)" << std::endl;
+
+    // === mmap-budget-shift R1: replace CSR vectors with mmap ===
+    const char* csr_mmap_path = std::getenv("CSR_MMAP_PATH");
+    if (csr_mmap_path) {
+        std::cout << "  [CSR mmap] Loading from " << csr_mmap_path << "..." << std::endl;
+
+        int fd = open(csr_mmap_path, O_RDONLY);
+        if (fd < 0) {
+            throw std::runtime_error("Cannot open CSR mmap file: " + std::string(csr_mmap_path));
+        }
+
+        // Read header: BCSC + N + compact_size + offsets_size
+        char magic[4];
+        read(fd, magic, 4);
+        if (std::memcmp(magic, "BCSC", 4) != 0) {
+            close(fd);
+            throw std::runtime_error("Invalid CSR mmap magic (expected BCSC)");
+        }
+        uint32_t file_N, compact_size, offsets_size;
+        read(fd, reinterpret_cast<char*>(&file_N), sizeof(uint32_t));
+        read(fd, reinterpret_cast<char*>(&compact_size), sizeof(uint32_t));
+        read(fd, reinterpret_cast<char*>(&offsets_size), sizeof(uint32_t));
+
+        if (file_N != N) {
+            close(fd);
+            throw std::runtime_error("CSR mmap N mismatch: " + std::to_string(file_N) + " vs " + std::to_string(N));
+        }
+
+        // mmap entire file
+        size_t total = 16 + compact_size + offsets_size;
+        void* mapped = mmap(nullptr, total, PROT_READ, MAP_PRIVATE, fd, 0);
+        if (mapped == MAP_FAILED) {
+            close(fd);
+            throw std::runtime_error("CSR mmap failed: " + std::string(strerror(errno)));
+        }
+        madvise(mapped, total, MADV_RANDOM);
+
+        csr_mmap_compact_ = static_cast<uint8_t*>(mapped) + 16;
+        csr_mmap_offsets_ = reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(mapped) + 16 + compact_size);
+        csr_mmap_base_ = mapped;
+        csr_mmap_total_ = total;
+        csr_mmap_fd_ = fd;
+        csr_mmap_ = true;
+
+        // Free the in-memory CSR vectors
+        size_t freed_compact = adj_csr_compact_.size();
+        size_t freed_offsets = adj_csr_offsets_.size() * sizeof(uint32_t) + adj_csr_byte_offsets_.size() * sizeof(uint32_t);
+        adj_csr_compact_.clear();
+        adj_csr_compact_.shrink_to_fit();
+        adj_csr_offsets_.clear();
+        adj_csr_offsets_.shrink_to_fit();
+        adj_csr_byte_offsets_.clear();
+        adj_csr_byte_offsets_.shrink_to_fit();
+        malloc_trim(0);
+
+        std::cout << "  [CSR mmap] Mapped: " << (compact_size / 1024 / 1024) << "MB compact + "
+                  << (offsets_size / 1024 / 1024) << "MB offsets = "
+                  << ((compact_size + offsets_size) / 1024 / 1024) << "MB (file-backed)"
+                  << ", freed " << ((freed_compact + freed_offsets) / 1024 / 1024) << "MB anon" << std::endl;
+    }
 }
 
 // 解码单个节点的压缩 CSR 邻居列表到 csr_decode_buf_
 // 返回解码的邻居数量
 uint32_t DiskHNSW::decodeCsrNeighbors(uint32_t new_id) {
-    uint32_t byte_start = adj_csr_byte_offsets_[new_id];
-    uint32_t byte_end = adj_csr_byte_offsets_[new_id + 1];
+    uint32_t byte_start, byte_end;
+    if (csr_mmap_) {
+        byte_start = csr_mmap_offsets_[new_id];
+        byte_end = csr_mmap_offsets_[new_id + 1];
+    } else {
+        byte_start = adj_csr_byte_offsets_[new_id];
+        byte_end = adj_csr_byte_offsets_[new_id + 1];
+    }
     size_t available = byte_end - byte_start;
-    const uint8_t* p = adj_csr_compact_.data() + byte_start;
+    const uint8_t* p = (csr_mmap_ ? csr_mmap_compact_ : adj_csr_compact_.data()) + byte_start;
 
     csr_decode_buf_.clear();
     uint32_t prev = 0;
