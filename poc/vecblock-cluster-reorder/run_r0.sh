@@ -9,8 +9,8 @@ BUILD_DIR="$SCRIPT_DIR/build"
 DATA_DIR="$REPO/output/sift1m_m24"
 
 K=${K:-512}
-VECS="${VECS:-$REPO/data/sift_base.fvecs}"
-BFS_ORDER="${BFS_ORDER:-$DATA_DIR/sift1m_m24_bfs.bin}"
+
+
 IN_VECBLOCKS="${IN_VECBLOCKS:-$DATA_DIR/sift1m_m24_vecblocks_64k.bin}"
 SUDO_STDIN_PASS="${SUDO_STDIN_PASS:-huawei}"
 
@@ -26,7 +26,7 @@ OUT_VECBLOCKS="$BUILD_DIR/cluster_k${K}_vecblocks_64k.bin"
 if [ ! -f "$OUT_VECBLOCKS" ]; then
     echo "[Cluster] k=$K, generating cluster-sorted vecblocks..."
     "$BUILD_DIR/cluster_reorder" \
-        "$VECS" "$BFS_ORDER" "$IN_VECBLOCKS" "$OUT_VECBLOCKS" "$K"
+        "128" "$IN_VECBLOCKS" "$OUT_VECBLOCKS" "$K"
 else
     echo "[Cluster] Using cached $OUT_VECBLOCKS"
 fi
