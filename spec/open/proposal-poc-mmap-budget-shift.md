@@ -131,16 +131,22 @@ speculative-prefetch R0 发现 major fault 仅 0.50/query（disk I/O 仅 3%）�
 
 ### 测试脚本
 
-复用金标测试脚本 `poc/pipeline-param-retuning/run_strict.sh`（M=24 金标基线载体），
-该脚本实现了完整的 CON-SLA-014 严格隔离协议：
+使用正式金标脚本 `scripts/run_sustained.sh`（API-019 / BEH-035 / VER-043），
+该脚本通过 `source scripts/cgroup_utils.sh` 引入完整 CON-SLA-014 严格隔离协议：
 
-- `cg_init` → `cg_create` → `cg_set_limit` → `cg_drop_caches` → `cg_add_proc`
-  (cgroup_utils.sh, CON-SLA-014 step 1-2)
-- benchmark 运行在 cgroup 内（所有内存被追踪）
-- `cg_stats` 收集完整统计（anon/file/peak/violations/refault/majfault）
+- `cgroup_utils.sh`（API-016）是 cgroup 操作工具库，提供原语：
+  cg_init / cg_create / cg_set_limit / cg_drop_caches / cg_add_proc /
+  cg_stats_summary / cg_check_violations / cg_get_peak / cg_start_monitor /
+  cg_stop_monitor / cg_verify / cg_destroy
+- `run_sustained.sh` 是正式 sustained 测试脚本（CON-SLA-020 载体），调用上述原语
 
-R0 脚本 (`poc/mmap-budget-shift/run_r0.sh`) 基于 `run_strict.sh` 模式，A/B 两次运行
-使用相同的 cgroup 初始化、数据路径、环境变量，唯一差异为 `PQ_MMAP_PATH`。
+R0 的 A/B 对比使用 `run_sustained.sh`，A/B 唯一差异为 `PQ_MMAP_PATH` 环境变量。
+M=24 Config C 参数通过 `EXTRA` 环境变量传入（REFINE_EF=60 ADAPTIVE_EF=0）。
+
+> 注：`run_sustained.sh` 默认使用 M=16 数据路径和 EF=100。
+> R0 需通过 EXTRA 覆盖数据路径和 EF 参数以适配 Config C。
+> 如 `run_sustained.sh` 不支持自定义 binary 路径，需扩展脚本或创建
+> `scripts/` 下的封装脚本（不是 poc/ 下）。
 
 ### 测试标准
 

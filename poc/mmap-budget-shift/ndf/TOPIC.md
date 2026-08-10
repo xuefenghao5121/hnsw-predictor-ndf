@@ -40,9 +40,11 @@ mmap 后:
 
 ## 验证计划
 
-- 测试脚本: 复用 run_strict.sh 金标模式 (cgroup_utils.sh 完整流程)
+- 测试脚本: **scripts/run_sustained.sh** (正式金标 CON-SLA-020 载体)
+  - source scripts/cgroup_utils.sh (API-016 工具库)
   - cg_init -> cg_create -> cg_set_limit -> cg_drop_caches -> cg_add_proc
-  - cg_stats: anon/file/peak/violations/refault/majfault
+  - cg_stats_summary + cg_check_violations
+  - A/B 唯一差异: PQ_MMAP_PATH
 - 测试标准: **CON-SLA-020 sustained**（金标）
   - CON-SLA-019 禁预热
   - CON-SLA-014 严格 cgroup 隔离
