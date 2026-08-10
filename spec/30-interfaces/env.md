@@ -118,6 +118,7 @@
 | `FLAT_VEC_MB` | int (MB) | **64** | 64 / 160 | 热向量 LRU；512MB sustained agg 最优=64, steady 最优=160 ([[DEC-086]])；覆盖见 [[CON-002]] |
 | `CACHE_MB` | int (MB) | （benchmark **必填**） | 64 | BlockCache 大小 |
 | `FINE_PREAD` | int 0/1 | 0 | 1 | 1=pread 替代 io_uring（多线程推荐） |
+| `FINE_CQE_PEEK` | int 0/1 | 1 | 0/1 | 1=CQE peeking 完成顺序处理 ([[BEH-036]]); 0=legacy 批量屏障 ([[API-020]]) |
 | `FINE_BUFFERED` | int 0/1 | 0 | 1 | 1=buffered I/O（含 page cache） |
 | `FINE_RERANK` | int 0/1 | 0 | 1 | 1=4KB 页粒度精排 |
 | `TWO_STAGE` | int 0/1 | 0 | 1 | 1=PQ 粗筛 + 精排 |
