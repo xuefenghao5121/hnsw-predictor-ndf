@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "R0 REJECTED (golden script): -80.6% QPS, page cache thrashing confirmed",
-  "notes": "R0 REJECTED via scripts/run_sustained.sh. A=1431.6 vs B=277.0 (-80.6%). Golden baseline 1450 (-1.3% in 2CV). No R1."
+  "last_activity": "R1 CSR mmap: proposal updated, TOPIC amended to exploring",
+  "notes": "R0 PQ codes REJECTED (-80.6%). R1 CSR mmap in progress - different access pattern (BFS locality, varint compressed). Testing with run_sustained.sh golden script."
 }

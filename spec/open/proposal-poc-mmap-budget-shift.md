@@ -110,11 +110,35 @@ file（page cache）预算从 27MB 增至 134MB。
    - B: mmap 加载
 4. **指标**: 聚合 QPS, 稳态 QPS, recall, anon/file 内存拆分, major faults, LLC miss rate
 
-### 预期
+### R0 结果 (2026-08-10, scripts/run_sustained.sh 金标)
 
-- 如果 page cache 增加带来显著 QPS 提升 → R1: mmap CSR + graph upper
-- 如果 page cache 争夺导致退化 → REJECTED（kernel LRU 不够智能）
-- 如果无显著变化 → 说明 vecblocks 不是瓶颈（已由 R0 speculative-prefetch 证实）
+| | A (vector PQ) | B (mmap PQ) | Delta |
+|--|:---:|:---:|:---:|
+| agg QPS | 1,431.6 | 277.0 | **-80.6%** |
+| steady QPS | 1,662.7 | 267.4 | **-83.9%** |
+| recall | 96.60% | 96.60% | 0 ✅ |
+| Ramp-up | 167.5% | 5.0% | mmap 无法热身 |
+
+A vs 金标 1,450: −1.3%（±2CV 内 ✅）
+
+**R0 PQ codes REJECTED**: PQ codes 30MB file-backed → page cache thrashing with vecblocks。
+Ramp-up 仅 5%，mmap page fault 贯穿全部 15 轮。
+
+### R1 假设
+
+R0 证伪了 PQ codes mmap，但 CSR 与 PQ codes 的访问模式不同：
+
+| | PQ codes | CSR |
+|--|----------|-----|
+| 大小 | 30MB | 57MB (Delta+Varint 压缩) |
+| 访问频率 | 每 candidate 节点一次 | 每节点展开一次 |
+| 单次访问 | 32B (固定) | 可变 (~2B/edge varint) |
+| 空间局部性 | 无 (纯随机) | 有 (BFS 重排后相邻节点) |
+| 工作集 | hot, 小量 | warm, 中量 |
+
+CSR 的 BFS 重排后空间局部性更好（相邻 new_id 的 byte_offsets 连续），
+可能减少 page cache 争夺。但 CSR 57MB > PQ 30MB，争夺面更大。
+R1 用金标 A/B 验证。
 
 ### 关于与 R0 speculative-prefetch 的矛盾
 
