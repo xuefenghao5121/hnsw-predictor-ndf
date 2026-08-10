@@ -109,3 +109,49 @@ within-block 正确：保留 BFS 块级结构 + 块内 cluster 局部性 → +9.
 **Within-block cluster sort = 正向 +9.4% ✅**
 
 方向 B 最佳方案: within-block cluster sort (k=256)。
+
+## R2 结果: within-block k=1024 + golden protocol (2026-08-10)
+
+### 方法
+
+k-means with k=1024, within-block cluster sort (同 R0 方法，仅 k 不同)。
+
+### k-means stats
+
+- k=1024, 20 iters, 124.3s
+- Cluster sizes: min=265 max=3894 avg=977
+- 432,443 cluster switches (1.7x k=256 的 254K)
+
+### 金标结果（4 场景, sustained, strict cgroup, 禁预热）
+
+| 场景 | BFS baseline | k=256 wb | k=1024 wb | Δ vs BFS | Δ vs k=256 |
+|------|:---:|:---:|:---:|:---:|:---:|
+| 256MB 1T | 1,438 | 1,573 | **1,775** | **+23.4%** | +12.8% |
+| 256MB 16T | 3,483 | — | **5,253** | **+50.8%** | — |
+| 512MB 1T | — | — | **2,198** | — | — |
+| 512MB 16T | — | — | **8,987** | — | — |
+
+### 分析
+
+1. **k=1024 >> k=256**: 更大 k = 更紧致 cluster = 更相似的向量在每页 = 更好的局部性
+2. **16T 收益放大**: 50.8% vs BFS（多线程并行 I/O × cluster 局部性 = 超线性？）
+3. **256→512MB**: 1T 2,198/1,775=1.24×, 16T 8,987/5,253=1.71×
+4. **更多 cluster switches ≠ 更差**: 432K vs 254K switches，但每 cluster 更紧致 → 每页价值更高
+
+### 结论
+
+**Within-block cluster sort k=1024 = +23.4% @1T, +50.8% @16T** ✅✅
+k=1024 是当前最优配置。值得 promote。
+
+## R2 Profile: k=1024 CQE peeking vs pread (2026-08-10)
+
+| 路径 | k=1024 QPS | BFS QPS | Profile CQE: io_rest |
+|------|:---:|:---:|:---:|
+| pread | 1,748 | 1,438 | pread time: — |
+| CQE peeking | 1,708 | 1,463 | **144us** (BFS: 242us, −40%) |
+
+CQE peeking + cluster k=1024: io_rest 从 242us → 144us (−40%)。
+Cluster 局部性使 CQE 先到达的页面包含更相似向量 → 搜索空间更快收窄。
+
+pread vs CQE 在 k=1024 下接近（1,748 vs 1,708），可能 CQE 的 page→cands 索引开销随页数不降而 offset。
+推荐：按用户场景选择 pread (纯 cluster) 或 CQE (cluster + CQE)。
