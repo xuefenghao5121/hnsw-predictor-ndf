@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "Proposal updated: protocol linked to run_strict.sh golden script (cgroup_utils.sh full flow)",
-  "notes": "Protocol revised: use run_strict.sh pattern (cg_stats with anon/file/peak/violations). Previous R0 result invalid (wrong script). R0 needs re-run with correct golden script."
+  "last_activity": "R0 REJECTED (golden script): -80.6% QPS, page cache thrashing confirmed",
+  "notes": "R0 REJECTED via scripts/run_sustained.sh. A=1431.6 vs B=277.0 (-80.6%). Golden baseline 1450 (-1.3% in 2CV). No R1."
 }

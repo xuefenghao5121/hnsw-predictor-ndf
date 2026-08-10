@@ -1,6 +1,6 @@
 # Topic: mmap Read-Only Data to Shift Anon->File Budget
 
-> status: exploring
+> status: rejected (R0 negative: -80.6% QPS from page cache thrashing, confirmed with golden script)
 > track: poc
 > created: 2026-08-09
 > baseline_trunk_sha: 434c6f5

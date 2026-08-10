@@ -21,6 +21,9 @@
 #   TAG         output log prefix                (default ver043)
 #   OUTDIR      results directory                (default results/sustained)
 #   EXTRA       extra `export ...` line(s), e.g. ADAPTIVE_EF=1
+#   BIN         benchmark binary override         (default build/benchmark_sustained)
+#   DATA_PREFIX data file prefix                   (default output/sift1m)
+#   EF          search ef parameter                (default 100)
 set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -37,9 +40,11 @@ TAG="${TAG:-ver043}"
 OUTDIR="${OUTDIR:-results/sustained}"
 EXTRA="${EXTRA:-}"
 
-BIN=build/benchmark_sustained
+BIN="${BIN:-build/benchmark_sustained}"
+DATA_PREFIX="${DATA_PREFIX:-output/sift1m}"
+EF="${EF:-100}"
 if [ ! -x "$BIN" ]; then
-  echo "ERROR: $BIN not found. Run: make $BIN" >&2
+  echo "ERROR: $BIN not found. Run: make $(basename $BIN)" >&2
   exit 1
 fi
 
@@ -72,17 +77,17 @@ cg_drop_caches                      # CON-SLA-014 step 1
 cg_add_proc \$\$                     # CON-SLA-014 step 2
 cd $REPO
 export CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-export VEC_BLOCKS_PATH=output/sift1m_vecblocks_64k.bin
+export VEC_BLOCKS_PATH=${DATA_PREFIX}_vecblocks_64k.bin
 export PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin
-export REFINE_EF=100 EVICT_PAGE_CACHE=0 NUM_THREADS=$THREADS
+export REFINE_EF=$EF EVICT_PAGE_CACHE=0 NUM_THREADS=$THREADS
 export FLAT_VEC_MB=$FVC PAGE_MERGE_BG=1 L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14
 $EXTRA
 # CON-SLA-019: --warmup omitted => 0 => no warmup over measured queries.
-./$BIN \
-  output/sift1m_graph.bin output/sift1m_bfs.bin \
-  output/sift1m_blocks_64k.bin output/sift1m_route_64k.bin \
+$BIN \
+  ${DATA_PREFIX}_graph.bin ${DATA_PREFIX}_bfs.bin \
+  ${DATA_PREFIX}_blocks_64k.bin ${DATA_PREFIX}_route_64k.bin \
   data/sift_base.fvecs $POOL $GT \
-  10 100 --rounds $ROUNDS --per-round $PER_ROUND --seed $SEED --verbose
+  10 $EF --rounds $ROUNDS --per-round $PER_ROUND --seed $SEED --verbose
 # CON-SLA-014 steps 4-5: cgroup accounting evidence
 echo '--- cgroup accounting (CON-SLA-014) ---'
 cg_stats_summary 2>/dev/null || true
