@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "mmap-budget-shift negative result closure complete (DEC-094, archived)",
-  "notes": "R0 PQ mmap -80.6% + R1 CSR mmap -66.3% = both REJECTED. DEC-094 written, proposal+TOPIC archived to spec/archive/2026-08/. Pareto frontier confirmed."
+  "last_activity": "golden-script-binding promoted + reviewed. run_sustained.sh + run_golden.sh bound to CON-SLA-020/CON-GOLDEN-001.",
+  "notes": "API-019/CON-SLA-020/CON-GOLDEN-001 updated. --config support added. graphcheck 0 hard errors."
 }
