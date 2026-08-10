@@ -3,7 +3,7 @@
 > status: draft
 > track: poc
 > created: 2026-08-09
-> baseline_trunk_sha: 3e98f3e
+> baseline_trunk_sha: 434c6f5
 > baseline_status: current
 
 ## 背景
@@ -62,10 +62,14 @@ file（page cache）预算从 27MB 增至 134MB。
 
 1. **PQ codes BFS-order 文件**: 当前 PQ codes 在加载时按 BFS 重排（line 218-228）。
    需要先离线构建 BFS-order PQ codes 文件，然后直接 mmap。
-2. **CSR 序列化文件**: 当前 CSR 在加载时从 graph.bin 构建。
-   需要离线序列化 CSR offsets + edges 到文件，然后 mmap。
-3. **Graph upper vectors**: 已有文件（graph.bin 包含 vectors）。
-   可以直接 mmap graph.bin 的 vector data 区域。
+   PQ 文件：`output/pqco_sift1m_M32_correct.bin`（M_pq=32, n=1M, 32MB codes）。
+2. **CSR 序列化文件**: 当前 CSR 在 `buildInMemoryAdjacency()` 中从 graph.bin 构建，
+   存储为 Delta+Varint 压缩格式（`adj_csr_compact_` + `adj_csr_byte_offsets_`，DEC-064）。
+   需要离线序列化压缩 CSR 到文件，然后 mmap。
+   R0 前需运行一次 M=24 配置，从日志获取 CSR 压缩后实际大小。
+3. ~~**Graph upper vectors**~~: ~~已有文件（graph.bin 包含 vectors）。
+   可以直接 mmap graph.bin 的 vector data 区域。~~
+   **排除**：kUpperPQ=1（默认）下 upper vectors 已释放（DEC-034），稳态 0MB。
 
 ### cgroup v2 记账
 
@@ -143,8 +147,12 @@ speculative-prefetch R0 发现 major fault 仅 0.50/query（disk I/O 仅 3%）�
 
 - [[BEH-024]] (L4 Page Cache 主动管理)
 - [[BEH-027]] (WILLNEED 后台线程化)
+- [[DEC-034]] (Upper vectors PQ 释放, kUpperPQ 默认开启)
+- [[DEC-064]] (CSR 逐节点释放 + Delta+Varint 压缩)
 - [[DEC-068]] (flat_vec_cache + O_DIRECT fix)
 - [[DEC-070]] (WILLNEED readahead promote)
 - [[DEC-088]] (内存预算驱动因果模型)
 - [[CON-SLA-014]] (cgroup 隔离)
+- [[CON-SLA-019]] (禁预热)
+- [[CON-SLA-020]] (sustained query measurement)
 - [[CON-GOLDEN-001]] (金标配置)

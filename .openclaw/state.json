@@ -4,9 +4,9 @@
   "track": "poc",
   "validation_round": 1,
   "max_validation_rounds": 4,
-  "pending_decision": "waiting_for_user_confirmation",
+  "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "Proposal updated: baseline = Config C (DEC-087 Pareto optimal M=24 EF=60), test = CON-SLA-020 sustained",
-  "notes": "Baseline: Config C (M=24 EF=60, golden agg 1450/steady 1702 @256MB 1T). Test: CON-SLA-020 sustained (金标). mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed -> 5x page cache."
+  "last_activity": "Proposal updated: audit corrections (upper vectors freed, PQ M_pq=32, CSR compressed, 5x->4x, SHA=434c6f5)",
+  "notes": "Audit corrected: mmap-able 107MB->72-92MB (upper vectors 30MB freed by DEC-034). PQ codes 32MB (M_pq=32). CSR Delta+Varint compressed (DEC-064). Expected page cache 5x->~4x. Baseline: Config C (M=24 EF=60), CON-SLA-020 sustained."
 }
