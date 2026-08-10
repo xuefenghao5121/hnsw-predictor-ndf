@@ -1,6 +1,6 @@
 # PERF_BASELINE: ssd-parallelism-io
 
-> baseline_id: bl-trunk-golden-434c6f5
+> baseline_id: bl-trunk-golden-68059a6
 > trunk_sha: 434c6f5
 > short_sha: 434c6f5
 > status: current
@@ -28,4 +28,4 @@
 ## vs: 金标
 
 - 脚本: `scripts/run_sustained.sh --config cfg-m24-ef60`
-- baseline: bl-trunk-golden-434c6f5
+- baseline: bl-trunk-golden-68059a6

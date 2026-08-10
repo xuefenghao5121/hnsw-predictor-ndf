@@ -1,110 +1,36 @@
-# Golden Performance Baseline — Trunk 434c6f5
+# Golden Performance Baseline — Index
 
-> 创建: 2026-08-09
-> 更新: 2026-08-09 (补补充优化配置)
-> Trunk SHA: 434c6f5874a27c64c26a973f28988d90159e06a3
-> 协议: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
-> 数据集: SIFT1M (M=16/M=24, EF=100/90/60)
-> Query: 官方 10K pool, 15 rounds × 1000, seed=42
-> 硬件: Intel i7-13700 (16C/24T), 32GB DDR4, NVMe SSD
-> 每配置 2-3 次独立测量, strict cgroup drop_caches
+> 创建: 2026-08-09  
+> 索引化: 2026-08-10（[[META-006]] / [[META-007]]；数字迁入 `baselines/`）  
+> 现行 Trunk 金标: **bl-trunk-golden-68059a6**  
+> 条款: [[CON-GOLDEN-001]]  
+> 流程: [[META-006]], [[META-007]]
 
-## 1. SLA 基线配置 (M=16, EF=100, 3 轮)
+本文件是 **thin 导航**，不是数字 SoT。Agent / 压测对照 MUST 读下方指针。
 
-### 256MB cgroup
+## 现行金标
 
-| 线程 | agg QPS (mean±std) | steady QPS (mean±std) | CV | Recall@10 |
-|------|-------------------|----------------------|-----|----------|
-| 1T | **1,067 ± 13** | **1,144 ± 15** | 1.2% | 97.76% |
-| 16T | **2,006 ± 15** | **2,305 ± 18** | 0.8% | 97.76% |
+| 腿 | 身份 | 路径 |
+|----|------|------|
+| 代码 | `434c6f5874a27c64c26a973f28988d90159e06a3` | git |
+| 配置 A/B/C | `cfg-sla-ef100` / `cfg-adaptive-ef90` / `cfg-m24-ef60` | [configs/](configs/) |
+| 测量 | `measure_script` / `measure_binary`（cfg 或 bl 头字段；人工维护） | [configs/](configs/) / [baselines/](baselines/) |
+| 数字 | `bl-trunk-golden-68059a6` | [baselines/bl-trunk-golden-434c6f5.md](baselines/bl-trunk-golden-434c6f5.md) |
 
-### 512MB cgroup
+## POC 读路径
 
-| 线程 | agg QPS (mean±std) | steady QPS (mean±std) | CV | Recall@10 |
-|------|-------------------|----------------------|-----|----------|
-| 1T | **1,506 ± 15** | **1,653 ± 14** | 1.0% | 97.76% |
-| 16T | **4,544 ± 90** | **5,994 ± 261** | 2.0% | 97.76% |
+1. `poc/<topic>/ndf/TOPIC.md` → `perf_baseline`
+2. `poc/<topic>/ndf/PERF_BASELINE.md`（主题性能线卡；含 **Measure**）
+3. 卡内 `vs:` / `config_id` / `measure_script` → 本目录 `baselines/` + `configs/`
 
-### SLA 合规
-
-| 配置 | SLA 阈值 | 金标 mean | 裕量 | 状态 |
-|------|---------|----------|------|------|
-| 256MB 1T | ≥ 950 | 1,067 | +12.3% | ✅ |
-| 256MB 16T | ≥ 1,850 | 2,006 | +8.4% | ✅ |
-| 512MB 1T | ≥ 1,350 | 1,506 | +11.6% | ✅ |
-| 512MB 16T | ≥ 3,900 | 4,544 | +16.5% | ✅ |
-
-## 2. DEC-086 优化配置 (M=16, EF=90, +ADAPTIVE eef=40, 2 轮)
-
-> 来源: sustained-param-retuning POC (promoted)
-> 关联: DEC-086, ADAPTIVE_EF=1, ADAPTIVE_EASY_EF=40, ADAPTIVE_EASY_GAP=1.006
-
-### 256MB cgroup
-
-| 线程 | agg QPS | steady QPS | Recall@10 | vs SLA agg | vs SLA steady |
-|------|---------|-----------|----------|-----------|--------------|
-| 1T | **1,360** | **1,481** | 96.91% | +27.4% | +29.5% |
-| 16T | **3,107** | **3,546** | 96.91% | +54.9% | +53.9% |
-
-### 512MB cgroup
-
-| 线程 | agg QPS | steady QPS | Recall@10 | vs SLA agg | vs SLA steady |
-|------|---------|-----------|----------|-----------|--------------|
-| 1T | **1,808** | **2,047** | 96.91% | +20.1% | +23.8% |
-| 16T | **6,366** | **10,235** | 96.91% | +40.1% | +70.8% |
-
-## 3. DEC-087 Pareto 最优配置 (M=24, EF=60, BASE, 2 轮)
-
-> 来源: pipeline-param-retuning POC (promoted)
-> 关联: DEC-087, M_graph=24, EF=60, ADAPTIVE_EF=0
-> 数据: output/sift1m_m24/
-
-### 256MB cgroup
-
-| 线程 | agg QPS | steady QPS | Recall@10 | vs SLA agg | vs SLA steady |
-|------|---------|-----------|----------|-----------|--------------|
-| 1T | **1,450** | **1,702** | 96.60% | +35.9% | +48.8% |
-| 16T | **3,649** | **4,827** | 96.60% | +81.9% | +109.4% |
-
-### 512MB cgroup
-
-| 线程 | agg QPS | steady QPS | Recall@10 | vs SLA agg | vs SLA steady |
-|------|---------|-----------|----------|-----------|--------------|
-| 1T | **1,991** | **2,282** | 96.60% | +32.3% | +38.1% |
-| 16T | **7,644** | **13,085** | 96.60% | +68.2% | +118.3% |
-
-## 4. 三配置横向对比 (agg QPS)
-
-| Config | 256MB 1T | 256MB 16T | 512MB 1T | 512MB 16T |
-|--------|----------|-----------|----------|-----------|
-| M=16 EF=100 (SLA) | 1,067 | 2,006 | 1,506 | 4,544 |
-| M=16 EF=90 +ADAPT | 1,360 (+27%) | 3,107 (+55%) | 1,808 (+20%) | 6,366 (+40%) |
-| M=24 EF=60 | 1,450 (+36%) | 3,649 (+82%) | 1,991 (+32%) | 7,644 (+68%) |
-
-**M=24 EF=60 是全场景最优配置，在 recall ≥ 96.60% 约束下 QPS 提升 32-82%。**
-
-## 测量环境
-
-```
-标准环境变量:
-  CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-  L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
-  FLAT_VEC_MB=64
-
-EF=100 配置: REFINE_EF=100 ADAPTIVE_EF=0
-EF=90 配置:  REFINE_EF=90  ADAPTIVE_EF=1 ADAPTIVE_EASY_EF=40 ADAPTIVE_EASY_GAP=1.006
-EF=60 配置:  REFINE_EF=60  ADAPTIVE_EF=0 (M=24 graph)
-```
+模板：[baselines/PERF_BASELINE.topic-template.md](baselines/PERF_BASELINE.topic-template.md)
 
 ## 使用规范
 
-1. **POC 后更新**: 每次 promote 或 POC 验证后，用同一协议重跑全部三组配置
-2. **A/B 对比**: 对比新旧 binary 时 MUST 在同一 session 交替跑（非跨 session）
-3. **CV 阈值**: 如某配置 CV > 3%，结果不可信，需重跑
-4. **回归判定**: 新版本 agg/steady 落在 golden ±2CV 内视为无回归
-5. **金标更新**: promote 合入后更新本文件（新 Trunk SHA + 新数据）
-6. **脚本**: `sudo bash scripts/run_golden.sh` 跑 SLA 基线 (EF=100)
-
-## 原始数据
-
-详见 `/tmp/golden/*.log`（每轮完整 CSV_ROW + CSV_AGG）
+1. **Promote 后**：按 [[META-006]] 重跑 12 点，写入**新** `bl-trunk-golden-<shortsha>`，更新本索引与 [[CON-GOLDEN-001]] 指针
+2. **配置变更**：新 `cfg-*`（或 POC experimental 全量 env）；MUST NOT 刷 [[CON-SLA-020]] 观测数字冒充新基线（[[META-007]]）
+3. **A/B 对比**：同一 session 交替跑；CV > 3% 不可信
+4. **回归**：相对现行 `bl-trunk-*`：±2CV / recall 0.3pp
+5. **脚本**：`sudo bash scripts/run_golden.sh`
+6. **工具**：`python3 spec/meta/tools/ndf_perf_baseline.py show --topic <id>`
+   （装订校验；本目录只存 cfg/bl 数字与配置）
