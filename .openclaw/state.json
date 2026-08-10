@@ -4,9 +4,9 @@
   "track": "poc",
   "validation_round": 1,
   "max_validation_rounds": 4,
-  "pending_decision": "null",
+  "pending_decision": "waiting_for_user_confirmation",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "Proposal created: mmap read-only data to shift anon\u2192file budget",
-  "notes": "User insight: cgroup budget = anon + file. mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed \u2192 5x page cache"
+  "last_activity": "Proposal updated: sustained query measurement (CON-SLA-020) as test standard",
+  "notes": "User insight: cgroup budget = anon + file. mmap PQ codes (30MB) + CSR (47MB) + graph upper (30MB) = 107MB freed -> 5x page cache. Test standard: CON-SLA-020 sustained (金标)."
 }
