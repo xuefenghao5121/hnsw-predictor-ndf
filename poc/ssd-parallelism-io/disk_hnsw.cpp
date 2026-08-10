@@ -30,6 +30,8 @@
 
 // thread_local 成员定义
 thread_local std::vector<uint32_t> DiskHNSW::csr_decode_buf_;
+// POC ssd-parallelism-io: per-thread io_uring ring
+thread_local std::unique_ptr<IoUring> DiskHNSW::vec_ring_;
 
 // ============================================================
 // 构造函数（原始接口，向后兼容）
@@ -1923,6 +1925,32 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     }
                 }
             } else {
+            // POC: lazy-init thread_local vec_ring_
+            if (!vec_ring_) {
+                try {
+                    vec_ring_ = std::make_unique<IoUring>(256);
+                    vec_ring_->setBufferSize(8192);
+                } catch (const std::exception& e) {
+                    std::cerr << "[FineRerank] thread_local io_uring init failed: " << e.what() << std::endl;
+                    vec_ring_ = nullptr;  // will fall through to pread path
+                }
+            }
+            if (!vec_ring_) {
+                // io_uring init failed for this thread, fallback to pread
+                for (uint32_t pg : pages_needed) {
+                    char* raw = nullptr;
+                    posix_memalign((void**)&raw, 4096, 4096);
+                    auto buf = std::unique_ptr<char[]>(raw);
+                    ssize_t r = pread(vec_blocks_fd_, buf.get(), 4096, (off_t)pg << 12);
+                    if (r == 4096) {
+                        for (const auto& c : io_cands) {
+                            if (c.page0 == pg && !c.cross) consider(c.nid, reinterpret_cast<const float*>(buf.get() + c.oip));
+                        }
+                    }
+                }
+                while (!refined.empty()) { top_candidates.push(refined.top()); refined.pop(); }
+                goto fine_done;
+            }
             static const bool kFineMerge = std::getenv("FINE_MERGE") && std::atoi(std::getenv("FINE_MERGE")) != 0;
             auto tf1 = std::chrono::high_resolution_clock::now();
             // page_buf[page] = buf_idx*2 + half (half=1 表示该页在合并读的后 4KB)
@@ -2106,6 +2134,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 }
             }
             }  // end pread else
+            fine_done:
 
             // DEC-031: 页面级驱逐 — FINE_FADVISE=1 时在精排完成后驱逐刚读过的页面
             // 消除 page cache 颠簸: 主动告诉 OS 这些页是 read-once, 不占 cache
@@ -2341,14 +2370,8 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
         }
     }
 
-    try {
-        vec_ring_ = std::make_unique<IoUring>(256);
-        vec_ring_->setBufferSize(8192);  // 8KB slots: 相邻页可合并为一次 8KB 读
-    } catch (const std::exception& e) {
-        std::cerr << "[FineRerank] io_uring init failed: " << e.what() << std::endl;
-        close(fd);
-        return false;
-    }
+    // POC: vec_ring_ is now thread_local, init lazily per-thread
+    // buildFineRerank only sets up tables; each thread creates its own ring on first use
     vec_blocks_fd_ = fd;
 
     auto t1 = std::chrono::high_resolution_clock::now();
