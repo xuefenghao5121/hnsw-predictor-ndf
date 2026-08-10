@@ -1,6 +1,6 @@
 # Proposal: mmap Read-Only Data to Shift Anon→File Budget
 
-> status: draft
+> status: rejected
 > track: poc
 > created: 2026-08-09
 > baseline_trunk_sha: 434c6f5
