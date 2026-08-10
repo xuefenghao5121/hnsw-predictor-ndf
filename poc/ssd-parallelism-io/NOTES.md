@@ -1,4 +1,4 @@
-# Notes: SSD Parallelism I/O Optimization
+# ssd-parallelism-io — promoted
 
 > 创建: 2026-08-10
 > Trunk SHA: 434c6f5

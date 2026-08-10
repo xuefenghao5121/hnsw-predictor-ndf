@@ -1,6 +1,6 @@
 # Topic: SSD Parallelism I/O Optimization (inspired by VLDB 2025)
 
-> status: exploring
+> status: promoted
 > track: poc
 > created: 2026-08-10
 > baseline_trunk_sha: 434c6f5

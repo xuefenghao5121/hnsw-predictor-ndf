@@ -264,7 +264,7 @@ private:
     std::vector<uint16_t> node_slot_table_;     // node -> block 内 slot (2MB @1M)
     std::vector<uint32_t> block_data_offset_;   // block -> 向量区 data_offset
     std::vector<uint32_t> vec_route_table_;     // node -> vecblocks block_id (修复 blocks/vecblocks ID 不一致 bug)
-    std::unique_ptr<IoUring> vec_ring_;         // 4KB buffer pool ring (独立于 block 预取 ring)
+    static thread_local std::unique_ptr<IoUring> vec_ring_;  // per-thread io_uring (CQE peeking, BEH-036)
     int vec_blocks_fd_ = -1;
     uint32_t vec_block_size_ = 0;
     bool fine_rerank_ok_ = false;

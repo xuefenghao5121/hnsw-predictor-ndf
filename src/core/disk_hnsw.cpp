@@ -30,6 +30,8 @@
 
 // thread_local 成员定义
 thread_local std::vector<uint32_t> DiskHNSW::csr_decode_buf_;
+// BEH-036: per-thread io_uring for CQE peeking (multi-thread safe fine rerank)
+thread_local std::unique_ptr<IoUring> DiskHNSW::vec_ring_;
 
 // ============================================================
 // 构造函数（原始接口，向后兼容）
@@ -1923,12 +1925,33 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     }
                 }
             } else {
+            // BEH-036: io_uring CQE peeking — completion-order distance computation
+            // FINE_CQE_PEEK=0 to revert to legacy batch barrier
+            static const bool kCqePeek = !std::getenv("FINE_CQE_PEEK") || std::atoi(std::getenv("FINE_CQE_PEEK")) != 0;
+
+            // Thread-local lazy init: each search thread creates its own io_uring ring
+            if (!vec_ring_) {
+                try {
+                    vec_ring_ = std::make_unique<IoUring>(256);
+                    vec_ring_->setBufferSize(8192);
+                } catch (const std::exception& e) {
+                    std::cerr << "[FineRerank] thread_local io_uring init failed: " << e.what() << std::endl;
+                    vec_ring_ = nullptr;
+                }
+            }
+
+            // Fallback: if io_uring init failed, skip fine rerank for this query
+            if (!vec_ring_) {
+                while (!refined.empty()) { top_candidates.push(refined.top()); refined.pop(); }
+                goto fine_done;
+            }
+
             static const bool kFineMerge = std::getenv("FINE_MERGE") && std::atoi(std::getenv("FINE_MERGE")) != 0;
             auto tf1 = std::chrono::high_resolution_clock::now();
             // page_buf[page] = buf_idx*2 + half (half=1 表示该页在合并读的后 4KB)
             std::unordered_map<uint32_t, int> page_buf;
             page_buf.reserve(pages_needed.size());
-            size_t submitted_reqs = 0;  // 实际请求数 (合并后 < page_buf.size())
+            size_t submitted_reqs = 0;
             auto pit = pages_needed.begin();
             while (pit != pages_needed.end()) {
                 uint32_t p0 = *pit;
@@ -1938,7 +1961,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     len = 8192;
                 }
                 int buf = vec_ring_->allocBuffer();
-                if (buf < 0) { ++pit; continue; }  // 兜底: 后面统一同步 pread (不应发生)
+                if (buf < 0) { ++pit; continue; }
                 vec_ring_->submitReadNF(vec_blocks_fd_, (off_t)p0 << 12, len, buf,
                                         (uint64_t)p0 | ((len == 8192) ? (1ull << 32) : 0));
                 page_buf[p0] = buf * 2;
@@ -1956,9 +1979,64 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
             static double pf_syscall = 0;
             pf_syscall += std::chrono::duration<double, std::micro>(tf2 - tf1b).count();
 
-            // 等全部完成 (total = 请求数, 不是 page_buf 条目数)
+            // Declare out of scope for profile section below
             bool first_cqe_done = false;
             double first_cqe_us = 0;
+            long wait_iters = 0;
+
+            if (kCqePeek) {
+            // === CQE peeking: completion-order processing ===
+            // Pre-build page -> candidate index
+            std::unordered_map<uint32_t, std::vector<int>> page_to_cands;
+            for (int i = 0; i < (int)io_cands.size(); i++) {
+                page_to_cands[io_cands[i].page0].push_back(i);
+                if (io_cands[i].cross) page_to_cands[io_cands[i].page0 + 1].push_back(i);
+            }
+            std::vector<bool> page0_ready(io_cands.size(), false);
+            std::vector<bool> page1_ready(io_cands.size(), false);
+            std::vector<bool> cand_done(io_cands.size(), false);
+
+            char tmp_vec_local[512];
+            auto getPagePtr = [&](uint32_t page) -> const char* {
+                auto it = page_buf.find(page);
+                if (it == page_buf.end() || it->second < 0) return nullptr;
+                int code = it->second;
+                return (const char*)vec_ring_->getBuffer(code >> 1) + (code & 1) * 4096;
+            };
+
+            auto tryProcessCand = [&](int idx) {
+                if (cand_done[idx]) return;
+                const auto& c = io_cands[idx];
+                if (!page0_ready[idx]) return;
+                if (c.cross && !page1_ready[idx]) return;
+                const char* p0 = getPagePtr(c.page0);
+                if (!p0) { cand_done[idx] = true; return; }
+                const float* vec;
+                if (!c.cross) {
+                    vec = reinterpret_cast<const float*>(p0 + c.oip);
+                } else {
+                    const char* p1 = getPagePtr(c.page0 + 1);
+                    if (!p1) { cand_done[idx] = true; return; }
+                    size_t first = 4096 - c.oip;
+                    std::memcpy(tmp_vec_local, p0 + c.oip, first);
+                    std::memcpy(tmp_vec_local + first, p1, dim_ * sizeof(float) - first);
+                    vec = reinterpret_cast<const float*>(tmp_vec_local);
+                }
+                consider(c.nid, vec);
+                cache_->putFlatVector(c.nid, vec);
+                cand_done[idx] = true;
+            };
+
+            auto markPageReady = [&](uint32_t page) {
+                auto it = page_to_cands.find(page);
+                if (it == page_to_cands.end()) return;
+                for (int idx : it->second) {
+                    if (io_cands[idx].page0 == page) page0_ready[idx] = true;
+                    if (io_cands[idx].cross && io_cands[idx].page0 + 1 == page) page1_ready[idx] = true;
+                    tryProcessCand(idx);
+                }
+            };
+
             size_t done = 0;
             const size_t total = submitted_reqs;
             std::vector<IoUring::CqeResult> results;
@@ -1979,18 +2057,56 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     bool is8k = (cqe.user_data >> 32) != 0;
                     int expect = is8k ? 8192 : 4096;
                     if (cqe.res != expect) {
-                        // 释放失败的 buffer, 避免泄漏 (关键!)
                         int failed_code = page_buf[p0];
                         if (failed_code >= 0) vec_ring_->freeBuffer(failed_code >> 1);
-                        page_buf[p0] = -1;  // 标记失败
+                        page_buf[p0] = -1;
+                        if (is8k) page_buf[p0 + 1] = -1;
+                    } else {
+                        // CQE peeking: page ready → immediately process dependent candidates
+                        markPageReady(p0);
+                        if (is8k) markPageReady(p0 + 1);
+                    }
+                }
+            }
+            // Edge case: process any remaining candidates not triggered by CQE arrival
+            for (int i = 0; i < (int)io_cands.size(); i++) {
+                if (!cand_done[i]) tryProcessCand(i);
+            }
+
+            } else {
+            // === Legacy batch barrier (FINE_CQE_PEEK=0) ===
+            // 等全部完成, 统一算距离
+            size_t done = 0;
+            const size_t total = submitted_reqs;
+            std::vector<IoUring::CqeResult> results;
+            long wait_iters = 0;
+            while (done < total) {
+                vec_ring_->waitCompletion();
+                if (!first_cqe_done) {
+                    first_cqe_us = std::chrono::duration<double, std::micro>(
+                        std::chrono::high_resolution_clock::now() - tf2).count();
+                    first_cqe_done = true;
+                }
+                wait_iters++;
+                results.clear();
+                vec_ring_->reapCompletions(results);
+                done += results.size();
+                for (const auto& cqe : results) {
+                    uint32_t p0 = (uint32_t)(cqe.user_data & 0xFFFFFFFFu);
+                    bool is8k = (cqe.user_data >> 32) != 0;
+                    int expect = is8k ? 8192 : 4096;
+                    if (cqe.res != expect) {
+                        int failed_code = page_buf[p0];
+                        if (failed_code >= 0) vec_ring_->freeBuffer(failed_code >> 1);
+                        page_buf[p0] = -1;
                         if (is8k) page_buf[p0 + 1] = -1;
                     }
                 }
             }
-            auto tf3 = std::chrono::high_resolution_clock::now();
+            auto tf3b = std::chrono::high_resolution_clock::now();
 
-            // 统一算距离 (跨页拼两页; page_buf 编码 buf*2+half)
-            char tmp_vec[512];
+            // 统一算距离
+            char tmp_vec_local[512];
             auto getPagePtr = [&](uint32_t page) -> const char* {
                 auto it = page_buf.find(page);
                 if (it == page_buf.end() || it->second < 0) return nullptr;
@@ -2007,13 +2123,16 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                     const char* p1 = getPagePtr(c.page0 + 1);
                     if (!p1) continue;
                     size_t first = 4096 - c.oip;
-                    std::memcpy(tmp_vec, p0 + c.oip, first);
-                    std::memcpy(tmp_vec + first, p1, dim_ * sizeof(float) - first);
-                    vec = reinterpret_cast<const float*>(tmp_vec);
+                    std::memcpy(tmp_vec_local, p0 + c.oip, first);
+                    std::memcpy(tmp_vec_local + first, p1, dim_ * sizeof(float) - first);
+                    vec = reinterpret_cast<const float*>(tmp_vec_local);
                 }
                 consider(c.nid, vec);
-                cache_->putFlatVector(c.nid, vec);  // 回填热向量 cache, Phase A hybrid 用
+                cache_->putFlatVector(c.nid, vec);
             }
+            }  // end kCqePeek else
+
+            auto tf3 = std::chrono::high_resolution_clock::now();
 
             // 释放 buffer (合并读两个页条目指向同一 buf, 去重)
             {
@@ -2065,6 +2184,7 @@ std::vector<DiskHNSW::SearchResult> DiskHNSW::searchKnn(const float* query, size
                 }
             }
             }  // end pread else
+            fine_done:
 
             // DEC-031: 页面级驱逐 — FINE_FADVISE=1 时在精排完成后驱逐刚读过的页面
             // 消除 page cache 颠簸: 主动告诉 OS 这些页是 read-once, 不占 cache
@@ -2301,8 +2421,8 @@ bool DiskHNSW::buildFineRerank(const std::string& blocks_path, uint32_t num_node
     }
 
     try {
-        vec_ring_ = std::make_unique<IoUring>(256);
-        vec_ring_->setBufferSize(8192);  // 8KB slots: 相邻页可合并为一次 8KB 读
+        // BEH-036: vec_ring_ is now thread_local, lazily initialized per-thread on first use
+        // (see fine rerank io_uring path below)
     } catch (const std::exception& e) {
         std::cerr << "[FineRerank] io_uring init failed: " << e.what() << std::endl;
         close(fd);
