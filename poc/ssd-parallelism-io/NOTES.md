@@ -102,3 +102,57 @@ R1 改为 thread_local：每个搜索线程有自己的 io_uring ring（256 entr
 
 CQE peeking 在低线程数下收益显著（+3.5%），高线程数下收益递减（+1.0%）。
 thread_local vec_ring_ 改造成功，多线程安全。
+
+## R2 结果: Profile 分析 (2026-08-10, 1T 256MB)
+
+### 每查询耗时分解 (steady state, n=15000)
+
+**A (pread 路径):**
+| 阶段 | 耗时 |
+|------|------|
+| pread (阻塞读取所有页) | 407us |
+| rerank (距离计算) | 7us |
+| 总 Fine 阶段 | ~414us |
+
+**B (CQE peeking 路径):**
+| 阶段 | 耗时 |
+|------|------|
+| collect (收集候选) | 13us |
+| submit (io_uring 提交) | 81us (3us loop + 78us syscall) |
+| io_1st (第一个 CQE 到达) | 10us |
+| io_rest (剩余 CQE 等待) | 246us |
+| compute (残余距离计算) | 2us |
+| 总 Fine 阶段 | ~394us |
+
+### 关键对比
+
+| 指标 | A (pread) | B (CQE peeking) | 差异 |
+|------|:---:|:---:|:---:|
+| I/O 等待 | 407us | 256us (10+246) | **-151us (-37%)** |
+| 距离计算 | 7us | 2us | -5us (CQE peeking 中大部分已提前算完) |
+| 总 Fine 阶段 | ~414us | ~394us | **-20us (-5%)** |
+| 每查询 I/O 页数 | ~44.7 | 44.7 | 相同 |
+| cache 命中候选 | ~17.6 | 17.6 | 相同 |
+| wait iters | N/A | 15.9 | 仍有 16 次等待 |
+
+### 根因分析
+
+1. **I/O 等待减少 37%**: CQE peeking 消除批量屏障
+   - pread: 按固定顺序阻塞，最后一页决定总延迟
+   - CQE: 第一个 10us 到达，按完成顺序处理，CPU 不空闲
+
+2. **距离计算从 7us 降到 2us**: CQE peeking 在 I/O 等待期间已处理大部分候选
+   - compute 阶段只剩跨页候选和边缘情况
+
+3. **iters=15.9**: 仍有 16 次 waitCompletion
+   - 说明 CQE 不是一次性全部到达，而是分批
+   - 每次 reap 可能拿到 2-3 个 CQE
+   - 但每次 reap 后立即处理，CPU 不空闲
+
+4. **总 Fine 阶段仅 -5%**: I/O 等待减少 151us，但 submit 开销 81us 部分抵消
+   - pread: 0 submit 开销（直接系统调用）
+   - io_uring: 81us submit + 256us wait = 337us（vs pread 407us）
+   - 净收益: 407 - 337 = 70us per query
+
+5. **QPS 提升 +3.5%** 对应 Fine 阶段 -5%: Fine 阶段占总查询时间 ~70%
+   - 70% × 5% = 3.5% 总 QPS 提升（与实测吻合 ✅）

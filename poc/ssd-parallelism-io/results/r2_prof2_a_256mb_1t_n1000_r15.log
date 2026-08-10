@@ -1,0 +1,156 @@
+[sudo] huawei 的密码： [cgroup_utils] 版本: v2 | 路径: /sys/fs/cgroup/sqb_r2_prof2_a_256_1_1000 | 限制: 256MB
+=== Sustained Query Benchmark (BEH-035) ===
+Pool: 10000 queries (dim=128) | GT: 10000x100
+Rounds: 15 | Per-round: 1000 | Seed: 42
+k=10, ef=60
+Cache: 64MB (1024 slots, 11.6% coverage)
+Mode: CONCURRENT (threads=1)
+[BfsLayoutProvider] Loaded route table: 1000000 entries, 8812 blocks
+[BlockCache] Initialized: block_size=65536, num_blocks=8812, cache_slots=1024, dim=128, layout=bfs, policy=lru, io_mode=direct
+[BlockCache] Flat vec cache: 130055 slots, 65027 KB, entry_size=512
+[BlockCache] Flat block cache: 4096 slots, 32 KB
+[DiskHNSW] Loading graph structure (slim) from output/sift1m_m24/sift1m_m24_graph.bin...
+  [slim+adj] Loading vectors for 42294 upper-layer nodes (20MB, skipping 488MB)
+  [slim+adj] Loaded L0 adjacency: 26609131 edges (101MB)
+  [slim+adj] Loaded graph structure from output/sift1m_m24/sift1m_m24_graph.bin (1000000 nodes, 42294 upper, 26609131 edges)
+[DiskHNSW] Graph: 1000000 nodes, dim=128, max_level=4, entry_point=572119
+[DiskHNSW] Loading BFS order from output/sift1m_m24/sift1m_m24_bfs.bin...
+[DiskHNSW] BFS mapping loaded: 1000000 entries
+  [CSR] Built compressed adjacency: 26609131 edges, compact=54MB + offsets=3MB = 57MB (raw would be 105MB, 1.8x compression)
+[DiskHNSW] BlockCache (pluggable) initialized
+[GraphPrefetcher] Initialized: ring_size=512, block_size=65536, odirect=yes, fd=3
+[DiskHNSW] Graph-guided prefetch enabled (io_uring, odirect=yes)
+[DiskHNSW] Loading PQ codes from output/pqco_sift1m_M32_correct.bin...
+  PQ params: N=1000000, M=32, nbits=8, dim=128, dsub=4, ksub=256
+  [UpperPQ] Freed 42294 exact vectors (20MB) — using PQ ADC instead
+  PQ codebook: 0 MB
+  PQ codes: 30 MB (1000000 x 32 bytes)
+  PQ enabled: ADC distance will be used for Layer 0
+RSS after init: 109 MB
+[FineRerank] buffered mode (page cache + disk, recommended)
+[FineRerank] slot table built: 7937 blocks, 652.992 ms
+[PROFILE_TS] n=200 PhaseA=-3326us pread=3749us rerank=61us
+[PROFILE_TS] n=400 PhaseA=-1670us pread=2093us rerank=49us
+[PROFILE_TS] n=600 PhaseA=-1117us pread=1532us rerank=40us
+[PROFILE_TS] n=800 PhaseA=-841us pread=1254us rerank=34us
+[PROFILE_TS] n=1000 PhaseA=-676us pread=1087us rerank=29us
+Round   1: QPS=    592.5  recall=96.49%  cum_unique=1000
+[PROFILE_TS] n=1200 PhaseA=-565us pread=973us rerank=26us
+[PROFILE_TS] n=1400 PhaseA=-486us pread=890us rerank=23us
+[PROFILE_TS] n=1600 PhaseA=-427us pread=830us rerank=21us
+[PROFILE_TS] n=1800 PhaseA=-381us pread=781us rerank=19us
+[PROFILE_TS] n=2000 PhaseA=-344us pread=742us rerank=18us
+Round   2: QPS=   1371.3  recall=96.53%  cum_unique=1914
+[PROFILE_TS] n=2200 PhaseA=-314us pread=710us rerank=17us
+[PROFILE_TS] n=2400 PhaseA=-289us pread=682us rerank=16us
+[PROFILE_TS] n=2600 PhaseA=-268us pread=658us rerank=15us
+[PROFILE_TS] n=2800 PhaseA=-250us pread=638us rerank=14us
+[PROFILE_TS] n=3000 PhaseA=-234us pread=621us rerank=14us
+Round   3: QPS=   1479.0  recall=96.33%  cum_unique=2714
+[PROFILE_TS] n=3200 PhaseA=-220us pread=605us rerank=13us
+[PROFILE_TS] n=3400 PhaseA=-208us pread=590us rerank=13us
+[PROFILE_TS] n=3600 PhaseA=-197us pread=578us rerank=12us
+[PROFILE_TS] n=3800 PhaseA=-187us pread=567us rerank=12us
+[PROFILE_TS] n=4000 PhaseA=-179us pread=557us rerank=12us
+Round   4: QPS=   1544.9  recall=96.69%  cum_unique=3434
+[PROFILE_TS] n=4200 PhaseA=-171us pread=547us rerank=11us
+[PROFILE_TS] n=4400 PhaseA=-164us pread=539us rerank=11us
+[PROFILE_TS] n=4600 PhaseA=-157us pread=531us rerank=11us
+[PROFILE_TS] n=4800 PhaseA=-151us pread=524us rerank=10us
+[PROFILE_TS] n=5000 PhaseA=-146us pread=518us rerank=10us
+Round   5: QPS=   1568.0  recall=96.63%  cum_unique=4081
+[PROFILE_TS] n=5200 PhaseA=-141us pread=512us rerank=10us
+[PROFILE_TS] n=5400 PhaseA=-136us pread=506us rerank=10us
+[PROFILE_TS] n=5600 PhaseA=-131us pread=500us rerank=10us
+[PROFILE_TS] n=5800 PhaseA=-127us pread=495us rerank=9us
+[PROFILE_TS] n=6000 PhaseA=-124us pread=491us rerank=9us
+Round   6: QPS=   1580.8  recall=96.37%  cum_unique=4675
+[PROFILE_TS] n=6200 PhaseA=-120us pread=487us rerank=9us
+[PROFILE_TS] n=6400 PhaseA=-117us pread=483us rerank=9us
+[PROFILE_TS] n=6600 PhaseA=-113us pread=478us rerank=9us
+[PROFILE_TS] n=6800 PhaseA=-110us pread=475us rerank=9us
+[PROFILE_TS] n=7000 PhaseA=-108us pread=471us rerank=9us
+Round   7: QPS=   1630.3  recall=96.75%  cum_unique=5220
+[PROFILE_TS] n=7200 PhaseA=-105us pread=467us rerank=9us
+[PROFILE_TS] n=7400 PhaseA=-103us pread=464us rerank=8us
+[PROFILE_TS] n=7600 PhaseA=-100us pread=462us rerank=8us
+[PROFILE_TS] n=7800 PhaseA=-98us pread=459us rerank=8us
+[PROFILE_TS] n=8000 PhaseA=-96us pread=456us rerank=8us
+Round   8: QPS=   1559.3  recall=96.22%  cum_unique=5696
+[PROFILE_TS] n=8200 PhaseA=-94us pread=454us rerank=8us
+[PROFILE_TS] n=8400 PhaseA=-92us pread=451us rerank=8us
+[PROFILE_TS] n=8600 PhaseA=-90us pread=449us rerank=8us
+[PROFILE_TS] n=8800 PhaseA=-88us pread=446us rerank=8us
+[PROFILE_TS] n=9000 PhaseA=-87us pread=444us rerank=8us
+Round   9: QPS=   1620.3  recall=97.04%  cum_unique=6116
+[PROFILE_TS] n=9200 PhaseA=-85us pread=442us rerank=8us
+[PROFILE_TS] n=9400 PhaseA=-84us pread=440us rerank=8us
+[PROFILE_TS] n=9600 PhaseA=-82us pread=438us rerank=8us
+[PROFILE_TS] n=9800 PhaseA=-81us pread=436us rerank=8us
+[PROFILE_TS] n=10000 PhaseA=-79us pread=434us rerank=7us
+Round  10: QPS=   1622.9  recall=96.73%  cum_unique=6494
+[PROFILE_TS] n=10200 PhaseA=-78us pread=433us rerank=7us
+[PROFILE_TS] n=10400 PhaseA=-77us pread=431us rerank=7us
+[PROFILE_TS] n=10600 PhaseA=-76us pread=430us rerank=7us
+[PROFILE_TS] n=10800 PhaseA=-74us pread=429us rerank=7us
+[PROFILE_TS] n=11000 PhaseA=-73us pread=427us rerank=7us
+Round  11: QPS=   1590.5  recall=96.94%  cum_unique=6837
+[PROFILE_TS] n=11200 PhaseA=-72us pread=426us rerank=7us
+[PROFILE_TS] n=11400 PhaseA=-71us pread=424us rerank=7us
+[PROFILE_TS] n=11600 PhaseA=-70us pread=423us rerank=7us
+[PROFILE_TS] n=11800 PhaseA=-69us pread=422us rerank=7us
+[PROFILE_TS] n=12000 PhaseA=-68us pread=421us rerank=7us
+Round  12: QPS=   1615.7  recall=96.11%  cum_unique=7145
+[PROFILE_TS] n=12200 PhaseA=-67us pread=420us rerank=7us
+[PROFILE_TS] n=12400 PhaseA=-67us pread=418us rerank=7us
+[PROFILE_TS] n=12600 PhaseA=-66us pread=417us rerank=7us
+[PROFILE_TS] n=12800 PhaseA=-65us pread=416us rerank=7us
+[PROFILE_TS] n=13000 PhaseA=-64us pread=415us rerank=7us
+Round  13: QPS=   1587.7  recall=97.02%  cum_unique=7439
+[PROFILE_TS] n=13200 PhaseA=-63us pread=414us rerank=7us
+[PROFILE_TS] n=13400 PhaseA=-63us pread=413us rerank=7us
+[PROFILE_TS] n=13600 PhaseA=-62us pread=412us rerank=7us
+[PROFILE_TS] n=13800 PhaseA=-61us pread=412us rerank=7us
+[PROFILE_TS] n=14000 PhaseA=-60us pread=411us rerank=7us
+Round  14: QPS=   1551.1  recall=96.55%  cum_unique=7701
+[PROFILE_TS] n=14200 PhaseA=-60us pread=410us rerank=7us
+[PROFILE_TS] n=14400 PhaseA=-59us pread=409us rerank=7us
+[PROFILE_TS] n=14600 PhaseA=-59us pread=408us rerank=7us
+[PROFILE_TS] n=14800 PhaseA=-58us pread=407us rerank=7us
+[PROFILE_TS] n=15000 PhaseA=-57us pread=407us rerank=7us
+Round  15: QPS=   1619.3  recall=96.54%  cum_unique=7942
+
+=== Aggregate ===
+Total queries: 15000
+Total time:    10.639 s
+QPS:           1410.0
+Recall@10:     96.60%
+Cumulative unique queries: 7942 / 10000
+Hit%:          0.00
+RSS:           232 MB
+
+=== Cache saturation ===
+Round 1 QPS:   592.5
+Round 15 QPS:  1619.3
+Ramp-up:       173.3%
+
+CSV_HEADER,round,queries,seconds,qps,recall,cum_unique
+CSV_ROW,1,1000,1.687871,592.5,96.49,1000
+CSV_ROW,2,1000,0.729225,1371.3,96.53,1914
+CSV_ROW,3,1000,0.676133,1479.0,96.33,2714
+CSV_ROW,4,1000,0.647295,1544.9,96.69,3434
+CSV_ROW,5,1000,0.637746,1568.0,96.63,4081
+CSV_ROW,6,1000,0.632585,1580.8,96.37,4675
+CSV_ROW,7,1000,0.613386,1630.3,96.75,5220
+CSV_ROW,8,1000,0.641327,1559.3,96.22,5696
+CSV_ROW,9,1000,0.617169,1620.3,97.04,6116
+CSV_ROW,10,1000,0.616195,1622.9,96.73,6494
+CSV_ROW,11,1000,0.628717,1590.5,96.94,6837
+CSV_ROW,12,1000,0.618929,1615.7,96.11,7145
+CSV_ROW,13,1000,0.629828,1587.7,97.02,7439
+CSV_ROW,14,1000,0.644699,1551.1,96.55,7701
+CSV_ROW,15,1000,0.617543,1619.3,96.54,7942
+CSV_AGG,15,15000,10.638647,1410.0,96.60,7942,1619.3
+[Prefetch Accuracy] useful=0 wasted=0 total_prefetched_settled=0 accuracy=0%
+terminate called without an active exception
+bash: 第 17 行： 119178 已放弃               （核心已转储） build/benchmark_sustained output/sift1m_m24/sift1m_m24_graph.bin output/sift1m_m24/sift1m_m24_bfs.bin output/sift1m_m24/sift1m_m24_blocks_64k.bin output/sift1m_m24/sift1m_m24_route_64k.bin data/sift_base.fvecs data/sift_query_official10k.fvecs data/sift_groundtruth_official.ivecs 10 60 --rounds 15 --per-round 1000 --seed 42 --verbose
