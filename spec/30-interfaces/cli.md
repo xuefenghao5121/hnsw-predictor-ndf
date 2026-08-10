@@ -228,6 +228,18 @@ Usage: ./build/benchmark_sustained <graph> <bfs> <blocks> <route> <data> \
 MUST 要求 `CACHE_MB`（缺失时 MUST 报 `ERROR: CACHE_MB required` 并非零退出）。
 其余旋钮沿用 `benchmark_diskhnsw` 约定（见 [[API-002]] 与 `spec/30-interfaces/env.md`）。
 
+### 测试脚本绑定
+
+`scripts/run_sustained.sh` 是 [[CON-SLA-020]] sustained 测试的**权威载体**（[[CON-SLA-014]]
+严格 cgroup 隔离 via [[API-016]] `scripts/cgroup_utils.sh`）。
+
+支持 `--config <config_id>` 从 `spec/50-verification/configs/<config_id>.md`
+读取金标配置参数（`data_path`, `REFINE_EF`, `ADAPTIVE_*` 等）。Env 显式设置优先于
+`--config` 解析值。`--dry-run` 打印参数不执行。
+
+`scripts/run_golden.sh` 是 [[CON-GOLDEN-001]] 金标自动化的**权威载体**，
+覆盖全部三组金标配置（A/B/C）× 4 场景 × 3 轮。
+
 ### GT 格式
 
 `<gt>` 接受两种格式，MUST 按扩展名判定：

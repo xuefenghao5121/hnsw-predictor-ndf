@@ -1,6 +1,6 @@
 # Constraints — SLA / 诚实 I/O
 
-> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`, `CON-SLA-019`, `CON-SLA-020`  
+> 条款索引: `CON-SLA-008`, `CON-SLA-009`, `CON-SLA-010`, `CON-HONEST-002`, `CON-SLA-011`, `CON-SLA-012`, `CON-SLA-013`, `CON-SLA-014`, `CON-SLA-016`, `CON-SLA-017`, `CON-SLA-018`, `CON-SLA-019`, `CON-SLA-020`, `CON-GOLDEN-001`  
 > CON-POC-001 正文在 `spec/meta/constraints.md`（adopted 见下文）
 
 ## Page Search SLA 豁免 {#CON-SLA-008}
@@ -357,6 +357,9 @@ SIFT1M 在 **256MB cgroup** + `WILLNEED_BG=1 PAGE_MERGE_BG=1 VL_POOL_THREADS=14`
 
 > **track: promoted** - 提案 `spec/open/proposal-promote-sustained-query-benchmark.md`（2026-08-06）。
 > 口径：**sustained**（对外吞吐声明的权威基线）。
+>
+> **权威测试载体**: `scripts/run_sustained.sh`（绑定本条款 + [[API-016]] cgroup 隔离）。
+> 支持 `--config <config_id>` 输入金标配置（[[CON-GOLDEN-001]]）。
 
 SIFT1M 在 [[CON-SLA-014]] 严格隔离 + [[CON-SLA-019]] 禁预热前提下，
 用**官方 10K query 池**多轮随机采样（[[BEH-035]]）的性能下限。
@@ -416,64 +419,31 @@ MUST NOT 单独作为对外宣传数字。
 <!-- ndf: kind=constraint level=must layer=L1 status=stable since=0.9.11 source=deduced -->
 <!-- ndf: depends-on=CON-SLA-020,API-011,API-012,API-013,API-017,DEC-086,DEC-087 -->
 
-性能金标由三组标准测试配置组成，锁定代码 + 配置 + 性能三要素。
-每次主线性能测试 MUST 同时测试三组配置，并对照
-`spec/50-verification/golden-baseline.md` 的金标数据验证无回归。
+性能金标锁定代码 + 配置 + 性能三要素。配置与数字的权威快照在
+`spec/50-verification/configs/` 与 `spec/50-verification/baselines/`；
+`golden-baseline.md` 仅为索引。每次主线性能测试 MUST 同时测试下列三组
+`config_id`，并对照现行 `bl-trunk-golden-*` 验证无回归。
 
-### 配置 A: SLA 基线
+**权威自动化载体**: `scripts/run_golden.sh`（覆盖全部三组配置 × 4 场景 × 3 轮）。
+单组测试用 `scripts/run_sustained.sh --config <config_id>`。
 
-> 保守配置，recall 优先。对齐 [[CON-SLA-020]]。
+| 角色 | config_id | 说明 | 快照 |
+|------|-----------|------|------|
+| A SLA 基线 | `cfg-sla-ef100` | 保守，对齐 [[CON-SLA-020]] | [cfg-sla-ef100.md](../50-verification/configs/cfg-sla-ef100.md) |
+| B DEC-086 | `cfg-adaptive-ef90` | 均衡（[[DEC-086]]） | [cfg-adaptive-ef90.md](../50-verification/configs/cfg-adaptive-ef90.md) |
+| C DEC-087 | `cfg-m24-ef60` | Pareto（[[DEC-087]]） | [cfg-m24-ef60.md](../50-verification/configs/cfg-m24-ef60.md) |
 
-| 参数 | 值 |
-|------|-----|
-| M_graph | 16 |
-| REFINE_EF | 100 |
-| ADAPTIVE_EF | 0 |
-| FLAT_VEC_MB | 64 |
-| 数据路径 | output/sift1m_m16/ |
+### 现行观测基线
 
-### 配置 B: DEC-086 优化
+| baseline_id | trunk | 路径 |
+|-------------|-------|------|
+| `bl-trunk-golden-434c6f5` | 434c6f5 | [bl-trunk-golden-434c6f5.md](../50-verification/baselines/bl-trunk-golden-434c6f5.md) |
 
-> 均衡配置，QPS/recall 平衡。sustained 调参最优 ([[DEC-086]])。
-
-| 参数 | 值 |
-|------|-----|
-| M_graph | 16 |
-| REFINE_EF | 90 |
-| ADAPTIVE_EF | 1 |
-| ADAPTIVE_EASY_EF | 40 |
-| ADAPTIVE_EASY_GAP | 1.006 |
-| FLAT_VEC_MB | 64 |
-| 数据路径 | output/sift1m_m16/ |
-
-### 配置 C: DEC-087 Pareto 最优
-
-> 激进配置，QPS 优先。pipeline 调参最优 ([[DEC-087]])。
-
-| 参数 | 值 |
-|------|-----|
-| M_graph | 24 |
-| REFINE_EF | 60 |
-| ADAPTIVE_EF | 0 |
-| FLAT_VEC_MB | 64 |
-| 数据路径 | output/sift1m_m24/ |
-
-### 公共环境变量（三组共用）
-
-```
-CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
-```
+索引：[golden-baseline.md](../50-verification/golden-baseline.md)
 
 ### 测试矩阵
 
-| 配置 | 256MB 1T | 256MB 16T | 512MB 1T | 512MB 16T |
-|------|----------|-----------|----------|-----------|
-| A (SLA) | ✅ | ✅ | ✅ | ✅ |
-| B (DEC-086) | ✅ | ✅ | ✅ | ✅ |
-| C (DEC-087) | ✅ | ✅ | ✅ | ✅ |
-
-共 12 数据点，每点至少 2 轮。
+三组 config × 2 cgroup × 2 线程 = 12 数据点，每点至少 2 轮。
 
 ### 金标更新触发条件
 
@@ -481,12 +451,13 @@ L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
 2. 管线参数变更（M_graph / PQ_M / block_size 重建）
 3. 新的 DEC 调参结论 promote
 
+更新义务与禁止刷 SLA 观测数字：[[META-006]]、[[META-007]]。
+
 ### 回归判定
 
-- agg/steady QPS 落在金标 ±2CV 内 = 无回归
+- agg/steady QPS 落在现行 `bl-trunk-*` ±2CV 内 = 无回归
 - Recall 下降 > 0.3pp = 回归
 - CV > 3% = 结果不可信，需重跑
 
-> 金标数据: `spec/50-verification/golden-baseline.md`
-> 测试脚本: `scripts/run_golden.sh`（配置 A 自动化）
-> 流程义务: [[META-006]]
+> 测试脚本: `scripts/run_golden.sh`（cfg-sla-ef100 自动化）
+> 流程义务: [[META-006]] / [[META-007]]

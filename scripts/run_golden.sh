@@ -1,41 +1,85 @@
 #!/bin/bash
-# run_golden.sh — 跑性能金标测试 (4 配置 × 3 轮)
-# 用法: sudo bash scripts/run_golden.sh
+# run_golden.sh — CON-GOLDEN-001 性能金标自动化 (三配置)
+#
+# Clauses: CON-GOLDEN-001, CON-SLA-020, CON-SLA-019, CON-SLA-014
+# Configs: cfg-sla-ef100 (A), cfg-adaptive-ef90 (B), cfg-m24-ef60 (C)
+#
+# 用法:
+#   sudo bash scripts/run_golden.sh              # 全部三配置 × 4 场景 × 3 轮
+#   sudo bash scripts/run_golden.sh --config cfg-m24-ef60  # 单配置
+#   SUDO_STDIN_PASS=<pass> bash scripts/run_golden.sh      # 免交互 sudo
+#
 # 输出: /tmp/golden/*.log + 汇总到 stdout
 
-set -euo pipefail
+set -uo pipefail
 cd "$(dirname "$0")/.."
-source scripts/cgroup_utils.sh
+REPO="$(pwd)"
 
-BINDIR=${1:-build}
+# ─── 参数解析 ───
+GOLDEN_CONFIGS=(cfg-sla-ef100 cfg-adaptive-ef90 cfg-m24-ef60)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --config) GOLDEN_CONFIGS=("$2"); shift 2 ;;
+    *) echo "Unknown: $1" >&2; exit 1 ;;
+  esac
+done
+
+BINDIR=${BINDIR:-build}
 MINDIR=/tmp/golden
-mkdir -p $MINDIR
+mkdir -p "$MINDIR"
+
+SUDO=(sudo)
+if [ -n "${SUDO_STDIN_PASS:-}" ]; then
+  SUDO=(sudo -S)
+fi
+
+# 场景矩阵: cgroup × threads
+SCENES=("256 1" "256 16" "512 1" "512 16")
+RUNS=3
 
 run_one() {
-    local CG=$1; local NT=$2; local TAG=$3; local RUN=$4
-    cg_init gold_${TAG}_r${RUN} $CG; cg_create; cg_set_limit $CG; cg_drop_caches; cg_add_proc $$
-    cd /home/huawei/hnsw-predictor-ndf
-    export CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-    export L4_WILLNEED=1 PAGE_MERGE_BG=1 WILLNEED_BG=1 VL_POOL_THREADS=14
-    export VEC_BLOCKS_PATH=output/sift1m_m16/sift1m_m16_vecblocks_64k.bin
-    export PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin
-    export REFINE_EF=100 FLAT_VEC_MB=64 NUM_THREADS=$NT ADAPTIVE_EF=0
-    $BINDIR/benchmark_sustained \
-        output/sift1m_m16/sift1m_m16_graph.bin output/sift1m_m16/sift1m_m16_bfs.bin \
-        output/sift1m_m16/sift1m_m16_blocks_64k.bin output/sift1m_m16/sift1m_m16_route_64k.bin \
-        data/sift_base.fvecs data/sift_query_official10k.fvecs data/sift_groundtruth_official.ivecs \
-        10 100 --rounds 15 --per-round 1000 --seed 42 \
-        > $MINDIR/${TAG}_r${RUN}.log 2>&1
-    cg_cleanup
-    echo -n "$TAG R$RUN: "
-    grep "CSV_AGG" $MINDIR/${TAG}_r${RUN}.log | tail -1 | awk -F, '{printf "agg=%-8s steady=%-8s recall=%s%%\n",$5,$8,$6}'
+  local CG=$1 NT=$2 CFG=$3 RUN=$4
+  local TAG="${CFG}_${CG}mb_${NT}t_r${RUN}"
+
+  "${SUDO[@]}" bash -c "
+    set -uo pipefail
+    source $REPO/scripts/cgroup_utils.sh
+    cg_init gold_${TAG} $CG; cg_create; cg_set_limit $CG
+    cg_drop_caches; cg_add_proc \$\$
+    cd $REPO
+  " < <(printf '%s\n' "${SUDO_STDIN_PASS:-}") 2>/dev/null
+
+  CGROUP_MB=$CG THREADS=$NT TAG=$TAG OUTDIR=$MINDIR \
+    CONFIG_GOLDEN=1 \
+    "${SUDO[@]}" bash -c "
+      cd $REPO
+      source scripts/cgroup_utils.sh
+      cg_init gold_${TAG} $CG; cg_create; cg_set_limit $CG
+      cg_drop_caches; cg_add_proc \$\$
+      export CGROUP_MB=$CG THREADS=$NT
+      export OUTDIR=$MINDIR TAG=$TAG
+      export SUDO_STDIN_PASS='${SUDO_STDIN_PASS:-}'
+      bash scripts/run_sustained.sh --config $CFG
+    " < <(printf '%s\n' "${SUDO_STDIN_PASS:-}") >/dev/null 2>&1
+
+  local LOG="$MINDIR/${TAG}_${CG}mb_${NT}t_n1000_r15.log"
+  echo -n "$CFG ${CG}MB ${NT}T R$RUN: "
+  grep "CSV_AGG" "$LOG" 2>/dev/null | tail -1 | awk -F, '{printf "agg=%-8s steady=%-8s recall=%s%%\n",$5,$8,$6}' || echo "(no result)"
 }
 
 echo "=== Golden Baseline — Trunk $(git rev-parse --short HEAD) ==="
-for RUN in 1 2 3; do
-    run_one 256 1  256_1t  $RUN
-    run_one 256 16 256_16t $RUN
-    run_one 512 1  512_1t  $RUN
-    run_one 512 16 512_16t $RUN
+echo "Configs: ${GOLDEN_CONFIGS[*]}"
+echo "Scenes: ${SCENES[*]}"
+echo ""
+
+for CFG in "${GOLDEN_CONFIGS[@]}"; do
+  echo "--- $CFG ---"
+  for SCENE in "${SCENES[@]}"; do
+    read -r CG NT <<< "$SCENE"
+    for RUN in $(seq 1 $RUNS); do
+      run_one "$CG" "$NT" "$CFG" "$RUN"
+    done
+  done
+  echo ""
 done
 echo "=== DONE ==="
