@@ -57,6 +57,7 @@ done
 # 从 spec/50-verification/configs/<config_id>.md 提取参数。
 # 格式: data_path: <path>  +  "| REFINE_EF | <val> |" 等参数表
 CONFIG_DATA_PREFIX=""
+CONFIG_VECBLOCKS_PATH=""
 CONFIG_EF=""
 CONFIG_EXTRA=""
 
@@ -71,6 +72,9 @@ if [[ -n "$CONFIG_ID" ]]; then
 
   # 解析 data_path (去除尾部斜杠)
   CONFIG_DATA_PREFIX=$(grep '^> *data_path:' "$CONFIG_FILE" | head -1 | sed 's/.*data_path: *//;s/ *$//;s|/$||')
+
+  # 解析 vecblocks_path (可选; 覆盖默认 ${DATA_PREFIX}_vecblocks_64k.bin)
+  CONFIG_VECBLOCKS_PATH=$(grep '^> *vecblocks_path:' "$CONFIG_FILE" | head -1 | sed 's/.*vecblocks_path: *//;s/ *$//')
 
   # 解析 REFINE_EF
   CONFIG_EF=$(grep '| REFINE_EF |' "$CONFIG_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}')
@@ -94,10 +98,12 @@ if [[ -n "$CONFIG_ID" ]]; then
     [[ -n "$EASY_GAP" ]] && CONFIG_EXTRA="$CONFIG_EXTRA ADAPTIVE_EASY_GAP=$EASY_GAP"
   fi
 
+  # 解析 cluster_k / cluster_input (可选; 用于自动重生成 cluster-sorted vecblocks)
+  CONFIG_CLUSTER_K=$(grep '^> *cluster_k:' "$CONFIG_FILE" | head -1 | sed 's/.*cluster_k: *//;s/ *$//')
+  CONFIG_CLUSTER_INPUT=$(grep '^> *cluster_input:' "$CONFIG_FILE" | head -1 | sed 's/.*cluster_input: *//;s/ *$//')
+
   echo "(config: $CONFIG_ID | data=$CONFIG_DATA_PREFIX | ef=$CONFIG_EF${CONFIG_EXTRA:+ | $CONFIG_EXTRA})" >&2
 fi
-
-# ─── 参数合并 (env > --config > default) ─────────────────────
 CGROUP_MB="${CGROUP_MB:-512}"
 THREADS="${THREADS:-1}"
 POOL="${POOL:-data/sift_query_official10k.fvecs}"
@@ -135,6 +141,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "CONFIG_ID:    ${CONFIG_ID:-<none>}"
   echo "BIN:          $BIN"
   echo "DATA_PREFIX:  $DATA_PREFIX"
+  echo "VEC_BLOCKS:   ${CONFIG_VECBLOCKS_PATH:-${DATA_PREFIX}_vecblocks_64k.bin}"
   echo "EF:           $EF"
   echo "CGROUP_MB:    $CGROUP_MB"
   echo "THREADS:      $THREADS"
@@ -148,6 +155,27 @@ if [[ $DRY_RUN -eq 1 ]]; then
   echo "EXTRA:        ${EXTRA:-<none>}"
   echo "FVC:          $([ "$CGROUP_MB" -le 256 ] && echo 64 || echo 160)"
   exit 0
+fi
+
+# ─── cluster-sorted vecblocks 自动重生成 (BEH-037 可复现性) ──
+# 若 config 声明了 cluster_k + cluster_input + vecblocks_path，
+# 在测量前自动重生成 cluster-sorted 文件，保证 NVMe 物理布局连续。
+# 5 分钟内已生成过则跳过 (避免金标 12 runs 重生成 12 次)
+if [[ -n "${CONFIG_CLUSTER_K:-}" && -n "${CONFIG_CLUSTER_INPUT:-}" && -n "${CONFIG_VECBLOCKS_PATH:-}" ]]; then
+  CLUSTER_TS_FILE="/tmp/.cluster_reorder_${CONFIG_CLUSTER_K}.ts"
+  CLUSTER_AGE=99999
+  [[ -f "$CLUSTER_TS_FILE" ]] && CLUSTER_AGE=$(( $(date +%s) - $(stat -c %Y "$CLUSTER_TS_FILE") ))
+  if [[ "$CLUSTER_AGE" -gt 300 ]]; then
+    if [[ -x build/cluster_reorder ]]; then
+      echo "[Cluster] Regenerating k=$CONFIG_CLUSTER_K from $CONFIG_CLUSTER_INPUT..." >&2
+      build/cluster_reorder 128 "$CONFIG_CLUSTER_INPUT" "$CONFIG_VECBLOCKS_PATH" "$CONFIG_CLUSTER_K" >&2
+      touch "$CLUSTER_TS_FILE"
+    else
+      echo "[Cluster] WARNING: build/cluster_reorder not found, skipping regeneration" >&2
+    fi
+  else
+    echo "[Cluster] Skipping regeneration (${CLUSTER_AGE}s < 300s since last gen)" >&2
+  fi
 fi
 
 if [ ! -x "$BIN" ]; then
@@ -187,7 +215,11 @@ cg_drop_caches                      # CON-SLA-014 step 1
 cg_add_proc \$\$                     # CON-SLA-014 step 2
 cd $REPO
 export CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-export VEC_BLOCKS_PATH=${DATA_PREFIX}_vecblocks_64k.bin
+export VEC_BLOCKS_PATH=${VEC_BLOCKS_PATH:-${DATA_PREFIX}_vecblocks_64k.bin}
+# Apply config vecblocks_path override (e.g. cluster-sorted, BEH-037)
+if [[ -n "${CONFIG_VECBLOCKS_PATH:-}" ]]; then
+  export VEC_BLOCKS_PATH="${CONFIG_VECBLOCKS_PATH}"
+fi
 export PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin
 export REFINE_EF=$EF EVICT_PAGE_CACHE=0 NUM_THREADS=$THREADS
 export FLAT_VEC_MB=$FVC PAGE_MERGE_BG=1 L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14

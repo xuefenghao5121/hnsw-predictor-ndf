@@ -3,7 +3,7 @@
 > baseline_id: bl-trunk-golden-68059a6  
 > trunk_sha: 68059a6f0c232e028277a499d329c1216f9d49d7  
 > short_sha: 68059a6  
-> status: superseded  
+> status: superseded (by bl-trunk-golden-7ee4ee2, 2026-08-11)  
 > measured: 2026-08-10  
 > protocol: [[CON-SLA-020]] sustained, [[CON-SLA-014]] strict cgroup, [[CON-SLA-019]] 禁预热  
 > dataset: SIFT1M  

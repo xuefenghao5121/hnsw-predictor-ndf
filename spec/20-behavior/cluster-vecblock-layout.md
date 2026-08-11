@@ -34,6 +34,15 @@ build/cluster_reorder 128 \
 # 3. 替换 vecblocks 文件即可（同名替换或 DATA_PREFIX 指向新文件）
 ```
 
+## 可复现性要求
+
+> ⚠️ cluster-sorted vecblocks 的 I/O 局部性收益依赖 NVMe 物理页连续性。
+
+- 金标测量前 MUST 重新执行 `cluster_reorder` 生成新文件（`run_sustained.sh` 自动处理）
+- 禁止复用中间实验（如 full-cluster-reorder R1）触碰过的 vecblocks 文件做 cluster sort 输入
+- 若文件 md5 不变但性能退化 >10%，应怀疑物理布局碎片化
+- 根因细节见 `spec/decisions/dec-cluster-physical-layout.md`
+
 ## Rationale
 
 POC vecblock-cluster-reorder R0-R2 证据：

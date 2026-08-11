@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-09T17:22:20Z",
-  "clause_count": 235,
+  "generated_at": "2026-08-11T15:53:45Z",
+  "clause_count": 237,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -300,7 +300,9 @@
         "DEF-024",
         "DEC-087",
         "DEC-088",
-        "CON-002"
+        "CON-002",
+        "BEH-036",
+        "API-020"
       ],
       "backlinks": [
         "API-001",
@@ -323,7 +325,7 @@
       "id": "API-012",
       "title": "L4 WILLNEED 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 127,
+      "line": 128,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -359,7 +361,7 @@
       "id": "API-013",
       "title": "WILLNEED 多线程扩展环境变量",
       "file": "30-interfaces/env.md",
-      "line": 142,
+      "line": 143,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -411,6 +413,8 @@
       },
       "body_refs": [],
       "backlinks": [
+        "API-019",
+        "CON-SLA-020",
         "DEC-079"
       ]
     },
@@ -418,7 +422,7 @@
       "id": "API-017",
       "title": "PQ 距离间隙自适应 EF 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 157,
+      "line": 158,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -448,7 +452,7 @@
       "id": "API-018",
       "title": "GBDT 学习式候选数预测环境变量",
       "file": "30-interfaces/env.md",
-      "line": 188,
+      "line": 189,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -491,7 +495,11 @@
       },
       "body_refs": [
         "BEH-035",
-        "API-002"
+        "API-002",
+        "CON-SLA-020",
+        "CON-SLA-014",
+        "API-016",
+        "CON-GOLDEN-001"
       ],
       "backlinks": [
         "BEH-035",
@@ -1141,7 +1149,7 @@
       "id": "BEH-018",
       "title": "探索期 NDF 纪律",
       "file": "meta/process.md",
-      "line": 23,
+      "line": 24,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1175,7 +1183,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "meta/process.md",
-      "line": 64,
+      "line": 65,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1214,7 +1222,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 120,
+      "line": 171,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1385,7 +1393,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 140,
+      "line": 191,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1404,6 +1412,7 @@
         ]
       },
       "body_refs": [
+        "META-007",
         "DEF-023",
         "BEH-018",
         "BEH-019"
@@ -1417,14 +1426,15 @@
         "BEH-020",
         "DEC-070",
         "DEF-022",
-        "META-003"
+        "META-003",
+        "META-007"
       ]
     },
     "BEH-026": {
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 261,
+      "line": 388,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1807,7 +1817,7 @@
       "id": "CHR-008",
       "title": "探索与晋升双轨",
       "file": "meta/process.md",
-      "line": 9,
+      "line": 10,
       "kind": "arch",
       "level": "must",
       "layer": "L0",
@@ -1964,7 +1974,7 @@
       "id": "CON-GOLDEN-001",
       "title": "性能金标配置",
       "file": "40-constraints/sla.md",
-      "line": 415,
+      "line": 418,
       "kind": "constraint",
       "level": "must",
       "layer": "L1",
@@ -1986,10 +1996,12 @@
         "CON-SLA-020",
         "DEC-086",
         "DEC-087",
-        "META-006"
+        "META-006",
+        "META-007"
       ],
       "backlinks": [
-        "META-006"
+        "API-019",
+        "CON-SLA-020"
       ]
     },
     "CON-HONEST-002": {
@@ -2068,7 +2080,8 @@
         "BEH-025",
         "CON-SLA-013",
         "DEC-063",
-        "DEF-NDF-STABLE-DRAFT"
+        "DEF-NDF-STABLE-DRAFT",
+        "META-007"
       ]
     },
     "CON-SLA-008": {
@@ -2296,6 +2309,7 @@
       ],
       "backlinks": [
         "API-016",
+        "API-019",
         "BEH-024",
         "BEH-027",
         "BEH-028",
@@ -2514,6 +2528,8 @@
         ]
       },
       "body_refs": [
+        "API-016",
+        "CON-GOLDEN-001",
         "CON-SLA-014",
         "CON-SLA-019",
         "BEH-035",
@@ -2523,6 +2539,7 @@
         "DEC-086"
       ],
       "backlinks": [
+        "API-019",
         "CON-GOLDEN-001",
         "CON-SLA-016",
         "CON-SLA-017",
@@ -3322,6 +3339,7 @@
       "backlinks": [
         "DEC-036",
         "DEC-064",
+        "DEC-094",
         "VER-034"
       ]
     },
@@ -3731,7 +3749,8 @@
         "DEC-063"
       ],
       "backlinks": [
-        "DEC-063"
+        "DEC-063",
+        "DEC-094"
       ]
     },
     "DEC-065": {
@@ -3839,6 +3858,7 @@
         "CON-SLA-013",
         "CON-SLA-014",
         "DEC-066",
+        "DEC-094",
         "VER-030",
         "VER-039"
       ]
@@ -4264,7 +4284,8 @@
         "DEC-089",
         "DEC-090",
         "DEC-091",
-        "DEC-092"
+        "DEC-092",
+        "DEC-094"
       ]
     },
     "DEC-088-REF": {
@@ -4362,6 +4383,29 @@
         ]
       },
       "body_refs": [],
+      "backlinks": []
+    },
+    "DEC-094": {
+      "id": "DEC-094",
+      "title": "DEC-094: mmap Anon→File 预算转移负结果 — Page Cache Thrashing",
+      "file": "decisions/29-mmap-budget-shift-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "DEC-088",
+          "DEC-064",
+          "DEC-034"
+        ]
+      },
+      "body_refs": [
+        "DEC-067"
+      ],
       "backlinks": []
     },
     "DEC-HYGIENE-001": {
@@ -4782,7 +4826,7 @@
       "id": "DEF-023",
       "title": "DEF: Commit Ledger（提交账本）",
       "file": "meta/glossary.md",
-      "line": 29,
+      "line": 31,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4834,7 +4878,7 @@
       "id": "DEF-META-ID-NS",
       "title": "DEF: Meta 条款 ID 命名空间",
       "file": "meta/glossary.md",
-      "line": 36,
+      "line": 38,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4861,7 +4905,7 @@
       "id": "DEF-NDF-BINDER-DUAL-HEAD",
       "title": "DEF: 装订器双头漂移",
       "file": "meta/glossary.md",
-      "line": 127,
+      "line": 129,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4885,7 +4929,7 @@
       "id": "DEF-NDF-CONFLICT-ASYM",
       "title": "DEF: conflicts 非对称",
       "file": "meta/glossary.md",
-      "line": 85,
+      "line": 87,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4906,7 +4950,7 @@
       "id": "DEF-NDF-CYCLE",
       "title": "DEF: 依赖环缺陷",
       "file": "meta/glossary.md",
-      "line": 73,
+      "line": 75,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4928,7 +4972,7 @@
       "id": "DEF-NDF-GRAPH",
       "title": "DEF: NDF 条款语义图模型",
       "file": "meta/glossary.md",
-      "line": 53,
+      "line": 55,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4968,7 +5012,7 @@
       "id": "DEF-NDF-META-DANGLING",
       "title": "DEF: meta 边悬空",
       "file": "meta/glossary.md",
-      "line": 91,
+      "line": 93,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -4987,7 +5031,7 @@
       "id": "DEF-NDF-OBS-GRAIN",
       "title": "DEF: 观测粒度过粗",
       "file": "meta/glossary.md",
-      "line": 121,
+      "line": 123,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5008,7 +5052,7 @@
       "id": "DEF-NDF-REPRO-BIND-GAP",
       "title": "DEF: 可复现绑定缺失",
       "file": "meta/glossary.md",
-      "line": 115,
+      "line": 117,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5027,7 +5071,7 @@
       "id": "DEF-NDF-SPEC-DRIFT",
       "title": "DEF: 规范漂移",
       "file": "meta/glossary.md",
-      "line": 103,
+      "line": 105,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5052,7 +5096,7 @@
       "id": "DEF-NDF-STABLE-DRAFT",
       "title": "DEF: stable must 依赖非 stable",
       "file": "meta/glossary.md",
-      "line": 79,
+      "line": 81,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5073,7 +5117,7 @@
       "id": "DEF-NDF-UNLINKED",
       "title": "DEF: 未连接条款（warning）",
       "file": "meta/glossary.md",
-      "line": 97,
+      "line": 99,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5094,7 +5138,7 @@
       "id": "DEF-NDF-ZOMBIE-SPEC",
       "title": "DEF: 僵尸规范",
       "file": "meta/glossary.md",
-      "line": 109,
+      "line": 111,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5257,7 +5301,7 @@
       "id": "META-006",
       "title": "金标更新义务",
       "file": "meta/process.md",
-      "line": 99,
+      "line": 100,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5270,10 +5314,39 @@
         ]
       },
       "body_refs": [
-        "CON-GOLDEN-001"
+        "META-007"
       ],
       "backlinks": [
-        "CON-GOLDEN-001"
+        "CON-GOLDEN-001",
+        "META-007"
+      ]
+    },
+    "META-007": {
+      "id": "META-007",
+      "title": "性能线读写义务",
+      "file": "meta/process.md",
+      "line": 127,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.12",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-025",
+          "META-006",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "BEH-025",
+        "CON-POC-001"
+      ],
+      "backlinks": [
+        "BEH-025",
+        "CON-GOLDEN-001",
+        "META-006"
       ]
     },
     "MODEL-SUSTAINED-001": {
