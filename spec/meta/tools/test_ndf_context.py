@@ -232,6 +232,15 @@ QPS and Recall.
         self.assertFalse(result["valid"])
         self.assertIn("file_drift", {item["kind"] for item in result["errors"]})
 
+    def test_verify_detects_bundle_tampering(self) -> None:
+        plan = self._plan()
+        bundle = context.expand_plan(plan, root=self.root)
+        bundle["files"][0]["content"] += "tampered"
+        result = context.verify_plan(plan, root=self.root, bundle=bundle)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertIn("bundle_sha_mismatch", kinds)
+        self.assertIn("bundle_content_sha_mismatch", kinds)
+
     def test_verify_rejects_forbidden_write_overlap(self) -> None:
         plan = self._plan()
         plan["privileges"]["allowed_write_roots"] = ["src/"]

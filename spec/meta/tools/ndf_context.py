@@ -501,6 +501,10 @@ def compile_plan(
             {
                 "repo_head": repo_head,
                 "files": [{"path": item["path"], "sha256": item["sha256"]} for item in records],
+                "clauses": [
+                    {"id": item["id"], "clause_sha": item["clause_sha"]}
+                    for item in closure["nodes"]
+                ],
             }
         ),
         "ordered_reads": records,
@@ -584,7 +588,7 @@ def expand_plan(plan: Mapping[str, Any], *, root: Path | None = None) -> dict[st
                 "content": content,
             }
         )
-    return {
+    bundle = {
         "schema": "ndf-context-bundle/v1",
         "plan_sha": plan["plan_sha"],
         "repo_head": plan["workspace"]["repo_head"],
@@ -601,6 +605,8 @@ def expand_plan(plan: Mapping[str, Any], *, root: Path | None = None) -> dict[st
             "privileges": plan.get("privileges"),
         },
     }
+    bundle["bundle_sha"] = canonical_json_sha(bundle)
+    return bundle
 
 
 def render_markdown(bundle: Mapping[str, Any]) -> str:
@@ -730,10 +736,31 @@ def verify_plan(
     if bundle is not None:
         if bundle.get("plan_sha") != plan.get("plan_sha"):
             errors.append({"kind": "bundle_plan_sha_mismatch"})
+        expected_bundle_sha = canonical_json_sha(
+            {key: value for key, value in bundle.items() if key != "bundle_sha"}
+        )
+        if bundle.get("bundle_sha") != expected_bundle_sha:
+            errors.append(
+                {
+                    "kind": "bundle_sha_mismatch",
+                    "expected": expected_bundle_sha,
+                    "actual": bundle.get("bundle_sha"),
+                }
+            )
         for item in bundle.get("files", []):
             source = next((record for record in plan.get("ordered_reads", []) if record["path"] == item.get("path")), None)
             if source is None or item.get("source_sha256") != source.get("sha256"):
                 errors.append({"kind": "bundle_file_unbound", "path": item.get("path")})
+            if item.get("content_sha") != canonical_json_sha(item.get("content", "")):
+                errors.append({"kind": "bundle_content_sha_mismatch", "path": item.get("path")})
+        planned_clauses = {
+            item["id"]: item.get("clause_sha")
+            for item in plan.get("graph", {}).get("nodes", [])
+        }
+        for item in bundle.get("clauses", []):
+            actual = canonical_json_sha(item.get("content", ""))
+            if item.get("clause_sha") != actual or planned_clauses.get(item.get("id")) != actual:
+                errors.append({"kind": "bundle_clause_sha_mismatch", "id": item.get("id")})
     return {
         "schema": "ndf-context-verification/v1",
         "valid": not errors,
