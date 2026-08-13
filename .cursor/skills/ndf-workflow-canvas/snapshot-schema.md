@@ -325,7 +325,16 @@ interpreted without both dimensions and a verified Canvas projection.
     "adapter": "bwrap",
     "network": "none",
     "commands": [],
-    "allowedWriteRoots": []
+    "allowedWriteRoots": [],
+    "target": {
+      "run_id": "run-id",
+      "role": "claude-code",
+      "manifest_sha": "sha256",
+      "plan_sha": "sha256",
+      "env_allowlist_fingerprint": "sha256",
+      "cwd": "/recorded/worktree",
+      "tool_runtime_version": "version"
+    }
   },
   "eventCount": 0,
   "levels": {"R0": true, "R1": false, "R2": false, "R3": true},

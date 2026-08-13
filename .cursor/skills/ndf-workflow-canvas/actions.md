@@ -35,7 +35,7 @@ payload clears the safety block.
 | Refresh dashboard | New chat: full `snapshot --json`, update all Canvas tabs |
 | Open R0 Audit instructions | `ndf_replay.py audit --commit <sha> --strict`; no model/tool execution; Composer dispatch is instructions, not completion |
 | Open R1 Observation instructions | `ndf_replay.py reconstruct --commit <sha> --level R1`; recorded observations only; Composer dispatch is instructions, not completion |
-| R2 Sandbox | `ndf_replay.py sandbox --commit <sha> --episode <id> --profile <profile> --execute`; recorded completion/cassette/lease must share run+manifest+plan+repo, expected outputs must be recorded and complete, write roots must be a Context Plan/lease subset, and the profile must confirm cost/side effects |
+| R2 Sandbox | `ndf_replay.py sandbox --commit <sha> --episode <id> --profile <profile> --execute`; profile target must bind exact run/role/manifest/plan/env fingerprint/cwd/tool version; recorded completion/cassette/lease must match it, expected outputs must be complete, write roots must be a Context Plan/lease subset, and the profile must confirm cost/side effects |
 | R3 Fork | `ndf_replay.py fork --from <sha> --branch <name>`; new counterfactual history |
 | Replay diff | `ndf_replay.py diff <left> <right>`; compare manifest/context/events/observations/results/verification separately |
 | Replay checkpoint | `ndf_replay.py checkpoint --episode <id> --strategy context-recompile --manifest-sha <sha> --plan-sha <sha> --summary <text>`; current context/gate/repo must re-verify |

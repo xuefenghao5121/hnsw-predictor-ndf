@@ -71,6 +71,8 @@ class WorkflowHealthTest(unittest.TestCase):
                     "runtime_dispatch_ready": False,
                     "context_plan": {"schema": "ndf-context-plan/v1"},
                     "context_verify": {"valid": False},
+                    "task_manifest": {"schema": "ndf-task-manifest/v1"},
+                    "manifest_sha": "m" * 64,
                     "plan_sha": "p" * 64,
                     "dispatch_blockers": ["isolation_check_failed"],
                 },
@@ -97,6 +99,11 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertFalse(payload["safe_to_dispatch"])
             self.assertEqual(payload["blockers"], ["isolation_check_failed"])
+            self.assertEqual(payload["manifest_sha"], "m" * 64)
+            self.assertEqual(
+                payload["task_manifest"]["schema"],
+                "ndf-task-manifest/v1",
+            )
 
     def test_spec_health_is_structured_and_persisted(self) -> None:
         passed = {"command": "ok", "exit_code": 0, "state": "passed", "output": "ok"}
@@ -393,6 +400,8 @@ class WorkflowHealthTest(unittest.TestCase):
                     "runtime_dispatch_ready": False,
                     "context_plan": {},
                     "context_verify": {"valid": True},
+                    "task_manifest": {"schema": "ndf-task-manifest/v1"},
+                    "manifest_sha": "b" * 64,
                     "plan_sha": "a" * 64,
                     "dispatch_blockers": ["topic_active_lease"],
                 },

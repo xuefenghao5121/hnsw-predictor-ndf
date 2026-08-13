@@ -2944,6 +2944,7 @@ def replay_summary() -> dict[str, Any]:
                 pass
         observations: list[dict[str, Any]] = []
         sandbox_commands: list[list[str]] = []
+        sandbox_targets: list[dict[str, Any]] = []
         changed_files: set[str] = set()
         gate_events: list[dict[str, Any]] = []
         r2_outcome = "not_run"
@@ -2957,6 +2958,21 @@ def replay_summary() -> dict[str, Any]:
             if obj.get("type") == "tool-cassette":
                 if data.get("replay_policy") == "sandbox":
                     sandbox_commands.append(list(data.get("argv", [])))
+                    sandbox_targets.append(
+                        {
+                            "run_id": data.get("run_id"),
+                            "role": "claude-code",
+                            "manifest_sha": data.get("manifest_sha"),
+                            "plan_sha": data.get("plan_sha"),
+                            "env_allowlist_fingerprint": data.get(
+                                "env_allowlist_fingerprint"
+                            ),
+                            "cwd": data.get("cwd"),
+                            "tool_runtime_version": data.get(
+                                "external_resource_version"
+                            ),
+                        }
+                    )
                 observations.append(
                     {
                         "kind": "tool",
@@ -3085,6 +3101,18 @@ def replay_summary() -> dict[str, Any]:
                     ),
                     "confirmSideEffects": (recorded_r2_profile or {}).get(
                         "confirm_side_effects", False
+                    ),
+                    "target": (
+                        (recorded_r2_profile or {}).get("target")
+                        or (
+                            sandbox_targets[0]
+                            if sandbox_targets
+                            and all(
+                                target == sandbox_targets[0]
+                                for target in sandbox_targets
+                            )
+                            else None
+                        )
                     ),
                 },
                 "changedFiles": sorted(changed_files),
@@ -3698,6 +3726,8 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
         },
         "context_plan": view["delegation"]["context_plan"],
         "context_verify": view["delegation"]["context_verify"],
+        "task_manifest": view["delegation"]["task_manifest"],
+        "manifest_sha": view["delegation"]["manifest_sha"],
         "plan_sha": view["delegation"]["plan_sha"],
         "static_preflight_passed": static_ready,
         "runtime_dispatch_ready": runtime_ready,

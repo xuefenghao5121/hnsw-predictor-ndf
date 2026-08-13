@@ -1049,6 +1049,97 @@ class ReplayStore:
         left_tree = self.get_object(left_commit["tree"], "tree")["data"]["entries"]
         right_tree = self.get_object(right_commit["tree"], "tree")["data"]["entries"]
         names = sorted(set(left_tree) | set(right_tree))
+        facet_names = (
+            "manifest",
+            "context",
+            "events",
+            "observations",
+            "results",
+            "verification",
+        )
+
+        def semantic_objects(commit_sha: str) -> dict[str, dict[str, str]]:
+            facets: dict[str, dict[str, str]] = {
+                name: {} for name in facet_names
+            }
+            reconstruction = self.reconstruct(commit_sha, "R0")
+            for item in reconstruction.get("recorded_objects", []):
+                obj = item.get("object", {})
+                data = obj.get("data", {})
+                value = data.get("value") if obj.get("type") == "blob" else data
+                schema = (
+                    str(value.get("schema") or "")
+                    if isinstance(value, Mapping)
+                    else str(data.get("schema") or "")
+                )
+                facet = None
+                semantic_key = item["sha"]
+                if schema == "ndf-task-manifest/v1":
+                    facet = "manifest"
+                    semantic_key = str(value.get("manifest_sha") or item["sha"])
+                elif schema.startswith("ndf-context-plan"):
+                    facet = "context"
+                    semantic_key = str(value.get("plan_sha") or item["sha"])
+                elif schema == "ndf-replay-event/v1":
+                    facet = "events"
+                    semantic_key = str(value.get("event_sha") or item["sha"])
+                elif obj.get("type") in {"tool-cassette", "model-turn"}:
+                    facet = "observations"
+                    semantic_key = str(
+                        data.get("invocation_id")
+                        or data.get("turn_id")
+                        or item["sha"]
+                    )
+                elif schema in {
+                    "ndf-agent-completion/v1",
+                    "ndf-runtime-mutation-proof/v1",
+                    "ndf-replay-r2-expectations/v1",
+                }:
+                    facet = "results"
+                    semantic_key = str(
+                        value.get("run_id") or value.get("proof_sha") or item["sha"]
+                    )
+                elif schema in {
+                    "ndf-replay-sandbox/v1",
+                    "ndf-close-evidence/v1",
+                    "ndf-projection-receipt/v2",
+                    "ndf-context-verification/v1",
+                }:
+                    facet = "verification"
+                    semantic_key = str(
+                        value.get("profile_sha")
+                        or value.get("output_sha")
+                        or value.get("plan_sha")
+                        or item["sha"]
+                    )
+                if facet:
+                    facets[facet][semantic_key] = str(item["sha"])
+            return facets
+
+        left_facets = semantic_objects(left_sha)
+        right_facets = semantic_objects(right_sha)
+        facet_diff = {}
+        for facet in facet_names:
+            left_values = left_facets[facet]
+            right_values = right_facets[facet]
+            keys = sorted(set(left_values) | set(right_values))
+            facet_diff[facet] = {
+                "added": [
+                    key for key in keys if key not in left_values
+                ],
+                "removed": [
+                    key for key in keys if key not in right_values
+                ],
+                "changed": [
+                    key
+                    for key in keys
+                    if key in left_values
+                    and key in right_values
+                    and left_values[key] != right_values[key]
+                ],
+                "left_shas": left_values,
+                "right_shas": right_values,
+            }
         return {
             "schema": "ndf-replay-diff/v1",
             "left": left_sha,
@@ -1062,6 +1153,7 @@ class ReplayStore:
                 and name in right_tree
                 and left_tree[name] != right_tree[name]
             ],
+            "facets": facet_diff,
         }
 
     def audit(self, commit_or_ref: str, *, strict: bool = True) -> dict[str, Any]:
@@ -1841,10 +1933,58 @@ class ReplayStore:
                 f"R2 requires a strict verified episode: "
                 f"{audit['join_gaps'] + audit.get('semantic_gaps', [])}"
             )
+        if execute and audit.get("current_restore_ready") is not True:
+            raise ValueError(
+                "R2 current restore is not ready: "
+                f"{audit.get('current_readiness_errors', [])}"
+            )
         commit = self.get_object(sha, "commit")["data"]
         repo_head = commit.get("repo_head")
         if not repo_head:
             raise ValueError("R2 commit has no bound repo_head")
+        target = profile.get("target")
+        manifest_sha: str | None = None
+        plan_sha: str | None = None
+        run_id: str | None = None
+        role: str | None = None
+        manifest: dict[str, Any] | None = None
+        plan: dict[str, Any] | None = None
+        if execute or target is not None:
+            if not isinstance(target, Mapping):
+                raise ValueError("R2 profile requires exact target binding")
+            required_target = (
+                "run_id",
+                "role",
+                "manifest_sha",
+                "plan_sha",
+                "env_allowlist_fingerprint",
+                "cwd",
+                "tool_runtime_version",
+            )
+            missing_target = [
+                field for field in required_target if not target.get(field)
+            ]
+            if missing_target:
+                raise ValueError(f"R2 target missing fields: {missing_target}")
+            run_id = str(target["run_id"])
+            role = str(target["role"])
+            manifest_sha = str(target["manifest_sha"])
+            plan_sha = str(target["plan_sha"])
+            _, manifest = self.find_blob(
+                schema="ndf-task-manifest/v1",
+                semantic_field="manifest_sha",
+                semantic_sha=manifest_sha,
+            )
+            _, plan = self.find_blob(
+                schema=None,
+                schema_prefix="ndf-context-plan",
+                semantic_field="plan_sha",
+                semantic_sha=plan_sha,
+            )
+            if plan.get("role") != role:
+                raise ValueError("R2 target role does not match recorded plan")
+            if plan.get("manifest_sha") != manifest_sha:
+                raise ValueError("R2 target manifest does not match recorded plan")
         result: dict[str, Any] = {
             "schema": "ndf-replay-sandbox/v1",
             "level": "R2",
@@ -1896,26 +2036,12 @@ class ReplayStore:
         expected_outputs = profile.get("expected_outputs", [])
         if not isinstance(expected_outputs, list) or not expected_outputs:
             raise ValueError("R2 equivalence requires at least one expected output")
-        manifest_sha = None
-        plan_sha = None
-        for _, historical in self.walk_commits(sha):
-            manifest_sha = manifest_sha or historical.get("manifest_sha")
-            plan_sha = plan_sha or historical.get("context_plan_sha")
-            if manifest_sha and plan_sha:
-                break
-        if not manifest_sha or not plan_sha:
-            raise ValueError("R2 requires bound manifest and context plan history")
-        _, manifest = self.find_blob(
-            schema="ndf-task-manifest/v1",
-            semantic_field="manifest_sha",
-            semantic_sha=str(manifest_sha),
-        )
-        _, plan = self.find_blob(
-            schema=None,
-            schema_prefix="ndf-context-plan",
-            semantic_field="plan_sha",
-            semantic_sha=str(plan_sha),
-        )
+        assert target is not None
+        assert run_id is not None
+        assert manifest_sha is not None
+        assert plan_sha is not None
+        assert manifest is not None
+        assert plan is not None
         allowed_roots = [
             str(value).strip("/")
             for value in profile.get("allowed_write_roots", [])
@@ -1951,7 +2077,10 @@ class ReplayStore:
         matching_completions = [
             completion
             for completion in recorded_completions
-            if {
+            if str(completion.get("run_id") or "") == run_id
+            and completion.get("manifest_sha") == manifest_sha
+            and completion.get("context_plan_sha") == plan_sha
+            and {
                 str(path): str(file_sha)
                 for path, file_sha in completion.get(
                     "changed_file_shas", {}
@@ -1964,7 +2093,7 @@ class ReplayStore:
             for completion in matching_completions
             if completion.get("run_id")
         }
-        if not matching_run_ids:
+        if matching_run_ids != {run_id}:
             raise ValueError(
                 "R2 expected outputs are not the complete output set of one "
                 "recorded completion"
@@ -2035,6 +2164,11 @@ class ReplayStore:
             and item.get("cassette", {}).get("plan_sha") == plan_sha
             and item.get("cassette", {}).get("repo_head") == repo_head
             and str(item.get("cassette", {}).get("run_id")) in matching_run_ids
+            and item.get("cassette", {}).get("env_allowlist_fingerprint")
+            == target.get("env_allowlist_fingerprint")
+            and item.get("cassette", {}).get("cwd") == target.get("cwd")
+            and item.get("cassette", {}).get("external_resource_version")
+            == target.get("tool_runtime_version")
         }
         unrecorded = [argv for argv in commands if tuple(argv) not in recorded_commands]
         if unrecorded:

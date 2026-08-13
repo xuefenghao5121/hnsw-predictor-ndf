@@ -742,6 +742,79 @@ class ReplayStoreTest(unittest.TestCase):
             reconstructed["observation_gaps"],
         )
 
+    def test_diff_returns_six_semantic_facets(self) -> None:
+        initialized, _, commit = self._episode_with_plan("ep-diff-facets")
+        result = self.store.diff(initialized["commit_sha"], commit)
+        self.assertEqual(
+            set(result["facets"]),
+            {
+                "manifest",
+                "context",
+                "events",
+                "observations",
+                "results",
+                "verification",
+            },
+        )
+        self.assertTrue(result["facets"]["context"]["added"])
+        self.assertTrue(result["facets"]["events"]["added"])
+
+    def test_r2_profile_rejects_wrong_role_plan_target(self) -> None:
+        _, plan, commit = self._episode_with_plan("ep-r2-wrong-role")
+        profile = {
+            "schema": "ndf-replay-sandbox-profile/v1",
+            "sandbox": True,
+            "network": "none",
+            "adapter": ["bwrap"],
+            "commands": [],
+            "allowed_write_roots": [],
+            "expected_outputs": [],
+            "target": {
+                "run_id": "run",
+                "role": "claude-code",
+                "manifest_sha": self.manifest["manifest_sha"],
+                "plan_sha": plan["plan_sha"],
+                "env_allowlist_fingerprint": "d" * 64,
+                "cwd": str(self.root),
+                "tool_runtime_version": "fixture",
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "role does not match"):
+            self.store.sandbox_replay(commit, profile, execute=False)
+
+    def test_r2_rejects_current_repo_drift_before_execution(self) -> None:
+        _, plan, commit = self._episode_with_plan("ep-r2-drift")
+        (self.root / "README.md").write_text("advanced\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", "advance"], cwd=self.root, check=True
+        )
+        profile = {
+            "schema": "ndf-replay-sandbox-profile/v1",
+            "sandbox": True,
+            "network": "none",
+            "adapter": ["bwrap"],
+            "confirm_cost": True,
+            "confirm_side_effects": True,
+            "commands": [["/bin/true"]],
+            "allowed_write_roots": [],
+            "expected_outputs": [{"path": "out", "sha256": "0" * 64}],
+            "target": {
+                "run_id": "run",
+                "role": "openclaw",
+                "manifest_sha": self.manifest["manifest_sha"],
+                "plan_sha": plan["plan_sha"],
+                "env_allowlist_fingerprint": "d" * 64,
+                "cwd": str(self.root),
+                "tool_runtime_version": "fixture",
+            },
+        }
+        with (
+            patch.object(replay.shutil, "which", return_value="/usr/bin/bwrap"),
+            self.assertRaisesRegex(ValueError, "current restore is not ready"),
+        ):
+            self.store.sandbox_replay(commit, profile, execute=True)
+
     def test_redaction_creates_new_commit_without_mutating_source(self) -> None:
         secret = self.store.put_blob(
             {
@@ -927,7 +1000,7 @@ class ReplayStoreTest(unittest.TestCase):
         self.assertTrue(self.store.fsck()["valid"])
 
     def test_r2_execution_rejects_commands_without_recorded_sandbox_cassette(self) -> None:
-        _, _, commit = self._episode_with_plan()
+        _, plan, commit = self._episode_with_plan()
         profile = {
             "schema": "ndf-replay-sandbox-profile/v1",
             "sandbox": True,
@@ -941,6 +1014,15 @@ class ReplayStoreTest(unittest.TestCase):
             "expected_outputs": [
                 {"path": "output.txt", "sha256": "0" * 64}
             ],
+            "target": {
+                "run_id": "missing-run",
+                "role": "openclaw",
+                "manifest_sha": self.manifest["manifest_sha"],
+                "plan_sha": plan["plan_sha"],
+                "env_allowlist_fingerprint": "d" * 64,
+                "cwd": str(self.root),
+                "tool_runtime_version": "python-fixture",
+            },
         }
         try:
             result = self.store.sandbox_replay(
@@ -1072,7 +1154,7 @@ class ReplayStoreTest(unittest.TestCase):
             exit_code=0,
             duration_ms=1,
             replay_policy="sandbox",
-            external_resource_version=None,
+            external_resource_version="python-fixture",
             bindings={
                 "topic": None,
                 "task": "binder_amend",
@@ -1167,6 +1249,15 @@ class ReplayStoreTest(unittest.TestCase):
                     "sha256": hashlib.sha256(b"ok").hexdigest(),
                 }
             ],
+            "target": {
+                "run_id": "run-r2",
+                "role": "openclaw",
+                "manifest_sha": self.manifest["manifest_sha"],
+                "plan_sha": plan["plan_sha"],
+                "env_allowlist_fingerprint": "d" * 64,
+                "cwd": str(self.root),
+                "tool_runtime_version": "python-fixture",
+            },
         }
         try:
             result = self.store.sandbox_replay(commit, profile, execute=True)
