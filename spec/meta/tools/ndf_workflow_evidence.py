@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -19,6 +20,8 @@ RECEIPT_SCHEMAS = frozenset(
         "ndf-projection-receipt/v2",
         "ndf-close-evidence/v1",
         "ndf-runtime-lease/v1",
+        "ndf-workflow-action/v2",
+        "ndf-gate-receipt/v1",
     }
 )
 COMMON_RECEIPT_FIELDS = (
@@ -29,6 +32,7 @@ COMMON_RECEIPT_FIELDS = (
     "step",
     "repo_head",
     "source_generation_sha",
+    "manifest_sha",
     "context_plan_sha",
     "command",
     "input_sha",
@@ -204,7 +208,13 @@ def validate_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
             errors.append(f"missing:{field}")
     if receipt.get("repo_head") is not None and not _is_git_sha(receipt.get("repo_head")):
         errors.append("invalid_git_sha:repo_head")
-    for field in ("source_generation_sha", "context_plan_sha", "input_sha", "output_sha"):
+    for field in (
+        "source_generation_sha",
+        "manifest_sha",
+        "context_plan_sha",
+        "input_sha",
+        "output_sha",
+    ):
         value = receipt.get(field)
         if value is not None and not _is_full_sha(value):
             errors.append(f"invalid_sha256:{field}")
@@ -213,9 +223,24 @@ def validate_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
         if value is not None and not isinstance(value, list):
             errors.append(f"not_list:{field}")
     if schema == "ndf-runtime-lease/v1":
-        for field in ("run_id", "session_id", "base_sha", "worktree", "allowed_write_root"):
+        for field in (
+            "run_id",
+            "session_id",
+            "base_sha",
+            "worktree",
+            "branch",
+            "repo_root",
+            "allowed_write_root",
+            "pack_sha",
+            "episode_id",
+        ):
             if not receipt.get(field):
                 errors.append(f"missing:{field}")
+        for field in ("base_sha",):
+            if receipt.get(field) is not None and not _is_git_sha(receipt.get(field)):
+                errors.append(f"invalid_git_sha:{field}")
+        if receipt.get("pack_sha") is not None and not _is_full_sha(receipt.get("pack_sha")):
+            errors.append("invalid_sha256:pack_sha")
         state = receipt.get("result")
         if state not in {"active", "released", "expired", "failed"}:
             errors.append(f"invalid_lease_result:{state}")
@@ -225,7 +250,322 @@ def validate_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     elif schema == "ndf-projection-receipt/v2":
         if not receipt.get("projection_sha") and not receipt.get("snapshot_sha_after"):
             errors.append("missing:projection_sha")
+        if receipt.get("projection_sha") is not None and not _is_full_sha(receipt.get("projection_sha")):
+            errors.append("invalid_sha256:projection_sha")
+        if "absorbed_action_id" not in receipt:
+            errors.append("missing:absorbed_action_id")
+    elif schema == "ndf-workflow-action/v2":
+        for field in ("action_id", "operation", "status", "seq", "prev_event_sha", "event_sha"):
+            if field not in receipt:
+                errors.append(f"missing:{field}")
+        if receipt.get("status") not in {"started", "finished"}:
+            errors.append(f"invalid_action_status:{receipt.get('status')}")
+    elif schema == "ndf-gate-receipt/v1":
+        for field in (
+            "phrase",
+            "approved_by",
+            "approved_at",
+            "source_ref",
+            "approved_content_sha",
+        ):
+            if not receipt.get(field):
+                errors.append(f"missing:{field}")
+        if receipt.get("approved_content_sha") is not None and not _is_full_sha(
+            receipt.get("approved_content_sha")
+        ):
+            errors.append("invalid_sha256:approved_content_sha")
+        actor = str(receipt.get("approved_by") or "").lower()
+        if actor in {"agent", "openclaw", "claude-code", "canvas", "tool"}:
+            errors.append("approval_actor_not_human")
     return {"valid": not errors, "schema": schema, "errors": errors}
+
+
+def validate_evidence_bundle(
+    receipt: Mapping[str, Any],
+    *,
+    root: str | os.PathLike[str],
+) -> dict[str, Any]:
+    """Verify that receipt output_sha names its exact evidence file bundle."""
+    errors: list[str] = []
+    paths = receipt.get("evidence_paths")
+    if not isinstance(paths, list) or not paths:
+        errors.append("missing:evidence_paths")
+        actual = None
+    else:
+        try:
+            actual = bundle_sha(paths, root=root)
+        except (FileNotFoundError, ValueError, OSError):
+            actual = None
+            errors.append("invalid:evidence_paths")
+    if actual is not None and receipt.get("output_sha") != actual:
+        errors.append("mismatch:output_sha")
+    return {
+        "valid": not errors,
+        "expected_output_sha": actual,
+        "actual_output_sha": receipt.get("output_sha"),
+        "errors": errors,
+    }
+
+
+def validate_runtime_lease_binding(
+    lease: Mapping[str, Any],
+    *,
+    root: str | os.PathLike[str],
+    expected: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Validate lease paths and optional exact pack/context bindings."""
+    errors = list(validate_receipt(lease)["errors"])
+    repo = Path(root).resolve()
+    worktree: Path | None = None
+    try:
+        worktree = Path(str(lease.get("worktree", ""))).resolve(strict=False)
+        if not _inside(worktree, repo):
+            errors.append("worktree_outside_repo")
+        elif not worktree.is_dir():
+            errors.append("worktree_missing")
+        elif worktree == repo:
+            errors.append("worktree_not_isolated")
+        else:
+            top = subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "--show-toplevel"],
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if top.returncode != 0 or Path(top.stdout.strip()).resolve() != worktree:
+                errors.append("worktree_not_git_root")
+            head = subprocess.run(
+                ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            actual_head = head.stdout.strip() if head.returncode == 0 else None
+            base_sha = str(lease.get("base_sha") or "")
+            ancestry = subprocess.run(
+                ["git", "-C", str(worktree), "merge-base", "--is-ancestor", base_sha, "HEAD"],
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if not actual_head or ancestry.returncode != 0:
+                errors.append("worktree_base_not_ancestor")
+            branch = subprocess.run(
+                ["git", "-C", str(worktree), "symbolic-ref", "--short", "HEAD"],
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+            if branch.returncode != 0 or branch.stdout.strip() != lease.get("branch"):
+                errors.append("worktree_branch_mismatch")
+    except (OSError, ValueError):
+        errors.append("invalid:worktree")
+    if Path(str(lease.get("repo_root") or "")).resolve(strict=False) != repo:
+        errors.append("repo_root_mismatch")
+    allowed_raw = lease.get("allowed_write_root")
+    if isinstance(allowed_raw, str) and allowed_raw:
+        allowed = Path(allowed_raw)
+        if not allowed.is_absolute():
+            allowed = (worktree or repo) / allowed
+        try:
+            if not worktree or not _inside(allowed.resolve(strict=False), worktree):
+                errors.append("allowed_write_root_outside_worktree")
+        except (OSError, ValueError):
+            errors.append("invalid:allowed_write_root")
+    else:
+        errors.append("invalid:allowed_write_root")
+    binding = dict(expected or {})
+    aliases = {
+        "plan_sha": "context_plan_sha",
+        "repo_head": "repo_head",
+        "base_sha": "base_sha",
+        "topic": "topic",
+        "task": "task",
+        "manifest_sha": "manifest_sha",
+        "allowed_write_root": "allowed_write_root",
+        "pack_sha": "pack_sha",
+        "episode_id": "episode_id",
+        "branch": "branch",
+        "repo_root": "repo_root",
+    }
+    for source, target in aliases.items():
+        value = binding.get(source)
+        if value is not None and lease.get(target) != value:
+            errors.append(f"mismatch:{target}")
+    return {"valid": not errors, "errors": sorted(set(errors))}
+
+
+def runtime_lease_binding_proof(
+    lease: Mapping[str, Any],
+    *,
+    root: str | os.PathLike[str],
+) -> dict[str, Any]:
+    """Capture durable facts after live worktree validation succeeds."""
+    live = validate_runtime_lease_binding(lease, root=root)
+    if not live["valid"]:
+        raise ValueError(f"cannot prove invalid runtime lease: {live['errors']}")
+    worktree = Path(str(lease["worktree"])).resolve()
+    observed_head = subprocess.check_output(
+        ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    proof: dict[str, Any] = {
+        "schema": "ndf-runtime-worktree-proof/v1",
+        "repo_root": str(Path(root).resolve()),
+        "worktree": str(worktree),
+        "branch": lease.get("branch"),
+        "base_sha": lease.get("base_sha"),
+        "observed_head": observed_head,
+        "allowed_write_root": lease.get("allowed_write_root"),
+        "run_id": lease.get("run_id"),
+        "session_id": lease.get("session_id"),
+        "acquisition_snapshot": git_mutation_snapshot(worktree),
+    }
+    proof["proof_sha"] = canonical_json_sha(proof)
+    return proof
+
+
+def git_mutation_snapshot(worktree: Path) -> dict[str, Any]:
+    """Capture tracked, staged and untracked mutation state deterministically."""
+    status = subprocess.run(
+        [
+            "git",
+            "-C",
+            str(worktree),
+            "status",
+            "--porcelain=v2",
+            "--untracked-files=all",
+            "-z",
+        ],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if status.returncode != 0:
+        raise ValueError("cannot capture git mutation snapshot")
+    records = [
+        item.decode("utf-8", errors="surrogateescape")
+        for item in status.stdout.split(b"\0")
+        if item
+    ]
+    paths: set[str] = set()
+    for record in records:
+        if record.startswith("? "):
+            paths.add(record[2:])
+        elif record.startswith(("1 ", "u ")):
+            paths.add(record.split(" ", 8)[-1])
+        elif record.startswith("2 "):
+            payload = record.split(" ", 9)[-1]
+            paths.add(payload.split("\t", 1)[0])
+    snapshot = {
+        "schema": "ndf-git-mutation-snapshot/v1",
+        "head": subprocess.check_output(
+            ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip(),
+        "status_porcelain_v2_sha": hashlib.sha256(status.stdout).hexdigest(),
+        "paths": sorted(paths),
+        "path_shas": {
+            path: (
+                hashlib.sha256((worktree / path).read_bytes()).hexdigest()
+                if (worktree / path).is_file()
+                else "[deleted-or-nonfile]"
+            )
+            for path in sorted(paths)
+        },
+    }
+    snapshot["snapshot_sha"] = canonical_json_sha(snapshot)
+    return snapshot
+
+
+def validate_recorded_runtime_lease_binding(
+    lease: Mapping[str, Any],
+    *,
+    expected: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Verify content-bound lease facts without requiring a live worktree."""
+    errors = list(validate_receipt(lease)["errors"])
+    proof = lease.get("binding_proof")
+    if not isinstance(proof, Mapping):
+        errors.append("missing:binding_proof")
+        return {"valid": False, "errors": sorted(set(errors))}
+    unhashed = {key: value for key, value in proof.items() if key != "proof_sha"}
+    if proof.get("proof_sha") != canonical_json_sha(unhashed):
+        errors.append("mismatch:binding_proof_sha")
+    for field in (
+        "repo_root",
+        "worktree",
+        "branch",
+        "base_sha",
+        "allowed_write_root",
+        "run_id",
+        "session_id",
+    ):
+        if proof.get(field) != lease.get(field):
+            errors.append(f"mismatch:binding_proof:{field}")
+    binding = dict(expected or {})
+    aliases = {
+        "plan_sha": "context_plan_sha",
+        "repo_head": "repo_head",
+        "base_sha": "base_sha",
+        "topic": "topic",
+        "task": "task",
+        "manifest_sha": "manifest_sha",
+        "allowed_write_root": "allowed_write_root",
+        "pack_sha": "pack_sha",
+        "episode_id": "episode_id",
+        "branch": "branch",
+        "repo_root": "repo_root",
+    }
+    for source, target in aliases.items():
+        value = binding.get(source)
+        if value is not None and lease.get(target) != value:
+            errors.append(f"mismatch:{target}")
+    return {"valid": not errors, "errors": sorted(set(errors))}
+
+
+def chained_event(
+    payload: Mapping[str, Any],
+    *,
+    previous_sha: str | None,
+) -> dict[str, Any]:
+    """Return an immutable hash-linked event envelope."""
+    event = dict(payload)
+    event["prev_event_sha"] = previous_sha
+    event.pop("event_sha", None)
+    event["event_sha"] = canonical_json_sha(event)
+    return event
+
+
+def validate_event_chain(events: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """Validate sequence, previous hash and canonical event hashes."""
+    errors: list[str] = []
+    previous: str | None = None
+    expected_seq = 1
+    count = 0
+    for count, raw in enumerate(events, 1):
+        event = dict(raw)
+        if event.get("seq") != expected_seq:
+            errors.append(f"seq:{count}")
+        if event.get("prev_event_sha") != previous:
+            errors.append(f"prev_event_sha:{count}")
+        claimed = event.pop("event_sha", None)
+        actual = canonical_json_sha(event)
+        if claimed != actual:
+            errors.append(f"event_sha:{count}")
+        previous = claimed if isinstance(claimed, str) else None
+        expected_seq += 1
+    return {
+        "valid": not errors,
+        "count": count,
+        "tip_sha": previous,
+        "errors": errors,
+    }
 
 
 def read_lease_jsonl(

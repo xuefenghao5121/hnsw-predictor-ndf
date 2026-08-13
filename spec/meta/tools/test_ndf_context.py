@@ -1,4 +1,6 @@
 import importlib.util
+import contextlib
+import io
 import json
 import subprocess
 import sys
@@ -12,6 +14,7 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 import ndf_workflow_evidence as evidence
+import ndf_replay
 
 SPEC = importlib.util.spec_from_file_location("ndf_context", TOOLS / "ndf_context.py")
 assert SPEC and SPEC.loader
@@ -163,6 +166,177 @@ QPS and Recall.
         )
         self.assertEqual(self._plan(), self._plan())
 
+    def test_manifest_is_shared_parent_for_role_plans(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            business_goal="repair binder",
+        )
+        openclaw = context.role_plan(manifest, role="openclaw")
+        canvas = context.role_plan(manifest, role="canvas")
+        self.assertEqual(openclaw["manifest_sha"], manifest["manifest_sha"])
+        self.assertEqual(canvas["manifest_sha"], manifest["manifest_sha"])
+        self.assertNotEqual(openclaw["plan_sha"], canvas["plan_sha"])
+        self.assertTrue(
+            context.verify_plan(
+                openclaw,
+                root=self.root,
+                manifest=manifest,
+            )["valid"]
+        )
+
+    def test_context_cli_resolves_replay_object_shas_and_records_episode(self) -> None:
+        store = ndf_replay.ReplayStore(self.root)
+        store.init_episode(
+            topic="demo",
+            task="binder_amend",
+            role="openclaw",
+            track="poc",
+            episode_id="ep-context",
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "manifest-create",
+                    "--topic",
+                    "demo",
+                    "--task",
+                    "binder_amend",
+                    "--track",
+                    "poc",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        manifest_event = next(
+            event
+            for event in store.read_events("ep-context")
+            if event["kind"] == "manifest.created"
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "role-plan",
+                    "--manifest",
+                    manifest_event["payload_sha"],
+                    "--role",
+                    "openclaw",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        plan_event = [
+            event
+            for event in store.read_events("ep-context")
+            if event["kind"] == "context.compiled"
+        ][-1]
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "context-verify",
+                    "--plan",
+                    plan_event["payload_sha"],
+                    "--manifest",
+                    manifest_event["payload_sha"],
+                    "--strict",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(store.read_events("ep-context")[-1]["kind"], "context.verified")
+
+    def test_plan_rejects_wrong_manifest_parent(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        plan = context.role_plan(manifest, role="openclaw")
+        other = dict(manifest)
+        other["business_goal"] = "changed"
+        other["manifest_sha"] = context.canonical_json_sha(
+            {key: value for key, value in other.items() if key != "manifest_sha"}
+        )
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            manifest=other,
+        )
+        self.assertIn(
+            "plan_manifest_sha_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_resigned_role_plan_cannot_escalate_privileges(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        plan = context.role_plan(manifest, role="openclaw")
+        plan["privileges"]["allowed_write_roots"].append("spec/40-constraints/")
+        self._resign(plan)
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            manifest=manifest,
+            require_manifest=True,
+        )
+        self.assertIn(
+            "role_plan_derivation_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_resigned_manifest_cannot_escalate_role_policy(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        manifest["role_policies"]["openclaw"]["allowed_write_roots"].append(
+            "spec/40-constraints/"
+        )
+        manifest["manifest_sha"] = context.canonical_json_sha(
+            {
+                key: value
+                for key, value in manifest.items()
+                if key != "manifest_sha"
+            }
+        )
+        result = context.verify_manifest(manifest, root=self.root)
+        self.assertIn(
+            "manifest_role_policy_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_strict_verification_rejects_legacy_plan_without_manifest(self) -> None:
+        plan = self._plan()
+        plan["schema"] = "ndf-context-plan/v1"
+        self._resign(plan)
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            require_manifest=True,
+        )
+        self.assertIn(
+            "manifest_required_for_role_plan",
+            {item["kind"] for item in result["errors"]},
+        )
+
     def test_bundle_sha_is_order_independent_and_path_bound(self) -> None:
         first = self.root / "one"
         second = self.root / "two"
@@ -224,6 +398,10 @@ QPS and Recall.
             item["content"] for item in measured["files"] if item["path"].endswith("PERF_BASELINE.md")
         )
         self.assertIn("SECRET_QPS", measured_perf)
+        surface = context.compile_prompt_surface(bundle)
+        self.assertEqual(surface["bundle_sha"], bundle["bundle_sha"])
+        self.assertIn("visible_prompt", surface)
+        self.assertTrue(surface["source_refs"]["files"])
 
     def test_verify_detects_file_drift(self) -> None:
         plan = self._plan()
@@ -231,6 +409,18 @@ QPS and Recall.
         result = context.verify_plan(plan, root=self.root)
         self.assertFalse(result["valid"])
         self.assertIn("file_drift", {item["kind"] for item in result["errors"]})
+
+    def test_manifest_verification_detects_gate_drift(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        self._write("poc/demo/ndf/GATES.md", "# changed gate\n")
+        result = context.verify_manifest(manifest, root=self.root)
+        self.assertFalse(result["valid"])
+        self.assertIn("gate_drift", {item["kind"] for item in result["errors"]})
 
     def test_verify_detects_bundle_tampering(self) -> None:
         plan = self._plan()
@@ -273,14 +463,26 @@ QPS and Recall.
         )
 
     def test_receipt_validation_and_lease_round_trip(self) -> None:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            text=True,
+        ).strip()
+        worktree = self.root / "tmp" / "lease-worktree"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "lease-test", str(worktree), head],
+            cwd=self.root,
+            check=True,
+        )
         lease = {
             "schema": "ndf-runtime-lease/v1",
             "task": "implement",
             "topic": "demo",
             "mode": "poc",
             "step": "start",
-            "repo_head": "a" * 40,
+            "repo_head": head,
             "source_generation_sha": "b" * 64,
+            "manifest_sha": "f" * 64,
             "context_plan_sha": "c" * 64,
             "command": "run",
             "input_sha": "d" * 64,
@@ -292,13 +494,39 @@ QPS and Recall.
             "blockers": [],
             "run_id": "run",
             "session_id": "session",
-            "base_sha": "a" * 40,
-            "worktree": str(self.root),
+            "base_sha": head,
+            "worktree": str(worktree),
+            "branch": "lease-test",
+            "repo_root": str(self.root),
             "allowed_write_root": "poc/demo/",
+            "pack_sha": "9" * 64,
+            "episode_id": "ep-demo",
         }
         self.assertTrue(evidence.validate_receipt(lease)["valid"])
         path = evidence.append_lease("tmp/leases.jsonl", lease, root=self.root)
         self.assertEqual(evidence.read_leases(path, root=self.root), [lease])
+        bound = evidence.validate_runtime_lease_binding(
+            lease,
+            root=self.root,
+            expected={
+                "topic": "demo",
+                "task": "implement",
+                "plan_sha": "c" * 64,
+                "allowed_write_root": "poc/demo/",
+                "pack_sha": "9" * 64,
+                "episode_id": "ep-demo",
+                "branch": "lease-test",
+                "repo_root": str(self.root),
+            },
+        )
+        self.assertTrue(bound["valid"], bound["errors"])
+        escaped = dict(lease, worktree="/tmp/outside-ndf-repo")
+        self.assertFalse(
+            evidence.validate_runtime_lease_binding(
+                escaped,
+                root=self.root,
+            )["valid"]
+        )
         bad = dict(lease, schema="unknown")
         self.assertFalse(evidence.validate_receipt(bad)["valid"])
 
@@ -314,6 +542,89 @@ QPS and Recall.
         self._resign(plan)
         result = context.verify_plan(plan, root=self.root)
         self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["errors"]})
+
+    def test_manifest_resigned_after_closure_tamper_fails_rederivation(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        manifest["shared_graph_closure"]["nodes"] = []
+        manifest["compiler_derivation"]["derived_sha"] = (
+            context._manifest_derivation_digest(manifest)
+        )
+        manifest["manifest_sha"] = context.canonical_json_sha(
+            {key: value for key, value in manifest.items() if key != "manifest_sha"}
+        )
+        result = context.verify_manifest_current(manifest, root=self.root)
+        self.assertIn(
+            "manifest_compiler_derivation_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_role_task_matrix_rejects_control_task_for_claude(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        with self.assertRaisesRegex(ValueError, "incompatible role/task/track"):
+            context.role_plan(manifest, role="claude-code")
+
+    def test_recorded_lease_proof_survives_worktree_cleanup(self) -> None:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, text=True
+        ).strip()
+        worktree = self.root / "tmp" / "recorded-proof"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "recorded-proof", str(worktree), head],
+            cwd=self.root,
+            check=True,
+        )
+        lease = {
+            "schema": "ndf-runtime-lease/v1",
+            "task": "implement",
+            "topic": "demo",
+            "mode": "poc",
+            "step": "start",
+            "repo_head": head,
+            "source_generation_sha": "b" * 64,
+            "manifest_sha": "f" * 64,
+            "context_plan_sha": "c" * 64,
+            "command": "run",
+            "input_sha": "d" * 64,
+            "output_sha": "e" * 64,
+            "evidence_paths": [],
+            "started_at": "2026-08-12T00:00:00Z",
+            "finished_at": None,
+            "result": "active",
+            "blockers": [],
+            "run_id": "run",
+            "session_id": "session",
+            "base_sha": head,
+            "worktree": str(worktree),
+            "branch": "recorded-proof",
+            "repo_root": str(self.root),
+            "allowed_write_root": "poc/demo/",
+            "pack_sha": "9" * 64,
+            "episode_id": "ep-demo",
+        }
+        lease["binding_proof"] = evidence.runtime_lease_binding_proof(
+            lease, root=self.root
+        )
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(worktree)],
+            cwd=self.root,
+            check=True,
+        )
+        self.assertTrue(
+            evidence.validate_recorded_runtime_lease_binding(lease)["valid"]
+        )
+        self.assertFalse(
+            evidence.validate_runtime_lease_binding(lease, root=self.root)["valid"]
+        )
 
 
 if __name__ == "__main__":
