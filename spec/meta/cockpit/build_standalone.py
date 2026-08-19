@@ -76,6 +76,8 @@ def main() -> None:
                 "schema": "ndf-commander-standalone-build/v1",
                 "output": str(OUTPUT.relative_to(ROOT)),
                 "bytes": OUTPUT.stat().st_size,
+                "selfContained": True,
+                "runtimeNetworkRequired": False,
                 "snapshotSha": snapshot.get("snapshotSha"),
                 "payloadSha": snapshot.get("payloadSha"),
             },

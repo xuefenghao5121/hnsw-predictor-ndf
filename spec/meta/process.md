@@ -270,8 +270,9 @@ UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未�
 本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
 `--serve` MUST bind loopback（`127.0.0.1`）。Cloud Agent VM 对人浏览器没有 TCP 入站，
 因此 `http://127.0.0.1:8765/` 不是云端可打开地址。Cloud Agent MUST 生成
-`docs/ndf-commander.html` 自包含投影并从可达 HTTPS 页面打开；命令继续回到同一
-Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
+`docs/ndf-commander.html` 自包含投影；MAY 从磁盘直接打开、由本地/内网静态服务器
+托管，或从可达 HTTPS 页面打开。工作台使用 MUST NOT 依赖 GitHub、CDN 或外网；
+命令继续回到同一 Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
 
 ```text
 project_maturity | lifecycle | gates

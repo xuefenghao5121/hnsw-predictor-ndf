@@ -19,8 +19,23 @@ python3 spec/meta/tools/ndf_workflow_status.py snapshot \
 cd spec/meta/cockpit && npm run build && python3 build_standalone.py
 ```
 
-Open `docs/ndf-commander.html` through the branch HTTPS preview. Canvas is not
-part of the visualization or command chain.
+`docs/ndf-commander.html` is self-contained: snapshot, React bundle, D3 and CSS
+are all inline. It has no GitHub/CDN/runtime network dependency. Delivery options:
+
+```bash
+# Directly open on a desktop
+xdg-open docs/ndf-commander.html
+
+# Or serve on localhost / an intranet host
+python3 -m http.server 8766 --directory docs
+# open http://127.0.0.1:8766/ndf-commander.html
+```
+
+The current public preview uses GitHub Raw + HTMLPreview only as one hosting
+choice. Users without GitHub access can copy the single HTML file, serve it
+with nginx/Apache/object storage, or open it from disk. Rebuilding requires the
+repository plus Python/Node dependencies, but using an already-built HTML file
+does not. Canvas is not part of the visualization or command chain.
 Composer hops return a prompt; snapshot hops rebuild
 `tmp/ndf-canvas-snapshot.json`. Button click is never `已确认` /
 `TOPIC已审核` / `可以开始实现`.

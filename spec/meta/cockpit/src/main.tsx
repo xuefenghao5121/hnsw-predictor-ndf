@@ -91,6 +91,8 @@ function App() {
     workflow: true,
     mechanical: true,
     genesis: true,
+    kernelMap: true,
+    controlHealth: true,
   });
   const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -684,63 +686,72 @@ function App() {
               )}
             </div>
 
-            <div className="card">
-              <div className="section-heading">
-                <div><p className="eyebrow">Process profile IR</p><h3>NDF 内核地图</h3></div>
-                <span className={`status-chip ${(snapshot?.control?.kernelMap?.missing_seeds || []).length ? "failed" : "passed"}`}>
-                  种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
-                </span>
-              </div>
-              <table>
-                <thead><tr><th>Clause</th><th>Title</th><th>Status</th><th>Role</th><th>Scope</th></tr></thead>
-                <tbody>
-                  {(snapshot?.control?.kernelMap?.seeds || []).map((seed) => (
-                    <tr key={seed.id}><td>{seed.id}</td><td>{seed.title}</td><td>{seed.status}</td><td>{seed.role}</td><td>{seed.scope}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              {(snapshot?.control?.kernelMap?.missing_seeds || []).length > 0 && (
-                <p className="danger">Missing: {snapshot?.control?.kernelMap?.missing_seeds?.join(", ")}</p>
+            <div className="card disclosure">
+              <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, kernelMap: !s.kernelMap }))}>
+                NDF 内核地图 · 种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
+              </button>
+              {!collapsed.kernelMap && (
+                <div>
+                  <p className="eyebrow">Process profile IR</p>
+                  <table>
+                    <thead><tr><th>Clause</th><th>Title</th><th>Status</th><th>Role</th><th>Scope</th></tr></thead>
+                    <tbody>
+                      {(snapshot?.control?.kernelMap?.seeds || []).map((seed) => (
+                        <tr key={seed.id}><td>{seed.id}</td><td>{seed.title}</td><td>{seed.status}</td><td>{seed.role}</td><td>{seed.scope}</td></tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(snapshot?.control?.kernelMap?.missing_seeds || []).length > 0 && (
+                    <p className="danger">Missing: {snapshot?.control?.kernelMap?.missing_seeds?.join(", ")}</p>
+                  )}
+                  <div className="pills">
+                    <ActionButton actionId="open-language-md" enabled={enabledOf(snapshot, "open-language-md")} onClick={() => run("open-language-md")} />
+                    <ActionButton actionId="open-process-md" enabled={enabledOf(snapshot, "open-process-md")} onClick={() => run("open-process-md")} />
+                    <ActionButton actionId="open-meta-readme" enabled={enabledOf(snapshot, "open-meta-readme")} onClick={() => run("open-meta-readme")} />
+                  </div>
+                </div>
               )}
-              <div className="pills">
-                <ActionButton actionId="open-language-md" enabled={enabledOf(snapshot, "open-language-md")} onClick={() => run("open-language-md")} />
-                <ActionButton actionId="open-process-md" enabled={enabledOf(snapshot, "open-process-md")} onClick={() => run("open-process-md")} />
-                <ActionButton actionId="open-meta-readme" enabled={enabledOf(snapshot, "open-meta-readme")} onClick={() => run("open-meta-readme")} />
-              </div>
             </div>
 
-            <div className="card">
-              <div className="section-heading">
-                <div><p className="eyebrow">Plane-routed checks</p><h3>内核自洽性</h3></div>
-                <div className="pills">
-                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
-                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
-                </div>
-              </div>
-              <table>
-                <thead><tr><th>Check / finding</th><th>State</th><th>Why blocked</th><th>Plane / repair</th></tr></thead>
-                <tbody>
-                  {Object.entries(controlChecks).map(([name, check]) => (
-                    <tr key={name}><td>{name}</td><td><span className={`status-chip ${check.state}`}>{check.state}</span></td><td>{check.summary}</td><td>inspection</td></tr>
-                  ))}
-                  {controlFindings.map((finding, index) => (
-                    <tr key={`${finding.kind}-${index}`}>
-                      <td>{finding.kind}</td><td>{finding.severity}</td><td>{finding.why_blocked}</td>
-                      <td>{finding.plane || finding.space || "route by check"} · {finding.repair_task}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div className="pills">
-                <ActionButton actionId="repair-kernel" enabled={enabledOf(snapshot, "repair-kernel")} onClick={() => run("repair-kernel")} />
-                <ActionButton actionId="go-product" enabled={enabledOf(snapshot, "go-product")} onClick={() => setTab("product")} />
-                <ActionButton actionId="go-topics" enabled={enabledOf(snapshot, "go-topics")} onClick={() => setTab("topics")} />
-              </div>
-              {(snapshot?.control?.nextActions || []).length > 0 && (
-                <div className="next-actions">
-                  {(snapshot?.control?.nextActions || []).map((action, index) => (
-                    <div key={`${action.kind}-${index}`}><strong>{action.label || action.kind}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span></div>
-                  ))}
+            <div className="card disclosure">
+              <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, controlHealth: !s.controlHealth }))}>
+                内核自洽性 · 阻断 {controlBlockers} · 告警 {controlWarnings} · 通过 {controlPassed}
+              </button>
+              {!collapsed.controlHealth && (
+                <div>
+                  <div className="section-heading">
+                    <p className="eyebrow">Plane-routed checks</p>
+                    <div className="pills">
+                      <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
+                      <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
+                    </div>
+                  </div>
+                  <table>
+                    <thead><tr><th>Check / finding</th><th>State</th><th>Why blocked</th><th>Plane / repair</th></tr></thead>
+                    <tbody>
+                      {Object.entries(controlChecks).map(([name, check]) => (
+                        <tr key={name}><td>{name}</td><td><span className={`status-chip ${check.state}`}>{check.state}</span></td><td>{check.summary}</td><td>inspection</td></tr>
+                      ))}
+                      {controlFindings.map((finding, index) => (
+                        <tr key={`${finding.kind}-${index}`}>
+                          <td>{finding.kind}</td><td>{finding.severity}</td><td>{finding.why_blocked}</td>
+                          <td>{finding.plane || finding.space || "route by check"} · {finding.repair_task}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="pills">
+                    <ActionButton actionId="repair-kernel" enabled={enabledOf(snapshot, "repair-kernel")} onClick={() => run("repair-kernel")} />
+                    <ActionButton actionId="go-product" enabled={enabledOf(snapshot, "go-product")} onClick={() => setTab("product")} />
+                    <ActionButton actionId="go-topics" enabled={enabledOf(snapshot, "go-topics")} onClick={() => setTab("topics")} />
+                  </div>
+                  {(snapshot?.control?.nextActions || []).length > 0 && (
+                    <div className="next-actions">
+                      {(snapshot?.control?.nextActions || []).map((action, index) => (
+                        <div key={`${action.kind}-${index}`}><strong>{action.label || action.kind}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span></div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

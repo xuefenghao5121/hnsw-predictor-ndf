@@ -40,7 +40,9 @@ Do not create, refresh, or link a Cursor Canvas. Every control is an id in
    python3 build_standalone.py
    ```
 
-2. Open `docs/ndf-commander.html` through the branch HTTPS preview.
+2. Open `docs/ndf-commander.html` directly, serve it from `docs/` on localhost
+   or an intranet host, or use an HTTPS static host. The built page is
+   self-contained and MUST NOT require GitHub/CDN/network access at runtime.
    `--topic` selects the unique fat Topics page. Do not pass `--probe-runtime`
    on routine refresh; header Refresh snapshot is the only probe.
    Over 120KB compact commander JSON MUST fail and name the overflowing bucket.

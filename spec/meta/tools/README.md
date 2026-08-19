@@ -298,7 +298,8 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 绑定 `127.0.0.1` 提供 React+D3
   指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；POST `/api/action`
   只接受登记动作。Cloud Agent 用 `build_standalone.py` 生成
-  `docs/ndf-commander.html` 自包含 React+D3 投影。Canvas 不在现行 UI 链路；
+  `docs/ndf-commander.html` 自包含 React+D3 投影；运行时不依赖 GitHub/CDN，可直接
+  从磁盘打开或由本地/内网静态服务器托管。Canvas 不在现行 UI 链路；
   `--update-embedded` 仅保留旧回执验证兼容，不得用于打开或刷新工作台。
   `--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
   （`claude doctor` + 配置会话 resume 产物）；只用于页头 Refresh snapshot。例行

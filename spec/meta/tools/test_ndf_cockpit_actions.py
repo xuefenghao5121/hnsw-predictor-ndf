@@ -354,6 +354,15 @@ class ActionRegistryTest(unittest.TestCase):
             "proposalPlaneWarnings",
         ):
             self.assertIn(field, source)
+        self.assertIn("kernelMap: true", source)
+        self.assertIn("controlHealth: true", source)
+        self.assertIn("!collapsed.kernelMap", source)
+        self.assertIn("!collapsed.controlHealth", source)
+
+    def test_standalone_builder_declares_offline_delivery(self) -> None:
+        source = (COCKPIT / "build_standalone.py").read_text(encoding="utf-8")
+        self.assertIn('"selfContained": True', source)
+        self.assertIn('"runtimeNetworkRequired": False', source)
 
     def test_agents_and_replay_use_real_runtime_lenses(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
