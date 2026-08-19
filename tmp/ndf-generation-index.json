@@ -66,6 +66,66 @@
       "sha256": "8d0a67ed3c00969f74a27b3b084492c84c17641b1843e7246893040e86220b83",
       "size": 2113
     },
+    "poc/hotspot-optimization/.gitignore": {
+      "ino": 527299,
+      "mtime_ns": 1787156609038855428,
+      "sha256": "181314065df2f2fdaf920b1a8b5311daa216a2d6489a06ada5b49cc514d89417",
+      "size": 7
+    },
+    "poc/hotspot-optimization/Makefile": {
+      "ino": 527298,
+      "mtime_ns": 1787156609022855278,
+      "sha256": "35ad762dde101897996ba17e116b8c73e771158881b444a677c34540055a7558",
+      "size": 1665
+    },
+    "poc/hotspot-optimization/ndf/COMMITS.md": {
+      "ino": 526452,
+      "mtime_ns": 1787156671123442995,
+      "sha256": "de9ac874bbca253ae47e43dc1de134208c047a022232e977453343eaa6184529",
+      "size": 1460
+    },
+    "poc/hotspot-optimization/run_r0.sh": {
+      "ino": 527297,
+      "mtime_ns": 1787156609022855278,
+      "sha256": "5ccd53525eb19eb0cb2b575dde3aeaaa3617c5ec50c5b53f8bea4dac0293329d",
+      "size": 1298
+    },
+    "poc/hotspot-optimization/src/disk_hnsw.cpp": {
+      "ino": 527291,
+      "mtime_ns": 1787156318083779797,
+      "sha256": "bc303b4e646a3a62c79e81f68f342cfea26bc6d8a5e4ad903c4750eaea1ff820",
+      "size": 137303
+    },
+    "poc/hotspot-optimization/src/disk_hnsw.h": {
+      "ino": 527292,
+      "mtime_ns": 1787156318099780599,
+      "sha256": "28e9ad7abb8db1ea735ec561f460902b6e09d748659a26811fce42953d03dcba",
+      "size": 14454
+    },
+    "poc/hotspot-optimization/src/simd.h": {
+      "ino": 527293,
+      "mtime_ns": 1787156318103780800,
+      "sha256": "993515720c1070d42ce06e4e1adaf1860c376d4ac68ec4263c22b32499e686ce",
+      "size": 314
+    },
+    "poc/hotspot-optimization/src/simd_arm.h": {
+      "ino": 527295,
+      "mtime_ns": 1787156318103780800,
+      "sha256": "e743c779214e382fb8c43f46c34792f0600e6e290ec7cec306fba98056fddfbf",
+      "size": 1045
+    },
+    "poc/hotspot-optimization/src/simd_scalar.h": {
+      "ino": 527296,
+      "mtime_ns": 1787156318103780800,
+      "sha256": "91f9e566358ee4f3d3295cb634ffa8a1fe30942d10255c19d647c0aea4121707",
+      "size": 461
+    },
+    "poc/hotspot-optimization/src/simd_x86.h": {
+      "ino": 527294,
+      "mtime_ns": 1787156318103780800,
+      "sha256": "ba46b22c748fc202b0bb189b503f1f33e1ecde4eb128e7c41a67f2b1202d1c7a",
+      "size": 1532
+    },
     "poc/page-packer/NOTES.md": {
       "ino": 4859944,
       "mtime_ns": 1787040155365124128,
