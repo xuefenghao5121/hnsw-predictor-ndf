@@ -38,9 +38,11 @@ Canvas is a derived projection, not a product or process SoT.
 2. Require `updated=true`; the command atomically replaces the complete SNAPSHOT, verifies
    the **written** payload SHA (no second `snapshot()` compile), and writes a projection
    receipt. Do not maintain an ad-hoc snake_case/camelCase transform. `const SNAPSHOT` is
-   compact JSON: Topics **directory** + one `business.focusedTopic` workbench, and Replay
-   hop **directory** + one `replay.focused` page. Do not embed every exploring workbench
-   or every hop Prompt. `--topic` selects the unique fat Topics page. Do not pass
+     compact JSON: Topics **directory** + one `business.focusedTopic` workbench, and Replay
+     hop **directory** + one `replay.focused` page. Write that object pretty-printed
+     (`indent=2`) so no TSX line exceeds ~8KB; Canvas loaders fail on a 32KB+ one-liner.
+     Do not embed every exploring workbench
+     or every hop Prompt. `--topic` selects the unique fat Topics page. Do not pass
    `--probe-runtime` on routine refresh; header Refresh snapshot is the only probe and
    MUST include `--topic` from Canvas `business-topic`. Over 120KB compact JSON MUST fail
    rather than write a 20k-line object; the error names the overflowing bucket.

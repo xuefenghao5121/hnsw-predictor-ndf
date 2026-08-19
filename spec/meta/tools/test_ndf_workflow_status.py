@@ -3103,7 +3103,9 @@ class WorkflowHealthTest(unittest.TestCase):
             rendered = path.read_text(encoding="utf-8")
             self.assertIn(payload["payloadSha"], rendered)
             self.assertIn("const KEEP = 1;", rendered)
-            self.assertNotIn('\n  "schema"', rendered)
+            self.assertIn('\n  "schema"', rendered)
+            longest = max(len(line) for line in rendered.splitlines())
+            self.assertLess(longest, 8000)
 
     def test_canvas_replay_is_index_plus_one_focused_ledger(self) -> None:
         replay = {

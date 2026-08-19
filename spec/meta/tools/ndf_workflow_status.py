@@ -6867,11 +6867,20 @@ def update_embedded_snapshot(
     payload = canvas_snapshot(
         snapshot(topic, probe_runtime, replay_episode=replay_episode)
     )
-    rendered = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    encoded = rendered.encode("utf-8")
+    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    encoded = compact.encode("utf-8")
     budget_error = canvas_snapshot_budget_error(payload, len(encoded))
     if budget_error:
         raise ValueError(budget_error)
+    # TSX canvas parsers fail on 32KiB+ single lines; pretty-print the file
+    # while the 120KiB budget still measures compact UTF-8.
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+    longest = max((len(line) for line in rendered.splitlines()), default=0)
+    if longest > 8000:
+        raise ValueError(
+            f"embedded SNAPSHOT line length {longest} exceeds 8000; "
+            "trim the overflowing string field"
+        )
     start = match.end() + leading
     updated = text[:start] + rendered + tail[consumed:]
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
