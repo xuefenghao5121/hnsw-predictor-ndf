@@ -4858,7 +4858,14 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
 
         cached = {
             "heads": {"ep-1": "head-1"},
-            "episodes": [{"id": "ep-1", "title": "cached", "happenedAt": "t"}],
+            "episodes": [{
+                "id": "ep-1",
+                "title": "cached",
+                "happenedAt": "t",
+                "participants": [],
+                "kinds": [],
+                "lenses": [],
+            }],
         }
         with (
             patch.object(workflow.ndf_replay, "episode_head_map", return_value={"ep-1": "head-1"}),
