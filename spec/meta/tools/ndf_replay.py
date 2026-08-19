@@ -1472,15 +1472,17 @@ def project_canvas_index(
     episodes = []
     for episode_id, head in heads.items():
         previous = cards_by_id.get(episode_id)
-        if (
-            previous
-            and cached_heads.get(episode_id) == head
-            and "lenses" in previous
-            and "participants" in previous
-            and "kinds" in previous
-        ):
-            episodes.append(previous)
-            continue
+        if previous and cached_heads.get(episode_id) == head:
+            if "participants" in previous and "kinds" in previous:
+                cached_card = dict(previous)
+                cached_card["lenses"] = replay_agent_lenses(
+                    agent=str(cached_card.get("agent") or "") or None,
+                    actor=str(cached_card.get("actor") or "") or None,
+                    participants=cached_card.get("participants") or [],
+                    kinds=cached_card.get("kinds") or [],
+                )
+                episodes.append(cached_card)
+                continue
         episodes.append(project_canvas_index_card(store, episode_id))
     episodes.sort(key=lambda item: str(item.get("happenedAt") or ""), reverse=True)
     payload = {
