@@ -3,14 +3,14 @@ name: ndf-workflow-canvas
 description: >-
   Projects the local business project into the NDF commander (React+D3) with
   five tabs (Product / Topics / NDF Control / Agents / Replay). Cursor Canvas
-  is a launcher stub. Close is a Topics hop sequence, not a tab. Every control
+  is retired from the visualization chain. Close is a Topics hop sequence, not a tab. Every control
   is a closed NDF action-registry id. Use when the user asks for an NDF workflow
   canvas, commander, product cockpit, Genesis, POC workbench, governance health,
   agent runtime, sandbox delegation, or close visualization.
 disable-model-invocation: true
 ---
 
-# NDF Workflow Canvas
+# NDF Workflow Commander
 
 ## Authority
 
@@ -24,32 +24,23 @@ Read in this order:
 
 Never use `packages/ndf-harness/` or `.cursor/skills/ndf-harness/` as local
 process truth. Business truth comes from `spec/00–50` + Trunk; Meta controls flow.
-The derived cockpit is the NDF commander (`spec/meta/cockpit/`), not a growing
-Cursor Canvas. Canvas is a launcher stub. Every control is an id in
+The only derived cockpit is the React+D3 NDF commander (`spec/meta/cockpit/`).
+Do not create, refresh, or link a Cursor Canvas. Every control is an id in
 `spec/meta/cockpit/action-registry.json`. UI MUST NOT invent hops.
 
 ## Open or refresh
 
-1. Rebuild the commander payload (primary):
+1. Rebuild the commander payload:
 
    ```bash
    python3 spec/meta/tools/ndf_workflow_status.py snapshot \
      --out tmp/ndf-canvas-snapshot.json --topic <focused-topic-id> --json
-   python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic <focused-topic-id>
+   cd spec/meta/cockpit
+   npm run build
+   python3 build_standalone.py
    ```
 
-2. Optionally refresh the Cursor launcher:
-
-   ```bash
-   python3 spec/meta/tools/ndf_workflow_status.py snapshot \
-     --update-embedded /absolute/path/to/ndf-workflow.canvas.tsx \
-     --topic <focused-topic-id> --json
-   ```
-
-   Require `updated=true`. Embed is schema `ndf-workflow-canvas-launcher/v1`
-   (freshness + Open NDF commander). The full five-tab payload is
-   `tmp/ndf-canvas-snapshot.json` (`--out`), pretty-printed canvas-json with
-   `enabledActions`. Do not embed every workbench or hop Prompt in `.canvas.tsx`.
+2. Open `docs/ndf-commander.html` through the branch HTTPS preview.
    `--topic` selects the unique fat Topics page. Do not pass `--probe-runtime`
    on routine refresh; header Refresh snapshot is the only probe.
    Over 120KB compact commander JSON MUST fail and name the overflowing bucket.
@@ -60,21 +51,10 @@ Cursor Canvas. Canvas is a launcher stub. Every control is an id in
 4. Omit empty sections. Label snapshot time and repository SHA.
 5. After proposal, gate, binder, baseline, or close changes, refresh the snapshot.
 
-Canvas stub compile (host "Failed to load" / 页面加载出错):
-
-- Import **only** from `cursor/canvas`. Do not import `cursor/canvas/hooks`.
-- Prefer a new `.canvas.tsx` name when the previous gzip is cached as Failed to load.
-- Cloud Agent preview loads `/opt/cursor/artifacts/canvases/<name>.canvas.bundle.gz`.
-  Python `--update-embedded` does not refresh gzip; rewrite via the Write tool.
-- `useCanvasAction()` returns `dispatch`. Call
-  `dispatch({ type: "newComposerChat", userPrompt })`.
-- On Cloud Agent, buttons command THIS Composer. Do not tell the human to open
-  `http://127.0.0.1:8765/`.
-
-Canvas actions that may change local evidence MUST use bound action/agent receipts.
+Commander actions that may change local evidence MUST use bound action/agent receipts.
 The header MUST show payload SHA, absorbed action and latest operation/result/blockers/time.
 Only `fresh` permits repair, delegation or close; `refresh_in_progress`,
-`stale_after_action` and `unknown` block them. Canvas-local pending state is keyed by
+`stale_after_action` and `unknown` block them. UI-local pending state is keyed by
 `absorbedActionId` or `payloadSha`, never `snapshotSha`.
 
 ## Three-plane routing

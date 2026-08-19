@@ -56,21 +56,6 @@
       "probeRuntime": true
     },
     {
-      "id": "open-ndf-commander",
-      "label": "Open NDF commander",
-      "tab": "canvas-stub",
-      "module": "launcher",
-      "clauseRefs": ["META-011"],
-      "dispatch": "composer",
-      "operation": "open-ndf-commander",
-      "enableWhen": [],
-      "humanPhrase": null,
-      "requiresIntent": false,
-      "failClosed": "disable",
-      "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
-    },
-    {
       "id": "tab-product",
       "label": "Product",
       "tab": "nav",

@@ -18,7 +18,7 @@ REGISTRY_PATH = COCKPIT / "action-registry.json"
 SNAPSHOT_OUT = TOOLS.parents[2] / "tmp" / "ndf-canvas-snapshot.json"
 
 WRITE_DISPATCH = frozenset({"composer", "snapshot"})
-STUB_ACTION_IDS = frozenset({"open-ndf-commander", "refresh-snapshot"})
+LEGACY_EMBED_ACTION_IDS = frozenset({"refresh-snapshot"})
 
 
 @lru_cache(maxsize=1)
@@ -287,20 +287,20 @@ def evaluate_enabled_actions(
 
 
 def canvas_launcher_snapshot(payload: Mapping[str, Any]) -> dict[str, Any]:
-    """Tiny Cursor Canvas embed: freshness + commander CTA, not the full cockpit."""
+    """Legacy embedded receipt projection; not a visual or command surface."""
     business = payload.get("business") or {}
     identity = business.get("identity") or {}
     enabled = payload.get("enabledActions") or {}
     stub_enabled = {
         key: value
         for key, value in enabled.items()
-        if key in STUB_ACTION_IDS
+        if key in LEGACY_EMBED_ACTION_IDS
     }
     if not stub_enabled:
         stub_enabled = {
             key: value
             for key, value in evaluate_enabled_actions(payload).items()
-            if key in STUB_ACTION_IDS
+            if key in LEGACY_EMBED_ACTION_IDS
         }
     fresh = payload.get("projectionFreshness") or {}
     now_next = business.get("nowNextBlocked") or {}
@@ -375,17 +375,7 @@ def composer_prompt(
         "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
     ]
-    if action_id == "open-ndf-commander":
-        lines.append(
-            "Cloud Agent: this conversation IS the commander. Do not start snapshot --serve "
-            "(loopback HTTP is not reachable from the human browser)."
-        )
-        lines.append(
-            "Run snapshot --out tmp/ndf-canvas-snapshot.json, then rewrite the managed "
-            ".canvas.tsx with the Write tool so the gzip preview updates."
-        )
-        lines.append("Local workstation only: snapshot --serve --format canvas-json --json")
-    elif action_id == "new-proposal":
+    if action_id == "new-proposal":
         lines.append("Write the exact human product intent below to tmp/ndf-product-intent-<action_id>.md")
         lines.append("BEGIN HUMAN PRODUCT INTENT")
         lines.append(intent.strip())

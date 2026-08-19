@@ -259,19 +259,19 @@ stage-specific Episode 语义由 [[META-014]] 定义；MUST NOT 直接套用 POC
 
 可视化工作台 MUST 是树/图/git 与工具结果的派生投影，不是第五 SoT。其状态 MUST 正交展示：
 
-主投影 MUST 是本地 NDF commander（`spec/meta/cockpit/`，React+D3）。Cursor Canvas MUST
-仅为启动桥（launcher）：展示 freshness 与「Open NDF commander」，MUST NOT 把全部
-POC 工作台与 Replay Prompt 嵌进 `.canvas.tsx`。每个可见控件（含 D3 点击）MUST 属于
+唯一可视化投影 MUST 是 NDF commander（`spec/meta/cockpit/`，React+D3）。Cursor Canvas
+不属于现行可视化或指挥链，MUST NOT 生成、刷新或链接 `.canvas.tsx` / Canvas artifact。
+历史 `--update-embedded` 仅作旧回执验证兼容，不得成为打开工作台的步骤。每个可见控件
+（含 D3 点击）MUST 属于
 闭集目录 `spec/meta/cockpit/action-registry.json`；snapshot MUST 输出 `enabledActions`，
 UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未登记 hop。
 按钮点击 MUST NOT 充当人口令（[[META-010]]）。Composer / `openFile` 仍是可变 hop
 的唯一派发面；commander 的 snapshot hop（Refresh / 打开工作台 / 查这条账）MAY 由
 本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
 `--serve` MUST bind loopback（`127.0.0.1`）。Cloud Agent VM 对人浏览器没有 TCP 入站，
-因此 `http://127.0.0.1:8765/` 不是云端可打开地址。Cloud Agent 上人可达指挥面是
-Cursor Canvas + 同一 Composer：按钮 `newComposerChat` 在本对话执行 hop，MUST NOT
-为了给人看页面而在 VM 上 `--serve`。`--update-embedded` 只改 `.canvas.tsx`，
-MUST 再经 Canvas 宿主 Write 才会刷新 gzip 预览。
+因此 `http://127.0.0.1:8765/` 不是云端可打开地址。Cloud Agent MUST 生成
+`docs/ndf-commander.html` 自包含投影并从可达 HTTPS 页面打开；命令继续回到同一
+Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
 
 ```text
 project_maturity | lifecycle | gates
