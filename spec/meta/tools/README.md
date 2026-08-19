@@ -33,7 +33,7 @@
 | [`ndf_close.py`](ndf_close.py) | POC **回合计划面**：往 Trunk 追加清单 + 溯源模板 + post-check（只读 `plan`） |
 | [`ndf_workflow_status.py`](ndf_workflow_status.py) | **Workflow/Canvas 派生投影**（[[META-009]]…[[META-013]]）：Genesis、正交 topic 状态、manifest/pack、Replay 摘要、只读 close-plan |
 | [`ndf_context.py`](ndf_context.py) | **Context Compiler**（[[META-012]] / [[META-013]]）：Task Manifest → role plan → expand/verify |
-| [`ndf_replay.py`](ndf_replay.py) | **Agent Episode Replay**（[[META-013]]）：内容寻址 object/event/commit/ref/tag/branch/merge/checkpoint、R0/R1/R2/R3 与 `fsck` |
+| [`ndf_replay.py`](ndf_replay.py) | **Agent Episode Replay**（[[META-013]] / [[META-015]]）：内容寻址 object/event/commit/ref/tag/branch/merge/checkpoint、R0/R1/R2/R3、`guest-run` / guest-proof、`fsck` |
 
 日常：见 [`GOVERNANCE.md`](GOVERNANCE.md) §2 主链。
 `graphcheck` → `advise --surface graph`；`bindcheck` → `advise --surface bind`；收口用 `close`。
@@ -192,12 +192,17 @@ python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json
 python3 spec/meta/tools/ndf_workflow_status.py genesis-pack --mode greenfield --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
-  --format canvas-json --probe-runtime --json
+  --format canvas-json --json
+python3 spec/meta/tools/ndf_replay.py canvas-index --json
+python3 spec/meta/tools/ndf_replay.py canvas-ledger --episode <id> --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --topic <topic> --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
   --verify-embedded /absolute/path/to/ndf-workflow.canvas.tsx --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
   --update-embedded /absolute/path/to/ndf-workflow.canvas.tsx --json
+python3 spec/meta/tools/ndf_workflow_status.py snapshot \
+  --update-embedded /absolute/path/to/ndf-workflow.canvas.tsx \
+  --replay-episode <id> --json
 python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic <topic> --json
 python3 spec/meta/tools/ndf_workflow_status.py spec-health --json
 python3 spec/meta/tools/ndf_replay.py episode-init \
@@ -224,7 +229,15 @@ python3 spec/meta/tools/ndf_workflow_status.py repair-pack \
 python3 spec/meta/tools/ndf_workflow_status.py control-pack \
   --topic <topic> --task legacy_gate_audit --json
 python3 spec/meta/tools/ndf_workflow_status.py project-control-pack \
-  --task ndf_improvement_proposal --json
+  --task ndf_improvement_proposal --origin health_finding \
+  --episode <episode-id> --json
+python3 spec/meta/tools/ndf_workflow_status.py project-control-pack \
+  --task ndf_improvement_proposal --origin human_intent \
+  --intent-file tmp/ndf-process-intent-<action-id>.md \
+  --episode <episode-id> --json
+python3 spec/meta/tools/ndf_workflow_status.py project-control-pack \
+  --task ndf_improvement_land --proposal spec/meta/open/proposal-meta-<id>.md \
+  --episode <episode-id> --json
 python3 spec/meta/tools/ndf_workflow_status.py close-plan \
   --topic <topic> --mode promote --json
 python3 spec/meta/tools/ndf_workflow_status.py lease-record \
@@ -243,6 +256,10 @@ python3 spec/meta/tools/ndf_replay.py commit \
   --episode <episode-id> --message "verified completion"
 python3 spec/meta/tools/ndf_replay.py audit --commit <sha> --strict
 python3 spec/meta/tools/ndf_replay.py reconstruct --commit <sha> --level R1
+python3 spec/meta/tools/ndf_replay.py guest-run \
+  --commit <sha> --episode <episode-id> --adapter cube
+python3 spec/meta/tools/ndf_replay.py guest-run \
+  --commit <sha> --episode <episode-id> --adapter vm
 python3 spec/meta/tools/ndf_replay.py sandbox \
   --commit <sha> --episode <episode-id> \
   --profile tmp/ndf-replay-sandbox-profile.json --execute
@@ -258,10 +275,11 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `operational_legacy`。
 - `snapshot`（schema v2）严格分三平面：
   - `business`：本地产品 identity/goals/capabilities/Golden/roadmap/product proposals/topics/risks；
-  - `control`：Genesis/process proposals/spec health/gate summary + 保守的 `close` 投影；
+  - `control`：Genesis（含 `accepted` / `genesis_trunk_sha` / `install_needed`）/`kernel_map`（`spec/meta/graph.json` 种子条款）/process proposals/spec health（含 `next_actions`）/gate summary + 保守的 `close` 投影；
   - `runtime`：`implementation`（Claude Code）与 `control`（OpenClaw session_key）双 agent。
   Topic detail 仍正交输出 lifecycle/gates/Design-Implementation-Test/agent_run/health。
-  有产品 Charter 时 Canvas 默认 Business；`operational_legacy` 只在 Control 显示。
+  有产品 Charter 时 Canvas 默认 Product；无 Charter 时默认 NDF Control（Genesis 安装轨）。
+  `operational_legacy` 只在 Control 显示可选 adopt，不阻断 Product/Topics。
   `snapshot --topic <t>`：单 topic 刷新（Canvas **Refresh topic snapshot**）；返回
   `selected_topic` + 完整 `topics_detail` 供 Topics 工作台更新。
   提案平面按落点目录分类：`spec/open/` → `business.product_proposals`；
@@ -271,11 +289,15 @@ python3 spec/meta/tools/ndf_replay.py fsck
   未知 graph/build/perf/golden MUST 保持 unknown/pending。`dispatched` 不算完成。
   Canvas payload 另含 `payloadSha`、`absorbedActionId` 与绑定后的 action 摘要；
   `projection_freshness` 为
-  `verified_at_generation|pending_refresh|refresh_in_progress|unknown`。仅第一种可启用
-  repair/delegate/close。
+  `fresh|refresh_in_progress|stale_after_action|unknown`。仅 `fresh` 且 verifier
+  `passed + current` 可启用 repair/delegate/close。
   `--format canvas-json` 输出官方 camelCase Canvas payload，禁止再用临时转换脚本维护
-  SNAPSHOT。`--probe-runtime` 只读调用 `openclaw health --json`；Claude CLI 存在不等于
-  ACP pipeline/run 可用。
+  SNAPSHOT。`--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
+  （`claude doctor` + 配置会话 resume 产物）；只用于页头 Refresh snapshot。例行
+  `--update-embedded` 不得带探针。Canvas Replay 只嵌 hop 目录 + `replay.focused`
+  一页，账本真值在 `.ndf/replay`。Claude CLI 存在不等于
+  ACP pipeline/run 可用。`pack` / `repair-pack` / `genesis-pack` 生成时 MUST 探测 ACP，
+  并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时）分开。
 - `action-begin` / `action-finish`：append-only 本地 action receipt。终态含 repo SHA、
   snapshot SHA、result 与 blockers，并使用统一 receipt 字段和哈希链；断链使投影
   freshness=`unknown`。embedded snapshot verify 另写 payload/absorbed-action receipt。
@@ -283,7 +305,8 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `space`、evidence、repair owner/task、允许写根与人工口令。报告仅写
   `tmp/ndf-workflow-health/`。
 - `spec-health`：项目级 meta/product graph、index validate、all-topic bind 与
-  proposal hygiene；Advisor 只读，不自动修 SoT。
+  proposal hygiene。无 exploring/blocked POC 时 `binder_health` 为 `not_applicable`
+ （Trunk，不跑 `--all-topics`）。Advisor 只读，不自动修 SoT。
 - `pack` / `genesis-pack`（pack v2）：Claude Code 实现委派；MUST 含
   `context_plan` / `context_verify` / `static_preflight_passed` /
   `runtime_dispatch_ready`、`workspace.repo_root` 与
@@ -297,22 +320,34 @@ python3 spec/meta/tools/ndf_replay.py fsck
 - `ndf_replay`：[[META-013]] 本地内容寻址 Episode。R0 为精确审计，R1 只重建记录
   observation，R2 只执行同一 run/manifest/plan/repo 绑定的 `sandbox` cassette；
   预期输出 MUST 来自该 run 的 completion 或已记录 epsilon expectation，且完整覆盖
-  recorded outputs。执行使用工具构造的 `bwrap` 参数，写根不得超出 Context Plan 与
-  runtime lease，并要求 network/filesystem/process 隔离与成本/副作用确认；R3 总是创建新的
+  recorded outputs。执行 adapter 为 `bwrap` 或 `vm`；写根不得超出 Context Plan 与
+  runtime lease，并要求 network/filesystem/process 隔离与成本/副作用确认。Canvas
+  主路径回放是 `guest-run`（`ndf-replay-guest-proof/v1`）。本机 Lvm：`guest-probe`
+  看缺口，`guest-image` 预制 Alpine 根文件系统，再 `--adapter vm`。安装步骤见
+  `.cursor/skills/ndf-replay-sandbox/`。Cube/E2B 仍可用 `--adapter cube`（proof 记
+  `hypervisor_backend=cube`，合同仍是 `adapter=vm`）。禁止 host-mount 现仓；无
+  KVM/无镜像/无 Cube 时 `environment_blocked`，不得退回宿主 Composer 执行回放体。R3 总是创建新的
   counterfactual commit/branch。对象使用 AES-256-GCM 本地加密，share-safe export
   创建独立 redacted lineage。重新调用模型不是历史 replay。
 - `repair-pack`：Claude Code 有界修复；isolation 只允许写 `poc/<topic>/`，git
-  disposition 需人工；measurement 仍要求实现 gate + perf bind。
+  disposition 需人工；measurement 仍要求实现 gate + perf bind。`safe_to_delegate`
+  只表示静态预检通过；`runtime_unavailable` 时只准备 ACP lease，不得当作静态失败。
 - `control-pack`：OpenClaw Control 委派；MUST 含 `workspace`；OpenClaw 写入
   `{repo_root}/.openclaw/state.json`。Per-repo state 与 gateway session 分离。
   模板见 `spec/meta/templates/openclaw/state.json.example`。
-- `project-control-pack`：仅用于明确的 NDF improvement proposal；写根为
-  `spec/meta/open/`，停止于「已确认」，不得改 stable meta 正文。
+- `project-control-pack`：NDF process 提案。`ndf_improvement_proposal` 写根为
+  `spec/meta/open/`，停止于 Pending confirmation，不得改 stable meta 正文或
+  `.openclaw/state.json`。`ndf_improvement_land` 在「已确认」后写根覆盖
+  `spec/meta/`（含 `open/`）；「已审核」只改该提案头。`origin=health_finding` 要求 current spec-health finding；
+  `origin=human_intent` 从仓库 `tmp/` intent artifact 读取非空用户意图并绑定
+  `intent_sha`，不要求 finding。两路均要求显式 Episode、Context verify 和实际
+  OpenClaw request/response 回执。
 - `close-plan`：包装 `ndf_close plan` 为 JSON；仍然只读，无 apply。旧
   `tmp/close-plan-*` 仅显示 `legacy_unbound`；完成 Close step 必须生成并验证
   `ndf-close-evidence/v1` receipt。
 - `lease-record`：只向 gitignored `tmp/ndf-workflow-leases.jsonl` 追加已验证 runtime
-  lease；必须绑定 Episode 内 exact dispatch pack SHA、`repo_root`、独立 git worktree、
+  lease；必须绑定 Episode 内 exact dispatch pack SHA（`safe_to_dispatch` 或静态预检
+  已通过的 lease-prep pack）、`repo_root`、独立 git worktree、
   branch/base 与 allowed root，并写 `acp.start`、lease event、run commit 与
   `refs/runs/<run-id>`；release 必须承接同绑定 active，终态 run id 不得复活；
   同 topic active lease 阻止新写 run。

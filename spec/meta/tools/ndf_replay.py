@@ -54,7 +54,17 @@ EVENT_KINDS = frozenset(
         "context.expanded",
         "context.verified",
         "proposal.confirmed",
+        "proposal.reviewed",
         "gate.approved",
+        "gate.audit",
+        "gate.draft",
+        "gate.confirmed",
+        "binder.audit",
+        "binder.amend",
+        "binder.recheck",
+        "control.handoff",
+        "decision.selected",
+        "control.dispatch",
         "dispatch.preflight",
         "dispatch.blocked",
         "openclaw.request",
@@ -65,6 +75,7 @@ EVENT_KINDS = frozenset(
         "model.response",
         "tool.invoke",
         "tool.result",
+        "filesystem.acquired",
         "filesystem.changed",
         "git.commit",
         "acp.complete",
@@ -97,11 +108,1661 @@ AGENT_ACTORS = {
     "sandbox",
     "close",
 }
+CONTROL_STAGES = frozenset({"draft", "confirm_land", "review"})
+CONTROL_STAGE_ORDER = ("draft", "confirm_land", "review")
+
+# Replay projection helpers (Canvas-facing; do not change object schema).
+HUMAN_SPACE_KINDS = frozenset(
+    {
+        "intent.received",
+        "proposal.confirmed",
+        "proposal.reviewed",
+        "gate.approved",
+        "gate.confirmed",
+        "decision.selected",
+    }
+)
+NDF_SPACE_KINDS = frozenset(
+    {
+        "manifest.created",
+        "context.compiled",
+        "context.expanded",
+        "context.verified",
+        "gate.audit",
+        "gate.draft",
+        "binder.audit",
+        "binder.amend",
+        "binder.recheck",
+        "control.handoff",
+        "control.dispatch",
+        "dispatch.preflight",
+        "dispatch.blocked",
+        "openclaw.request",
+        "openclaw.response",
+        "acp.start",
+        "lease.acquired",
+        "lease.released",
+        "compaction.checkpoint",
+        "snapshot.embedded",
+        "action.begin",
+        "action.finish",
+    }
+)
+RESULT_SPACE_KINDS = frozenset(
+    {
+        "model.request",
+        "model.response",
+        "tool.invoke",
+        "tool.result",
+        "filesystem.acquired",
+        "filesystem.changed",
+        "git.commit",
+        "acp.complete",
+        "verification.completed",
+        "close.receipt",
+        "legacy.import",
+    }
+)
+META_PLANE_KINDS = frozenset(
+    {
+        "proposal.confirmed",
+        "proposal.reviewed",
+        "gate.approved",
+        "gate.audit",
+        "gate.draft",
+        "gate.confirmed",
+        "binder.audit",
+        "binder.amend",
+        "binder.recheck",
+        "control.handoff",
+        "control.dispatch",
+        "dispatch.preflight",
+        "dispatch.blocked",
+        "openclaw.request",
+        "openclaw.response",
+        "snapshot.embedded",
+        "compaction.checkpoint",
+        "action.begin",
+        "action.finish",
+    }
+)
+PROJECT_PLANE_KINDS = frozenset(
+    {
+        "model.request",
+        "model.response",
+        "tool.invoke",
+        "tool.result",
+        "filesystem.acquired",
+        "filesystem.changed",
+        "git.commit",
+        "acp.start",
+        "acp.complete",
+        "lease.acquired",
+        "lease.released",
+        "verification.completed",
+        "close.receipt",
+    }
+)
+DISPATCH_KINDS = frozenset(
+    {
+        "openclaw.request",
+        "acp.start",
+        "control.dispatch",
+        "dispatch.preflight",
+    }
+)
+KNOWN_GATE_PHRASES = frozenset(
+    {
+        "已确认",
+        "已审核",
+        "TOPIC已审核",
+        "DESIGN已审核",
+        "可以开始实现",
+        "IDEA已审核",
+        "CHARTER已审核",
+        "ARCHITECTURE已审核",
+        "VERIFICATION已审核",
+        "可以建立初始主线",
+        "GENESIS已审核",
+    }
+)
+EVENT_TITLE_ZH = {
+    "intent.received": "收到意图",
+    "manifest.created": "创建任务清单",
+    "context.compiled": "拼装规范上下文",
+    "context.expanded": "展开图闭包",
+    "context.verified": "校验规范上下文",
+    "proposal.confirmed": "提案已确认",
+    "proposal.reviewed": "提案已审核",
+    "gate.approved": "门禁通过",
+    "gate.audit": "门禁审计",
+    "gate.draft": "门禁草稿",
+    "gate.confirmed": "人工门禁确认",
+    "binder.audit": "装订器审计",
+    "binder.amend": "装订器修订",
+    "binder.recheck": "装订器复核",
+    "control.handoff": "控制面交接",
+    "decision.selected": "选定决策",
+    "control.dispatch": "控制面派发",
+    "dispatch.preflight": "派发预检",
+    "dispatch.blocked": "派发阻塞",
+    "openclaw.request": "下达 OpenClaw",
+    "openclaw.response": "OpenClaw 回执",
+    "acp.start": "下达 Claude Code",
+    "lease.acquired": "获得运行租约",
+    "model.request": "模型请求",
+    "model.response": "模型回复",
+    "tool.invoke": "调用工具",
+    "tool.result": "工具结果",
+    "filesystem.acquired": "获取文件系统快照",
+    "filesystem.changed": "文件变更",
+    "git.commit": "Git 提交",
+    "acp.complete": "Claude Code 完成",
+    "lease.released": "释放运行租约",
+    "verification.completed": "验证完成",
+    "close.receipt": "关闭回执",
+    "action.begin": "投影动作开始",
+    "action.finish": "投影动作结束",
+    "snapshot.embedded": "嵌入快照",
+    "compaction.checkpoint": "压缩检查点",
+    "legacy.import": "遗产导入",
+}
+STAGE_TITLE_ZH = {
+    "draft": "起草",
+    "confirm_land": "确认落地",
+    "review": "审核",
+}
+
+
+def event_space(kind: str) -> str:
+    """Classify an event into human | ndf | result description space."""
+    if kind in HUMAN_SPACE_KINDS:
+        return "human"
+    if kind in RESULT_SPACE_KINDS:
+        return "result"
+    if kind in NDF_SPACE_KINDS:
+        return "ndf"
+    return "ndf"
+
+
+def event_plane(kind: str, *, track: str | None = None, actor: str | None = None) -> str:
+    """Classify an event into meta (NDF workflow) or project plane."""
+    if kind in META_PLANE_KINDS:
+        return "meta"
+    if kind in PROJECT_PLANE_KINDS:
+        return "project"
+    if track == "process" or (actor or "") in {
+        "openclaw",
+        "canvas",
+        "project-control",
+        "context-compiler",
+    }:
+        return "meta"
+    if (actor or "") in {"claude-code", "model", "sandbox"}:
+        return "project"
+    return "meta" if track == "process" else "project"
+
+
+def episode_plane(
+    *,
+    episode_id: str,
+    track: str | None,
+    task: str | None,
+    kinds: Iterable[str],
+) -> str:
+    """Primary plane for an Episode (control child → meta; POC/ACP → project)."""
+    identity = str(episode_id or "")
+    if (
+        identity.startswith("flow-")
+        or "--" in identity
+        or str(task or "") in {
+            "project_control",
+            "binder_amend",
+            "gate_pipeline",
+            "binder_pipeline",
+        }
+        or track == "process"
+    ):
+        return "meta"
+    kind_list = list(kinds)
+    meta_hits = sum(1 for kind in kind_list if kind in META_PLANE_KINDS)
+    project_hits = sum(1 for kind in kind_list if kind in PROJECT_PLANE_KINDS)
+    if project_hits > meta_hits:
+        return "project"
+    return "meta"
+
+
+def event_title(kind: str) -> str:
+    return EVENT_TITLE_ZH.get(kind, kind)
+
+
+def episode_title(
+    *,
+    episode_id: str,
+    proposal_id: str | None = None,
+    stage: str | None = None,
+    topic: str | None = None,
+    task: str | None = None,
+    happened_at: str | None = None,
+) -> str:
+    """Human-facing Episode label without SHA walls."""
+    date_part = ""
+    if happened_at:
+        date_part = str(happened_at)[:10]
+    if proposal_id or stage:
+        stage_label = STAGE_TITLE_ZH.get(str(stage or ""), str(stage or "阶段"))
+        parts = [str(proposal_id or episode_id), stage_label]
+        if date_part:
+            parts.append(date_part)
+        return " · ".join(parts)
+    if topic:
+        parts = [str(topic), str(task or "任务")]
+        if date_part:
+            parts.append(date_part)
+        return " · ".join(parts)
+    parts = [str(episode_id)]
+    if task:
+        parts.append(str(task))
+    if date_part:
+        parts.append(date_part)
+    return " · ".join(parts)
+
+
+def _safe_text(value: Any, *, limit: int = 160) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    if SECRET_KEY_RE.search(text):
+        return "[redacted]"
+    if len(text) > limit:
+        return text[: limit - 1] + "…"
+    return text
+
+
+def _payload_mapping(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, Mapping):
+        return {}
+    if payload.get("schema") == "ndf-replay-blob/v1" and isinstance(
+        payload.get("value"), Mapping
+    ):
+        value = payload["value"]
+        return dict(value) if isinstance(value, Mapping) else {}
+    if isinstance(payload.get("value"), Mapping) and "schema" in payload.get(
+        "value", {}
+    ):
+        return dict(payload["value"])
+    return dict(payload)
+
+
+def extract_human_utterance(payload: Any, *, kind: str | None = None) -> str | None:
+    """Pull the Cursor-side human phrase from a recorded payload when present."""
+    data = _payload_mapping(payload)
+    for key in (
+        "human_phrase",
+        "human_intent",
+        "phrase",
+        "approved_phrase",
+        "gate_phrase",
+        "utterance",
+    ):
+        text = _safe_text(data.get(key))
+        if text:
+            return text
+    if kind in {"proposal.confirmed", "proposal.reviewed", "gate.confirmed", "gate.approved"}:
+        for key in ("message", "intent", "text"):
+            text = _safe_text(data.get(key))
+            if text and (text in KNOWN_GATE_PHRASES or len(text) <= 40):
+                return text
+    return None
+
+
+def episode_matches_agent(
+    *,
+    needle: str,
+    agent: str | None = None,
+    actor: str | None = None,
+    participants: Iterable[str] | None = None,
+    kinds: Iterable[str] | None = None,
+) -> bool:
+    """True when a hop involved this agent, not only when it is the primary actor."""
+    text = str(needle or "").strip().lower()
+    if not text or text == "all":
+        return True
+    pool = [agent, actor, *(participants or [])]
+    if any(text in str(item).lower() for item in pool if item):
+        return True
+    if "context-compiler" in text or text in {"compiler", "context_compiler"}:
+        return bool(
+            {"context.compiled", "context.verified", "manifest.created"}
+            & {str(item) for item in (kinds or [])}
+        )
+    return False
+
+
+def payload_looks_like_manifest(mapped: Mapping[str, Any]) -> bool:
+    schema = str(mapped.get("schema") or "")
+    if schema == "ndf-task-manifest/v1":
+        return True
+    if schema.startswith("ndf-context-plan"):
+        return False
+    return bool(
+        mapped.get("clause_seeds") or mapped.get("shared_graph_closure")
+    ) and not bool(mapped.get("ordered_reads"))
+
+
+def payload_looks_like_plan(mapped: Mapping[str, Any]) -> bool:
+    schema = str(mapped.get("schema") or "")
+    if schema.startswith("ndf-context-plan"):
+        return True
+    if mapped.get("ordered_reads"):
+        return True
+    return bool(mapped.get("plan_sha")) and bool(
+        mapped.get("role") or mapped.get("privileges") or mapped.get("ordered_reads") is not None
+    )
+
+
+def classify_compile_payload(
+    kind: str,
+    payload: Any,
+) -> dict[str, Mapping[str, Any] | None]:
+    """Split a compile-related event payload into Manifest vs Plan.
+
+    ``manifest.created`` often arrives before ``context.compiled``. Callers MUST
+    accumulate them separately; the first hit must not win for both.
+    """
+    mapped = _payload_mapping(payload)
+    if not mapped:
+        return {"manifest": None, "plan": None}
+    manifest: Mapping[str, Any] | None = None
+    plan: Mapping[str, Any] | None = None
+    if kind == "manifest.created" and payload_looks_like_manifest(mapped):
+        manifest = mapped
+    if kind in {"context.compiled", "context.verified"} and payload_looks_like_plan(
+        mapped
+    ):
+        plan = mapped
+    # Some older recordings put plan fields on context.compiled without schema.
+    if kind in {"context.compiled", "context.verified"} and plan is None:
+        if mapped.get("ordered_reads") or mapped.get("plan_sha"):
+            plan = mapped
+    if kind == "manifest.created" and manifest is None and payload_looks_like_plan(
+        mapped
+    ):
+        # Rare: plan blob mis-tagged as manifest.created — still expose as plan.
+        plan = mapped
+    return {"manifest": manifest, "plan": plan}
+
+
+def read_why_missing(
+    *,
+    ordered_reads: list[str] | None,
+    plan: Mapping[str, Any] | None,
+    plan_sha: str | None,
+    plan_blob_found: bool,
+    manifest: Mapping[str, Any] | None = None,
+) -> str | None:
+    """Human-readable reason when ordered reads cannot be listed."""
+    if ordered_reads:
+        return None
+    if plan is not None:
+        raw = plan.get("ordered_reads")
+        if isinstance(raw, list) and not raw:
+            return "Plan 已记录但 ordered_reads 为空"
+        if raw is None:
+            return "Plan 已记录但没有 ordered_reads 字段"
+        return "Plan 无法解析 ordered_reads"
+    if plan_sha and not plan_blob_found:
+        return "有 planSha 但找不到 Plan 对象"
+    if not plan_sha:
+        if manifest is not None:
+            return "缺 planSha（这次 hop 只装了 Manifest，尚未写入 Context Plan）"
+        return "缺 planSha（未绑定 Context Plan）"
+    return "Plan 不可用"
+
+
+def assembled_context_summary(
+    *,
+    manifest: Mapping[str, Any] | None = None,
+    plan: Mapping[str, Any] | None = None,
+    plan_sha: str | None = None,
+    plan_blob_found: bool | None = None,
+) -> dict[str, Any] | None:
+    """Projection of NDF-assembled context (not SHA walls)."""
+    if not manifest and not plan:
+        return None
+    seeds = []
+    if isinstance(manifest, Mapping):
+        seeds = list(manifest.get("clause_seeds") or [])
+    ordered_reads: list[str] = []
+    write_roots: list[str] = []
+    role = None
+    task = None
+    human_phrase = None
+    if isinstance(plan, Mapping):
+        role = plan.get("role")
+        task = plan.get("task")
+        human_phrase = plan.get("human_phrase")
+        ordered_reads = [
+            str(item.get("path"))
+            for item in plan.get("ordered_reads", [])
+            if isinstance(item, Mapping) and item.get("path")
+        ]
+        privileges = plan.get("privileges") if isinstance(plan.get("privileges"), Mapping) else {}
+        write_roots = [str(item) for item in privileges.get("allowed_write_roots", [])]
+    found = (
+        bool(plan_blob_found)
+        if plan_blob_found is not None
+        else plan is not None
+    )
+    why = read_why_missing(
+        ordered_reads=ordered_reads,
+        plan=plan if isinstance(plan, Mapping) else None,
+        plan_sha=plan_sha,
+        plan_blob_found=found,
+        manifest=manifest if isinstance(manifest, Mapping) else None,
+    )
+    return {
+        "role": role,
+        "task": task or (manifest.get("task") if isinstance(manifest, Mapping) else None),
+        "intent": manifest.get("intent") if isinstance(manifest, Mapping) else None,
+        "seeds": seeds,
+        "orderedReads": ordered_reads,
+        "writeRoots": write_roots,
+        "humanPhrase": human_phrase,
+        "graphNodes": len(
+            (manifest or {}).get("shared_graph_closure", {}).get("nodes", [])
+            if isinstance(manifest, Mapping)
+            else []
+        ),
+        "readWhyMissing": why,
+    }
+
+
+PROMPT_TEXT_LIMIT = 4000
+CANVAS_PROMPT_LIMIT = 900
+
+
+def _prompt_text(value: Any, *, limit: int = PROMPT_TEXT_LIMIT) -> str | None:
+    """Longer than timeline preview; redact secret-shaped spans, keep the rest."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    text = SECRET_KEY_RE.sub("[redacted]", text)
+    if len(text) > limit:
+        return text[: limit - 1] + "…"
+    return text
+
+
+def assembled_prompt_view(
+    *,
+    manifest: Mapping[str, Any] | None = None,
+    plan: Mapping[str, Any] | None = None,
+    plan_sha: str | None = None,
+    plan_blob_found: bool | None = None,
+) -> dict[str, Any]:
+    """Reconstruct the normative NDF prompt from recorded Manifest + Plan.
+
+    Does not re-read the live tree. Missing Plan cannot be faked from graphNodes.
+    """
+    summary = assembled_context_summary(
+        manifest=manifest,
+        plan=plan,
+        plan_sha=plan_sha,
+        plan_blob_found=plan_blob_found,
+    )
+    if plan is None:
+        if manifest is None:
+            return {
+                "text": None,
+                "whyMissing": "这次 hop 没有 Manifest / Context Plan，无法拼装规范 Prompt",
+                "source": None,
+            }
+        return {
+            "text": None,
+            "whyMissing": "缺 Context Plan，只有 Manifest，不能拼出完整下达 Prompt（图节点数不是 Prompt）",
+            "source": "manifest-only",
+        }
+    role = (summary or {}).get("role") or "unknown"
+    task = (summary or {}).get("task") or "unknown"
+    intent = (summary or {}).get("intent") or "未记录"
+    phrase = (summary or {}).get("humanPhrase") or "无"
+    seeds = [str(item) for item in ((summary or {}).get("seeds") or []) if item]
+    reads = [str(item) for item in ((summary or {}).get("orderedReads") or []) if item]
+    roots = [str(item) for item in ((summary or {}).get("writeRoots") or []) if item]
+    lines = [
+        "NDF 规范组装 Prompt（当时 Manifest + Context Plan，不是现仓重读）",
+        "",
+        f"角色: {role}",
+        f"任务: {task}",
+        f"意图: {intent}",
+        f"人口令（记录，不是主指令）: {phrase}",
+        f"条款种子: {', '.join(seeds) if seeds else '无'}",
+        "有序读取（必须按序读）:",
+    ]
+    if reads:
+        lines.extend(f"  {index}. {path}" for index, path in enumerate(reads, start=1))
+    else:
+        lines.append("  （无）")
+    lines.extend(
+        [
+            f"可写根: {', '.join(roots) if roots else '只读 / 未声明'}",
+            "",
+            "执行约定:",
+            "- 先按有序读取打开文件，再执行绑定任务。",
+            "- 不得把人口令当成主任务正文。",
+            "- 只写可写根。",
+        ]
+    )
+    return {
+        "text": "\n".join(lines),
+        "whyMissing": (summary or {}).get("readWhyMissing"),
+        "source": "context-plan",
+    }
+
+
+def _format_agent_message(mapped: Mapping[str, Any]) -> str | None:
+    message = _prompt_text(mapped.get("message"))
+    if not message:
+        return None
+    header = [
+        "实发 OpenClaw message（ndf-agent-message/v1）",
+        "",
+        f"task: {mapped.get('task') or 'unknown'}",
+        f"topic: {mapped.get('topic') or 'none'}",
+        f"pipeline: {mapped.get('pipeline') or 'none'}",
+        "",
+        message,
+    ]
+    return "\n".join(header)
+
+
+def _format_lease_dispatch(mapped: Mapping[str, Any]) -> str:
+    return "\n".join(
+        [
+            "实发 ACP handshake（ndf-runtime-lease/v1，不是 Composer userPrompt 全文）",
+            "",
+            f"task: {mapped.get('task') or 'unknown'}",
+            f"command: {mapped.get('command') or 'unknown'}",
+            f"topic: {mapped.get('topic') or 'none'}",
+            f"allowed_write_root: {mapped.get('allowed_write_root') or 'none'}",
+            f"worktree: {mapped.get('worktree') or 'none'}",
+        ]
+    )
+
+
+def dispatched_prompt_view(dispatch_payloads: Iterable[Any]) -> dict[str, Any]:
+    """Actual text sent to OpenClaw / Claude Code, from recorded dispatch blobs."""
+    messages: list[str] = []
+    leases: list[str] = []
+    fallbacks: list[str] = []
+    seen: set[str] = set()
+
+    def _add(bucket: list[str], text: str | None) -> None:
+        if not text or text in seen:
+            return
+        seen.add(text)
+        bucket.append(text)
+
+    for payload in dispatch_payloads:
+        mapped = _payload_mapping(payload)
+        if not mapped:
+            continue
+        schema = str(mapped.get("schema") or "")
+        if schema == "ndf-agent-message/v1" or (
+            mapped.get("message") and mapped.get("manifest_sha")
+        ):
+            _add(messages, _format_agent_message(mapped))
+            continue
+        if schema == "ndf-runtime-lease/v1" or (
+            mapped.get("pack_sha") and mapped.get("session_id")
+        ):
+            _add(leases, _format_lease_dispatch(mapped))
+            continue
+        added = len(fallbacks)
+        for key in ("user_prompt", "prompt", "message", "primary_task", "instruction"):
+            _add(fallbacks, _prompt_text(mapped.get(key)))
+            if len(fallbacks) > added:
+                break
+    if messages:
+        return {
+            "text": "\n\n---\n\n".join(messages),
+            "whyMissing": None,
+            "source": "openclaw.request",
+        }
+    if leases:
+        return {
+            "text": "\n\n---\n\n".join(leases),
+            "whyMissing": "ACP 记录是 lease/handshake，没有存 Composer userPrompt 全文；下面是握手摘要",
+            "source": "acp.start",
+        }
+    if fallbacks:
+        return {
+            "text": "\n\n---\n\n".join(fallbacks),
+            "whyMissing": None,
+            "source": "dispatch",
+        }
+    return {
+        "text": None,
+        "whyMissing": "这次 hop 没有 openclaw.request / acp.start 正文",
+        "source": None,
+    }
+
+
+def prompt_drift_view(
+    *,
+    assembled: Mapping[str, Any] | None,
+    dispatched: Mapping[str, Any] | None,
+    dispatch_leak: bool,
+    dispatch_payloads: Iterable[Any],
+) -> dict[str, Any]:
+    """Semantic mismatch between normative assembled prompt and actual dispatch."""
+    reasons: list[str] = []
+    assembled_text = str((assembled or {}).get("text") or "").strip()
+    dispatched_text = str((dispatched or {}).get("text") or "").strip()
+    if dispatch_leak:
+        reasons.append("dispatch_human_leak")
+    if dispatched_text and not assembled_text:
+        reasons.append("assembled_missing")
+    if assembled_text and not dispatched_text:
+        reasons.append("dispatched_missing")
+    if assembled_text and dispatched_text:
+        bound = any(dispatch_has_assembled_binding(item) for item in dispatch_payloads)
+        if not bound and not dispatch_leak:
+            reasons.append("dispatch_unbound")
+    return {"mismatch": bool(reasons), "reasons": reasons}
+
+
+CANVAS_INDEX_CACHE = "canvas-index.json"
+CANVAS_LEDGER_CACHE_DIR = "canvas-ledger"
+CANVAS_SNAPSHOT_BYTE_LIMIT = 120 * 1024
+CANVAS_TIMELINE_PREVIEW_LIMIT = 160
+CANVAS_BUCKET_LIMITS = {
+    "topics_directory": 24 * 1024,
+    "focused_topic": 24 * 1024,
+    "control": 20 * 1024,
+    "replay_directory": 16 * 1024,
+    "focused_ledger": 16 * 1024,
+    "other": 20 * 1024,
+}
+CANVAS_REPLAY_DIRECTORY_LIMIT = CANVAS_BUCKET_LIMITS["replay_directory"]
+
+
+def list_episode_ids(store: "ReplayStore") -> list[str]:
+    refs = store.refs / "episodes"
+    if not refs.is_dir():
+        return []
+    return sorted(path.parent.name for path in refs.glob("*/HEAD"))
+
+
+def episode_head_map(store: "ReplayStore") -> dict[str, str]:
+    refs = store.refs / "episodes"
+    if not refs.is_dir():
+        return {}
+    heads: dict[str, str] = {}
+    for path in sorted(refs.glob("*/HEAD")):
+        heads[path.parent.name] = path.read_text(encoding="utf-8").strip()
+    return heads
+
+
+def pick_canvas_focused_id(
+    episodes: Iterable[Mapping[str, Any]],
+    requested_id: str | None = None,
+    active_topic: str | None = None,
+) -> str | None:
+    cards = [item for item in episodes if isinstance(item, Mapping) and item.get("id")]
+    ids = {str(item["id"]) for item in cards}
+    if requested_id and requested_id in ids:
+        return requested_id
+
+    def newest(rows: list[Mapping[str, Any]]) -> str | None:
+        if not rows:
+            return None
+        rows = sorted(
+            rows,
+            key=lambda item: str(item.get("happenedAt") or ""),
+            reverse=True,
+        )
+        return str(rows[0]["id"])
+
+    if active_topic:
+        topic_rows = [
+            item for item in cards if str(item.get("topic") or "") == active_topic
+        ]
+        chosen = newest(topic_rows)
+        if chosen:
+            return chosen
+    return newest(cards)
+
+
+def _episode_event_bundle(store: "ReplayStore", episode_id: str) -> dict[str, Any]:
+    head = store.read_ref(f"episodes/{episode_id}/HEAD")
+    if head is None:
+        raise FileNotFoundError(f"unknown replay episode: {episode_id}")
+    commit = store.get_object(head, "commit")["data"]
+    branch_events = store.read_all_events(episode_id)
+    chains = {
+        branch: validate_event_chain(events)
+        for branch, events in branch_events.items()
+    }
+    events = sorted(
+        [item for values in branch_events.values() for item in values],
+        key=lambda item: (
+            str(item.get("timestamp") or ""),
+            str(item.get("branch") or ""),
+            int(item.get("seq") or 0),
+        ),
+    )
+    chain_valid = bool(chains) and all(item["valid"] for item in chains.values())
+    return {
+        "head": head,
+        "commit": commit,
+        "branch_events": branch_events,
+        "chains": chains,
+        "events": events,
+        "chain_valid": chain_valid,
+    }
+
+
+def _clip_prompt_view(
+    prompt: Any,
+    *,
+    limit: int = CANVAS_PROMPT_LIMIT,
+) -> Any:
+    if not isinstance(prompt, Mapping):
+        return prompt
+    clipped = dict(prompt)
+    text = clipped.get("text")
+    if not isinstance(text, str) or len(text) <= limit:
+        return clipped
+    clipped["text"] = text[: limit - 1] + "…"
+    why = clipped.get("whyMissing")
+    note = f"Canvas 只嵌入前 {limit} 字；全文在 .ndf/replay"
+    clipped["whyMissing"] = f"{why} · {note}" if why else note
+    return clipped
+
+
+def slim_canvas_timeline_event(event: Mapping[str, Any]) -> dict[str, Any]:
+    preview = event.get("preview") if isinstance(event.get("preview"), Mapping) else {}
+    payload = event.get("payloadPreview")
+    if isinstance(payload, str) and len(payload) > CANVAS_TIMELINE_PREVIEW_LIMIT:
+        payload = payload[: CANVAS_TIMELINE_PREVIEW_LIMIT - 1] + "…"
+    slim_preview = {
+        key: preview[key]
+        for key in ("orderedReads", "humanUtterance", "changedFiles")
+        if preview.get(key)
+    }
+    return {
+        "seq": event.get("seq"),
+        "timestamp": event.get("timestamp"),
+        "kind": event.get("kind"),
+        "actor": event.get("actor"),
+        "agent": event.get("agent"),
+        "title": event.get("title"),
+        "plane": event.get("plane"),
+        "space": event.get("space"),
+        "payloadPreview": payload,
+        "preview": slim_preview or None,
+    }
+
+
+def as_canvas_index_card(episode: Mapping[str, Any]) -> dict[str, Any]:
+    """Directory row: no Prompt text, no timeline."""
+    if episode.get("state") == "invalid" and episode.get("error"):
+        return {
+            "id": episode.get("id"),
+            "state": "invalid",
+            "error": str(episode.get("error"))[:200],
+            "canRestoreRecord": False,
+        }
+    return {
+        "id": episode.get("id"),
+        "title": episode.get("title"),
+        "plane": episode.get("plane"),
+        "agent": episode.get("agent"),
+        "happenedAt": episode.get("happenedAt"),
+        "resultLine": episode.get("resultLine"),
+        "topic": episode.get("topic"),
+        "task": episode.get("task"),
+        "canRestoreRecord": bool(episode.get("canRestoreRecord")),
+        "state": episode.get("state") or "indexed",
+    }
+
+
+def slim_canvas_ledger(episode: Mapping[str, Any]) -> dict[str, Any]:
+    """One hop for Canvas: clipped prompts, slim timeline, no r2/semantic walls."""
+    item = dict(episode)
+    item["assembledPrompt"] = _clip_prompt_view(item.get("assembledPrompt"))
+    item["dispatchedPrompt"] = _clip_prompt_view(item.get("dispatchedPrompt"))
+    item["timeline"] = [
+        slim_canvas_timeline_event(event)
+        for event in item.get("timeline") or []
+        if isinstance(event, Mapping)
+    ]
+    summary = item.get("manifestSummary")
+    if isinstance(summary, Mapping):
+        item["manifestSummary"] = {
+            "intent": summary.get("intent"),
+            "seeds": summary.get("seeds"),
+            "graphNodes": summary.get("graphNodes"),
+        }
+    errors = item.get("currentReadinessErrors")
+    if isinstance(errors, list):
+        slim_errors = []
+        for error in errors[:5]:
+            if isinstance(error, Mapping):
+                slim_errors.append(
+                    {
+                        "kind": error.get("kind"),
+                        **({"path": error.get("path")} if error.get("path") else {}),
+                    }
+                )
+            else:
+                slim_errors.append({"kind": str(error)[:120]})
+        item["currentReadinessErrors"] = slim_errors
+    item.pop("r2Profile", None)
+    item.pop("semanticGaps", None)
+    item.pop("observations", None)
+    return item
+
+
+def project_canvas_index_card(store: "ReplayStore", episode_id: str) -> dict[str, Any]:
+    """Cheap directory card: event metadata only, no Prompt blobs."""
+    try:
+        bundle = _episode_event_bundle(store, episode_id)
+    except (FileNotFoundError, ValueError, KeyError) as exc:
+        return {
+            "id": episode_id,
+            "state": "invalid",
+            "error": str(exc)[:200],
+            "canRestoreRecord": False,
+        }
+    commit = bundle["commit"]
+    events = bundle["events"]
+    kinds = [str(event.get("kind")) for event in events if event.get("kind")]
+    kinds_set = set(kinds)
+    participants = sorted(
+        {
+            str(event.get("actor"))
+            for event in events
+            if event.get("actor")
+        }
+    )
+    happened_at = None
+    for event in events:
+        if event.get("timestamp"):
+            happened_at = str(event.get("timestamp"))
+    plane = episode_plane(
+        episode_id=episode_id,
+        track=str(commit.get("track") or "") or None,
+        task=str(commit.get("task") or "") or None,
+        kinds=kinds,
+    )
+    title = episode_title(
+        episode_id=episode_id,
+        topic=commit.get("topic"),
+        task=commit.get("task"),
+        happened_at=happened_at,
+    )
+    result_bits: list[str] = []
+    if {"gate.approved", "gate.confirmed"} & kinds_set:
+        result_bits.append("门禁")
+    if "filesystem.changed" in kinds_set:
+        result_bits.append("改文件")
+    if kinds_set & DISPATCH_KINDS:
+        result_bits.append("下达")
+    return {
+        "id": episode_id,
+        "title": title,
+        "plane": plane,
+        "agent": commit.get("actor") or "unknown",
+        "participants": participants,
+        "happenedAt": happened_at,
+        "resultLine": " · ".join(result_bits) if result_bits else None,
+        "topic": commit.get("topic"),
+        "task": commit.get("task"),
+        "track": commit.get("track"),
+        "actor": commit.get("actor"),
+        "kinds": sorted(kinds_set),
+        "dispatchLeak": None,
+        "promptDrift": None,
+        "canRestoreRecord": bool(bundle["chain_valid"] and bundle["head"]),
+        "state": "indexed" if bundle["chain_valid"] else "invalid",
+        "eventCount": len(events),
+    }
+
+
+def project_episode_ledger(store: "ReplayStore", episode_id: str) -> dict[str, Any]:
+    """Rebuild one hop ledger from the object store. Does not change HEAD."""
+    try:
+        bundle = _episode_event_bundle(store, episode_id)
+    except (FileNotFoundError, ValueError, KeyError) as exc:
+        return {
+            "id": episode_id,
+            "state": "invalid",
+            "error": str(exc),
+            "levels": {"R0": False, "R1": False, "R2": False, "R3": True},
+        }
+    head = bundle["head"]
+    commit = bundle["commit"]
+    chains = bundle["chains"]
+    events = bundle["events"]
+    chain_valid = bundle["chain_valid"]
+    audit = store.audit(head, strict=True)
+    kinds = {event.get("kind") for event in events}
+    coverage = commit.get("coverage", {})
+    bound_manifest_sha = commit.get("manifest_sha")
+    bound_plan_sha = commit.get("context_plan_sha")
+    for _, historical in store.walk_commits(head):
+        bound_manifest_sha = bound_manifest_sha or historical.get("manifest_sha")
+        bound_plan_sha = bound_plan_sha or historical.get("context_plan_sha")
+        if bound_manifest_sha and bound_plan_sha:
+            break
+    recorded_manifest: dict[str, Any] | None = None
+    manifest_summary: dict[str, Any] | None = None
+    context_summary: dict[str, Any] | None = None
+    if bound_manifest_sha:
+        try:
+            _, recorded_manifest = store.find_blob(
+                schema="ndf-task-manifest/v1",
+                semantic_field="manifest_sha",
+                semantic_sha=str(bound_manifest_sha),
+            )
+            manifest_summary = {
+                "intent": recorded_manifest.get("intent"),
+                "businessGoal": recorded_manifest.get("business_goal"),
+                "seeds": recorded_manifest.get("clause_seeds", []),
+                "graphNodes": len(
+                    recorded_manifest.get("shared_graph_closure", {}).get("nodes", [])
+                ),
+                "gates": recorded_manifest.get("human_gates"),
+                "baseline": recorded_manifest.get("baseline"),
+            }
+        except ValueError:
+            pass
+    recorded_plan: dict[str, Any] | None = None
+    if bound_plan_sha:
+        try:
+            _, recorded_plan = store.find_blob(
+                schema=None,
+                schema_prefix="ndf-context-plan",
+                semantic_field="plan_sha",
+                semantic_sha=str(bound_plan_sha),
+            )
+            context_summary = {
+                "role": recorded_plan.get("role"),
+                "task": recorded_plan.get("task"),
+                "orderedReads": [
+                    item.get("path")
+                    for item in recorded_plan.get("ordered_reads", [])
+                ],
+                "writeRoots": recorded_plan.get("privileges", {}).get(
+                    "allowed_write_roots", []
+                ),
+                "humanPhrase": recorded_plan.get("human_phrase"),
+            }
+        except ValueError:
+            pass
+    observations: list[dict[str, Any]] = []
+    sandbox_commands: list[list[str]] = []
+    sandbox_targets: list[dict[str, Any]] = []
+    changed_files: set[str] = set()
+    gate_events: list[dict[str, Any]] = []
+    r2_outcome = "not_run"
+    recorded_r2_profile: dict[str, Any] | None = None
+    human_utterance: str | None = None
+    dispatch_payloads: list[Any] = []
+    timeline_rows: list[dict[str, Any]] = []
+    happened_at: str | None = None
+    participants: set[str] = set()
+    event_manifest: dict[str, Any] | None = None
+    event_plan: dict[str, Any] | None = None
+    for replay_event in events:
+        if replay_event.get("timestamp"):
+            happened_at = str(replay_event.get("timestamp"))
+        kind = str(replay_event.get("kind") or "")
+        actor = str(replay_event.get("actor") or "")
+        if actor:
+            participants.add(actor)
+        payload_obj: dict[str, Any] | None = None
+        payload_data: Any = None
+        try:
+            payload_obj = store.get_object(str(replay_event.get("payload_sha") or ""))
+            payload_data = payload_obj.get("data", {})
+        except (FileNotFoundError, ValueError):
+            payload_obj = None
+            payload_data = None
+        if human_utterance is None and payload_data is not None:
+            human_utterance = extract_human_utterance(payload_data, kind=kind)
+        if kind in DISPATCH_KINDS and payload_data is not None:
+            dispatch_payloads.append(payload_data)
+        if (
+            kind in {"context.compiled", "context.verified", "manifest.created"}
+            and payload_data is not None
+        ):
+            classified = classify_compile_payload(kind, payload_data)
+            if classified["manifest"] is not None:
+                event_manifest = dict(classified["manifest"])
+            if classified["plan"] is not None:
+                event_plan = dict(classified["plan"])
+        preview = payload_preview(
+            kind=kind,
+            payload=payload_data or {},
+            actor=actor,
+        )
+        timeline_rows.append(
+            {
+                "seq": replay_event.get("seq"),
+                "timestamp": replay_event.get("timestamp"),
+                "kind": kind,
+                "actor": actor,
+                "agent": actor,
+                "payloadSha": replay_event.get("payload_sha"),
+                "branch": replay_event.get("branch"),
+                "title": preview.get("title") or event_title(kind),
+                "plane": event_plane(
+                    kind,
+                    track=str(commit.get("track") or "") or None,
+                    actor=actor,
+                ),
+                "space": preview.get("space") or event_space(kind),
+                "payloadPreview": preview.get("summary"),
+                "preview": preview,
+            }
+        )
+        if payload_obj is None:
+            continue
+        data = payload_obj.get("data", {})
+        if payload_obj.get("type") == "tool-cassette":
+            if data.get("replay_policy") == "sandbox":
+                sandbox_commands.append(list(data.get("argv", [])))
+                sandbox_targets.append(
+                    {
+                        "run_id": data.get("run_id"),
+                        "role": "claude-code",
+                        "manifest_sha": data.get("manifest_sha"),
+                        "plan_sha": data.get("plan_sha"),
+                        "env_allowlist_fingerprint": data.get(
+                            "env_allowlist_fingerprint"
+                        ),
+                        "cwd": data.get("cwd"),
+                        "tool_runtime_version": data.get("external_resource_version"),
+                    }
+                )
+            observations.append(
+                {
+                    "kind": "tool",
+                    "name": data.get("name"),
+                    "policy": data.get("replay_policy"),
+                    "sha": replay_event.get("payload_sha"),
+                }
+            )
+        elif payload_obj.get("type") == "model-turn":
+            observations.append(
+                {
+                    "kind": "model",
+                    "name": data.get("model_id"),
+                    "policy": "recorded-response",
+                    "sha": replay_event.get("payload_sha"),
+                }
+            )
+        elif payload_obj.get("type") == "blob" and isinstance(data.get("value"), dict):
+            value = data["value"]
+            changed_files.update(str(item) for item in value.get("changed_files", []))
+            if replay_event.get("kind") == "gate.approved":
+                gate_events.append(
+                    {
+                        "gate": value.get("gate") or value.get("step"),
+                        "approvedBy": value.get("approved_by"),
+                        "sourceRef": value.get("source_ref"),
+                        "payloadSha": replay_event.get("payload_sha"),
+                    }
+                )
+            if (
+                replay_event.get("kind") == "verification.completed"
+                and value.get("schema") == "ndf-replay-sandbox/v1"
+            ):
+                r2_outcome = str(value.get("state") or "unknown")
+                if isinstance(value.get("profile"), dict):
+                    recorded_r2_profile = value["profile"]
+            if human_utterance is None:
+                human_utterance = extract_human_utterance(value, kind=kind)
+    if human_utterance is None and context_summary:
+        human_utterance = context_summary.get("humanPhrase")
+    plan_for_summary = recorded_plan if recorded_plan is not None else event_plan
+    manifest_for_summary = (
+        recorded_manifest if recorded_manifest is not None else event_manifest
+    )
+    plan_blob_found = recorded_plan is not None or event_plan is not None
+    assembled = assembled_context_summary(
+        manifest=manifest_for_summary,
+        plan=plan_for_summary,
+        plan_sha=str(bound_plan_sha) if bound_plan_sha else None,
+        plan_blob_found=plan_blob_found,
+    )
+    dispatch_leak = detect_dispatch_leak(
+        human_utterance=human_utterance,
+        dispatch_payloads=dispatch_payloads,
+    )
+    assembled_prompt = assembled_prompt_view(
+        manifest=manifest_for_summary,
+        plan=plan_for_summary,
+        plan_sha=str(bound_plan_sha) if bound_plan_sha else None,
+        plan_blob_found=plan_blob_found,
+    )
+    dispatched_prompt = dispatched_prompt_view(dispatch_payloads)
+    prompt_drift = prompt_drift_view(
+        assembled=assembled_prompt,
+        dispatched=dispatched_prompt,
+        dispatch_leak=dispatch_leak,
+        dispatch_payloads=dispatch_payloads,
+    )
+    identity = store.episode_identity(episode_id) or {}
+    plane = episode_plane(
+        episode_id=episode_id,
+        track=str(commit.get("track") or "") or None,
+        task=str(commit.get("task") or "") or None,
+        kinds=[str(item) for item in kinds if item],
+    )
+    primary_agent = (
+        (assembled or {}).get("role")
+        or commit.get("actor")
+        or identity.get("role")
+        or "unknown"
+    )
+    title = episode_title(
+        episode_id=episode_id,
+        proposal_id=identity.get("proposal_id"),
+        stage=identity.get("stage"),
+        topic=commit.get("topic"),
+        task=commit.get("task"),
+        happened_at=happened_at,
+    )
+    result_bits: list[str] = []
+    if gate_events:
+        result_bits.append(f"门禁 {len(gate_events)}")
+    if changed_files:
+        result_bits.append(f"改文件 {len(changed_files)}")
+    if observations:
+        result_bits.append(f"观察 {len(observations)}")
+    if dispatch_leak:
+        result_bits.append("下达泄漏")
+    elif prompt_drift.get("mismatch"):
+        result_bits.append("Prompt 漂移")
+    complete_observations = bool(
+        {"tool.result", "model.response"} & kinds
+        or coverage.get("runtime_stream") == "full_stream"
+    )
+    has_sandbox_cassette = any(
+        item.get("kind") == "tool" and item.get("policy") == "sandbox"
+        for item in observations
+    )
+    historical_integrity = bool(audit.get("historical_integrity"))
+    can_restore_record = bool(historical_integrity and head and chain_valid)
+    read_why = (assembled or {}).get("readWhyMissing")
+    return {
+        "id": episode_id,
+        "title": title,
+        "plane": plane,
+        "agent": primary_agent,
+        "participants": sorted(participants),
+        "happenedAt": happened_at,
+        "resultLine": " · ".join(result_bits) if result_bits else None,
+        "humanUtterance": human_utterance,
+        "assembledContext": assembled,
+        "assembledPrompt": assembled_prompt,
+        "dispatchedPrompt": dispatched_prompt,
+        "promptDrift": prompt_drift,
+        "readWhyMissing": read_why,
+        "canRestoreRecord": can_restore_record,
+        "dispatchLeak": dispatch_leak,
+        "state": "verified" if audit["valid"] and not dispatch_leak else "invalid",
+        "head": head,
+        "topic": commit.get("topic"),
+        "task": commit.get("task"),
+        "track": commit.get("track"),
+        "actor": commit.get("actor"),
+        "manifestSha": bound_manifest_sha,
+        "planSha": bound_plan_sha,
+        "coverage": coverage,
+        "coverageGaps": audit.get("coverage_gaps", []),
+        "joinGaps": audit.get("join_gaps", []),
+        "semanticGaps": list(audit.get("semantic_gaps", []))
+        + (["dispatch_human_leak"] if dispatch_leak else []),
+        "historicalIntegrity": historical_integrity,
+        "historicalSemantics": bool(audit.get("historical_semantics"))
+        and not dispatch_leak,
+        "currentRestoreReady": audit.get("current_restore_ready"),
+        "currentDispatchReady": audit.get("current_dispatch_ready"),
+        "currentReadinessErrors": audit.get("current_readiness_errors", []),
+        "manifestSummary": manifest_summary,
+        "contextSummary": context_summary,
+        "kinds": sorted(str(item) for item in kinds if item),
+        "branches": {
+            name: {
+                "eventCount": value["count"],
+                "eventTip": value["tip_sha"],
+                "valid": value["valid"],
+            }
+            for name, value in chains.items()
+        },
+        "eventCount": len(events),
+        "eventTip": canonical_json_sha(
+            {name: value["tip_sha"] for name, value in sorted(chains.items())}
+        ),
+        "levels": {
+            "R0": can_restore_record and not dispatch_leak,
+            "R1": bool(chain_valid and complete_observations),
+            "R2": bool(
+                chain_valid
+                and commit.get("repo_head")
+                and audit.get("current_restore_ready") is True
+                and bound_manifest_sha
+                and bound_plan_sha
+                and has_sandbox_cassette
+            ),
+            "R3": True,
+        },
+        "observations": observations[-100:],
+        "r2Outcome": r2_outcome,
+        "r2Profile": {
+            "adapter": (
+                (recorded_r2_profile or {}).get("adapter", ["bwrap"])[0]
+                if (recorded_r2_profile or {}).get("adapter", ["bwrap"])
+                else "bwrap"
+            ),
+            "network": (recorded_r2_profile or {}).get("network", "none"),
+            "commands": (recorded_r2_profile or {}).get("commands", sandbox_commands),
+            "allowedWriteRoots": (recorded_r2_profile or {}).get(
+                "allowed_write_roots",
+                (
+                    recorded_plan.get("privileges", {}).get("allowed_write_roots", [])
+                    if recorded_plan
+                    else []
+                ),
+            ),
+            "confirmCost": (recorded_r2_profile or {}).get("confirm_cost", False),
+            "confirmSideEffects": (recorded_r2_profile or {}).get(
+                "confirm_side_effects", False
+            ),
+            "target": (
+                (recorded_r2_profile or {}).get("target")
+                or (
+                    sandbox_targets[0]
+                    if sandbox_targets
+                    and all(target == sandbox_targets[0] for target in sandbox_targets)
+                    else None
+                )
+            ),
+        },
+        "changedFiles": sorted(changed_files),
+        "gateEvents": gate_events[-50:],
+        "timeline": timeline_rows[-100:],
+    }
+
+
+def project_canvas_index(
+    store: "ReplayStore",
+    *,
+    write_cache: bool = False,
+) -> dict[str, Any]:
+    heads = episode_head_map(store)
+    cache_path = store.root / CANVAS_INDEX_CACHE
+    cached: dict[str, Any] = {}
+    if cache_path.is_file():
+        try:
+            loaded = json.loads(cache_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                cached = loaded
+        except (OSError, json.JSONDecodeError):
+            cached = {}
+    cached_heads = cached.get("heads") if isinstance(cached.get("heads"), dict) else {}
+    cards_by_id = {
+        str(item["id"]): item
+        for item in cached.get("episodes") or []
+        if isinstance(item, Mapping) and item.get("id")
+    }
+    episodes = []
+    for episode_id, head in heads.items():
+        previous = cards_by_id.get(episode_id)
+        if previous and cached_heads.get(episode_id) == head:
+            episodes.append(previous)
+            continue
+        episodes.append(project_canvas_index_card(store, episode_id))
+    episodes.sort(key=lambda item: str(item.get("happenedAt") or ""), reverse=True)
+    payload = {
+        "schema": "ndf-replay-canvas-index/v1",
+        "storeRoot": ".ndf/replay",
+        "heads": heads,
+        "episodes": episodes,
+    }
+    if write_cache:
+        store.initialize()
+        store._atomic_write(
+            cache_path,
+            canonical_json_bytes(payload) + b"\n",
+        )
+    return payload
+
+
+def project_canvas_ledger(
+    store: "ReplayStore",
+    episode_id: str,
+    *,
+    write_cache: bool = False,
+) -> dict[str, Any]:
+    ledger = slim_canvas_ledger(project_episode_ledger(store, episode_id))
+    ledger["schema"] = "ndf-replay-canvas-ledger/v1"
+    ledger["storeRoot"] = ".ndf/replay"
+    if write_cache:
+        store.initialize()
+        path = store.root / CANVAS_LEDGER_CACHE_DIR / f"{episode_id}.json"
+        store._atomic_write(path, canonical_json_bytes(ledger) + b"\n")
+    return ledger
+
+
+def _json_bytes(value: Any) -> int:
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+
+
+def trim_canvas_replay_directory(
+    episodes: list[Mapping[str, Any]],
+    *,
+    byte_limit: int = CANVAS_REPLAY_DIRECTORY_LIMIT,
+) -> tuple[list[dict[str, Any]], int]:
+    """Keep newest directory rows under the Replay directory byte budget."""
+    cards = [as_canvas_index_card(item) for item in episodes if isinstance(item, Mapping)]
+    kept: list[dict[str, Any]] = []
+    used = 2
+    omitted = 0
+    for card in cards:
+        size = _json_bytes(card) + (1 if kept else 0)
+        if kept and used + size > byte_limit:
+            omitted = len(cards) - len(kept)
+            break
+        kept.append(card)
+        used += size
+    return kept, omitted
+
+
+def project_canvas_replay(
+    replay: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Counter stock: slim directory + at most one focused ledger page."""
+    data = dict(replay or {})
+    focused = data.get("focused")
+    if isinstance(focused, Mapping):
+        data["focused"] = slim_canvas_ledger(focused)
+    elif not focused:
+        data["focused"] = None
+    episodes, omitted = trim_canvas_replay_directory(
+        [item for item in data.get("episodes") or [] if isinstance(item, Mapping)]
+    )
+    data["episodes"] = episodes
+    if omitted:
+        data["omittedCount"] = omitted
+    else:
+        data.pop("omittedCount", None)
+    data.pop("canvasOmittedEpisodes", None)
+    data["storeRoot"] = data.get("storeRoot") or ".ndf/replay"
+    return data
+
+
+def dispatch_task_text(payload: Any) -> str | None:
+    """Primary free-text task carried by a dispatch/request payload."""
+    data = _payload_mapping(payload)
+    request = data.get("request") if isinstance(data.get("request"), Mapping) else {}
+    for source in (data, request):
+        if not isinstance(source, Mapping):
+            continue
+        for key in (
+            "primary_task",
+            "user_prompt",
+            "prompt",
+            "message",
+            "human_intent",
+            "human_phrase",
+            "task_text",
+            "instruction",
+        ):
+            text = _safe_text(source.get(key), limit=400)
+            if text:
+                return text
+    return None
+
+
+def dispatch_has_assembled_binding(payload: Any) -> bool:
+    data = _payload_mapping(payload)
+    request = data.get("request") if isinstance(data.get("request"), Mapping) else {}
+    for source in (data, request):
+        if not isinstance(source, Mapping):
+            continue
+        if source.get("manifest_sha") and source.get("plan_sha"):
+            return True
+        if source.get("context_plan_sha") and source.get("manifest_sha"):
+            return True
+        ordered = source.get("ordered_reads") or source.get("orderedReads")
+        if isinstance(ordered, list) and ordered:
+            return True
+        seeds = source.get("clause_seeds") or source.get("seeds")
+        if isinstance(seeds, list) and seeds:
+            return True
+    return False
+
+
+def detect_dispatch_leak(
+    *,
+    human_utterance: str | None,
+    dispatch_payloads: Iterable[Any],
+) -> bool:
+    """True when a dispatch primary task is still raw human speech (short-circuit)."""
+    utterance = (human_utterance or "").strip()
+    for payload in dispatch_payloads:
+        text = dispatch_task_text(payload)
+        if not text:
+            if not dispatch_has_assembled_binding(payload):
+                # Request present but neither bound plan nor structured task.
+                data = _payload_mapping(payload)
+                if data:
+                    return True
+            continue
+        normalized = text.strip()
+        if utterance and normalized == utterance:
+            return True
+        if normalized in KNOWN_GATE_PHRASES and not dispatch_has_assembled_binding(
+            payload
+        ):
+            return True
+        if (
+            not dispatch_has_assembled_binding(payload)
+            and len(normalized) <= 80
+            and ("\n" not in normalized)
+            and (
+                normalized in KNOWN_GATE_PHRASES
+                or (utterance and utterance in normalized)
+            )
+        ):
+            return True
+    return False
+
+
+def payload_preview(
+    *,
+    kind: str,
+    payload: Any,
+    actor: str | None = None,
+) -> dict[str, Any]:
+    """Safe one-glance preview for timeline rows (no secrets, no SHA walls)."""
+    data = _payload_mapping(payload)
+    preview: dict[str, Any] = {
+        "space": event_space(kind),
+        "title": event_title(kind),
+        "agent": actor,
+        "summary": None,
+    }
+    human = extract_human_utterance(data, kind=kind)
+    if human:
+        preview["summary"] = human
+        preview["humanUtterance"] = human
+        return preview
+    if kind in {"context.compiled", "context.verified", "manifest.created"}:
+        reads = [
+            str(item.get("path"))
+            for item in data.get("ordered_reads", [])
+            if isinstance(item, Mapping) and item.get("path")
+        ]
+        seeds = data.get("clause_seeds") or data.get("seeds") or []
+        role = data.get("role")
+        bits = []
+        if role:
+            bits.append(f"角色 {role}")
+        if seeds:
+            bits.append(f"种子 {len(seeds)}")
+        if reads:
+            bits.append(" → ".join(reads[:3]))
+        preview["summary"] = " · ".join(bits) or event_title(kind)
+        preview["orderedReads"] = reads[:8]
+        return preview
+    if kind in DISPATCH_KINDS:
+        task_text = dispatch_task_text(data)
+        bound = dispatch_has_assembled_binding(data)
+        preview["summary"] = (
+            f"{'已绑定 Plan' if bound else '未绑定 Plan'}"
+            + (f" · {_safe_text(task_text, limit=80)}" if task_text else "")
+        )
+        preview["bound"] = bound
+        return preview
+    if kind in {"tool.invoke", "tool.result"}:
+        name = data.get("name") or data.get("tool") or "tool"
+        argv = data.get("argv") or data.get("args")
+        argv_text = None
+        if isinstance(argv, list):
+            argv_text = _safe_text(" ".join(str(item) for item in argv[:6]), limit=100)
+        preview["summary"] = f"{name}" + (f" · {argv_text}" if argv_text else "")
+        preview["policy"] = data.get("replay_policy")
+        return preview
+    if kind in {"model.request", "model.response"}:
+        preview["summary"] = _safe_text(
+            data.get("model_id") or data.get("model") or "model"
+        )
+        return preview
+    if kind in {"filesystem.changed", "filesystem.acquired"}:
+        files = data.get("changed_files") or data.get("paths") or []
+        if isinstance(files, list) and files:
+            preview["summary"] = f"{len(files)} 个文件 · {files[0]}"
+            preview["changedFiles"] = [str(item) for item in files[:12]]
+            return preview
+    if kind == "gate.audit" or kind.startswith("gate."):
+        gate = data.get("gate") or data.get("step") or data.get("id")
+        preview["summary"] = _safe_text(gate) or event_title(kind)
+        return preview
+    if kind == "verification.completed":
+        preview["summary"] = _safe_text(
+            data.get("state") or data.get("result") or "verification"
+        )
+        return preview
+    # Generic: pick a short non-secret field.
+    for key in ("intent", "task", "role", "state", "result", "status", "message"):
+        text = _safe_text(data.get(key), limit=100)
+        if text and text not in KNOWN_GATE_PHRASES:
+            # Prefer structured fields; gate phrases already handled above.
+            if key == "message" and text in KNOWN_GATE_PHRASES:
+                continue
+            preview["summary"] = text
+            break
+    if preview["summary"] is None:
+        preview["summary"] = event_title(kind)
+    return preview
+
+
+def control_parent_id(flow_id: str) -> str:
+    return f"flow-{flow_id}"
+
+
+def control_child_id(flow_id: str, stage: str) -> str:
+    return f"{flow_id}--{stage.replace('_', '-')}"
+
+
+def control_parent_ref(flow_id: str) -> str:
+    return f"flows/{flow_id}/parent"
+
+
+def control_child_ref(flow_id: str, stage: str) -> str:
+    return f"flows/{flow_id}/children/{stage}"
+
+
+def classify_gate_bundle_changes(
+    left_specs: Mapping[str, Any] | None,
+    right_specs: Mapping[str, Any] | None,
+) -> dict[str, list[str]]:
+    """Classify gate identity drift between two recorded bundle_specs maps.
+
+    ``contract_slice_changed`` uses expected_content_sha + bundle_mode + slice
+    content_sha. ``slice_manifest_sha`` inequality alone is
+    ``manifest_formula_changed`` (line-number / formula migration, not contract).
+    """
+    import ndf_gate_slices
+
+    left = left_specs if isinstance(left_specs, Mapping) else {}
+    right = right_specs if isinstance(right_specs, Mapping) else {}
+    contract_slice_changed: list[str] = []
+    manifest_formula_changed: list[str] = []
+    for gate in sorted(set(left) | set(right)):
+        left_spec = left.get(gate) if isinstance(left.get(gate), Mapping) else {}
+        right_spec = right.get(gate) if isinstance(right.get(gate), Mapping) else {}
+        if ndf_gate_slices.gate_spec_content_identity(
+            left_spec
+        ) != ndf_gate_slices.gate_spec_content_identity(right_spec):
+            contract_slice_changed.append(gate)
+        elif left_spec.get("slice_manifest_sha") != right_spec.get(
+            "slice_manifest_sha"
+        ):
+            manifest_formula_changed.append(gate)
+    return {
+        "contract_slice_changed": contract_slice_changed,
+        "manifest_formula_changed": manifest_formula_changed,
+    }
+
+
+def dispatch_pack_lease_eligible(pack: Mapping[str, Any] | None) -> bool:
+    """True when a recorded dispatch pack may bind a runtime lease.
+
+    Write dispatch still requires ``safe_to_dispatch``. Lease-prep may bind a
+    pack that only passed static preflight while the ACP pipeline is down.
+    """
+    if not isinstance(pack, Mapping):
+        return False
+    if pack.get("safe_to_dispatch") is True:
+        return True
+    return (
+        pack.get("static_preflight_passed") is True
+        or pack.get("safe_to_delegate") is True
+    )
 
 
 def event_actor_valid(kind: str, actor: str) -> bool:
-    if kind in {"proposal.confirmed", "gate.approved"}:
+    if kind in {
+        "proposal.confirmed",
+        "proposal.reviewed",
+        "gate.approved",
+        "gate.confirmed",
+        "decision.selected",
+    }:
         return bool(actor) and actor.lower() not in AGENT_ACTORS
+    if kind in {
+        "gate.audit",
+        "gate.draft",
+        "binder.audit",
+        "binder.amend",
+        "binder.recheck",
+        "control.handoff",
+    }:
+        return actor in {"openclaw", "tool"}
+    if kind == "control.dispatch":
+        return actor in {"tool", "canvas"}
     if kind in {"acp.start", "lease.acquired", "lease.released", "acp.complete"}:
         return actor == "claude-code"
     if kind.startswith("openclaw."):
@@ -111,6 +1772,105 @@ def event_actor_valid(kind: str, actor: str) -> bool:
     if kind in {"snapshot.embedded", "compaction.checkpoint"}:
         return actor in {"tool", "canvas"}
     return bool(actor)
+
+
+def validate_project_control_flow(
+    records: list[tuple[Mapping[str, Any], Any]],
+) -> list[str]:
+    """Validate one META-014 child Episode's identity, order, and write set."""
+    errors: list[str] = []
+    identity_fields = (
+        "proposal_id",
+        "flow_id",
+        "hop",
+        "manifest_sha",
+        "context_plan_sha",
+    )
+    expected: dict[str, Any] | None = None
+    compiled = False
+    verified = False
+    preflight = False
+    confirmed = False
+    reviewed = False
+    requests: dict[str, tuple[Any, ...]] = {}
+    for event, payload in records:
+        value = payload if isinstance(payload, Mapping) else {}
+        nested_identity = (
+            value.get("control")
+            if isinstance(value.get("control"), Mapping)
+            else value.get("proposal")
+            if isinstance(value.get("proposal"), Mapping)
+            else {}
+        )
+        identity = {
+            field: event.get(
+                field,
+                value.get(field, nested_identity.get(field)),
+            )
+            for field in identity_fields
+        }
+        if expected is None:
+            expected = identity
+        elif identity != expected:
+            errors.append("project_control_identity_mismatch")
+        kind = str(event.get("kind") or "")
+        actor = str(event.get("actor") or "")
+        if not event_actor_valid(kind, actor):
+            errors.append("project_control_invalid_actor")
+        if kind == "proposal.confirmed":
+            confirmed = True
+        elif kind == "proposal.reviewed":
+            reviewed = True
+        elif kind == "context.compiled":
+            compiled = True
+        elif kind == "context.verified":
+            if not compiled:
+                errors.append("context_verified_without_compile")
+            verified = True
+        elif kind == "dispatch.preflight":
+            if not verified:
+                errors.append("dispatch_without_context_verify")
+            if identity.get("hop") == "confirm_land" and not confirmed:
+                errors.append("confirm_land_without_human_confirmation")
+            if identity.get("hop") == "review" and not reviewed:
+                errors.append("review_without_human_receipt")
+            preflight = True
+        elif kind == "openclaw.request":
+            if not preflight:
+                errors.append("request_without_dispatch_preflight")
+            request_id = str(value.get("request_id") or "")
+            attempt = value.get("attempt")
+            if not request_id or not isinstance(attempt, int) or attempt < 1:
+                errors.append("project_control_request_identity_invalid")
+            else:
+                request_identity = tuple(identity[field] for field in identity_fields)
+                previous = requests.setdefault(request_id, request_identity)
+                if previous != request_identity:
+                    errors.append("project_control_request_identity_conflict")
+        elif kind == "openclaw.response":
+            request_id = str(value.get("request_id") or "")
+            if request_id not in requests:
+                errors.append("project_control_response_without_request")
+        if kind == "filesystem.changed":
+            errors.extend(validate_project_control_mutation(value))
+    return list(dict.fromkeys(errors))
+
+
+def validate_project_control_mutation(payload: Mapping[str, Any]) -> list[str]:
+    """Require declared and actual project-control writes to match exactly."""
+    changed = payload.get("changed_files")
+    declared = payload.get("declared_files")
+    allowed = payload.get("allowed_write_roots")
+    if not isinstance(changed, list):
+        return ["project_control_stage_write_violation"]
+    expected = declared if isinstance(declared, list) else allowed
+    if not isinstance(expected, list):
+        return ["project_control_stage_write_violation"]
+    actual = {str(path).rstrip("/") for path in changed}
+    wanted = {str(path).rstrip("/") for path in expected}
+    if actual != wanted:
+        return ["project_control_mutation_mismatch"]
+    return []
 
 
 def now_iso() -> str:
@@ -152,6 +1912,427 @@ def _assert_no_plaintext_secrets(value: Any, path: str = "") -> None:
     elif isinstance(value, list):
         for index, child in enumerate(value):
             _assert_no_plaintext_secrets(child, f"{path}[{index}]")
+
+
+def probe_vm_hypervisor() -> dict[str, Any]:
+    """Detect KVM + qemu/firecracker. Absence is fail-closed for Lvm."""
+    kvm = Path("/dev/kvm").exists()
+    qemu = shutil.which("qemu-system-x86_64")
+    firecracker = shutil.which("firecracker")
+    available = bool(kvm and (qemu or firecracker))
+    blocker = None
+    if not kvm:
+        blocker = "no_/dev/kvm"
+    elif not (qemu or firecracker):
+        blocker = "no_qemu_or_firecracker"
+    return {
+        "kvm": kvm,
+        "qemu": qemu,
+        "firecracker": firecracker,
+        "available": available,
+        "blocker": blocker,
+    }
+
+
+def probe_cube_api(
+    *,
+    api_url: str | None = None,
+    timeout_seconds: float = 2.0,
+) -> dict[str, Any]:
+    """Detect CubeSandbox / E2B-compatible API. Unreachable → fail closed."""
+    url = (
+        api_url
+        or os.environ.get("NDF_CUBE_API_URL")
+        or os.environ.get("E2B_API_URL")
+        or ""
+    ).rstrip("/")
+    template = (
+        os.environ.get("NDF_CUBE_TEMPLATE_ID")
+        or os.environ.get("CUBE_TEMPLATE_ID")
+        or ""
+    )
+    result: dict[str, Any] = {
+        "kind": "cube",
+        "api_url": url or None,
+        "template_id": template or None,
+        "available": False,
+        "blocker": None,
+    }
+    if not url:
+        result["blocker"] = "no_NDF_CUBE_API_URL_or_E2B_API_URL"
+        return result
+    if not template:
+        result["blocker"] = "no_CUBE_TEMPLATE_ID"
+        return result
+    # Optional live probe; failures stay environment_blocked.
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            f"{url}/health",
+            method="GET",
+            headers={"Accept": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+            result["http_status"] = getattr(resp, "status", None) or resp.getcode()
+            result["available"] = 200 <= int(result["http_status"]) < 500
+            if not result["available"]:
+                result["blocker"] = f"cube_api_http_{result['http_status']}"
+    except Exception as exc:  # noqa: BLE001 — probe must never raise to callers
+        result["blocker"] = f"cube_api_unreachable:{type(exc).__name__}"
+        result["available"] = False
+    return result
+
+
+DEFAULT_VM_IMAGE_REL = Path("tmp") / "ndf-replay-images" / "alpine-ndf-replay"
+
+GUEST_INIT_SCRIPT = """#!/bin/sh
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+mount -t proc proc /proc 2>/dev/null || true
+mount -t sysfs sysfs /sys 2>/dev/null || true
+mount -t devtmpfs devtmpfs /dev 2>/dev/null || true
+mount -o remount,rw / 2>/dev/null || true
+mkdir -p /guest /tmp /dev/pts
+mount -t tmpfs tmpfs /tmp 2>/dev/null || true
+modprobe virtio_pci 2>/dev/null || true
+modprobe virtio_blk 2>/dev/null || true
+modprobe 9p 2>/dev/null || true
+modprobe 9pnet_virtio 2>/dev/null || true
+modprobe virtio_console 2>/dev/null || true
+COMMIT=""
+LEVEL="R0"
+EPISODE=""
+for tok in $(cat /proc/cmdline 2>/dev/null); do
+  case "$tok" in
+    ndf.commit=*) COMMIT="${tok#ndf.commit=}" ;;
+    ndf.level=*) LEVEL="${tok#ndf.level=}" ;;
+    ndf.episode=*) EPISODE="${tok#ndf.episode=}" ;;
+  esac
+done
+PROOF=""
+i=0
+while [ -z "$PROOF" ] && [ "$i" -lt 50 ]; do
+  if [ -e /dev/virtio-ports/org.ndf.proof ]; then
+    PROOF=/dev/virtio-ports/org.ndf.proof
+  fi
+  i=$((i + 1))
+  [ -n "$PROOF" ] || sleep 0.1
+done
+[ -n "$PROOF" ] || PROOF=/tmp/ndf-guest-proof.json
+i=0
+while [ "$i" -lt 50 ]; do
+  if mount -t 9p -o trans=virtio,version=9p2000.L,ro ndfguest /guest 2>/tmp/ndf-9p.err; then
+    break
+  fi
+  i=$((i + 1))
+  sleep 0.1
+done
+if [ ! -d /guest/spec/meta/tools ]; then
+  echo "ndf-9p-failed: $(cat /tmp/ndf-9p.err 2>/dev/null)"
+fi
+RECON=/tmp/ndf-reconstruct.json
+STATUS=1
+if [ -d /guest/spec/meta/tools ]; then
+  cd /guest || true
+  if [ -f /guest/.ndf/replay-key ]; then
+    export NDF_REPLAY_KEY_FILE=/guest/.ndf/replay-key
+  fi
+  if python3 spec/meta/tools/ndf_replay.py reconstruct --commit "$COMMIT" --level "$LEVEL" > "$RECON"; then
+    STATUS=0
+  else
+    STATUS=$?
+  fi
+else
+  echo '{"error":"guest_snapshot_missing"}' > "$RECON"
+fi
+python3 - "$PROOF" "$RECON" "$STATUS" "$COMMIT" "$LEVEL" "$EPISODE" <<'PY'
+import json, sys
+proof_path, recon_path, status, commit, level, episode = sys.argv[1:7]
+try:
+    recon = json.loads(open(recon_path, encoding="utf-8").read())
+except Exception as exc:
+    recon = {"error": type(exc).__name__, "path": recon_path}
+payload = {
+    "guest_id": "qemu-guest",
+    "guest_toplevel": "/guest",
+    "episode_id": episode,
+    "init_status": int(status),
+    "reconstruct": {
+        "level": recon.get("level") or level,
+        "side_effects": recon.get("side_effects", False) if isinstance(recon, dict) else False,
+        "commit_sha": recon.get("commit_sha") or commit,
+        "timeline_events": len((recon or {}).get("timeline") or []),
+        "error": recon.get("error") if isinstance(recon, dict) else None,
+    },
+}
+open(proof_path, "w", encoding="utf-8").write(json.dumps(payload, ensure_ascii=False) + "\\n")
+PY
+sync
+exec reboot -f
+"""
+
+
+def resolve_vm_image(
+    image: str | None,
+    repo_root: Path,
+) -> dict[str, Path] | None:
+    """Resolve kernel + rootfs for adapter=vm. Missing image is fail-closed."""
+    raw = (image or os.environ.get("NDF_REPLAY_VM_IMAGE") or "").strip()
+    candidate = Path(raw).expanduser() if raw else (repo_root / DEFAULT_VM_IMAGE_REL)
+    if not candidate.exists():
+        return None
+    if candidate.is_dir():
+        kernel = candidate / "vmlinuz"
+        rootfs = candidate / "rootfs.ext4"
+        initrd = candidate / "initramfs"
+    else:
+        kernel = candidate.parent / "vmlinuz"
+        rootfs = candidate
+        initrd = candidate.parent / "initramfs"
+    if kernel.is_file() and rootfs.is_file():
+        resolved = {"kernel": kernel.resolve(), "rootfs": rootfs.resolve()}
+        if initrd.is_file():
+            resolved["initrd"] = initrd.resolve()
+        return resolved
+    return None
+
+
+def guest_environment_probe(repo_root: Path) -> dict[str, Any]:
+    """Host readiness for Lvm guest-run. Does not install or start a guest."""
+    hypervisor = probe_vm_hypervisor()
+    kvm_path = Path("/dev/kvm")
+    kvm_usable = kvm_path.exists() and os.access(kvm_path, os.R_OK | os.W_OK)
+    resolved = resolve_vm_image(None, repo_root)
+    docker = shutil.which("docker")
+    image_blockers: list[str] = []
+    image_meta: dict[str, str] | None = None
+    if resolved is None:
+        image_blockers.append("missing_guest_image")
+    else:
+        image_meta = {key: str(path) for key, path in resolved.items()}
+        for key in ("kernel", "rootfs"):
+            if not os.access(resolved[key], os.R_OK):
+                image_blockers.append(f"unreadable:{key}")
+        if "initrd" not in resolved:
+            image_blockers.append("missing_initramfs")
+        elif not os.access(resolved["initrd"], os.R_OK):
+            image_blockers.append("unreadable:initrd")
+    next_actions: list[str] = []
+    if not hypervisor.get("kvm") or not kvm_usable:
+        next_actions.append("enable_kvm")
+    if not hypervisor.get("qemu"):
+        next_actions.append("install_qemu")
+    if resolved is None:
+        if not docker:
+            next_actions.append("install_docker")
+        next_actions.append("guest_image")
+    elif image_blockers:
+        next_actions.append("chmod_image")
+    ready = bool(hypervisor.get("available") and kvm_usable and not image_blockers)
+    if ready:
+        next_actions.append("smoke_guest_run")
+    return {
+        "schema": "ndf-replay-guest-probe/v1",
+        "ready": ready,
+        "default_adapter": "vm",
+        "hypervisor": hypervisor,
+        "kvm_usable": kvm_usable,
+        "docker": docker,
+        "image": image_meta,
+        "image_ready": not image_blockers,
+        "image_blockers": image_blockers,
+        "default_image": str((repo_root / DEFAULT_VM_IMAGE_REL).resolve()),
+        "next_actions": next_actions,
+    }
+
+
+def provision_replay_guest_image(
+    dest: Path,
+    *,
+    alpine_ref: str = "alpine:3.21",
+) -> dict[str, Any]:
+    """Build a local Lvm rootfs (Alpine + python3 + git + virt kernel) via Docker."""
+    dest = dest.resolve()
+    dest.mkdir(parents=True, exist_ok=True)
+    kernel = dest / "vmlinuz"
+    rootfs = dest / "rootfs.ext4"
+    init_host = dest / "ndf-replay-init"
+    if kernel.is_file() and rootfs.is_file() and rootfs.stat().st_size > 0:
+        return {
+            "ready": True,
+            "reused": True,
+            "kernel": str(kernel),
+            "rootfs": str(rootfs),
+            "image_sha": hashlib.sha256(kernel.read_bytes() + rootfs.read_bytes()).hexdigest(),
+        }
+    docker = shutil.which("docker")
+    if not docker:
+        raise RuntimeError("docker_required_to_provision_guest_image")
+    init_host.write_text(GUEST_INIT_SCRIPT, encoding="utf-8")
+    init_host.chmod(0o755)
+    script = """
+set -eu
+apk add --no-cache python3 py3-cryptography git linux-virt e2fsprogs
+cp /boot/vmlinuz-virt /out/vmlinuz
+cp /boot/initramfs-virt /out/initramfs
+cp /init-src/ndf-replay-init /ndf-replay-init
+chmod 0755 /ndf-replay-init
+dd if=/dev/zero of=/out/rootfs.ext4 bs=1M count=768
+mkfs.ext4 -F -q /out/rootfs.ext4
+mkdir -p /mnt
+mount -o loop /out/rootfs.ext4 /mnt
+tar -C / --exclude=out --exclude=proc --exclude=sys --exclude=dev --exclude=mnt --exclude=init-src -cf - . \\
+  | tar -C /mnt -xf -
+mkdir -p /mnt/proc /mnt/sys /mnt/dev /mnt/guest /mnt/tmp
+cp /ndf-replay-init /mnt/ndf-replay-init
+chmod 0755 /mnt/ndf-replay-init
+umount /mnt
+chmod 0644 /out/vmlinuz /out/rootfs.ext4 /out/initramfs
+"""
+    subprocess.run(
+        [
+            docker,
+            "run",
+            "--rm",
+            "--privileged",
+            "-v",
+            f"{dest}:/out",
+            "-v",
+            f"{init_host}:/init-src/ndf-replay-init:ro",
+            alpine_ref,
+            "sh",
+            "-c",
+            script,
+        ],
+        check=True,
+    )
+    if not kernel.is_file() or not rootfs.is_file():
+        raise RuntimeError("guest_image_provision_incomplete")
+    return {
+        "ready": True,
+        "reused": False,
+        "kernel": str(kernel),
+        "rootfs": str(rootfs),
+        "image_sha": hashlib.sha256(kernel.read_bytes() + rootfs.read_bytes()).hexdigest(),
+    }
+
+
+def assert_no_live_host_mount(
+    host_mount: str | None,
+    live_toplevel: str,
+) -> str | None:
+    """Return blocker reason if host_mount would expose the live checkout."""
+    if not host_mount:
+        return None
+    try:
+        mount = Path(host_mount).expanduser().resolve()
+        live = Path(live_toplevel).resolve()
+    except OSError:
+        return "host_mount_unresolvable"
+    if mount == live or live in mount.parents or mount in live.parents:
+        return "host_mount_forbidden_for_replay"
+    # Any host-mount is forbidden on the replay path (contract: snapshot inject only).
+    return "host_mount_forbidden_for_replay"
+
+
+def validate_guest_proof(proof: Mapping[str, Any]) -> list[str]:
+    """Return proof_errors; empty list means the hop may be marked replayed."""
+    errors: list[str] = []
+    if proof.get("schema") != "ndf-replay-guest-proof/v1":
+        errors.append("schema")
+    isolation = proof.get("isolation")
+    if not isinstance(isolation, Mapping):
+        errors.append("isolation")
+        return errors
+    for field in (
+        "guest_id",
+        "image_sha",
+        "guest_toplevel",
+        "host_toplevel",
+        "adapter",
+    ):
+        if not isolation.get(field):
+            errors.append(f"missing:{field}")
+    if isolation.get("same_checkout") is not False:
+        errors.append("same_checkout")
+    if isolation.get("host_tracked_unchanged") is not True:
+        errors.append("host_tracked_changed")
+    if isolation.get("host_head_unchanged") is not True:
+        errors.append("host_head_changed")
+    if isolation.get("sandbox_marker_absent_from_live_root") is not True:
+        errors.append("guest_marker_on_live_root")
+    # Contract level is always Lvm ``vm``; fake-vm is tests-only observe.
+    if isolation.get("adapter") not in {"vm", "fake-vm"}:
+        errors.append("adapter")
+    if isolation.get("bwrap_used") is True:
+        errors.append("bwrap_not_lvm")
+    if isolation.get("host_mount_used") is True:
+        errors.append("host_mount_used")
+    reconstruct = proof.get("reconstruct")
+    if not isinstance(reconstruct, Mapping):
+        errors.append("reconstruct")
+    elif reconstruct.get("side_effects") is not False:
+        errors.append("reconstruct_side_effects")
+    if proof.get("state") == "environment_blocked":
+        errors.append("environment_blocked")
+    return sorted(set(errors))
+
+
+class MockCubeSandboxClient:
+    """In-process Cube stand-in for tests: separate tree, never host-mounts live root."""
+
+    def __init__(self, host_repo: Path) -> None:
+        self.host_repo = host_repo.resolve()
+        self.sandboxes: dict[str, Path] = {}
+
+    def create(
+        self,
+        *,
+        template_id: str,
+        airgap: bool = True,
+        host_mount: str | None = None,
+    ) -> dict[str, Any]:
+        if host_mount:
+            raise ValueError("host_mount_forbidden_for_replay")
+        if not airgap:
+            raise ValueError("cube_replay_requires_airgap")
+        sandbox_id = f"cube-mock-{uuid.uuid4()}"
+        root = self.host_repo / "tmp" / "ndf-replay-guests" / sandbox_id / "root"
+        root.mkdir(parents=True, exist_ok=True)
+        self.sandboxes[sandbox_id] = root
+        return {
+            "sandbox_id": sandbox_id,
+            "template_id": template_id,
+            "guest_toplevel": str(root.resolve()),
+        }
+
+    def materialize_snapshot(self, sandbox_id: str, archive_tar: bytes) -> None:
+        root = self.sandboxes[sandbox_id]
+        subprocess.run(
+            ["tar", "-xf", "-"],
+            cwd=root,
+            input=archive_tar,
+            check=True,
+        )
+
+    def write_tree(self, sandbox_id: str, relative: str, src: Path) -> None:
+        root = self.sandboxes[sandbox_id]
+        dst = root / relative
+        if src.is_dir():
+            shutil.copytree(
+                src,
+                dst,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("*.lock", ".*.tmp"),
+            )
+        else:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, dst)
+
+    def kill(self, sandbox_id: str) -> None:
+        root = self.sandboxes.pop(sandbox_id, None)
+        if root is not None:
+            shutil.rmtree(root.parent, ignore_errors=True)
 
 
 class ReplayStore:
@@ -586,6 +2767,23 @@ class ReplayStore:
             for branch in self.event_branches(episode_id)
         }
 
+    def list_episode_ids(self) -> list[str]:
+        return list_episode_ids(self)
+
+    def episode_head_map(self) -> dict[str, str]:
+        return episode_head_map(self)
+
+    def canvas_index(self, *, write_cache: bool = False) -> dict[str, Any]:
+        return project_canvas_index(self, write_cache=write_cache)
+
+    def canvas_ledger(
+        self,
+        episode_id: str,
+        *,
+        write_cache: bool = False,
+    ) -> dict[str, Any]:
+        return project_canvas_ledger(self, episode_id, write_cache=write_cache)
+
     def append_event(
         self,
         episode_id: str,
@@ -667,8 +2865,20 @@ class ReplayStore:
         track: str,
         manifest: Mapping[str, Any] | None = None,
         episode_id: str | None = None,
+        flow_id: str | None = None,
+        stage: str | None = None,
+        parent_episode_id: str | None = None,
+        proposal_id: str | None = None,
+        proposal_sha: str | None = None,
     ) -> dict[str, Any]:
         identifier = episode_id or f"ep-{uuid.uuid4()}"
+        if stage:
+            if stage not in CONTROL_STAGES:
+                raise ValueError(f"unknown control stage: {stage}")
+            if not flow_id:
+                raise ValueError("control child requires flow_id")
+            if not parent_episode_id:
+                raise ValueError("control child requires parent_episode_id")
         if manifest:
             import ndf_context
 
@@ -698,6 +2908,11 @@ class ReplayStore:
             "task": task,
             "role": role,
             "track": track,
+            "flow_id": flow_id,
+            "stage": stage,
+            "parent_episode_id": parent_episode_id,
+            "proposal_id": proposal_id,
+            "proposal_sha": proposal_sha,
             "manifest_sha": (manifest or {}).get("manifest_sha"),
             "created_at": now_iso(),
         }
@@ -739,6 +2954,158 @@ class ReplayStore:
             "episode_id": identifier,
             "commit_sha": commit,
             "event_sha": event["event_sha"],
+            "flow_id": flow_id,
+            "stage": stage,
+            "parent_episode_id": parent_episode_id,
+        }
+
+    def _flow_pointer(self, name: str) -> dict[str, Any] | None:
+        sha = self.read_ref(name)
+        if sha is None:
+            return None
+        value = self.get_object(sha, "blob")["data"].get("value")
+        return value if isinstance(value, dict) else None
+
+    def _write_flow_pointer(self, name: str, payload: Mapping[str, Any]) -> str:
+        sha = self.put_blob(dict(payload))
+        self.update_ref(name, sha, immutable=True)
+        return sha
+
+    def episode_identity(self, episode_id: str) -> dict[str, Any] | None:
+        if self.read_ref(f"episodes/{episode_id}/HEAD") is None:
+            return None
+        for events in self.read_all_events(episode_id).values():
+            for event in events:
+                if event.get("kind") != "intent.received":
+                    continue
+                try:
+                    blob = self.get_object(str(event.get("payload_sha")), "blob")
+                except (FileNotFoundError, ValueError):
+                    continue
+                value = blob.get("data", {}).get("value")
+                if isinstance(value, dict) and value.get("schema") == "ndf-replay-episode/v1":
+                    return value
+        return {"episode_id": episode_id}
+
+    def ensure_control_parent(
+        self,
+        *,
+        flow_id: str,
+        proposal_id: str | None,
+        role: str,
+        track: str,
+    ) -> str:
+        parent_id = control_parent_id(flow_id)
+        pointer = self._flow_pointer(control_parent_ref(flow_id))
+        if pointer:
+            return str(pointer.get("episode_id") or parent_id)
+        if self.read_ref(f"episodes/{parent_id}/HEAD") is None:
+            self.init_episode(
+                topic=None,
+                task="ndf_control_flow",
+                role=role,
+                track=track,
+                manifest=None,
+                episode_id=parent_id,
+                flow_id=flow_id,
+                proposal_id=proposal_id,
+            )
+        self._write_flow_pointer(
+            control_parent_ref(flow_id),
+            {
+                "schema": "ndf-control-flow-pointer/v1",
+                "flow_id": flow_id,
+                "stage": None,
+                "episode_id": parent_id,
+                "proposal_id": proposal_id,
+            },
+        )
+        return parent_id
+
+    def ensure_control_child(
+        self,
+        *,
+        flow_id: str,
+        stage: str,
+        requested_episode_id: str | None,
+        manifest: Mapping[str, Any] | None,
+        topic: str | None,
+        task: str,
+        role: str,
+        track: str,
+        proposal_id: str | None = None,
+        proposal_sha: str | None = None,
+    ) -> dict[str, Any]:
+        if stage not in CONTROL_STAGES:
+            raise ValueError(f"unknown control stage: {stage}")
+        parent_id = self.ensure_control_parent(
+            flow_id=flow_id,
+            proposal_id=proposal_id,
+            role=role,
+            track=track,
+        )
+        pointer = self._flow_pointer(control_child_ref(flow_id, stage))
+        if pointer:
+            bound_id = str(pointer.get("episode_id") or "")
+            if requested_episode_id and requested_episode_id != bound_id:
+                raise ValueError("control child already bound for stage")
+            if pointer.get("manifest_sha") and manifest:
+                if pointer.get("manifest_sha") != manifest.get("manifest_sha"):
+                    raise ValueError("control child refuses manifest rebind")
+            if pointer.get("proposal_sha") and proposal_sha:
+                if pointer.get("proposal_sha") != proposal_sha:
+                    raise ValueError("control child refuses proposal rebind")
+            identity = self.episode_identity(bound_id) or {}
+            if identity.get("stage") not in {None, stage}:
+                raise ValueError("episode already bound to another control stage")
+            return {
+                "episode_id": bound_id,
+                "parent_episode_id": parent_id,
+                "flow_id": flow_id,
+                "stage": stage,
+                "created": False,
+            }
+        child_id = requested_episode_id or control_child_id(flow_id, stage)
+        existing = self.episode_identity(child_id)
+        if existing and existing.get("stage") not in {None, stage}:
+            raise ValueError("episode already bound to another control stage")
+        if existing and existing.get("flow_id") not in {None, flow_id}:
+            raise ValueError("episode already bound to another control flow")
+        if self.read_ref(f"episodes/{child_id}/HEAD") is None:
+            self.init_episode(
+                topic=topic,
+                task=task,
+                role=role,
+                track=track,
+                manifest=manifest,
+                episode_id=child_id,
+                flow_id=flow_id,
+                stage=stage,
+                parent_episode_id=parent_id,
+                proposal_id=proposal_id,
+                proposal_sha=proposal_sha,
+            )
+        elif existing and existing.get("stage") is None:
+            raise ValueError("cannot adopt unbound episode as control child")
+        self._write_flow_pointer(
+            control_child_ref(flow_id, stage),
+            {
+                "schema": "ndf-control-flow-pointer/v1",
+                "flow_id": flow_id,
+                "stage": stage,
+                "episode_id": child_id,
+                "parent_episode_id": parent_id,
+                "proposal_id": proposal_id,
+                "proposal_sha": proposal_sha,
+                "manifest_sha": (manifest or {}).get("manifest_sha"),
+            },
+        )
+        return {
+            "episode_id": child_id,
+            "parent_episode_id": parent_id,
+            "flow_id": flow_id,
+            "stage": stage,
+            "created": True,
         }
 
     def commit_events(
@@ -1116,8 +3483,42 @@ class ReplayStore:
                     facets[facet][semantic_key] = str(item["sha"])
             return facets
 
+        def recorded_manifest(commit_sha: str) -> dict[str, Any]:
+            found: dict[str, Any] = {}
+            reconstruction = self.reconstruct(commit_sha, "R0")
+            for item in reconstruction.get("recorded_objects", []):
+                obj = item.get("object", {})
+                data = obj.get("data", {})
+                value = data.get("value") if obj.get("type") == "blob" else data
+                if (
+                    isinstance(value, Mapping)
+                    and value.get("schema") == "ndf-task-manifest/v1"
+                ):
+                    found = dict(value)
+            return found
+
         left_facets = semantic_objects(left_sha)
         right_facets = semantic_objects(right_sha)
+        left_manifest = recorded_manifest(left_sha)
+        right_manifest = recorded_manifest(right_sha)
+        left_specs = (
+            left_manifest.get("human_gates", {}).get("bundle_specs", {})
+            if isinstance(left_manifest.get("human_gates"), Mapping)
+            else {}
+        )
+        right_specs = (
+            right_manifest.get("human_gates", {}).get("bundle_specs", {})
+            if isinstance(right_manifest.get("human_gates"), Mapping)
+            else {}
+        )
+        classified = classify_gate_bundle_changes(left_specs, right_specs)
+        contract_slice_changed = classified["contract_slice_changed"]
+        manifest_formula_changed = classified["manifest_formula_changed"]
+        mutable_evidence_changed = bool(
+            left_manifest.get("baseline") != right_manifest.get("baseline")
+            or left_manifest.get("evidence_refs")
+            != right_manifest.get("evidence_refs")
+        )
         facet_diff = {}
         for facet in facet_names:
             left_values = left_facets[facet]
@@ -1154,6 +3555,23 @@ class ReplayStore:
                 and left_tree[name] != right_tree[name]
             ],
             "facets": facet_diff,
+            "change_classification": {
+                "contract_slice_changed": contract_slice_changed,
+                "manifest_formula_changed": manifest_formula_changed,
+                "mutable_evidence_changed": mutable_evidence_changed,
+                "bundle_mode_changed": (
+                    (
+                        left_manifest.get("human_gates", {}).get("bundle_mode")
+                        if isinstance(left_manifest.get("human_gates"), Mapping)
+                        else None
+                    )
+                    != (
+                        right_manifest.get("human_gates", {}).get("bundle_mode")
+                        if isinstance(right_manifest.get("human_gates"), Mapping)
+                        else None
+                    )
+                ),
+            },
         }
 
     def audit(self, commit_or_ref: str, *, strict: bool = True) -> dict[str, Any]:
@@ -1260,7 +3678,7 @@ class ReplayStore:
                 elif kind == "dispatch.preflight":
                     invalid_dispatch = (
                         not isinstance(payload_value, Mapping)
-                        or payload_value.get("safe_to_dispatch") is not True
+                        or not dispatch_pack_lease_eligible(payload_value)
                         or payload_value.get("manifest_sha")
                         != replay_event.get("manifest_sha")
                         or payload_value.get("plan_sha")
@@ -1528,12 +3946,34 @@ class ReplayStore:
             if state["compiled"] and not state["verified"]:
                 semantic_gaps.append(f"{branch}:compiled_context_not_verified")
 
+        project_control_groups: dict[
+            tuple[Any, ...], list[tuple[Mapping[str, Any], Any]]
+        ] = {}
+        for _, _, event, _, value in observed_events:
+            if event.get("task") not in {
+                "ndf_improvement_proposal",
+                "ndf_improvement_land",
+            }:
+                continue
+            payload = value if isinstance(value, Mapping) else {}
+            key = (
+                payload.get("flow_id"),
+                payload.get("hop"),
+                event.get("manifest_sha"),
+                event.get("context_plan_sha"),
+            )
+            project_control_groups.setdefault(key, []).append((event, value))
+        for key, records in project_control_groups.items():
+            for error in validate_project_control_flow(records):
+                semantic_gaps.append(
+                    f"project-control:{canonical_json_sha(key)}:{error}"
+                )
+
         dispatches = [
             (event, value)
             for _, _, event, _, value in observed_events
             if event.get("kind") == "dispatch.preflight"
-            and isinstance(value, Mapping)
-            and value.get("safe_to_dispatch") is True
+            and dispatch_pack_lease_eligible(value)
         ]
         leases = [
             (event, value)
@@ -1919,9 +4359,22 @@ class ReplayStore:
             ):
                 raise ValueError("R2 execution requires explicit cost and side-effect confirmation")
             adapter_name = Path(adapter[0]).name
-            if len(adapter) != 1 or adapter_name not in {"bwrap", "bubblewrap"}:
-                raise ValueError("R2 execution requires the managed bwrap adapter")
-            if not (
+            if len(adapter) != 1 or adapter_name not in {
+                "bwrap",
+                "bubblewrap",
+                "vm",
+            }:
+                raise ValueError(
+                    "R2 execution requires managed adapter bwrap|bubblewrap|vm"
+                )
+            if adapter_name == "vm":
+                probe = probe_vm_hypervisor()
+                if not probe.get("available"):
+                    raise ValueError(
+                        "R2 vm adapter unavailable: "
+                        f"{probe.get('blocker') or 'no_kvm_or_hypervisor'}"
+                    )
+            elif not (
                 Path(adapter[0]).is_file()
                 or shutil.which(adapter[0])
             ):
@@ -2000,6 +4453,29 @@ class ReplayStore:
             "output_checks": [],
         }
         if not execute:
+            return result
+        adapter_name = Path(adapter[0]).name
+        if adapter_name == "vm":
+            guest = self.guest_run(
+                sha,
+                episode_id=str(
+                    (target or {}).get("run_id")
+                    or profile.get("episode_id")
+                    or f"r2-{sha[:12]}"
+                ),
+                level="R0",
+                adapter="vm",
+                image=str(profile.get("image") or "") or None,
+            )
+            result.update(
+                {
+                    "executed": False,
+                    "state": guest.get("state") or "environment_blocked",
+                    "environment_blocker": guest.get("environment_blocker"),
+                    "guest_proof": guest,
+                    "adapter": "vm",
+                }
+            )
             return result
         adapter_probe = subprocess.run(
             [
@@ -2335,6 +4811,901 @@ class ReplayStore:
                 text=True,
             )
             shutil.rmtree(worktree, ignore_errors=True)
+
+    def isolate_observe(
+        self,
+        commit_or_ref: str,
+        *,
+        episode_id: str,
+        keep_worktree: bool = False,
+        write_proof: Path | None = None,
+    ) -> dict[str, Any]:
+        """Rebuild a hop in a disposable worktree and prove the live checkout was not used.
+
+        This is git-worktree isolation, not bwrap. R2 ``sandbox --execute`` is a
+        separate, cassette-gated path. Composer cwd is never this worktree.
+        """
+        sha = self.read_ref(commit_or_ref) or commit_or_ref
+        commit = self.get_object(sha, "commit")["data"]
+        recorded_head = str(commit.get("repo_head") or "").strip() or None
+        live_toplevel = self._git_toplevel(self.repo_root)
+        live_head_before = self._git_head(self.repo_root)
+        target_head = recorded_head or live_head_before
+        porcelain_before = self._live_porcelain()
+        sandbox_root = self.repo_root / "tmp" / "ndf-replay-sandboxes"
+        sandbox_root.mkdir(parents=True, exist_ok=True)
+        worktree = sandbox_root / f"observe-{uuid.uuid4()}"
+        added = False
+        try:
+            try:
+                subprocess.run(
+                    ["git", "worktree", "add", "--detach", str(worktree), target_head],
+                    cwd=self.repo_root,
+                    check=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as exc:
+                raise ValueError(
+                    "isolate worktree failed: "
+                    + ((exc.stderr or exc.stdout or "").strip() or str(exc))
+                ) from exc
+            added = True
+            sandbox_toplevel = self._git_toplevel(worktree)
+            sandbox_head = self._git_head(worktree)
+            marker = worktree / "NDF_ISOLATE_PROOF"
+            marker.write_text(
+                json.dumps(
+                    {
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "sandbox_toplevel": sandbox_toplevel,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            reconstruction = self.reconstruct(sha, "R0")
+            live_head_after = self._git_head(self.repo_root)
+            porcelain_after = self._live_porcelain()
+            live_marker = self.repo_root / "NDF_ISOLATE_PROOF"
+            same_checkout = Path(sandbox_toplevel).resolve() == Path(live_toplevel).resolve()
+            isolation = {
+                "kind": "disposable_git_worktree",
+                "bwrap_used": False,
+                "live_toplevel": live_toplevel,
+                "sandbox_toplevel": sandbox_toplevel,
+                "same_checkout": same_checkout,
+                "sandbox_head": sandbox_head,
+                "recorded_repo_head": recorded_head,
+                "used_fallback_head": recorded_head is None,
+                "head_matches_record": (
+                    sandbox_head == recorded_head if recorded_head else None
+                ),
+                "live_head_before": live_head_before,
+                "live_head_after": live_head_after,
+                "live_head_unchanged": live_head_after == live_head_before,
+                "live_porcelain_before": porcelain_before,
+                "live_porcelain_after": porcelain_after,
+                "live_tracked_unchanged": porcelain_after == porcelain_before,
+                "sandbox_marker": "NDF_ISOLATE_PROOF",
+                "sandbox_marker_absent_from_live_root": not live_marker.exists(),
+            }
+            valid = (
+                not same_checkout
+                and isolation["live_head_unchanged"]
+                and isolation["live_tracked_unchanged"]
+                and isolation["sandbox_marker_absent_from_live_root"]
+                and reconstruction.get("side_effects") is False
+            )
+            result = {
+                "schema": "ndf-replay-isolate-proof/v1",
+                "valid": valid,
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": isolation,
+                "reconstruct": {
+                    "level": reconstruction.get("level"),
+                    "side_effects": reconstruction.get("side_effects"),
+                    "commit_sha": reconstruction.get("commit_sha"),
+                    "timeline_events": len(reconstruction.get("timeline") or []),
+                },
+                "execute": {
+                    "attempted": False,
+                    "reason": "isolate_is_observe_only",
+                },
+            }
+            proof_path = write_proof or (
+                sandbox_root / f"proof-{episode_id}.json"
+            )
+            proof_path.parent.mkdir(parents=True, exist_ok=True)
+            self._atomic_write(
+                proof_path,
+                canonical_json_bytes(result) + b"\n",
+            )
+            result["proof_path"] = proof_path.as_posix()
+            return result
+        finally:
+            if added and not keep_worktree:
+                subprocess.run(
+                    ["git", "worktree", "remove", "--force", str(worktree)],
+                    cwd=self.repo_root,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                shutil.rmtree(worktree, ignore_errors=True)
+
+    def _git_toplevel(self, cwd: Path) -> str:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--show-toplevel"],
+            cwd=cwd,
+            text=True,
+        ).strip()
+
+    def _git_head(self, cwd: Path) -> str:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=cwd,
+            text=True,
+        ).strip()
+
+    def _live_porcelain(self) -> list[str]:
+        lines = subprocess.check_output(
+            ["git", "status", "--porcelain"],
+            cwd=self.repo_root,
+            text=True,
+        ).splitlines()
+        ignored = ("tmp", ".ndf")
+        kept: list[str] = []
+        for line in lines:
+            path = line[3:].strip() if len(line) > 3 else ""
+            if any(path == prefix or path.startswith(f"{prefix}/") for prefix in ignored):
+                continue
+            kept.append(line)
+        return kept
+
+    def guest_run(
+        self,
+        commit_or_ref: str,
+        *,
+        episode_id: str,
+        level: str = "R0",
+        adapter: str | None = None,
+        image: str | None = None,
+        keep_guest: bool = False,
+        write_proof: Path | None = None,
+        host_mount: str | None = None,
+        cube_client: Any | None = None,
+        cube_api_url: str | None = None,
+        cube_template_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Host launcher: snapshot + guest executor; never run replay body in live cwd.
+
+        Production adapters:
+        - ``vm`` — local KVM + qemu/firecracker image (fail closed if missing)
+        - ``cube`` — CubeSandbox / E2B API (Lvm); proof still uses adapter=vm +
+          hypervisor_backend=cube. host-mount of the live checkout is forbidden.
+        ``fake-vm`` is tests-only.
+        """
+        if level not in {"R0", "R1"}:
+            raise ValueError("guest-run supports R0 or R1 observe levels")
+        sha = self.read_ref(commit_or_ref) or commit_or_ref
+        commit = self.get_object(sha, "commit")["data"]
+        recorded_head = str(commit.get("repo_head") or "").strip() or None
+        live_toplevel = self._git_toplevel(self.repo_root)
+        live_head_before = self._git_head(self.repo_root)
+        target_head = recorded_head or live_head_before
+        porcelain_before = self._live_porcelain()
+        guest_id = str(uuid.uuid4())
+        staging = self.repo_root / "tmp" / "ndf-replay-guests" / guest_id
+        staging.mkdir(parents=True, exist_ok=True)
+        guest_root = staging / "root"
+        proof_path = write_proof or (
+            self.repo_root / "tmp" / "ndf-replay-guests" / f"proof-{episode_id}.json"
+        )
+        chosen = (adapter or "vm").strip().lower()
+        probe = probe_vm_hypervisor()
+        cube_probe = probe_cube_api(api_url=cube_api_url)
+        if cube_template_id:
+            cube_probe = {**cube_probe, "template_id": cube_template_id}
+        image_sha = (
+            hashlib.sha256(Path(image).read_bytes()).hexdigest()
+            if image and Path(image).is_file()
+            else hashlib.sha256(
+                f"snapshot:{target_head}:{guest_id}".encode("utf-8")
+            ).hexdigest()
+        )
+
+        def _blocked(
+            reason: str,
+            *,
+            proof_adapter: str | None = None,
+            extra_isolation: Mapping[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            isolation: dict[str, Any] = {
+                "adapter": proof_adapter or chosen,
+                "kind": "guest_vm",
+                "guest_id": guest_id,
+                "image_sha": image_sha,
+                "recorded_repo_head": recorded_head,
+                "guest_toplevel": None,
+                "host_toplevel": live_toplevel,
+                "same_checkout": None,
+                "host_tracked_unchanged": True,
+                "host_head_unchanged": True,
+                "sandbox_marker_absent_from_live_root": True,
+                "bwrap_used": False,
+                "host_mount_used": bool(host_mount),
+                "hypervisor": probe,
+                "cube": cube_probe,
+            }
+            if extra_isolation:
+                isolation.update(dict(extra_isolation))
+            result = {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "environment_blocked",
+                "environment_blocker": reason,
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": isolation,
+                "reconstruct": None,
+                "execute": {"attempted": False, "level": level},
+            }
+            result["proof_errors"] = validate_guest_proof(result)
+            self._atomic_write(proof_path, canonical_json_bytes(result) + b"\n")
+            result["proof_path"] = proof_path.as_posix()
+            return result
+
+        mount_blocker = assert_no_live_host_mount(host_mount, live_toplevel)
+        if mount_blocker:
+            return _blocked(
+                mount_blocker,
+                proof_adapter="vm" if chosen == "cube" else chosen,
+                extra_isolation={"hypervisor_backend": "cube" if chosen == "cube" else None},
+            )
+
+        if chosen == "vm":
+            if not probe.get("available"):
+                return _blocked(str(probe.get("blocker") or "no_kvm_or_hypervisor"))
+            resolved = resolve_vm_image(image, self.repo_root)
+            if resolved is None:
+                return _blocked("vm_adapter_requires_guest_image")
+            return self._guest_run_vm(
+                sha=sha,
+                episode_id=episode_id,
+                level=level,
+                target_head=target_head,
+                recorded_head=recorded_head,
+                live_toplevel=live_toplevel,
+                live_head_before=live_head_before,
+                porcelain_before=porcelain_before,
+                proof_path=proof_path,
+                probe=probe,
+                guest_id=guest_id,
+                staging=staging,
+                guest_root=guest_root,
+                resolved=resolved,
+                keep_guest=keep_guest,
+                image_sha=hashlib.sha256(
+                    resolved["kernel"].read_bytes() + resolved["rootfs"].read_bytes()
+                ).hexdigest(),
+            )
+
+        if chosen == "cube":
+            return self._guest_run_cube(
+                sha=sha,
+                episode_id=episode_id,
+                level=level,
+                target_head=target_head,
+                recorded_head=recorded_head,
+                live_toplevel=live_toplevel,
+                live_head_before=live_head_before,
+                porcelain_before=porcelain_before,
+                proof_path=proof_path,
+                cube_probe=cube_probe,
+                probe=probe,
+                cube_client=cube_client,
+                keep_guest=keep_guest,
+                host_mount=host_mount,
+            )
+
+        if chosen != "fake-vm":
+            return _blocked(f"unsupported_guest_adapter:{chosen}")
+
+        # Tests-only fake guest: separate tree, not the live checkout.
+        try:
+            self._materialize_guest_snapshot(guest_root, target_head)
+            guest_store_src = self.root
+            guest_store_dst = guest_root / ".ndf" / "replay"
+            if guest_store_src.is_dir():
+                shutil.copytree(
+                    guest_store_src,
+                    guest_store_dst,
+                    dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("*.lock", ".*.tmp"),
+                )
+            marker = guest_root / "NDF_GUEST_MARKER"
+            marker.write_text(
+                json.dumps(
+                    {
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "guest_id": guest_id,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            guest_store = ReplayStore(guest_root, guest_store_dst)
+            reconstruction = guest_store.reconstruct(sha, level)
+            live_head_after = self._git_head(self.repo_root)
+            porcelain_after = self._live_porcelain()
+            live_marker = self.repo_root / "NDF_GUEST_MARKER"
+            guest_toplevel = str(guest_root.resolve())
+            same_checkout = Path(guest_toplevel).resolve() == Path(live_toplevel).resolve()
+            isolation = {
+                "adapter": "fake-vm",
+                "kind": "guest_vm",
+                "guest_id": guest_id,
+                "image_sha": image_sha,
+                "recorded_repo_head": recorded_head,
+                "guest_toplevel": guest_toplevel,
+                "host_toplevel": live_toplevel,
+                "same_checkout": same_checkout,
+                "host_tracked_unchanged": porcelain_after == porcelain_before,
+                "host_head_unchanged": live_head_after == live_head_before,
+                "live_head_before": live_head_before,
+                "live_head_after": live_head_after,
+                "sandbox_marker_absent_from_live_root": not live_marker.exists(),
+                "bwrap_used": False,
+                "host_mount_used": False,
+                "hypervisor": probe,
+                "used_fallback_head": recorded_head is None,
+            }
+            result = {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "guest_observe",
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": isolation,
+                "reconstruct": {
+                    "level": reconstruction.get("level"),
+                    "side_effects": reconstruction.get("side_effects"),
+                    "commit_sha": reconstruction.get("commit_sha"),
+                    "timeline_events": len(reconstruction.get("timeline") or []),
+                },
+                "execute": {
+                    "attempted": False,
+                    "level": level,
+                    "reason": "guest_observe_only",
+                },
+            }
+            errors = validate_guest_proof(result)
+            result["proof_errors"] = errors
+            result["valid"] = not errors
+            if not result["valid"]:
+                result["state"] = "proof_invalid"
+            self._atomic_write(proof_path, canonical_json_bytes(result) + b"\n")
+            result["proof_path"] = proof_path.as_posix()
+            return result
+        finally:
+            if not keep_guest:
+                shutil.rmtree(staging, ignore_errors=True)
+
+    def _guest_run_vm(
+        self,
+        *,
+        sha: str,
+        episode_id: str,
+        level: str,
+        target_head: str,
+        recorded_head: str | None,
+        live_toplevel: str,
+        live_head_before: str,
+        porcelain_before: list[str],
+        proof_path: Path,
+        probe: Mapping[str, Any],
+        guest_id: str,
+        staging: Path,
+        guest_root: Path,
+        resolved: Mapping[str, Path],
+        keep_guest: bool,
+        image_sha: str,
+    ) -> dict[str, Any]:
+        qemu = probe.get("qemu") or shutil.which("qemu-system-x86_64")
+        if not qemu:
+            return {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "environment_blocked",
+                "environment_blocker": "no_qemu_or_firecracker",
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": {
+                    "adapter": "vm",
+                    "kind": "guest_vm",
+                    "hypervisor_backend": "qemu",
+                    "guest_id": guest_id,
+                    "image_sha": image_sha,
+                    "recorded_repo_head": recorded_head,
+                    "guest_toplevel": None,
+                    "host_toplevel": live_toplevel,
+                    "same_checkout": None,
+                    "host_tracked_unchanged": True,
+                    "host_head_unchanged": True,
+                    "sandbox_marker_absent_from_live_root": True,
+                    "bwrap_used": False,
+                    "host_mount_used": False,
+                    "hypervisor": dict(probe),
+                },
+                "reconstruct": None,
+                "execute": {"attempted": False, "level": level},
+            }
+
+        def _finish(result: dict[str, Any]) -> dict[str, Any]:
+            result["proof_errors"] = validate_guest_proof(result)
+            if result.get("state") != "environment_blocked":
+                result["valid"] = not result["proof_errors"]
+                if not result["valid"] and result.get("state") != "environment_blocked":
+                    result["state"] = "proof_invalid"
+            else:
+                result["valid"] = False
+            self._atomic_write(proof_path, canonical_json_bytes(result) + b"\n")
+            result["proof_path"] = proof_path.as_posix()
+            return result
+
+        overlay = staging / "rootfs.qcow2"
+        serial_proof = staging / "guest-serial.json"
+        console_log = staging / "console.log"
+        try:
+            self._materialize_guest_snapshot(guest_root, target_head)
+            guest_store_src = self.root
+            guest_store_dst = guest_root / ".ndf" / "replay"
+            if guest_store_src.is_dir():
+                shutil.copytree(
+                    guest_store_src,
+                    guest_store_dst,
+                    dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns("*.lock", ".*.tmp"),
+                )
+            key_src = self._key_path()
+            if key_src.is_file():
+                key_dst = guest_root / ".ndf" / "replay-key"
+                key_dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(key_src, key_dst)
+            subprocess.run(
+                [
+                    "qemu-img",
+                    "create",
+                    "-f",
+                    "qcow2",
+                    "-b",
+                    str(resolved["rootfs"]),
+                    "-F",
+                    "raw",
+                    str(overlay),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            serial_proof.write_text("", encoding="utf-8")
+            append = (
+                "root=/dev/vda rootfstype=ext4 rw console=ttyS0 "
+                f"init=/ndf-replay-init ndf.commit={sha} ndf.level={level} "
+                f"ndf.episode={episode_id}"
+            )
+            cmd = [
+                str(qemu),
+                "-enable-kvm",
+                "-cpu",
+                "host",
+                "-m",
+                "1024",
+                "-smp",
+                "2",
+                "-machine",
+                "q35,accel=kvm",
+                "-display",
+                "none",
+                "-no-reboot",
+                "-nic",
+                "none",
+                "-kernel",
+                str(resolved["kernel"]),
+                "-append",
+                append,
+            ]
+            if resolved.get("initrd"):
+                cmd.extend(["-initrd", str(resolved["initrd"])])
+            cmd.extend([
+                "-drive",
+                f"file={overlay},format=qcow2,if=virtio",
+                "-fsdev",
+                f"local,id=ndfguest,path={guest_root},security_model=mapped-xattr,readonly=on",
+                "-device",
+                "virtio-9p-pci,fsdev=ndfguest,mount_tag=ndfguest",
+                "-device",
+                "virtio-serial-pci",
+                "-chardev",
+                f"file,id=proof,path={serial_proof}",
+                "-device",
+                "virtserialport,chardev=proof,name=org.ndf.proof",
+                "-serial",
+                f"file:{console_log}",
+            ])
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=staging,
+                    capture_output=True,
+                    text=True,
+                    timeout=180,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                return _finish(
+                    {
+                        "schema": "ndf-replay-guest-proof/v1",
+                        "valid": False,
+                        "state": "environment_blocked",
+                        "environment_blocker": "qemu_timeout",
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "isolation": {
+                            "adapter": "vm",
+                            "kind": "guest_vm",
+                            "hypervisor_backend": "qemu",
+                            "guest_id": guest_id,
+                            "image_sha": image_sha,
+                            "recorded_repo_head": recorded_head,
+                            "guest_toplevel": "/guest",
+                            "host_toplevel": live_toplevel,
+                            "same_checkout": False,
+                            "host_tracked_unchanged": True,
+                            "host_head_unchanged": True,
+                            "sandbox_marker_absent_from_live_root": True,
+                            "bwrap_used": False,
+                            "host_mount_used": False,
+                            "hypervisor": dict(probe),
+                        },
+                        "reconstruct": None,
+                        "execute": {"attempted": True, "level": level},
+                        "qemu_returncode": None,
+                    }
+                )
+            guest_payload: dict[str, Any] = {}
+            serial_text = serial_proof.read_text(encoding="utf-8", errors="replace").strip()
+            if serial_text:
+                try:
+                    guest_payload = json.loads(serial_text.splitlines()[-1])
+                except json.JSONDecodeError:
+                    guest_payload = {"error": "guest_serial_not_json", "raw": serial_text[:500]}
+            live_head_after = self._git_head(self.repo_root)
+            porcelain_after = self._live_porcelain()
+            live_marker = self.repo_root / "NDF_GUEST_MARKER"
+            guest_toplevel = str(guest_payload.get("guest_toplevel") or "/guest")
+            same_checkout = Path(guest_toplevel).resolve() == Path(live_toplevel).resolve()
+            reconstruct = guest_payload.get("reconstruct")
+            if not isinstance(reconstruct, Mapping):
+                reconstruct = None
+            isolation = {
+                "adapter": "vm",
+                "kind": "guest_vm",
+                "hypervisor_backend": "qemu",
+                "guest_id": guest_id,
+                "image_sha": image_sha,
+                "recorded_repo_head": recorded_head,
+                "guest_toplevel": guest_toplevel,
+                "host_toplevel": live_toplevel,
+                "same_checkout": same_checkout,
+                "host_tracked_unchanged": porcelain_after == porcelain_before,
+                "host_head_unchanged": live_head_after == live_head_before,
+                "live_head_before": live_head_before,
+                "live_head_after": live_head_after,
+                "sandbox_marker_absent_from_live_root": not live_marker.exists(),
+                "bwrap_used": False,
+                "host_mount_used": False,
+                "hypervisor": dict(probe),
+                "qemu_returncode": proc.returncode,
+            }
+            if guest_payload.get("error") and reconstruct is None:
+                return _finish(
+                    {
+                        "schema": "ndf-replay-guest-proof/v1",
+                        "valid": False,
+                        "state": "environment_blocked",
+                        "environment_blocker": str(guest_payload.get("error")),
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "isolation": isolation,
+                        "reconstruct": None,
+                        "execute": {"attempted": True, "level": level},
+                        "console_log": console_log.as_posix(),
+                        "qemu_stderr": (proc.stderr or "")[:2000],
+                    }
+                )
+            if reconstruct is None:
+                return _finish(
+                    {
+                        "schema": "ndf-replay-guest-proof/v1",
+                        "valid": False,
+                        "state": "environment_blocked",
+                        "environment_blocker": "guest_proof_missing",
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "isolation": isolation,
+                        "reconstruct": None,
+                        "execute": {"attempted": True, "level": level},
+                        "console_log": console_log.as_posix(),
+                        "qemu_stderr": (proc.stderr or "")[:2000],
+                    }
+                )
+            result = {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "guest_observe",
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": isolation,
+                "reconstruct": {
+                    "level": reconstruct.get("level"),
+                    "side_effects": reconstruct.get("side_effects"),
+                    "commit_sha": reconstruct.get("commit_sha"),
+                    "timeline_events": reconstruct.get("timeline_events"),
+                },
+                "execute": {
+                    "attempted": False,
+                    "level": level,
+                    "reason": "guest_observe_only",
+                },
+                "console_log": console_log.as_posix(),
+            }
+            return _finish(result)
+        finally:
+            if not keep_guest:
+                shutil.rmtree(staging, ignore_errors=True)
+
+    def _guest_run_cube(
+        self,
+        *,
+        sha: str,
+        episode_id: str,
+        level: str,
+        target_head: str,
+        recorded_head: str | None,
+        live_toplevel: str,
+        live_head_before: str,
+        porcelain_before: list[str],
+        proof_path: Path,
+        cube_probe: Mapping[str, Any],
+        probe: Mapping[str, Any],
+        cube_client: Any | None,
+        keep_guest: bool,
+        host_mount: str | None,
+    ) -> dict[str, Any]:
+        template_id = str(
+            cube_probe.get("template_id")
+            or os.environ.get("NDF_CUBE_TEMPLATE_ID")
+            or os.environ.get("CUBE_TEMPLATE_ID")
+            or ""
+        )
+        image_sha = hashlib.sha256(
+            f"cube-template:{template_id}:{target_head}".encode("utf-8")
+        ).hexdigest()
+
+        def _blocked(reason: str) -> dict[str, Any]:
+            result = {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "environment_blocked",
+                "environment_blocker": reason,
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": {
+                    "adapter": "vm",
+                    "kind": "guest_vm",
+                    "hypervisor_backend": "cube",
+                    "guest_id": str(uuid.uuid4()),
+                    "image_sha": image_sha,
+                    "recorded_repo_head": recorded_head,
+                    "guest_toplevel": None,
+                    "host_toplevel": live_toplevel,
+                    "same_checkout": None,
+                    "host_tracked_unchanged": True,
+                    "host_head_unchanged": True,
+                    "sandbox_marker_absent_from_live_root": True,
+                    "bwrap_used": False,
+                    "host_mount_used": bool(host_mount),
+                    "hypervisor": probe,
+                    "cube": dict(cube_probe),
+                },
+                "reconstruct": None,
+                "execute": {"attempted": False, "level": level},
+            }
+            result["proof_errors"] = validate_guest_proof(result)
+            self._atomic_write(proof_path, canonical_json_bytes(result) + b"\n")
+            result["proof_path"] = proof_path.as_posix()
+            return result
+
+        if host_mount:
+            return _blocked("host_mount_forbidden_for_replay")
+
+        client = cube_client
+        if client is None:
+            if not cube_probe.get("available"):
+                return _blocked(
+                    str(cube_probe.get("blocker") or "cube_api_unavailable")
+                )
+            return _blocked(
+                "cube_live_client_not_wired: set a Cube cluster and inject "
+                "client, or use tests MockCubeSandboxClient; refuse soft fallback"
+            )
+        if not template_id:
+            return _blocked("no_CUBE_TEMPLATE_ID")
+
+        sandbox_id = None
+        try:
+            created = client.create(
+                template_id=template_id,
+                airgap=True,
+                host_mount=None,
+            )
+            sandbox_id = str(created["sandbox_id"])
+            guest_toplevel = str(
+                Path(created.get("guest_toplevel") or "").resolve()
+                if created.get("guest_toplevel")
+                else ""
+            )
+            if not guest_toplevel:
+                return _blocked("cube_create_missing_guest_toplevel")
+            if Path(guest_toplevel).resolve() == Path(live_toplevel).resolve():
+                return _blocked("cube_guest_same_as_live_checkout")
+
+            archive = subprocess.check_output(
+                ["git", "archive", "--format=tar", target_head],
+                cwd=self.repo_root,
+            )
+            if hasattr(client, "materialize_snapshot"):
+                client.materialize_snapshot(sandbox_id, archive)
+            if self.root.is_dir() and hasattr(client, "write_tree"):
+                client.write_tree(sandbox_id, ".ndf/replay", self.root)
+
+            guest_root = Path(guest_toplevel)
+            # Ensure guest looks like a git checkout for ReplayStore bounds.
+            if not (guest_root / ".git").exists():
+                subprocess.run(["git", "init", "-q"], cwd=guest_root, check=True)
+                subprocess.run(
+                    ["git", "config", "user.email", "replay-guest@local"],
+                    cwd=guest_root,
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "config", "user.name", "replay-guest"],
+                    cwd=guest_root,
+                    check=True,
+                )
+                subprocess.run(["git", "add", "-A"], cwd=guest_root, check=False)
+                subprocess.run(
+                    ["git", "commit", "-qm", f"cube-guest {target_head}"],
+                    cwd=guest_root,
+                    check=False,
+                )
+
+            marker = guest_root / "NDF_GUEST_MARKER"
+            marker.write_text(
+                json.dumps(
+                    {
+                        "episode_id": episode_id,
+                        "commit_sha": sha,
+                        "guest_id": sandbox_id,
+                        "hypervisor_backend": "cube",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            guest_store = ReplayStore(guest_root, guest_root / ".ndf" / "replay")
+            reconstruction = guest_store.reconstruct(sha, level)
+            live_head_after = self._git_head(self.repo_root)
+            porcelain_after = self._live_porcelain()
+            live_marker = self.repo_root / "NDF_GUEST_MARKER"
+            same_checkout = Path(guest_toplevel).resolve() == Path(live_toplevel).resolve()
+            isolation = {
+                "adapter": "vm",
+                "kind": "guest_vm",
+                "hypervisor_backend": "cube",
+                "guest_id": sandbox_id,
+                "image_sha": image_sha,
+                "recorded_repo_head": recorded_head,
+                "guest_toplevel": guest_toplevel,
+                "host_toplevel": live_toplevel,
+                "same_checkout": same_checkout,
+                "host_tracked_unchanged": porcelain_after == porcelain_before,
+                "host_head_unchanged": live_head_after == live_head_before,
+                "live_head_before": live_head_before,
+                "live_head_after": live_head_after,
+                "sandbox_marker_absent_from_live_root": not live_marker.exists(),
+                "bwrap_used": False,
+                "host_mount_used": False,
+                "hypervisor": probe,
+                "cube": dict(cube_probe),
+                "template_id": template_id,
+                "used_fallback_head": recorded_head is None,
+            }
+            result = {
+                "schema": "ndf-replay-guest-proof/v1",
+                "valid": False,
+                "state": "guest_observe",
+                "episode_id": episode_id,
+                "commit_sha": sha,
+                "isolation": isolation,
+                "reconstruct": {
+                    "level": reconstruction.get("level"),
+                    "side_effects": reconstruction.get("side_effects"),
+                    "commit_sha": reconstruction.get("commit_sha"),
+                    "timeline_events": len(reconstruction.get("timeline") or []),
+                },
+                "execute": {
+                    "attempted": False,
+                    "level": level,
+                    "reason": "guest_observe_only",
+                },
+            }
+            errors = validate_guest_proof(result)
+            result["proof_errors"] = errors
+            result["valid"] = not errors
+            if not result["valid"]:
+                result["state"] = "proof_invalid"
+            self._atomic_write(proof_path, canonical_json_bytes(result) + b"\n")
+            result["proof_path"] = proof_path.as_posix()
+            return result
+        except ValueError as exc:
+            return _blocked(str(exc))
+        finally:
+            if sandbox_id and cube_client is not None and not keep_guest:
+                try:
+                    cube_client.kill(sandbox_id)
+                except Exception:  # noqa: BLE001
+                    pass
+
+    def _materialize_guest_snapshot(self, guest_root: Path, repo_head: str) -> None:
+        guest_root.mkdir(parents=True, exist_ok=True)
+        archive = subprocess.check_output(
+            ["git", "archive", "--format=tar", repo_head],
+            cwd=self.repo_root,
+        )
+        subprocess.run(
+            ["tar", "-xf", "-"],
+            cwd=guest_root,
+            input=archive,
+            check=True,
+        )
+        subprocess.run(["git", "init", "-q"], cwd=guest_root, check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "replay-guest@local"],
+            cwd=guest_root,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "replay-guest"],
+            cwd=guest_root,
+            check=True,
+        )
+        subprocess.run(["git", "add", "-A"], cwd=guest_root, check=True)
+        subprocess.run(
+            ["git", "commit", "-qm", f"guest-snapshot {repo_head}"],
+            cwd=guest_root,
+            check=True,
+        )
 
     def fork(
         self,
@@ -3062,6 +6433,29 @@ class ReplayStore:
                             errors.append(f"missing_event_payload:{path.name}:{event.get('seq')}")
                 except ValueError as exc:
                     errors.append(f"{path.name}:{exc}")
+        if self.refs.is_dir():
+            for path in sorted(self.refs.glob("flows/*/children/*")):
+                if not path.is_file():
+                    continue
+                try:
+                    pointer = self.get_object(
+                        path.read_text(encoding="utf-8").strip(), "blob"
+                    )["data"].get("value")
+                except (ValueError, FileNotFoundError):
+                    errors.append(f"control_child_pointer_missing:{path}")
+                    continue
+                if not isinstance(pointer, dict):
+                    errors.append(f"control_child_pointer_invalid:{path}")
+                    continue
+                child_id = str(pointer.get("episode_id") or "")
+                parent_id = str(pointer.get("parent_episode_id") or "")
+                stage = pointer.get("stage")
+                flow_id = pointer.get("flow_id")
+                identity = self.episode_identity(child_id) or {}
+                if identity.get("stage") != stage or identity.get("flow_id") != flow_id:
+                    errors.append(f"control_child_identity_mismatch:{child_id}")
+                if parent_id and self.read_ref(f"episodes/{parent_id}/HEAD") is None:
+                    errors.append(f"control_parent_missing:{parent_id}")
         return {
             "schema": "ndf-replay-fsck/v1",
             "valid": not errors,
@@ -3173,6 +6567,42 @@ def main(argv: list[str] | None = None) -> int:
     sandbox.add_argument("--profile", required=True)
     sandbox.add_argument("--execute", action="store_true")
     sandbox.add_argument("--episode")
+    isolate = sub.add_parser("isolate")
+    isolate.add_argument("--commit", required=True)
+    isolate.add_argument("--episode", required=True)
+    isolate.add_argument("--keep-worktree", action="store_true")
+    isolate.add_argument("--write-proof")
+    guest = sub.add_parser("guest-run")
+    guest.add_argument("--commit", required=True)
+    guest.add_argument("--episode", required=True)
+    guest.add_argument("--level", choices=("R0", "R1"), default="R0")
+    guest.add_argument(
+        "--adapter",
+        choices=("vm", "cube", "fake-vm"),
+        default="vm",
+        help="vm=local KVM image; cube=CubeSandbox/E2B API (Lvm); fake-vm=tests-only",
+    )
+    guest.add_argument("--image", help="Guest rootfs/image path for adapter=vm")
+    guest.add_argument(
+        "--cube-api-url",
+        help="Cube/E2B API URL (else NDF_CUBE_API_URL or E2B_API_URL)",
+    )
+    guest.add_argument(
+        "--cube-template-id",
+        help="Cube template id (else NDF_CUBE_TEMPLATE_ID or CUBE_TEMPLATE_ID)",
+    )
+    guest.add_argument(
+        "--host-mount",
+        help="FORBIDDEN on replay path; any value yields environment_blocked",
+    )
+    guest.add_argument("--keep-guest", action="store_true")
+    guest.add_argument("--write-proof")
+    guest_image = sub.add_parser("guest-image")
+    guest_image.add_argument(
+        "--dest",
+        help="Image directory (default: tmp/ndf-replay-images/alpine-ndf-replay)",
+    )
+    sub.add_parser("guest-probe")
     fork = sub.add_parser("fork")
     fork.add_argument("--from", dest="start", required=True)
     fork.add_argument("--branch", required=True)
@@ -3183,6 +6613,19 @@ def main(argv: list[str] | None = None) -> int:
     ledger = sub.add_parser("ledger")
     ledger.add_argument("--episode", required=True)
     ledger.add_argument("--write", action="store_true")
+    canvas_index = sub.add_parser("canvas-index")
+    canvas_index.add_argument(
+        "--write-cache",
+        action="store_true",
+        help="Write derived .ndf/replay/canvas-index.json (deletable)",
+    )
+    canvas_ledger = sub.add_parser("canvas-ledger")
+    canvas_ledger.add_argument("--episode", required=True)
+    canvas_ledger.add_argument(
+        "--write-cache",
+        action="store_true",
+        help="Write derived .ndf/replay/canvas-ledger/<id>.json (deletable)",
+    )
     sub.add_parser("retention-plan")
     sub.add_parser("fsck")
 
@@ -3299,6 +6742,31 @@ def main(argv: list[str] | None = None) -> int:
             result = store.audit(args.commit, strict=args.strict)
         elif args.command == "reconstruct":
             result = store.reconstruct(args.commit, args.level)
+        elif args.command == "isolate":
+            result = store.isolate_observe(
+                args.commit,
+                episode_id=args.episode,
+                keep_worktree=args.keep_worktree,
+                write_proof=Path(args.write_proof) if args.write_proof else None,
+            )
+        elif args.command == "guest-image":
+            dest = Path(args.dest) if args.dest else Path(args.root) / DEFAULT_VM_IMAGE_REL
+            result = provision_replay_guest_image(dest)
+        elif args.command == "guest-probe":
+            result = guest_environment_probe(repo)
+        elif args.command == "guest-run":
+            result = store.guest_run(
+                args.commit,
+                episode_id=args.episode,
+                level=args.level,
+                adapter=args.adapter,
+                image=args.image,
+                keep_guest=args.keep_guest,
+                write_proof=Path(args.write_proof) if args.write_proof else None,
+                host_mount=args.host_mount,
+                cube_api_url=args.cube_api_url,
+                cube_template_id=args.cube_template_id,
+            )
         elif args.command == "sandbox":
             if args.execute and not args.episode:
                 raise ValueError("executed R2 replay requires --episode")
@@ -3349,6 +6817,15 @@ def main(argv: list[str] | None = None) -> int:
             result = store.redact_export(args.commit)
         elif args.command == "ledger":
             result = store.ledger_entry(args.episode, write=args.write)
+        elif args.command == "canvas-index":
+            result = store.canvas_index(
+                write_cache=bool(getattr(args, "write_cache", False))
+            )
+        elif args.command == "canvas-ledger":
+            result = store.canvas_ledger(
+                args.episode,
+                write_cache=bool(getattr(args, "write_cache", False)),
+            )
         elif args.command == "retention-plan":
             result = store.retention_plan()
         else:

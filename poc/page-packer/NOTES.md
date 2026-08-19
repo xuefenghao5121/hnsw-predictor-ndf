@@ -1,5 +1,6 @@
 # page-packer — Notes
-> status: exploring | created: 2026-08-10
+> status: rejected | created: 2026-08-10 | closed: 2026-08-18
+> Rejects: page-packer | DEC-100 | proposal-reject-page-packer
 
 ## Method
 Pipeline: cluster_reorder → page_packer

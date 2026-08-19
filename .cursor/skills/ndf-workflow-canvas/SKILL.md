@@ -2,10 +2,10 @@
 name: ndf-workflow-canvas
 description: >-
   Projects the local business project into a business-first Cursor Canvas, with
-  separate Product, NDF Control, and Claude Code Runtime planes plus
-  Design/Implementation/Test topic drill-down and strict close actions. Use when
-  the user asks for an NDF workflow canvas, product cockpit, Genesis, POC workbench,
-  governance health, agent runtime, sandbox delegation, or close visualization.
+  five tabs (Product / Topics / NDF Control / Agents / Replay). Close is a Topics
+  hop sequence, not a tab. Use when the user asks for an NDF workflow canvas,
+  product cockpit, Genesis, POC workbench, governance health, agent runtime,
+  sandbox delegation, or close visualization.
 disable-model-invocation: true
 ---
 
@@ -31,33 +31,64 @@ Canvas is a derived projection, not a product or process SoT.
 
    ```bash
    python3 spec/meta/tools/ndf_workflow_status.py snapshot \
-     --update-embedded /absolute/path/to/ndf-workflow.canvas.tsx --json
+     --update-embedded /absolute/path/to/ndf-workflow.canvas.tsx \
+     --topic <focused-topic-id> --json
    ```
 
 2. Require `updated=true`; the command atomically replaces the complete SNAPSHOT, verifies
-   payload/source/action bindings, and writes a projection receipt. Do not maintain an ad-hoc
-   snake_case/camelCase transform.
+   the **written** payload SHA (no second `snapshot()` compile), and writes a projection
+   receipt. Do not maintain an ad-hoc snake_case/camelCase transform. `const SNAPSHOT` is
+   compact JSON: Topics **directory** + one `business.focusedTopic` workbench, and Replay
+   hop **directory** + one `replay.focused` page. Do not embed every exploring workbench
+   or every hop Prompt. `--topic` selects the unique fat Topics page. Do not pass
+   `--probe-runtime` on routine refresh; header Refresh snapshot is the only probe and
+   MUST include `--topic` from Canvas `business-topic`. Over 120KB compact JSON MUST fail
+   rather than write a 20k-line object; the error names the overflowing bucket.
+   Unchanged evidence (Merkle layer hit) MUST reuse persisted spec-health / Replay index
+   and MUST NOT re-run `ndf_graphcheck`. Canvas workbench uses a shallow graph preview or
+   a cached verified plan; full ACP `create_manifest` stays on pack/repair-pack.
 3. Keep the layout defined in [layout.md](layout.md).
 4. Omit empty sections. Label snapshot time and repository SHA.
 5. After proposal, gate, binder, baseline, or close changes, refresh the snapshot.
 
 Canvas actions that may change local evidence MUST use bound action/agent receipts.
 The header MUST show payload SHA, absorbed action and latest operation/result/blockers/time.
-Only `verified_at_generation` permits repair, delegation or close; `pending_refresh`,
-`refresh_in_progress` and `unknown` block them. Canvas-local pending state is keyed by
+Only `fresh` permits repair, delegation or close; `refresh_in_progress`,
+`stale_after_action` and `unknown` block them. Canvas-local pending state is keyed by
 `absorbedActionId` or `payloadSha`, never `snapshotSha`.
 
 ## Three-plane routing
 
 - **Product** is the default whenever a product Charter exists. Show local goals, capability
-  portfolio, Golden/SLA, product proposals, roadmap and business POCs.
-- **NDF Control** holds Genesis, GATES, process proposals and spec health.
-- **Agents** holds Claude Code session/run/worktree/lease and completion state.
-- **Replay** holds content-addressed Episode history, coverage, timeline and explicit R0/R1/R2/R3 actions.
+  portfolio, Golden/SLA, product proposals, roadmap and business POCs. Do not put New Genesis here.
+- **NDF Control** is the meta-kernel cockpit. It inspects whether `spec/meta/` can
+  still guide Product/Topics. Product contracts and POC binders MUST NOT sink into
+  META. Genesis is always first (install, or collapsed 「内核已绑定」). Then kernel
+  map (meta seeds only), plane-routed spec-health, process proposals and hygiene.
+  With no exploring/blocked POC, binder_health is not_applicable (Trunk); do not
+  refresh closed binders.
+- **Agents** holds named agent identity cards (OpenClaw / Claude Code / Canvas /
+  context-compiler). Each card opens Replay as that identity's lens (hops + hero +
+  timeline), not a shared dump with a different title.
+- **Replay** holds Episode history as a ledger in `.ndf/replay`. Canvas is the counter:
+  directory + the currently opened hop. A non-empty hop list keeps exactly one hop
+  selected (filter keeps it or falls to the first). Unfocused hops show 「查这条账」 (`canvas-ledger`
+  then `snapshot --update-embedded --replay-episode`). Loaded hops keep 人话 / 规范 Prompt /
+  实发 Prompt. Direct tab = hop panes; Agent jump = identity lens on the same ledger. Main
+  actions after the ledger: Guest VM 回放这次 hop / Guest VM 回放到上一步. No Canvas
+  write-back. Hop/prefix Composer prompts are host launchers for `guest-run --adapter vm`
+  only; they MUST NOT re-dispatch the recorded assembled context onto the live checkout.
+  No R3. No compare UI.
 - NDF Control/Runtime blockers MAY surface as badges on Product, but never as product KPIs.
-- If no Charter exists, route to NDF Control → Genesis; follow [genesis.md](genesis.md).
+- If no Charter exists, default tab is NDF Control → Genesis; follow [genesis.md](genesis.md).
 
 ## Topic workbench
+
+Topics selector reads `business.topics[]` directory rows. The seven modules render
+**only** `business.focusedTopic`. If Canvas `business-topic` ≠ `focusedTopicId`,
+show 「打开工作台」 (`snapshot --update-embedded <canvas> --topic <id>`, no
+`--probe-runtime`) — same pattern as Replay 「查这条账」. Missing focused MUST NOT
+treat `delegation` / `health.findings` as required objects (no crash).
 
 Read a topic in this order:
 
@@ -92,9 +123,20 @@ Use `topic-health`, not a hand-built sequence of perf/isolation/pack buttons. A 
 binding header or binder finding routes to OpenClaw; Numbers/evidence and isolation/code
 repair route to Claude Code. Human gate phrases remain manual.
 
-NDF Control uses `spec-health` for project-level meta/product graph, index, binder and
-proposal conformance. OpenClaw project delegation must name `ndf_improvement_proposal`;
-NDF Control never delegates product implementation.
+NDF Control uses `spec-health` for meta/product graph, index, binder and
+proposal-plane conformance. Repair is plane-routed: meta graph / missing seeds →
+`ndf_improvement_proposal`; product graph → Product; binder instance → Topics.
+工作流演进 also has an always-visible human-intent entry. It invokes the same
+project task with `origin=human_intent`, intent SHA and an explicit Episode, and
+does not require a health finding. Finding-driven repair uses
+`origin=health_finding`; do not merge these two sources in the UI.
+After a process proposal exists, 工作流演进 MUST show a focused hop CTA
+（推进：已确认 / 推进：已审核）using `ndf_improvement_land`. Intake stays available
+but is not the next action. OpenClaw process draft delegation must name
+`ndf_improvement_proposal`, stamp `Status: Pending confirmation`, and MUST NOT
+copy product clauses or POC binder fields into `spec/meta/`. Landing stable META
+happens only after the human phrase 已确认 on the land hop. NDF Control never
+delegates product implementation.
 
 Before Claude Code POC delegation:
 
@@ -107,33 +149,40 @@ Before Claude Code POC delegation:
 ## Episode Replay
 
 Per [[META-013]], recording is explicit (`--episode` or `NDF_REPLAY_EPISODE`) and never
-captures unrelated chats. Replay actions are distinct:
+captures unrelated chats.
 
-- R0 Audit: exact stored-object/event verification, no model/tool execution;
-- R1 Observation: recorded responses and tool cassettes, no side effects;
-- R2 Sandbox Outcome: one joined run's recorded completion/cassettes/lease, complete recorded
-  expectations, managed adapter, network/filesystem/process isolation, Context Plan/lease-bounded
-  write roots, and cost/side-effect confirmation;
-- R3 Counterfactual Fork: new history; any model re-invocation belongs here.
+**Canvas Replay main path** (what the human uses):
 
-Canvas MUST display coverage gaps (`completion_only`, `messages_only`, unknown hidden surface),
-manifest/plan join gaps and semantic receipt/lease gaps, per-branch event-chain integrity, recorded observation policies,
-changed files and gate evidence. It MUST NOT display hidden reasoning. Compaction creates a checkpoint commit; summary-only
-state cannot dispatch.
+- First: hop directory from `.ndf/replay`. Unfocused hops: 「查这条账」 then one focused page. Loaded: 人话 + 规范组装 Prompt + 当时实发 Prompt (Prompt default-collapsed). Missing Plan/request MUST show `whyMissing`; never fake a Prompt from graphNodes
+- Guest VM 回放这次 hop — after the ledger. Host runs only `ndf_replay.py guest-run --adapter vm`. Proof is guest-proof JSON (`valid=true`, contract `adapter=vm`). Forbid host-mount of live checkout. Prompt/worktree/bwrap are not completed replay. If `environment_blocked` / missing image, follow [ndf-replay-sandbox](../ndf-replay-sandbox/SKILL.md)
+- Guest VM 回放到上一步 — same guest-run; report selected prefix only
+- Do **not** put workspace write-back on the Replay tab
+- Ordered reads MUST be listable from the Context Plan; never pretend Manifest graphNodes are enough
+- Do **not** show R3 / counterfactual fork on the Replay tab
+- Do **not** fall back to `isolate` / live `reconstruct` when guest-run is `environment_blocked`
+- Do **not** use OpenClaw cube-sandbox skill host-mount of `repo_root` for replay
 
-Historical integrity/semantics and current restore/dispatch readiness are separate fields. Repository
-advance, gate drift, or worktree cleanup may block current restore but MUST NOT turn a valid historical
-R0 red. When Canvas can only open Composer, R0/R1 controls MUST be labelled as opening instructions,
-not as completed Replay execution. R2 MUST show the evidence-specific adapter, network mode, command
-set and write roots before confirmation. Diff is split into manifest, context, events, observations,
-results and verification.
+CLI levels remain defined by META-013 (R0/R1/R2/R3) but are not the Canvas landing vocabulary.
 
-## Close wizard
+Canvas MUST display coverage gaps, join/semantic gaps, per-branch event-chain integrity,
+changed files and gate evidence. It MUST NOT display hidden reasoning. Compaction creates a
+checkpoint commit; summary-only state cannot dispatch.
 
-Canvas is not a live Agent runtime. The interactive Close Console MAY collect input and retain
-submission history, but Agent replies remain in Composer and `newComposerChat` has no callback.
-Use [close-console.md](close-console.md); completion comes only from refreshed
-`control.close` evidence.
+Historical integrity and current restore/dispatch readiness are separate. Repository advance,
+gate drift, or worktree cleanup MUST NOT turn a valid historical record into “cannot replay”.
+Workspace write-back is CLI-only and is not a Canvas Replay action. Composer buttons open
+instructions only, never imply Canvas already executed restore.
+
+## Close hops
+
+There is no Close tab. Close is a Topics prompt sequence after
+`selected_decision ∈ {reject, promote, partial}`. Canvas is not a live Agent runtime;
+`newComposerChat` has no callback. Use [close-console.md](close-console.md). Completion
+comes only from refreshed `control.close` evidence on the Topics decision card.
+
+**生成下一步** records `selected_decision`, then runs the first legal hop in the same
+chat. After 已审核, continue the close-apply chain in that chat; do not bounce to
+Topics for plan / N/A integrate / graph / finalize. MUST NOT say "open the Close page".
 
 The only legal promote sequence is:
 
@@ -159,3 +208,4 @@ Reject uses DEC/deprecated/archive and does not enter promote integration.
 - [acp-delegate.md](acp-delegate.md)
 - [openclaw-delegate.md](openclaw-delegate.md)
 - [claude-code-pipeline.md](claude-code-pipeline.md)
+- [ndf-replay-sandbox](../ndf-replay-sandbox/SKILL.md) — install local KVM guest for Replay

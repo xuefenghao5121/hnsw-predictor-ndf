@@ -23,7 +23,7 @@
 | 读什么 | 路径 |
 |--------|------|
 | **NDF 语言 SoT** | [`language.md`](language.md)（[[META-001]]…[[META-005]]、[[META-008]] 工作空间视角；性能 SLA↔旋钮图依赖 / `trunk-ref` 见 [[META-005]]） |
-| 流程纪律 | [`process.md`](process.md)（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]、[[META-007]]、[[META-009]]…[[META-013]]） |
+| 流程纪律 | [`process.md`](process.md)（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]、[[META-007]]、[[META-009]]…[[META-015]]） |
 | 目录边界 | [`architecture.md`](architecture.md)（[[ARCH-008]]） |
 | POC↔SLA | [`constraints.md`](constraints.md)（[[CON-POC-001]]） |
 | 术语 | [`glossary.md`](glossary.md)（[[DEF-020]]…[[DEF-023]]、[[DEF-META-ID-NS]]、DEF-NDF-*） |
@@ -52,6 +52,9 @@
 Agent 任务上下文按 [[META-012]] 由本地 Context Compiler 统一生成：binder→NDF 图→
 git/evidence→gate/runtime→角色权限；不同角色 plan 共享 Task Manifest。可写委派按
 [[META-013]] 进入内容寻址 Episode；R0/R1/R2/R3 分级回放，不承诺逐 token 确定性。
+回放「已执行」按 [[META-015]] 要求 Lvm guest-proof；提示词与同机 worktree 不得冒充。
+新托管 process proposal 按 [[META-014]] 绑定生命周期、人口令回执、stage-specific
+child Episode 与幂等 dispatch；历史无绑定提案只读显示为 `legacy_*_unbound`。
 既有健康棕地可显示 `operational_legacy`，不因缺历史 Genesis 而停止运作。
 Canvas 默认监控本地 Business Project（产品 `spec/00–50` + Trunk）；本目录只作为
 Governance/Control 子视图，MUST NOT 冒充业务项目。Topics 的 NDF Control 文档流

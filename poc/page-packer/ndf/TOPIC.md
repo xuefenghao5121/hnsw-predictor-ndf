@@ -1,14 +1,22 @@
 # Topic: page-packer
 
 > ndf_topic: page-packer
-> status: exploring
+> status: rejected
 > created: 2026-08-10
+> closed: 2026-08-18
 > explore_surface: spec/20-behavior/vecblock-layout
 > depends_on_topics: vecblock-cluster-reorder (promoted)
-> baseline_status: current
+> baseline_status: n/a
 > baseline_trunk_sha: 9df8b74
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > reference: BEH-037 (cluster vecblock), DEC-018 (page shuffle)
+> selected_decision: reject
+> rejects_dec: DEC-100
+> archive: spec/archive/2026-08/poc-page-packer/
+
+## topic_runtime_headers
+
+> selected_decision: reject
 
 ## Hypothesis
 
@@ -30,3 +38,8 @@ Cluster sort (BEH-037) 将相似向量集中到同一 block，但 4KB 页内（8
 ## Perf Baseline
 
 见 ndf/PERF_BASELINE.md
+
+## Close
+
+负结果关闭（[[DEC-100]] / [[BEH-020]]）。R0 边际约 +1.4%，Human 判定无继续价值。
+Trunk 从未合入本主题实现。

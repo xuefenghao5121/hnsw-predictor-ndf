@@ -7,7 +7,7 @@
 1. 本文件 `AGENTS.md`
 2. **流程 SoT**：`spec/meta/README.md` + `spec/meta/language.md`（[[META-001]]…[[META-005]]、[[META-008]]）
   - `spec/meta/process.md`（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、
-   [[META-006]]、[[META-007]]、[[META-009]]…[[META-013]]）
+    [[META-006]]、[[META-007]]、[[META-009]]…[[META-015]]）
 3. 当前相关的**产品**契约：`spec/00–50`（及产品 `spec/open/` 提案）
 
 若工作区存在 `SOUL.md` / `MEMORY.md`，一并重读；**不存在则跳过，不得阻塞**。
@@ -32,7 +32,7 @@ Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/
 **权威流程条款**（正文在 `spec/meta/`，产品树仅为 adopted 指针）：[[CHR-008]]、[[ARCH-008]]、
 [[BEH-018]]、[[BEH-019]]、[[BEH-020]]、[[BEH-025]]、[[CON-POC-001]]、[[META-004]]、
 [[META-005]]、[[META-006]]、[[META-007]]、[[META-009]]、[[META-010]]、[[META-011]]、
-[[META-012]]、[[META-013]]。
+[[META-012]]、[[META-013]]、[[META-014]]、[[META-015]]。
 分层见 [[ADR-META-001]]；新建 process 条款编号见 [[ADR-META-002]] / [[DEF-META-ID-NS]]
 （`META-*`，勿续产品数字）。
 **Meta 自洽**：meta 条款 MUST NOT `depends-on` 产品 ID；must 正文 MUST NOT 写产品功能专名；
@@ -59,6 +59,9 @@ SLA/NOTES 叙述偷取观测数字。
 生成。Canvas、OpenClaw 与 Claude Code 的 role plan MUST 引用同一 manifest SHA，
 不得各自拼接。可写委派按 [[META-013]] 创建或续接显式 Episode；上下文压缩只创建
 checkpoint，不得用 summary 覆盖父事件。
+新托管 process proposal 按 [[META-014]] 使用绑定人口令与内容 SHA 的生命周期；
+`draft` / `confirm_land` / `review` MUST 使用 stage-specific child Episode，历史无绑定
+提案只读展示，MUST NOT 自动生成可写 hop。
 
 
 | 闸门            | 触发                                                                                           | 编排作用                 |

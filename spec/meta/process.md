@@ -2,7 +2,7 @@
 
 > scope: ndf-process  
 > 条款索引: `CHR-008`, `BEH-018`, `BEH-019`, `BEH-020`, `BEH-025`, `BEH-026`,
-> `META-006`, `META-007`, `META-009`, `META-010`, `META-011`, `META-012`, `META-013`
+> `META-006`, `META-007`, `META-009`, `META-010`, `META-011`, `META-012`, `META-013`, `META-014`, `META-015`
 > 目录边界: [[ARCH-008]]；SLA 隔离: [[CON-POC-001]]  
 > 术语: [[DEF-020]], [[DEF-021]], [[DEF-022]], [[DEF-023]], [[DEF-NDF-GRAPH]]  
 > 缺陷分类: [[DEF-NDF-CYCLE]]…[[DEF-NDF-BINDER-DUAL-HEAD]]（见 `meta/glossary.md`）
@@ -30,7 +30,9 @@
 1. 契约草稿 MUST 留在 `spec/open/proposal-*.md` 或主题装订器 `poc/<topic>/ndf/proposals/`，
    或固定目录中显式 `status=draft` / `level=tbd`；凡本主题提案 MUST 登记进
    `poc/<topic>/ndf/TOPIC.md`（[[BEH-025]]）。**流程/卫生**提案 MUST 写在
-   `spec/meta/open/proposal-meta-*.md`（见 `AGENTS.md` track=process）
+   `spec/meta/open/proposal-meta-*.md`（见 `AGENTS.md` track=process）。
+   Draft 状态的存在与演进 MUST 由 `spec/meta/open/draft-map/` 并发映射承载；
+   固定模块正文的 `status` 字段 MUST NOT 单独充当 Draft 事实源。
 2. MUST NOT 将探索期指标写入 `status=stable` 的 `{#CON-SLA-*}` must 行
 3. MUST NOT 将探索期行为标为生产默认（环境变量默认开启、去掉 opt-in 门控等）
 4. 正文与提案 MUST 使用明确标记：`POC` / `status=draft` / `explore=`，并 `depends-on`
@@ -95,6 +97,11 @@
    - 对 `explore_surface` 相交的活跃主题做冲突/依赖复核（`conflicts_with_topics` /
      `depends_on_topics`）；MUST NOT 默认可加跨主题收益。
    清单承载：`ndf_close` plan §4c / §4d。
+8. **Draft 映射受控路径**：晋升 MUST 以 `spec/meta/open/draft-map/` 映射条目为闸门。
+   条目 `proposed_status` MUST 按 `exploring → closing` 由提案确认触发；全部闸门通过后
+   MUST 将映射条目归档（`spec/meta/open/draft-map/archive/` 或等效摘要指针），然后固定
+   模块正文才写入对应 `status=stable` 条款。MUST NOT 在映射条目仍 `exploring` 时把正文
+   写成 stable。
 
 禁止：先合主线再补 stable 契约；或先写 stable must 再补 POC 证据。
 
@@ -200,6 +207,51 @@ approved_content_sha / source_ref / status
 4. 口令仍由人触发；Canvas/Agent MUST NOT 静默批准或伪造 `approved_by`。
 5. 本条不要求回填历史 POC；历史主题显示 `legacy/unknown`。
 
+### POC 门禁 review slice
+
+新建或已迁移主题的门禁 MUST 绑定显式 `review_slice`，而不是冻结整份探索日志。
+切片标记 MUST 在同一文件内成对、ID 唯一、不可嵌套；canonical 输入为：
+
+```text
+slice_id NUL repo_relative_path NUL slice_bytes NUL
+```
+
+bundle 中切片按 `slice_id + path` 排序后计算 SHA-256。推荐标记：
+
+```markdown
+<!-- ndf:gate-slice begin=topic_contract -->
+... reviewed contract ...
+<!-- ndf:gate-slice end=topic_contract -->
+```
+
+| gate | review slices |
+|------|---------------|
+| `topic_review` | TOPIC intent/scope/hypothesis/directions/proposal contract |
+| `design_review` | topic contract + DESIGN goals/non-goals/modules/data-flow/trunk-boundary/design contract |
+| `implementation_approval` | 上述 contract + PERF bind header + DELTA hypothesis + INTERFACE contract |
+
+下列 mutable 内容 MUST 位于 review slice 外；仅追加它们 MUST NOT 改变三闸 SHA：
+TOPIC lifecycle/baseline 导航字段、PERF Numbers、DELTA Rounds、`evidence/`、
+`COMMITS.md`、`GATES.md`。若结果反向修改假设、接口、绑定配置或实现边界，MUST 先修改
+对应 review slice，不得借 mutable 区绕过重审。
+
+失效矩阵：
+
+| changed review slice | invalidated gates |
+|----------------------|-------------------|
+| TOPIC contract | topic_review, design_review, implementation_approval |
+| DESIGN contract | design_review, implementation_approval |
+| PERF bind / DELTA hypothesis / INTERFACE contract | implementation_approval |
+| Numbers / Rounds / evidence / COMMITS / GATES | none |
+
+缺标记、重复标记、错配或嵌套 MUST fail closed。旧主题 MAY 显示
+`bundle_mode=legacy_whole_file`；迁移必须追加 invalidated/迁移说明并重新审核，
+旧 whole-file SHA MUST NOT 验证为 review-slice SHA。
+
+Process proposal 的 `已确认` / `已审核` 也属于人工回执，但其内容束、状态机与
+stage-specific Episode 语义由 [[META-014]] 定义；MUST NOT 直接套用 POC gate
+推导规则，或由 proposal 文件存在、按钮点击和 Agent acknowledged 推进状态。
+
 ## Workflow 投影与 Claude Code 委派 {#META-011}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.13 source=deduced scope=ndf-process -->
 <!-- ndf: depends-on=META-008,META-010 -->
@@ -289,7 +341,88 @@ runtime.control        — OpenClaw（装订器/门禁/提案/按需读 spec/met
 `ndf_workflow_status.py control-pack` MAY 生成只读 Control 委派包（schema
 `ndf-control-pack/v1`），含 topic、`phase_hint`、gate bundle SHA、`required_reads`、
 `allowed_write_roots` 与 `next_human_phrase`。任务类型：`legacy_gate_audit`、
-`gate_sha_audit`、`gate_receipt_draft`、`binder_amend`、`control_proposal`。
+`gate_sha_audit`、`gate_receipt_draft`、`binder_amend`、`control_proposal`、
+`gate_pipeline`、`binder_pipeline`。
+
+Control 动作 MUST 硬分两套流水线，禁止混称：
+
+| 流水线 | 叫法 | 步数 | 主任务 | 真值 |
+|--------|------|------|--------|------|
+| A 人工门禁 | **闸 / gate**（唯一称「闸」） | 3 | `gate_pipeline` | `GATES.md` + 人口令 |
+| B 装订器修订 | **面 / binder facet**（禁止称「闸」） | 6 | `binder_pipeline` | 装订器文件/字段缺口 |
+
+顺序：A 为 `TOPIC已审核` → `DESIGN已审核` → `可以开始实现`；
+B 为 TOPIC → DESIGN → PERF_BASELINE → DELTA → INTERFACE → COMMITS（[[BEH-025]]）。
+分步 finding 可保留 `legacy_gate_audit` / `binder_amend` 作为焦点步，但 Canvas MUST
+提供流水线主按钮；整条流水线 SHOULD 只派发一次 Cursor→OpenClaw，分步按钮 MUST
+优先 resume 本流水线 Episode，MUST NOT 默认每次全量重派。A 与 B MUST 使用各自
+Episode（或同 Episode 但事件 MUST 带 `pipeline=gate|binder` 与 step id）；MUST NOT
+混跑成无标签超级派发。B 可挡住 A 的下一闸，投影 MAY 提示依赖，修复动作仍走各自
+流水线。A 每闸 MUST 停人口令；B 默认无口令，写完后 MUST 复检 topic-health。
+
+#### Control 双流水线写入所有权与交接
+
+两条流水线 MUST 保留独立真值与写入所有权：
+
+| pipeline | MAY 写 | MUST NOT 写 |
+|----------|--------|----------------|
+| `gate` | `GATES.md` 的 audit / pending / invalidated 回执与门禁说明 | TOPIC、DESIGN、PERF_BASELINE、DELTA、INTERFACE、COMMITS 正文 |
+| `binder` | 当前 facet 对应装订器文件/字段；完整 facet 可 audit + no-op recheck | `approved_by`、`gate.confirmed`、关闭决定 |
+
+1. `gate_pipeline` 遇到下一闸 bundle 缺文件或字段时 MUST 停止并输出
+   `blocked_by_binder`、`next_binder_facet`、`blocked_gate`；Canvas MUST 提供对应
+   binder 面动作。Gate Agent MUST NOT 代写缺失 facet。
+2. `binder_pipeline` 完成一面后 MUST 复检；若 facet 已完整，MAY 记录 no-op
+   `binder.audit → binder.recheck`，不得为证明流水线存在而重写内容。
+3. Gate pack 的精确写入面 MUST 限定为该 topic 的 `GATES.md`（以及 gitignored
+   gate receipt/event）；binder pack MUST 按 focus facet 限定文件面。
+4. completion 声明若含跨 pipeline 文件 mutation，MUST fail closed 并报告
+   `cross_pipeline_write`，不得投影为已完成。
+
+文件级边界之外还 MUST 执行 section-level 所有权：
+
+| owner/pipeline | MAY 写 | MUST NOT 写 |
+|----------------|--------|----------------|
+| Gate/OpenClaw | GATES audit/pending/invalidated/approved receipt（人口令后） | 任一 binder 正文 |
+| Binder/OpenClaw | review slice 草稿、绑定骨架、接口骨架 | PERF Numbers、DELTA Rounds、evidence、关闭决定 |
+| Claude Code | POC code、测量、PERF Numbers、DELTA Rounds、evidence、COMMITS append | L0/L1/meta、人口令回执 |
+
+Control/implementation pack MUST 输出 `allowed_sections`；仅有路径权限不足。completion
+或 pipeline step 修改越权 section 时 MUST 报 `cross_role_section_write` 并 fail closed。
+Binder 对完整 contract MAY no-op recheck，不得为“修健康”伪造 Numbers。OpenClaw
+生成的性能叙述若无 Claude Code completion + measure/evidence receipt，MUST 标
+`unverified`，不得更新 baseline current。
+
+业务编排 MUST 结构化交错，不得由 gate 顺手完成 binder：
+
+```text
+binder.TOPIC → gate.topic_review
+→ binder.DESIGN → gate.design_review
+→ binder.PERF_BASELINE/DELTA/INTERFACE → gate.implementation_approval
+→ human decision → implementation / continue / close
+→ binder.COMMITS append
+```
+
+`COMMITS.md` MAY 在实现前创建 ledger 骨架；实际代码/验证 commit 产生后再追加。
+
+#### 门禁完成、探索决策与关闭资格
+
+1. 三闸全部有效只产生 `decision_required`，MUST NOT 自动产生
+   reject/promote/partial/close。
+2. 下一决策 MUST 由 Human 显式选择：
+
+   ```text
+   implement | continue_exploring | amend | promote | partial | reject
+   ```
+
+3. `close_eligible` MUST 由结构化当前事实推导：lifecycle、显式选择、适用的
+   proposal/DEC、close-plan 与验证回执。DESIGN/GATES/NOTES 中的「建议关闭」
+   「负结果」自由文本 MUST NOT 单独令其为 true。
+4. lifecycle 为 `exploring|blocked` 且历史负结果之后出现新假设/新前提时，
+   投影 MUST 为 `decision_required` 或 `continue_exploring`，并保留旧 round；
+   仅已 `rejected|promoted` 的主题适用 [[BEH-025]] 平级新 topic 规则。
+5. 用户选择继续同一假设/协议时 MAY amend 当前 topic；实质修改门禁 bundle 后，
+   MUST 按 [[META-010]] 追加 `invalidated` 并重新审核受影响闸，不得改写旧回执。
 
 OpenClaw Control 委派写边界：
 
@@ -300,9 +433,35 @@ OpenClaw Control 委派写边界：
 | `.openclaw/state.json` | 静默写 `GATES.md` 的 `approved_by` |
 
 Canvas Topics 在 gate 相关 `phase_hint` 时 MUST 提供 OpenClaw Control 动作
-（audit SHA、legacy audit、gate draft），MUST NOT 将实现派发（`pack`）冒充 Control。
-audit 类任务 `safe_to_delegate` 恒 true；写 GATES 草稿时若 gate 已 `invalidated`
-MUST 拒绝委派。门禁口令仍由人触发；Canvas/Composer 桥接 MUST NOT 代批。
+（audit SHA、legacy audit、gate draft、**门禁流水线**），装订器缺口时 MUST 提供
+**装订器流水线**，MUST NOT 将实现派发（`pack`）冒充 Control。
+audit / pipeline 启动类任务 `safe_to_delegate` 恒 true；写 GATES 草稿时若 gate 已
+`invalidated` MUST 拒绝委派。门禁口令仍由人触发；Canvas/Composer 桥接 MUST NOT 代批。
+
+#### Control 流水线一键派发
+
+Canvas 不能直接执行 shell / MCP，但 `启动门禁流水线` / `启动装订器流水线` 创建的
+Cursor 桥接任务 MUST 以 OpenClaw 的可验证接收回执为派发终点，而非以
+`newComposerChat` 创建成功为终点：
+
+```text
+requested → pack_created → context_verified
+→ openclaw_sent → openclaw_acknowledged
+→ waiting_human | running | blocked → post_action_sync
+```
+
+1. 启动动作 MUST 创建或续接显式 Episode、生成对应 `control-pack`、校验 Manifest /
+   OpenClaw role plan，并调用 `openclaw.chat_send`；Cursor 桥接任务 MUST NOT 在
+   `openclaw.chat_send` 之前结束。
+2. 只有获得 OpenClaw 返回值并记录同一 Episode 的 `openclaw.request` /
+   `openclaw.response`（最低 `messages_only` coverage）后，投影才可显示
+   `acknowledged`。仅创建 Composer 对话 MUST NOT 显示“流水线已启动”。
+3. MCP 不可达、pack/context 无效或无 OpenClaw 回执时 MUST 显示 `blocked`，保留
+   blocker 与“重试派发”入口。
+4. 主按钮为整条流水线的一键派发；分步按钮有活跃 Episode 时 MUST resume 同一
+   OpenClaw 会话；无活跃 Episode 时 MUST 先完成相同桥接状态机。
+5. 门禁流水线每闸 MUST 停在准确人口令；装订器流水线 MAY 连续完成 POC NDF/
+   工作流准备，但每面完成后 MUST 复检，MUST NOT 代批门禁或顺带派发 Claude Code。
 
 `control-pack` MUST 含 `workspace` 绑定（`repo_root`、`repo_head`、`active_topic`、
 `topic_dir`）。OpenClaw 收到委派后 MUST 将 `workspace` 写入 `.openclaw/state.json`；
@@ -375,6 +534,20 @@ Canvas dispatch MAY 先用本地 UI state 显示 `refresh_in_progress`，但最�
 closed。自动刷新只更新派生投影，MUST NOT 自动批准人类 gate、写 stable 契约或绕过
 proposal / close-plan / verification。
 
+只有 `fresh` 且相关 verifier 明确 `passed + current` 的投影 MAY 启用对应写动作；
+`refresh_in_progress`、`stale_after_action`、`unknown`、`not_run`、malformed action
+或旧 kernel map MUST fail closed。NDF Control 的主要区域 MUST 以白盒信息链呈现：
+
+```text
+applicable_clauses | dependency_edges | computed_state
+evidence_refs | source_generation_sha | project_impact
+owner | next_action
+```
+
+摘要状态 MUST 可下钻到条款、source path、content SHA 与 receipt/verifier；只给红黄绿
+结论不得作为上层本地项目的工作依据。Control finding 向 Product/Topics handoff 时 MUST
+保留 scope、规则、证据、owner 与安全动作，MUST NOT 冒充产品 KPI 或替人类作产品决策。
+
 ### 业务驾驶舱最低呈现
 
 Canvas SHOULD 直接消费 workflow snapshot（或官方 Canvas JSON 适配），不得另行硬编码
@@ -420,6 +593,14 @@ BinderReadOrder → NDFGraphClosure → Git/ImplementationSurface
 8. Role Plan MUST 校验 `role × task × track` 兼容矩阵：OpenClaw 仅接收 Control 文档流；
    Claude Code 仅接收 Implementation/Test 与明确批准的集成面；Canvas 仅作只读投影与编排。
    不兼容角色 MUST fail closed，不得仅依赖空写根偶然阻止执行。
+9. Task Manifest / Context Plan MUST 绑定
+   `bundle_mode | slice_id/path/content_sha | allowed_sections | mutable_sections`。
+   Context verify MUST 重算 slice SHA；legacy whole-file 与 review-slice plan 不兼容，
+   MUST NOT 在同 Episode rebind。
+10. Project-control 任务 MUST 额外绑定 `proposal_id | flow_id | hop | origin`，以及
+    `intent_sha` 或 `proposal_path + proposal_sha`。role plan MUST 校验
+    `role × task × track × stage`；内容或 hop 漂移时 MUST 创建新 Manifest，
+    不得在同 Episode 仅重算哈希后继续。
 
 委派 readiness MUST 分离：
 
@@ -475,7 +656,7 @@ commit、parent、ref、tag 与事件链 MUST 可由 canonical SHA 验证；事�
 |------|------|
 | R0 Audit | 不执行模型或工具；精确重建已存对象、事件顺序、上下文、门禁、观测与结果 SHA |
 | R1 Observation | 使用记录的 model response 与 tool cassette 重建 Agent 所见；无外部副作用 |
-| R2 Sandbox Outcome | 在绑定 git/worktree 和显式沙盒 profile 中重跑允许命令；文件/spec SHA 精确，性能按协议容差 |
+| R2 Sandbox Outcome | 在绑定 git/worktree 与显式沙盒 profile 中、经 `bwrap` 或 `vm`（Lvm）adapter 重跑允许命令；文件/spec SHA 精确，性能按协议容差；无可用 adapter 时只能 `environment_blocked` |
 | R3 Counterfactual Fork | 更换模型、上下文、假设或观测并创建新分支；MUST NOT 宣称复现原历史 |
 
 重新调用模型属于 R3，不属于 R0/R1。Replay MUST NOT 承诺逐 token 确定性，不保存或
@@ -500,7 +681,9 @@ redaction map，不得修改原对象。
 Cursor / Canvas / replay 工具 MUST NOT 修改 `.openclaw/state.json`。自动捕获必须通过
 显式 Episode 参数启用；平台只提供 completion 时 MUST 标 `completion_only`，不得用事后
 summary 冒充完整事件流。Canvas Replay 仍是派生投影，MUST 分开呈现 R0/R1/R2/R3；
-R2 MUST 显示沙盒、网络、写根、副作用与成本确认。
+R2 MUST 显示沙盒、网络、写根、副作用与成本确认。Canvas 主路径「已回放」MUST 遵循
+[[META-015]]（Lvm guest-proof）；提示词 / 同机 worktree / 仅 `bwrap` 观测 MUST NOT
+标为已回放。
 
 ### Historical audit 与 current readiness
 
@@ -533,6 +716,46 @@ manifest.created → context.compiled → context.verified
 → verification/close → checkpoint/merge
 ```
 
+Control 双流水线分步事件（[[META-011]]）MUST 可独立回放，不得合成一条含糊 completion：
+
+```text
+pipeline=gate:   gate.audit → gate.draft → gate.confirmed   # × 每闸 id
+pipeline=binder: binder.audit → binder.amend → binder.recheck  # × 每面 id
+```
+
+`gate.confirmed` / `gate.approved` 的 actor MUST 为人类；`gate.audit` / `gate.draft` 与
+`binder.*` 的 actor MUST 为 openclaw（或 tool 代记）。MUST NOT 将 3 闸与 6 面合并为
+一句「Control 已处理」。同会话多步合法；缺 `pipeline` + step 身份不合法。
+
+Gate→Binder 交接 MUST 记录结构化 handoff 事件，至少绑定：
+
+```text
+pipeline | blocked_gate | next_binder_facet | manifest_sha | context_plan_sha
+```
+
+Gate Episode completion MUST 校验 filesystem mutation 仅落在 gate 写入面；Binder Episode
+同理校验 focused facet，跨面修改必须由 pack 显式授权。`gate.confirmed` 与
+`decision.selected` 是不同事件；前者 actor=human 不推出后者。历史结论与当前决策 MUST
+分别回放，不得将散文中的 reject 建议合成为 `decision.selected(mode=reject)`。
+
+Gate receipt/event MUST 记录 `bundle_mode` 与 slice manifest SHA。Replay diff MUST
+区分 `contract_slice_changed` 与 `mutable_evidence_changed`。测量结果进入 verified
+Episode 必须有 Claude Code run/lease/completion 与真实 measure/evidence receipt；
+OpenClaw 文档修改不得冒充测量事件。从 `legacy_whole_file` 迁移到 `review_slice`
+MUST 创建新 Episode / Manifest。
+
+Control 流水线一键派发 MUST 将 pack、request、response 与后续 pipeline step 绑定到
+同一 Episode。回放 MUST 区分 Composer 任务创建、pack/context 完成、MCP 请求发出、
+OpenClaw 确认与后续分步修改。`openclaw_sent` 无匹配 response 时只能是未完成派发；
+恢复时 MAY 按同一 request identity 幂等重试，MUST NOT 因重试重复创建门禁批准或
+重复声称流水线已启动。无 response/receipt 的 action MUST NOT 进入 acknowledged。
+
+Process proposal 的 project-control 回放 MUST 另按 [[META-014]] 区分
+`draft` / `confirm_land` / `review` child Episode。每个 child MUST 有自己的 Manifest /
+role plan 与 stage 写入面；`context.verified` 必须先于 `dispatch.preflight`。
+request timeout 只能进入 `delivery_unknown`；同 identity 重试递增 attempt，匹配的迟到
+响应 MAY 对账为 `acknowledged`，身份或结果冲突 MUST fail closed。
+
 通用 `record` 入口写入的未语义验证事件只能进入 unverified history。malformed action /
 event 不得被静默丢弃后产生 green；projection freshness MUST 证明最新终态 action 已被
 snapshot 吸收，并使用 [[META-011]] 定义的状态语义。
@@ -543,8 +766,9 @@ snapshot 吸收，并使用 [[META-011]] 定义的状态语义。
    policy；MUST NOT 与 R0 仅更换等级标签。
 2. R2 MUST 精确选择目标 run/role/manifest 的 plan，并校验 cassette 的 environment
    fingerprint、cwd 与 tool/runtime version；exact、epsilon、write violation 与
-   context/gate drift 均须有负例。宿主不能执行隔离 adapter 时只能标
-   `environment_blocked`，不得记 passed。
+   context/gate drift 均须有负例。执行 adapter MUST 为 `bwrap` 或 `vm`（Lvm，见
+   [[META-015]]）。宿主不能执行隔离 adapter 时只能标 `environment_blocked`，不得记
+   passed，也不得退回宿主 Composer 执行回放体。
 3. checkpoint MUST 覆盖完整 merged DAG 并保留足够对象用于恢复；summary-only state
    MUST NOT dispatch。
 4. share-safe export MUST 结构化识别相邻 argv secret、header、URL credential 与 env
@@ -552,7 +776,122 @@ snapshot 吸收，并使用 [[META-011]] 定义的状态语义。
 5. Canvas MUST 展示 evidence-specific R2 profile 与实际 manifest/context/gate/
    verification 摘要；diff MUST 分开 manifest、context、events、observations、results
    与 verification。R0/R1 若只能经 Composer 生成指令，MUST 标为 instructions，
-   不得显示为 Replay 已执行。
+   不得显示为 Replay 已执行。Canvas hop/prefix 回放 MUST 只启动宿主 `guest-run`
+   launcher（[[META-015]]），不得在现仓 cwd 执行 reconstruct 回放体。
+
+## 回放沙箱与执行器边界 {#META-015}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.17 source=deduced scope=ndf-process -->
+<!-- ndf: depends-on=META-011,META-013 -->
+
+回放沙箱是**执行器边界**，不是提示词标签。一条回放「已执行」成立，当且仅当：
+
+1. **执行器不在现仓。** guest 的 cwd / checkout 不是宿主 `repo_root`。
+2. **现仓对 guest 不可写。** MUST NOT 将现仓以可写共享挂载进入 guest；注入 MUST 使用
+   快照拷贝或只读介质。
+3. **出站通道只有回执（默认）。** guest 默认无网络；需要外部 API 时 MUST 使用合同内
+   egress allowlist，否则 guest 只做 R0/R1（不调模型）。重新调用模型仍属 R3
+   （[[META-013]]）。
+4. **回执可证伪。** 宿主 MUST 产出 `ndf-replay-guest-proof/v1`；至少含 `guest_id`、
+   `image_sha`、`guest_toplevel`、`host_toplevel`、`adapter=vm`，且
+   `same_checkout=false`、`host_tracked_unchanged=true`、`host_head_unchanged=true`、
+   `bwrap_used=false`、reconstruct `side_effects=false`。缺项、`same_checkout=true`、
+   宿主 tracked 变化、guest marker 出现在宿主根、或 `host_mount_used=true` →
+   `valid=false` / `environment_blocked`，不得宣称回放已执行。
+5. **分级不得混称：**
+
+| 级别 | 是什么 | 可否当「已回放」 |
+|------|--------|------------------|
+| Lsoft | 提示词 / Control 信封 | 否，只是 instructions |
+| Lns | 同机 worktree / `bwrap` | 否（降级观测） |
+| Lvm | guest 虚拟机 + guest 内执行器 | 是，Canvas 主路径 |
+
+Hypervisor 是实现 adapter，条款 MUST NOT 写死专名。无可用 Lvm 后端时 MUST fail
+closed，MUST NOT 退回宿主对话代理在现仓执行回放体。
+
+宿主（Canvas / `guest-run`）只准：按 recorded `repo_head` 做只读快照、启动 guest、
+传入 episode/commit 与只读 replay store 拷贝、等待回执、销毁 guest、展示 JSON。
+宿主 MUST NOT 把可写委派的组装 prompt 当作回放体在现仓执行。「写回当前工作区」是
+可选危险第二步，默认关闭，不在 guest 合同内。
+
+R2 执行 adapter MUST 为 `bwrap` 或 `vm`。Canvas 主路径以 `vm`（Lvm）为准；`bwrap`
+仅作降级观测，不得冒充「已回放」。
+
+## Process Proposal 生命周期与回执 {#META-014}
+<!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.16 source=deduced scope=ndf-process -->
+<!-- ndf: depends-on=META-010,META-011,META-012,META-013 -->
+
+NDF Control 对新托管 process proposal 的白盒投影与受控委派 MUST 使用同一 canonical
+生命周期：
+
+```text
+pending_confirmation
+→ confirmed_pending_land
+→ implemented_pending_review
+→ reviewed
+```
+
+`rejected` / `superseded` 为终态；archive 只是存储位置。旧 `Status: Implemented on ...`
+与 `reviewed: 已审核` 只作为兼容输入；缺现代回执时 MUST 投影为
+`legacy_pending_unknown | legacy_implemented_unbound | legacy_reviewed_unbound |
+legacy_rejected_unbound | legacy_superseded_unbound`，不得自动完成 gate 或产生可写 hop。
+
+### 人工回执
+
+`proposal.confirmed` / `proposal.reviewed` MUST 是 append-only 结构化回执，并至少绑定：
+
+```text
+proposal_id | flow_id | hop | phrase | actor | approved_at
+proposal_sha | source_ref | status
+```
+
+actor MUST 为 Human，phrase 分别为精确口令 `已确认` / `已审核`。Agent/Canvas
+acknowledged、按钮点击、Composer 对话创建或文件存在 MUST NOT 推进生命周期。
+proposal 内容漂移后，下游回执 MUST append `invalidated`，不得改写历史。
+
+### Stage 权限与 child Episode
+
+一个 `flow_id` MUST 使用三个权限不同、不可变的 child Episode：
+
+| hop | MAY 写 | MUST NOT 写 |
+|-----|--------|----------------|
+| `draft` | 预先确定的单一 proposal 文件 | stable META、实现、审核回执 |
+| `confirm_land` | 当前 proposal 与 Manifest 绑定的 `land_targets` | 未声明路径、审核回执、产品实现 |
+| `review` | 当前 proposal 的 review marker / 绑定回执 | 重写已落地 META 或实现 |
+
+每个 hop MUST 重新绑定当时的 intent/proposal/人口令 SHA、repo HEAD、Task Manifest 与
+role plan。前一 hop 修改内容后 MUST 创建新 child Episode / Manifest；MUST NOT 在同一
+Episode rebind 后继续。实际 mutation MUST 与 stage 声明写集双向一致；越权、少报或多报
+均 fail closed。
+
+### Dispatch 与幂等对账
+
+Project-control dispatch MUST 使用：
+
+```text
+requested → pack_created → context_verified → sent
+→ acknowledged | delivery_unknown | blocked
+→ waiting_human | running | succeeded | failed
+```
+
+只有 verified Context Plan 才能产生 `dispatch.preflight`。request/response MUST 绑定同一
+`request_id`、Episode、Manifest 与 intent/proposal identity。timeout MUST 进入
+`delivery_unknown`；重试保持 request identity 并递增 attempt。匹配的迟到成功 MAY
+对账为 `acknowledged`（迟到标记只作 reconciliation evidence，不是另一套主状态）；
+身份或结果冲突 MUST fail closed，且不得重复批准或 mutation。
+
+### 平面与历史隔离
+
+产品 graph/proposal finding 属于 Product；binder/topic finding 属于 Topics；META
+graph/index/process proposal 才属于 NDF Control。`spec/meta/open/draft-map/**` MUST NOT
+扫描成 process proposal/hop；其现行 warning 只读投影，Canvas MUST NOT 自动修改映射。
+历史 proposal 只有在人明确选择“纳入 Control flow”后才 MAY 创建迁移 Episode，
+MUST NOT 批量伪造旧确认或审核。
+
+`.openclaw/state.json` 只承载 workspace 绑定与 OpenClaw 指挥进度，MUST NOT 承载
+proposal/gate receipt、projection freshness、runtime lease 或 Replay 真值。
+
+> rationale: NDF Control 的目标是让用户白盒看到“规则—证据—项目影响—下一步”。
+> proposal 状态机与信任链用于证明投影，不是新的 SoT，也不得成为隐藏式自动治理器。
 
 ## 负结果与回退 {#BEH-020}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.7 source=deduced scope=ndf-process -->
