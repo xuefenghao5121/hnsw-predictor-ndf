@@ -961,9 +961,6 @@ def as_canvas_index_card(episode: Mapping[str, Any]) -> dict[str, Any]:
         "resultLine": episode.get("resultLine"),
         "topic": episode.get("topic"),
         "task": episode.get("task"),
-        "actor": episode.get("actor"),
-        "participants": list(episode.get("participants") or []),
-        "kinds": list(episode.get("kinds") or []),
         "lenses": list(episode.get("lenses") or []),
         "canRestoreRecord": bool(episode.get("canRestoreRecord")),
         "state": episode.get("state") or "indexed",
@@ -1527,16 +1524,35 @@ def trim_canvas_replay_directory(
 ) -> tuple[list[dict[str, Any]], int]:
     """Keep newest directory rows under the Replay directory byte budget."""
     cards = [as_canvas_index_card(item) for item in episodes if isinstance(item, Mapping)]
-    kept: list[dict[str, Any]] = []
-    used = 2
-    omitted = 0
+    # Reserve the newest row from each semantic plane. A purely newest-first
+    # trim can hide all Product-project history when recent NDF workflow hops
+    # dominate the ledger, making the plane filter misleading.
+    anchors: dict[str, dict[str, Any]] = {}
     for card in cards:
-        size = _json_bytes(card) + (1 if kept else 0)
-        if kept and used + size > byte_limit:
-            omitted = len(cards) - len(kept)
-            break
-        kept.append(card)
+        plane = str(card.get("plane") or "")
+        if plane in {"meta", "project"} and plane not in anchors:
+            anchors[plane] = card
+    kept_by_id = {
+        str(card.get("id")): card
+        for card in anchors.values()
+        if card.get("id")
+    }
+    used = _json_bytes(list(kept_by_id.values()))
+    for card in cards:
+        card_id = str(card.get("id") or "")
+        if card_id in kept_by_id:
+            continue
+        size = _json_bytes(card) + (1 if kept_by_id else 0)
+        if kept_by_id and used + size > byte_limit:
+            continue
+        kept_by_id[card_id] = card
         used += size
+    kept = [
+        card
+        for card in cards
+        if str(card.get("id") or "") in kept_by_id
+    ]
+    omitted = len(cards) - len(kept)
     return kept, omitted
 
 

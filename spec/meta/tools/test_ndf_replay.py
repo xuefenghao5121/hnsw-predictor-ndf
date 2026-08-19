@@ -2204,7 +2204,31 @@ class ReplayProjectionHelpersTest(unittest.TestCase):
         )
         self.assertEqual(card["plane"], "meta")
         self.assertEqual(card["lenses"], ["openclaw", "context-compiler"])
-        self.assertIn("context.compiled", card["kinds"])
+        self.assertNotIn("kinds", card)
+
+    def test_replay_directory_trim_preserves_both_planes(self) -> None:
+        episodes = [
+            {
+                "id": f"meta-{index}",
+                "title": "m" * 80,
+                "plane": "meta",
+                "lenses": ["openclaw"],
+            }
+            for index in range(20)
+        ] + [
+            {
+                "id": "project-1",
+                "title": "project",
+                "plane": "project",
+                "lenses": ["claude-code"],
+            }
+        ]
+        kept, omitted = replay.trim_canvas_replay_directory(
+            episodes,
+            byte_limit=900,
+        )
+        self.assertGreater(omitted, 0)
+        self.assertEqual({item.get("plane") for item in kept}, {"meta", "project"})
 
     def test_episode_title(self) -> None:
         self.assertEqual(
