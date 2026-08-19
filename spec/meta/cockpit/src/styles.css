@@ -86,6 +86,20 @@ main { padding: 16px 20px 48px; display: grid; gap: 16px; }
 .control-kpis strong { display: block; color: var(--text); font-size: 20px; }
 .genesis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .genesis-grid span { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.agent-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.agent-card { min-height: 285px; }
+.agent-facts { display: grid; gap: 7px; margin: 12px 0; }
+.agent-facts span { display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--muted); }
+.agent-facts strong { color: var(--text); }
+.replay-filters { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) 1fr; gap: 12px; align-items: end; }
+.replay-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.replay-legend { display: flex; gap: 12px; justify-content: flex-end; padding-bottom: 7px; color: var(--muted); }
+.replay-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.plane-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.plane-dot.meta { background: var(--accent); }
+.plane-dot.project { background: var(--ok); }
+.ledger-grid { display: grid; grid-template-columns: .75fr 1.25fr 1.25fr; gap: 10px; }
+.ledger-grid pre { max-height: 280px; overflow: auto; white-space: pre-wrap; }
 .muted { color: var(--muted); font-size: 13px; }
 .danger { color: var(--danger); }
 .ok { color: var(--ok); }
@@ -114,6 +128,6 @@ th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .banner { padding: 8px 12px; border-radius: 8px; background: #2a1f1f; color: var(--danger); }
 
 @media (max-width: 900px) {
-  .hero, .grid-2, .grid-3, .topic-selector, .control-pipeline-grid, .genesis-grid { grid-template-columns: 1fr; }
+  .hero, .grid-2, .grid-3, .topic-selector, .control-pipeline-grid, .genesis-grid, .agent-grid, .replay-filters, .ledger-grid { grid-template-columns: 1fr; }
   .metadata-grid { grid-template-columns: 1fr 1fr; }
 }

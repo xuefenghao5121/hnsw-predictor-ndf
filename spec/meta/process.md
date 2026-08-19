@@ -287,6 +287,11 @@ Control/Runtime 问题仅以 blocker/badge 回传，MUST NOT 冒充产品 KPI。
 Control，也 MUST NOT 把 meta 目录文件投影到 Product。路径与 track 不一致时
 MUST 记 warning，MUST NOT 改平面。
 
+Agent Runtime MUST 投影四个身份：Command Agent（当前 Commander/Composer）、
+OpenClaw、Claude Code、context-compiler。MUST NOT 把已退役的 Canvas UI 投影成 Agent。
+每张卡 MUST 展示 provider/session、reachability、active run/worktree、写入边界与 blocker，
+并把「用该身份查看 Replay」实现为 hop 目录和 timeline 的真实 lens。
+
 Topic 投影也 MUST 按语义平面分面。产品 POC 的 hypothesis、业务 evidence、性能结果与
 Design / Implementation / Test readiness 属于 Business Topic；gate receipt、bindcheck、
 POC isolation、context verify 与 dispatch preflight 属于 topic-scoped NDF Control。

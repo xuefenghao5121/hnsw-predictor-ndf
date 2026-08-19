@@ -1472,7 +1472,13 @@ def project_canvas_index(
     episodes = []
     for episode_id, head in heads.items():
         previous = cards_by_id.get(episode_id)
-        if previous and cached_heads.get(episode_id) == head:
+        if (
+            previous
+            and cached_heads.get(episode_id) == head
+            and "lenses" in previous
+            and "participants" in previous
+            and "kinds" in previous
+        ):
             episodes.append(previous)
             continue
         episodes.append(project_canvas_index_card(store, episode_id))

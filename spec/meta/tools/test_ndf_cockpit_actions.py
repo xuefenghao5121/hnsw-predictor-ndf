@@ -355,6 +355,27 @@ class ActionRegistryTest(unittest.TestCase):
         ):
             self.assertIn(field, source)
 
+    def test_agents_and_replay_use_real_runtime_lenses(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        self.assertIn('name: "Command Agent"', source)
+        self.assertNotIn('name === "Canvas"', source)
+        for lens in (
+            "command-agent",
+            "openclaw",
+            "claude-code",
+            "context-compiler",
+        ):
+            self.assertIn(f'value="{lens}"', source)
+        self.assertIn('value="project"', source)
+        self.assertIn('value="meta"', source)
+        self.assertIn("filteredHops", source)
+        self.assertIn("filteredTimeline", source)
+
+    def test_replay_timeline_colors_actual_planes(self) -> None:
+        source = (SRC / "charts" / "ReplayTimeline.tsx").read_text(encoding="utf-8")
+        self.assertIn('.domain(["meta", "project"])', source)
+        self.assertNotIn('.domain(["control", "business"', source)
+
 
 if __name__ == "__main__":
     unittest.main()

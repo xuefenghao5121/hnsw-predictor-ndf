@@ -14,7 +14,7 @@ import { GoldenPerformance } from "./charts/GoldenPerformance";
 import { ReplayTimeline } from "./charts/ReplayTimeline";
 import { TopicOverview } from "./charts/TopicOverview";
 import { requireAction } from "./catalog";
-import type { EnabledAction, Snapshot, TabId } from "./types";
+import type { EnabledAction, ReplayAgentLens, ReplayPlane, Snapshot, TabId } from "./types";
 import "./styles.css";
 
 const TAB_ACTIONS: Record<TabId, string> = {
@@ -83,6 +83,9 @@ function App() {
   const [decisionText, setDecisionText] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<string>("");
   const [selectedHop, setSelectedHop] = useState<string>("");
+  const [replayAgentFilter, setReplayAgentFilter] = useState<ReplayAgentLens>("all");
+  const [replayPlane, setReplayPlane] = useState<ReplayPlane>("all");
+  const [selectedTimelineStep, setSelectedTimelineStep] = useState<number | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
     foundation: true,
     workflow: true,
@@ -115,7 +118,10 @@ function App() {
   }, [refresh]);
 
   const run = useCallback(
-    async (id: string, extra?: { intent?: string; topic?: string; episode?: string }) => {
+    async (
+      id: string,
+      extra?: { intent?: string; topic?: string; episode?: string; timelineStep?: number },
+    ) => {
       const action = requireAction(id);
       if (action.dispatch === "projection_only") {
         return;
@@ -147,11 +153,93 @@ function App() {
   const hops = snapshot?.replay?.episodes || [];
   const focused = snapshot?.business?.focusedTopic;
   const freshness = snapshot?.projectionFreshness?.state || "unknown";
+  const filteredHops = useMemo(
+    () => hops.filter((hop) => {
+      const planeMatches = replayPlane === "all" || hop.plane === replayPlane;
+      const agentMatches =
+        replayAgentFilter === "all" || hop.lenses?.includes(replayAgentFilter);
+      return planeMatches && agentMatches;
+    }),
+    [hops, replayAgentFilter, replayPlane],
+  );
+  const filteredTimeline = useMemo(
+    () => (snapshot?.replay?.focused?.timeline || []).filter((event) => {
+      const planeMatches = replayPlane === "all" || event.plane === replayPlane;
+      const agentMatches =
+        replayAgentFilter === "all" || event.lenses?.includes(replayAgentFilter);
+      return planeMatches && agentMatches;
+    }),
+    [snapshot?.replay?.focused?.timeline, replayAgentFilter, replayPlane],
+  );
   const controlChecks = snapshot?.control?.metaGraph?.checks || {};
   const controlFindings = snapshot?.control?.metaGraph?.findings || [];
   const controlBlockers = controlFindings.filter((item) => item.severity === "error").length;
   const controlWarnings = controlFindings.filter((item) => item.severity !== "error").length;
   const controlPassed = Object.values(controlChecks).filter((item) => item.state === "passed").length;
+  const agentCards: Array<{
+    id: ReplayAgentLens;
+    name: string;
+    role: string;
+    provider: string;
+    status: string;
+    session: string;
+    workspace: string;
+    boundaries: string;
+    note: string;
+  }> = [
+    {
+      id: "command-agent",
+      name: "Command Agent",
+      role: "Human-facing Composer orchestration and closed-catalog dispatch",
+      provider: "Cursor Commander",
+      status: freshness,
+      session: snapshot?.absorbedActionId || "no absorbed action",
+      workspace: `HEAD ${snapshot?.repoHead || "—"} · payload ${snapshot?.payloadSha?.slice(0, 12) || "—"}`,
+      boundaries: "Prompt dispatch only; never writes .openclaw/state.json",
+      note: String(snapshot?.projectionFreshness?.latest_action?.operation || "No latest operation"),
+    },
+    {
+      id: "openclaw",
+      name: "OpenClaw",
+      role: "Control plane: gate, binder, proposals, process evolution",
+      provider: snapshot?.runtime?.control?.provider || "openclaw",
+      status:
+        snapshot?.runtime?.control?.reachable === true
+          ? "reachable"
+          : snapshot?.runtime?.control?.reachable === false
+            ? "unavailable"
+            : "not probed",
+      session: snapshot?.runtime?.control?.defaultSessionKey || "no configured session",
+      workspace: `${snapshot?.runtime?.control?.workspace?.state || "unknown"} · match ${String(snapshot?.runtime?.control?.workspace?.match)}`,
+      boundaries: "Writes focused Control roots; gate and binder ownership stay separate",
+      note: snapshot?.runtime?.control?.configuredSessionVisible === false ? "Configured session not visible" : "Refresh probes gateway status",
+    },
+    {
+      id: "claude-code",
+      name: "Claude Code",
+      role: "Implementation/Test: POC code, measurement, Numbers, DELTA",
+      provider: snapshot?.runtime?.implementation?.provider || "claude-code-acp",
+      status: focused?.agentRun?.status || snapshot?.runtime?.implementation?.status || "unknown",
+      session: focused?.agentRun?.session_id || snapshot?.runtime?.implementation?.defaultSession || "no session",
+      workspace: focused?.agentRun?.worktree || snapshot?.runtime?.implementation?.workspace?.state || "unbound",
+      boundaries: "Writes only delegated POC roots; Trunk requires close integration",
+      note: [
+        `${snapshot?.runtime?.implementation?.activeRuns?.length || 0} active runs`,
+        ...(focused?.delegation?.dispatch_blockers || []),
+      ].join(" · "),
+    },
+    {
+      id: "context-compiler",
+      name: "context-compiler",
+      role: "Manifest, ordered reads, clause seeds, role-plan verification",
+      provider: "ndf_context",
+      status: focused?.delegation?.context_verify?.valid ? "verified" : "blocked",
+      session: focused?.delegation?.context_plan?.plan_sha?.slice(0, 12) || "no plan",
+      workspace: focused?.delegation?.context_plan?.role || "no focused role",
+      boundaries: "Read/compile only; no product or runtime state writes",
+      note: focused?.delegation?.context_verify?.errors?.map((item) => item.kind).join(", ") || "Context plan current",
+    },
+  ];
 
   const defaultTab = useMemo<TabId>(() => {
     if (snapshot?.business?.identity?.charterExists === false) return "control";
@@ -162,6 +250,16 @@ function App() {
     if (!snapshot) return;
     setTab((current) => current || defaultTab);
   }, [snapshot, defaultTab]);
+
+  useEffect(() => {
+    if (filteredHops.length === 0) {
+      setSelectedHop("");
+      return;
+    }
+    setSelectedHop((current) =>
+      filteredHops.some((hop) => hop.id === current) ? current : filteredHops[0].id,
+    );
+  }, [filteredHops]);
 
   return (
     <>
@@ -701,60 +799,139 @@ function App() {
         )}
 
         {tab === "agents" && (
-          <section className="card">
-            <h2>Agents</h2>
-            {["OpenClaw", "Claude Code", "Canvas", "context-compiler"].map((name) => (
-              <div className="card" key={name}>
-                <h3>{name}</h3>
-                <p className="muted">{name === "Canvas" ? "only surface allowed to carry raw human speech" : "identity lens"}</p>
-                <ActionButton
-                  actionId="replay-agent-filter"
-                  enabled={enabledOf(snapshot, "replay-agent-filter")}
-                  onClick={() => setTab("replay")}
-                />
-              </div>
-            ))}
+          <section className="page-stack">
+            <div className="hero card">
+              <div><p className="eyebrow">Agent Runtime</p><h2>Agents</h2><p>身份、会话、工作区绑定与当前阻塞。</p></div>
+              <span className="status-chip">Runtime probe only on Refresh snapshot</span>
+            </div>
+            <div className="agent-grid">
+              {agentCards.map((agent) => (
+                <div className="card agent-card" key={agent.id}>
+                  <div className="section-heading">
+                    <div><p className="eyebrow">{agent.provider}</p><h3>{agent.name}</h3></div>
+                    <span className={`status-chip ${agent.status}`}>{agent.status}</span>
+                  </div>
+                  <p>{agent.role}</p>
+                  <div className="agent-facts">
+                    <span><strong>Session / plan</strong>{agent.session}</span>
+                    <span><strong>Workspace</strong>{agent.workspace}</span>
+                    <span><strong>Boundary</strong>{agent.boundaries}</span>
+                    <span><strong>Current note</strong>{agent.note}</span>
+                  </div>
+                  <ActionButton
+                    actionId="replay-agent-filter"
+                    enabled={enabledOf(snapshot, "replay-agent-filter")}
+                    onClick={() => {
+                      setReplayAgentFilter(agent.id);
+                      setTab("replay");
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
         {tab === "replay" && (
-          <section className="card">
-            <h2>Replay ledger</h2>
-            <ReplayTimeline
-              hops={hops}
-              focusedId={snapshot?.replay?.focused?.id}
-              onInspect={(id) => {
-                setSelectedHop(id);
-                void run("inspect-ledger", { episode: id });
-              }}
-            />
-            <select value={selectedHop} onChange={(event) => setSelectedHop(event.target.value)}>
-              {hops.map((hop) => (
-                <option key={hop.id} value={hop.id}>{hop.title || hop.id}</option>
-              ))}
-            </select>
-            {selectedHop && selectedHop !== snapshot?.replay?.focused?.id && (
-              <ActionButton
-                actionId="inspect-ledger"
-                enabled={enabledOf(snapshot, "inspect-ledger")}
-                onClick={() => run("inspect-ledger", { episode: selectedHop })}
-              />
-            )}
-            {snapshot?.replay?.focused && (
-              <div className="card">
-                <h3>人话</h3>
-                <p>{snapshot.replay.focused.humanUtterance || "—"}</p>
-                <h3>规范组装 Prompt</h3>
-                <pre>{previewText(snapshot.replay.focused.assembledPrompt?.text, snapshot.replay.focused.assembledPrompt?.whyMissing)}</pre>
-                <h3>当时实发 Prompt</h3>
-                <pre>{previewText(snapshot.replay.focused.dispatchedPrompt?.text, snapshot.replay.focused.dispatchedPrompt?.whyMissing)}</pre>
-                <button type="button" data-ndf-action="expand-tech-details" onClick={() => setTech((value) => !value)}>
-                  显示技术细节
-                </button>
-                {tech && <pre className="muted">{JSON.stringify(snapshot.replay.focused, null, 2).slice(0, 1200)}</pre>}
-                <ActionButton actionId="guest-replay-hop" enabled={enabledOf(snapshot, "guest-replay-hop")} onClick={() => run("guest-replay-hop")} />
-                <ActionButton actionId="guest-replay-prefix" enabled={enabledOf(snapshot, "guest-replay-prefix")} onClick={() => run("guest-replay-prefix")} />
+          <section className="page-stack">
+            <div className="hero card">
+              <div><p className="eyebrow">Episode ledger</p><h2>Replay</h2><p>人说了什么，代理按 NDF 组装并实际下达了什么 Prompt。</p></div>
+              <span className="status-chip">{filteredHops.length} / {hops.length} hops</span>
+            </div>
+            <div className="card replay-filters">
+              <label>
+                Plane
+                <select data-ndf-action="d3-zoom-filter" value={replayPlane} onChange={(event) => setReplayPlane(event.target.value as ReplayPlane)}>
+                  <option value="all">All planes</option>
+                  <option value="project">Product project</option>
+                  <option value="meta">NDF workflow</option>
+                </select>
+              </label>
+              <label>
+                Agent lens
+                <select data-ndf-action="replay-agent-filter" value={replayAgentFilter} onChange={(event) => setReplayAgentFilter(event.target.value as ReplayAgentLens)}>
+                  <option value="all">All agents</option>
+                  <option value="command-agent">Command Agent</option>
+                  <option value="openclaw">OpenClaw</option>
+                  <option value="claude-code">Claude Code</option>
+                  <option value="context-compiler">context-compiler</option>
+                </select>
+              </label>
+              <div className="replay-legend">
+                <span><i className="plane-dot meta" />NDF workflow</span>
+                <span><i className="plane-dot project" />Product project</span>
               </div>
+            </div>
+            {filteredHops.length === 0 ? (
+              <div className="card"><p>No recorded hops for this plane and identity lens.</p></div>
+            ) : (
+              <>
+                <div className="card">
+                  <ReplayTimeline
+                    hops={filteredHops}
+                    focusedId={snapshot?.replay?.focused?.id}
+                    onInspect={(id) => setSelectedHop(id)}
+                  />
+                  <select value={selectedHop} onChange={(event) => setSelectedHop(event.target.value)}>
+                    {filteredHops.map((hop) => (
+                      <option key={hop.id} value={hop.id}>
+                        [{hop.plane}] {hop.title || hop.id} · {hop.resultLine || "no result summary"}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedHop && selectedHop !== snapshot?.replay?.focused?.id && (
+                    <ActionButton
+                      actionId="inspect-ledger"
+                      enabled={enabledOf(snapshot, "inspect-ledger")}
+                      onClick={() => run("inspect-ledger", { episode: selectedHop })}
+                    />
+                  )}
+                </div>
+                {snapshot?.replay?.focused && selectedHop === snapshot.replay.focused.id && (
+                  <>
+                    {(snapshot.replay.focused.promptDrift?.mismatch || snapshot.replay.focused.dispatchLeak) && (
+                      <div className="banner">
+                        {snapshot.replay.focused.dispatchLeak ? "Dispatch leak detected. " : ""}
+                        {snapshot.replay.focused.promptDrift?.mismatch ? "Normative and dispatched Prompt drift." : ""}
+                      </div>
+                    )}
+                    <div className="ledger-grid">
+                      <div className="card"><p className="eyebrow">Human speech</p><h3>人话</h3><p>{snapshot.replay.focused.humanUtterance || "No recorded human utterance"}</p></div>
+                      <div className="card"><p className="eyebrow">Normative</p><h3>规范组装 Prompt</h3><pre>{previewText(snapshot.replay.focused.assembledPrompt?.text, snapshot.replay.focused.assembledPrompt?.whyMissing)}</pre></div>
+                      <div className="card"><p className="eyebrow">Actual dispatch</p><h3>当时实发 Prompt</h3><pre>{previewText(snapshot.replay.focused.dispatchedPrompt?.text, snapshot.replay.focused.dispatchedPrompt?.whyMissing)}</pre></div>
+                    </div>
+                    <div className="card disclosure">
+                      <button type="button" data-ndf-action="expand-tech-details" onClick={() => setTech((value) => !value)}>
+                        Timeline · {filteredTimeline.length} matching steps · 显示技术细节
+                      </button>
+                      {tech && (
+                        <div>
+                          <select
+                            value={selectedTimelineStep ?? ""}
+                            onChange={(event) => setSelectedTimelineStep(event.target.value ? Number(event.target.value) : null)}
+                          >
+                            <option value="">Select timeline step</option>
+                            {filteredTimeline.map((event) => (
+                              <option key={event.seq} value={event.seq}>#{event.seq} [{event.plane}/{event.space}] {event.title || event.kind}</option>
+                            ))}
+                          </select>
+                          {selectedTimelineStep !== null && (
+                            <pre className="muted">{JSON.stringify(filteredTimeline.find((item) => item.seq === selectedTimelineStep), null, 2)}</pre>
+                          )}
+                        </div>
+                      )}
+                      <div className="pills">
+                        <ActionButton actionId="guest-replay-hop" enabled={enabledOf(snapshot, "guest-replay-hop")} onClick={() => run("guest-replay-hop", { episode: selectedHop })} />
+                        <ActionButton
+                          actionId="guest-replay-prefix"
+                          enabled={enabledOf(snapshot, "guest-replay-prefix")}
+                          onClick={() => run("guest-replay-prefix", { episode: selectedHop, timelineStep: selectedTimelineStep ?? undefined })}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </section>
         )}

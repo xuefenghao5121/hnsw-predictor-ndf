@@ -18,8 +18,8 @@ export function ReplayTimeline({ hops, focusedId, onInspect }: Props) {
     const height = 150;
     const x = d3.scaleLinear().domain([0, Math.max(hops.length - 1, 1)]).range([20, width - 20]);
     const color = d3.scaleOrdinal<string>()
-      .domain(["control", "business", "runtime", "canvas"])
-      .range(["#7aa2ff", "#8ee0a8", "#e0c36e", "#c9a0ff"]);
+      .domain(["meta", "project"])
+      .range(["#7aa2ff", "#8ee0a8"]);
     svg.attr("viewBox", `0 0 ${width} ${height}`);
     svg.append("line")
       .attr("x1", 16).attr("x2", width - 16)

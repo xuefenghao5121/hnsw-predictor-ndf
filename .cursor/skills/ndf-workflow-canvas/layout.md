@@ -136,10 +136,11 @@ must not cause gate drift. Missing/invalid slices and legacy→slice mode mismat
 
 ## Agents
 
-Show named identity cards (OpenClaw / Claude Code / Canvas / context-compiler):
+Show named identity cards (Command Agent / OpenClaw / Claude Code / context-compiler):
 
-- one-line role, provider/session, write roots, tools/lease
-- Canvas card MUST label itself as the only surface allowed to carry raw human speech
+- one-line role, provider/session, write roots, tools/lease, reachability and current blockers
+- Command Agent is the human-facing Commander/Composer role; its state comes from
+  projection freshness + latest action and it MUST NOT be labeled Canvas
 - each card has 「用该身份查看 Replay」 → set `replay-agent-filter-v1` then switch
   to Replay. Keep the current hop if it still matches the lens; otherwise the first
   listed hop. Do not clear hop selection. This is an **identity lens**, not a shared dump.
@@ -155,7 +156,7 @@ Replay is the **ledger**, not a restore console. It answers:
 
 Three panes on the critical path:
 
-1. **Human speech** — Canvas 口令 / 门禁短语 / 改进意图
+1. **Human speech** — Command Agent 口令 / 门禁短语 / 改进意图
 2. **Normative assembled Prompt** — reconstructed from recorded Manifest + Context Plan (ordered reads, seeds, write roots). Missing Plan → `assembledPrompt.whyMissing`; never fake a Prompt from graphNodes
 3. **Actual dispatched Prompt** — OpenClaw `ndf-agent-message/v1` message or ACP handshake summary. Missing request → `dispatchedPrompt.whyMissing`
 
@@ -164,7 +165,7 @@ Mismatch (`promptDrift.mismatch` or `dispatchLeak`) is a warning/danger on the h
 Landing flow:
 
 ```text
-1. Pick hop class: META workflow | local project | all
+1. Pick hop class: NDF workflow (`meta`) | Product project (`project`) | all
 2. Pick one hop from the disk directory (Episode = one explicit dispatch). Non-empty lists MUST keep exactly one hop selected; ignore empty/deselect. Filter keeps the hop if still listed, else the first remaining hop.
 3. If selected !== focused.id: 「查这条账」 (canvas-ledger + snapshot --replay-episode). Do not show fake Prompt text.
 4. Loaded: 人话 / 规范组装 Prompt / 当时实发 Prompt. Prompt default first 12 lines; ordered reads >8 show 5 first.
@@ -172,14 +173,14 @@ Landing flow:
 6. Jobs (after the ledger): Guest VM 回放这次 hop | Guest VM 回放到上一步
 ```
 
-**Restore contract (Canvas main path):**
+**Restore contract (Commander main path):**
 
 | Action | Meaning | Enabled when |
 | :--- | :--- | :--- |
 | Guest VM 回放这次 hop | Exactly `guest-run --adapter vm`. Only guest-proof `valid=true` counts | `canRestoreRecord` |
 | Guest VM 回放到上一步 | Same guest-run; report prefix only | `canRestoreRecord` + selected step |
 
-Do **not** put workspace write-back on Canvas Replay. CLI `audit --strict` + restore may remain; it is not a Replay tab action.
+Do **not** put workspace write-back on Commander Replay. CLI `audit --strict` + restore may remain; it is not a Replay tab action.
 Do **not** put R0/R1/R2/R3 on the Replay main path. R3 (counterfactual fork) MUST NOT appear here — it is not replay. CLI may still expose levels under META-013.
 
 Ordered reads MUST come from the Context Plan (`context.compiled`), not from Manifest alone. Projection fields: `assembledPrompt`, `dispatchedPrompt`, `promptDrift`, `assembledContext.orderedReads`, `readWhyMissing`, `canRestoreRecord`.
@@ -188,7 +189,7 @@ Entering Replay from Agents MUST change the page, not just a banner. Identity is
 
 | 身份 | hop 列表 | 主栏 | 时间线 |
 | :--- | :--- | :--- | :--- |
-| Canvas | 人话 / `intent.received` / actor=canvas\|human | 人话 + 两份 Prompt | 只留人话步骤 |
+| Command Agent | 人话 / `intent.received` / actor=canvas\|human\|cursor | 人话 + 两份 Prompt | 只留人话/指挥步骤 |
 | Context compiler | `manifest.created` / `context.compiled` | 人话 + 两份 Prompt | 只留装订步骤 |
 | OpenClaw | request/response / dispatch / binder / gate | 人话 + 两份 Prompt | 只留控制步骤 |
 | Claude Code | ACP / lease / filesystem | 人话 + 两份 Prompt | 只留实现步骤 |
