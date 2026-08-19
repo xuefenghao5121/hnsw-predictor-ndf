@@ -98,8 +98,9 @@ Trunk 实现仅按 promote/bug 等路径进入 `src/`/`include/`/`tests/`。
 <!-- ndf: kind=def layer=L1 status=stable since=0.9.13 source=deduced scope=ndf-process -->
 <!-- ndf: depends-on=META-011 -->
 
-从 NDF 树、结构图、git、装订器与检查工具派生的可视化状态。它 MAY 给出 phase hint 和动作入口，
-但不成为第五 SoT，也不持久化 Agent 运行态为规范真值。
+从 NDF 树、结构图、git、装订器与检查工具派生的可视化状态。主宿主是本地 NDF commander；
+Cursor Canvas 只做启动桥。它 MAY 给出 phase hint 和动作入口，但不成为第五 SoT，也不持久化
+Agent 运行态为规范真值。可见控件 MUST 映射闭集 NDF 动作目录。
 
 ## DEF: NDF 条款语义图模型 {#DEF-NDF-GRAPH}
 <!-- ndf: kind=def layer=L1 status=stable since=0.9 source=deduced scope=ndf-process -->

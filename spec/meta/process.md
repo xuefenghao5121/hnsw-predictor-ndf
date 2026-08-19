@@ -164,7 +164,8 @@ NDF 工作流 MUST 在日常 Proposal/POC 前支持一次性 `track=bootstrap`�
 - 已存在 accepted Project Genesis 决策的 operational 项目 MUST NOT 重跑 bootstrap；
   重建基准另走 process/refactor 提案。
 - 兼容既有健康棕地：无 Genesis 决策但已有完整 `spec/00–50`、产品代码与可运行治理门禁时，
-  Canvas MAY 标 `operational_legacy` 并提示可选 adopt；MUST NOT 因新流程阻断既有日常 POC。
+  工作台 MAY 标 `operational_legacy` 并提示可选 adopt；MUST NOT 因新流程阻断既有日常 POC。
+  日常指挥面是 NDF commander；Cursor Canvas 不是持续叠加 topic/hop 的承载。
 
 初始化门禁 MUST 串行：
 
@@ -257,6 +258,15 @@ stage-specific Episode 语义由 [[META-014]] 定义；MUST NOT 直接套用 POC
 <!-- ndf: depends-on=META-008,META-010 -->
 
 可视化工作台 MUST 是树/图/git 与工具结果的派生投影，不是第五 SoT。其状态 MUST 正交展示：
+
+主投影 MUST 是本地 NDF commander（`spec/meta/cockpit/`，React+D3）。Cursor Canvas MUST
+仅为启动桥（launcher）：展示 freshness 与「Open NDF commander」，MUST NOT 把全部
+POC 工作台与 Replay Prompt 嵌进 `.canvas.tsx`。每个可见控件（含 D3 点击）MUST 属于
+闭集目录 `spec/meta/cockpit/action-registry.json`；snapshot MUST 输出 `enabledActions`，
+UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未登记 hop。
+按钮点击 MUST NOT 充当人口令（[[META-010]]）。Composer / `openFile` 仍是可变 hop
+的唯一派发面；commander 的 snapshot hop（Refresh / 打开工作台 / 查这条账）MAY 由
+本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
 
 ```text
 project_maturity | lifecycle | gates

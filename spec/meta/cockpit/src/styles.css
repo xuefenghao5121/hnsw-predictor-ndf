@@ -1,0 +1,66 @@
+:root {
+  color-scheme: dark;
+  --bg: #12141a;
+  --panel: #1b1f29;
+  --line: #2c3342;
+  --text: #e8edf5;
+  --muted: #9aa6b8;
+  --accent: #7aa2ff;
+  --danger: #ff8a8a;
+  --ok: #8ee0a8;
+  font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; min-height: 100%; background: var(--bg); color: var(--text); }
+
+header.app-header {
+  padding: 16px 20px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.pills { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+button {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+button[data-ndf-action].primary { border-color: var(--accent); color: var(--accent); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.tabs { display: flex; gap: 6px; padding: 10px 20px; }
+.tabs button[aria-current="page"] { background: #243049; border-color: var(--accent); }
+main { padding: 16px 20px 48px; display: grid; gap: 16px; }
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+}
+.muted { color: var(--muted); font-size: 13px; }
+.danger { color: var(--danger); }
+.ok { color: var(--ok); }
+textarea, input, select {
+  width: 100%;
+  background: #10131a;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+}
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55);
+  display: grid; place-items: center; z-index: 20;
+}
+.modal pre {
+  max-height: 60vh; overflow: auto; background: #0d1016; padding: 12px; border-radius: 8px;
+  white-space: pre-wrap;
+}
+.chart { width: 100%; height: 160px; }
+.virtual { height: 240px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.banner { padding: 8px 12px; border-radius: 8px; background: #2a1f1f; color: var(--danger); }

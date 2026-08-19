@@ -32,7 +32,7 @@
 | 卫生 ADR | [`decisions/`](decisions/)（[[ADR-META-001]]、[[ADR-META-002]]…） |
 | 流程提案 | [`open/proposal-meta-*.md`](open/)（及迁入的装订器提案） |
 | 审核 harness 命令 | [`tools/README.md`](tools/README.md) |
-| Workflow Canvas / Genesis | [`.cursor/skills/ndf-workflow-canvas/`](../../.cursor/skills/ndf-workflow-canvas/) + [`tools/ndf_workflow_status.py`](tools/ndf_workflow_status.py) |
+| Workflow commander / Genesis | [`.cursor/skills/ndf-workflow-canvas/`](../../.cursor/skills/ndf-workflow-canvas/) + [`cockpit/`](cockpit/) + [`tools/ndf_workflow_status.py`](tools/ndf_workflow_status.py) |
 | 卫生收口 r2 | [`open/proposal-meta-trunk-hygiene-r2.md`](open/proposal-meta-trunk-hygiene-r2.md) |
 
 ## 条款 ID 命名空间（[[ADR-META-002]]）

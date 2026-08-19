@@ -192,6 +192,9 @@ python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json
 python3 spec/meta/tools/ndf_workflow_status.py genesis-pack --mode greenfield --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
+  --format canvas-json --out tmp/ndf-canvas-snapshot.json --json
+python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic <topic>
+python3 spec/meta/tools/ndf_workflow_status.py snapshot \
   --format canvas-json --json
 python3 spec/meta/tools/ndf_replay.py canvas-index --json
 python3 spec/meta/tools/ndf_replay.py canvas-ledger --episode <id> --json
@@ -291,10 +294,13 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `projection_freshness` 为
   `fresh|refresh_in_progress|stale_after_action|unknown`。仅 `fresh` 且 verifier
   `passed + current` 可启用 repair/delegate/close。
-  `--format canvas-json` 输出官方 camelCase Canvas payload，禁止再用临时转换脚本维护
-  SNAPSHOT。`--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
+  `--format canvas-json` 输出官方 camelCase commander payload（含 `enabledActions`），
+  `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 提供 React+D3 指挥舱与
+  `/snapshot.json`；POST `/api/action` 只接受登记动作。`--update-embedded` 只把
+  launcher（freshness + Open NDF commander）写入 Canvas，完整五页不嵌进 TSX。
+  `--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
   （`claude doctor` + 配置会话 resume 产物）；只用于页头 Refresh snapshot。例行
-  `--update-embedded` 不得带探针。Canvas Replay 只嵌 hop 目录 + `replay.focused`
+  `--update-embedded` 不得带探针。Commander Replay 只嵌 hop 目录 + `replay.focused`
   一页，账本真值在 `.ndf/replay`。Claude CLI 存在不等于
   ACP pipeline/run 可用。`pack` / `repair-pack` / `genesis-pack` 生成时 MUST 探测 ACP，
   并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时）分开。

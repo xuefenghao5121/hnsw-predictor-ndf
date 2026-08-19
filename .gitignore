@@ -28,7 +28,8 @@ output2/
 # tmp/
 # .ndf/replay/
 # packages/
-bento/
+spec/meta/cockpit/node_modules/
+spec/meta/cockpit/dist/
 
 # 目标文件
 *.o

@@ -182,9 +182,15 @@ Canvas Topics also projects **on `focusedTopic` only** (directory rows never car
 Snapshot marks a persisted report stale when its source generation no longer matches.
 Canvas shows diagnosis freshness only as a one-line strip on **阻塞与修复**; it is not a blocker.
 
-`snapshot --format canvas-json --probe-runtime --json` returns the official camelCase
-`ndf-workflow-canvas-snapshot/v1` payload embedded by the Canvas. The Canvas MUST replace its
-complete SNAPSHOT from this payload; partial ad-hoc snake_case conversion is not supported.
+`snapshot --format canvas-json` returns the official camelCase
+`ndf-workflow-canvas-snapshot/v1` commander payload. Write it with `--out`
+(default `tmp/ndf-canvas-snapshot.json` when serving). It includes `enabledActions`
+keyed by `spec/meta/cockpit/action-registry.json` ids. The UI MUST render those
+flags; it MUST NOT re-implement Golden/gate/freshness.
+
+`--update-embedded` writes a thin launcher (`ndf-workflow-canvas-launcher/v1`) into
+the managed `.canvas.tsx` and the full commander JSON to `--out`. Do not embed the
+five-tab payload in Canvas.
 
 Canvas-json `business.performance` includes `goldenHeadStatus`
 (`aligned` | `docs_only_ahead` | `head_ahead_of_golden` | `missing` | `golden_unresolvable`)

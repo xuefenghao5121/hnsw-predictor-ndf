@@ -1,4 +1,8 @@
-# Canvas layout
+# Canvas / commander layout
+
+Primary surface: `spec/meta/cockpit/` (React+D3). Cursor `.canvas.tsx` is a stub
+(header freshness + catalog action Open NDF commander). Layout below still governs
+the commander tabs. No control exists unless it is in `action-registry.json`.
 
 ## Global header
 

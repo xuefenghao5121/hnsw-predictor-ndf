@@ -1,6 +1,12 @@
-# Canvas actions
+# Canvas / commander actions
 
-Canvas buttons dispatch `openFile` or `newComposerChat`; they do not run shell directly.
+The React+D3 commander and the Cursor Canvas stub MAY only render ids from
+[`spec/meta/cockpit/action-registry.json`](../../spec/meta/cockpit/action-registry.json).
+Enablement comes from snapshot `enabledActions`. D3 topic marks dispatch 「打开工作台」;
+D3 hop marks dispatch 「查这条账」. Zoom/filter is `d3-zoom-filter` (projection only).
+
+Commander and Canvas buttons dispatch `openFile` or Composer prompts; they do not run
+shell directly except snapshot hops on `--serve` (rebuild `tmp/ndf-canvas-snapshot.json`).
 Any action that may change local evidence MUST be wrapped by:
 
 ```text

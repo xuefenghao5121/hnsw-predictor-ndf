@@ -20,8 +20,10 @@ import subprocess
 import sys
 import uuid
 from datetime import datetime, timezone
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable, Mapping
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = ROOT / "spec"
@@ -31,6 +33,7 @@ TOOLS = META / "tools"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
+import ndf_actions  # noqa: E402
 import ndf_close  # noqa: E402
 import ndf_context  # noqa: E402
 import ndf_gate_slices  # noqa: E402
@@ -6509,6 +6512,7 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         ),
     }
     mark_canvas_fresh_if_absorbing(result)
+    result["enabledActions"] = ndf_actions.evaluate_enabled_actions(result)
     result["payloadSha"] = canvas_payload_sha(result)
     return result
 
@@ -6817,13 +6821,16 @@ def verify_embedded_snapshot(
         fresh = canvas_snapshot(
             snapshot(topic, probe_runtime, replay_episode=focused_id)
         )
+        if embedded.get("schema") == "ndf-workflow-canvas-launcher/v1":
+            fresh = ndf_actions.canvas_launcher_snapshot(fresh)
+    launcher = embedded.get("schema") == "ndf-workflow-canvas-launcher/v1"
     embedded_hash = canvas_payload_sha(embedded)
+    payload_ok = embedded.get("payloadSha") == fresh.get("payloadSha")
+    if not launcher:
+        payload_ok = payload_ok and embedded.get("payloadSha") == embedded_hash
     checks = {
         "snapshotSha": embedded.get("snapshotSha") == fresh.get("snapshotSha"),
-        "payloadSha": (
-            embedded.get("payloadSha") == embedded_hash
-            and embedded.get("payloadSha") == fresh.get("payloadSha")
-        ),
+        "payloadSha": payload_ok,
         "absorbedActionId": embedded.get("absorbedActionId")
         == fresh.get("absorbedActionId"),
     }
@@ -6846,14 +6853,208 @@ def verify_embedded_snapshot(
     }
 
 
+def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = None) -> Path:
+    """Write the full canvas-json commander payload (not embedded in Canvas)."""
+    target = path or (ROOT / "tmp" / "ndf-canvas-snapshot.json")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    budget_error = canvas_snapshot_budget_error(payload, len(compact.encode("utf-8")))
+    if budget_error:
+        raise ValueError(budget_error)
+    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
+    try:
+        with temporary.open("w", encoding="utf-8") as stream:
+            stream.write(rendered)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return target
+
+
+def serve_commander(
+    *,
+    topic: str | None,
+    probe_runtime: bool,
+    replay_episode: str | None,
+    out: Path,
+    port: int,
+) -> dict[str, Any]:
+    """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
+    payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
+    write_commander_snapshot(payload, out)
+    dist = META / "cockpit" / "dist"
+    state = {
+        "topic": topic,
+        "replay_episode": replay_episode,
+        "probe_runtime": probe_runtime,
+        "out": out,
+    }
+
+    class Handler(SimpleHTTPRequestHandler):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, directory=str(dist if dist.is_dir() else META / "cockpit"), **kwargs)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
+
+        def _send_json(self, payload: Mapping[str, Any], code: int = 200) -> None:
+            body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _read_json(self) -> dict[str, Any]:
+            length = int(self.headers.get("Content-Length") or 0)
+            if length <= 0:
+                return {}
+            raw = self.rfile.read(length)
+            data = json.loads(raw.decode("utf-8"))
+            return data if isinstance(data, dict) else {}
+
+        def do_GET(self) -> None:  # noqa: N802
+            parsed = urlparse(self.path)
+            if parsed.path in {"/snapshot.json", "/api/snapshot"}:
+                current = json.loads(state["out"].read_text(encoding="utf-8"))
+                self._send_json(current)
+                return
+            if parsed.path == "/api/registry":
+                self._send_json(ndf_actions.load_registry())
+                return
+            if parsed.path in {"/", "/index.html"} and not dist.is_dir():
+                body = (
+                    "<!doctype html><meta charset=utf-8><title>NDF commander</title>"
+                    "<p>Build the cockpit: <code>cd spec/meta/cockpit && npm install && npm run build</code></p>"
+                    "<p>Snapshot: <a href=/snapshot.json>/snapshot.json</a></p>"
+                ).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            super().do_GET()
+
+        def do_POST(self) -> None:  # noqa: N802
+            parsed = urlparse(self.path)
+            body = self._read_json()
+            action_id = str(body.get("id") or "")
+            if parsed.path == "/api/refresh":
+                action_id = action_id or "refresh-snapshot"
+            if parsed.path in {"/api/refresh", "/api/action"}:
+                catalog = ndf_actions.registry_by_id().get(action_id)
+                if catalog is None:
+                    self._send_json({"error": "unregistered_action", "id": action_id}, 400)
+                    return
+                current = json.loads(state["out"].read_text(encoding="utf-8"))
+                ctx: dict[str, Any] = {}
+                if body.get("topic") or state["topic"]:
+                    ctx["topicId"] = body.get("topic") or state["topic"]
+                if body.get("episode") or state["replay_episode"]:
+                    ctx["episodeId"] = body.get("episode") or state["replay_episode"]
+                if "timelineStep" in body:
+                    ctx["timelineStep"] = body.get("timelineStep")
+                evaluated = ndf_actions.evaluate_action(catalog, current, ctx)
+                intent = str(body.get("intent") or "")
+                if catalog.get("requiresIntent") and not intent.strip():
+                    self._send_json({"error": "needs_intent", "id": action_id}, 400)
+                    return
+                if catalog.get("dispatch") != "projection_only" and not evaluated["enabled"]:
+                    self._send_json(
+                        {
+                            "error": "disabled",
+                            "id": action_id,
+                            "reason": evaluated["reason"],
+                        },
+                        400,
+                    )
+                    return
+                if catalog.get("dispatch") == "composer":
+                    prompt = ndf_actions.composer_prompt(
+                        action_id,
+                        current,
+                        intent=intent,
+                        topic=ctx.get("topicId"),
+                        episode_id=ctx.get("episodeId"),
+                    )
+                    self._send_json(
+                        {
+                            "id": action_id,
+                            "dispatch": "composer",
+                            "enabled": evaluated["enabled"],
+                            "reason": evaluated["reason"],
+                            "prompt": prompt,
+                            "humanPhrase": catalog.get("humanPhrase"),
+                        }
+                    )
+                    return
+                if catalog.get("dispatch") == "openFile":
+                    self._send_json(
+                        {
+                            "id": action_id,
+                            "dispatch": "openFile",
+                            "path": ndf_actions.open_file_path(action_id, current),
+                            "enabled": evaluated["enabled"],
+                            "reason": evaluated["reason"],
+                        }
+                    )
+                    return
+                if catalog.get("dispatch") != "snapshot":
+                    self._send_json({"error": "projection_only", "id": action_id}, 400)
+                    return
+                if action_id in {"open-workbench", "refresh-topic"} and ctx.get("topicId"):
+                    state["topic"] = ctx["topicId"]
+                if action_id == "inspect-ledger" and ctx.get("episodeId"):
+                    state["replay_episode"] = ctx["episodeId"]
+                probe = bool(catalog.get("probeRuntime")) or (
+                    action_id == "refresh-snapshot" and bool(state["probe_runtime"])
+                )
+                if action_id == "refresh-snapshot":
+                    probe = True
+                payload = canvas_snapshot(
+                    snapshot(
+                        state["topic"],
+                        probe,
+                        replay_episode=state["replay_episode"],
+                    )
+                )
+                write_commander_snapshot(payload, state["out"])
+                self._send_json(
+                    {
+                        "id": action_id,
+                        "dispatch": "snapshot",
+                        "enabled": True,
+                        "payloadSha": payload.get("payloadSha"),
+                        "snapshot": payload,
+                    }
+                )
+                return
+            self.send_error(404)
+
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    url = f"http://127.0.0.1:{port}/"
+    sys.stderr.write(f"NDF commander at {url} snapshot={out}\n")
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        httpd.server_close()
+    return {"url": url, "outPath": rel(out)}
+
+
 def update_embedded_snapshot(
     path: Path,
     *,
     topic: str | None = None,
     probe_runtime: bool = False,
     replay_episode: str | None = None,
+    out: Path | None = None,
 ) -> dict[str, Any]:
-    """Atomically replace the managed Canvas SNAPSHOT with official JSON."""
+    """Write commander JSON and embed a thin Canvas launcher SNAPSHOT."""
     text = read_text(path)
     match = re.search(r"\bconst\s+SNAPSHOT\b[^=]*=", text)
     if not match:
@@ -6872,9 +7073,11 @@ def update_embedded_snapshot(
     budget_error = canvas_snapshot_budget_error(payload, len(encoded))
     if budget_error:
         raise ValueError(budget_error)
+    out_path = write_commander_snapshot(payload, out)
+    launcher = ndf_actions.canvas_launcher_snapshot(payload)
     # TSX canvas parsers fail on 32KiB+ single lines; pretty-print the file
     # while the 120KiB budget still measures compact UTF-8.
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+    rendered = json.dumps(launcher, ensure_ascii=False, indent=2)
     longest = max((len(line) for line in rendered.splitlines()), default=0)
     if longest > 8000:
         raise ValueError(
@@ -6901,17 +7104,19 @@ def update_embedded_snapshot(
         path,
         topic=topic,
         replay_episode=replay_episode,
-        expected=payload,
+        expected=launcher,
     )
     return {
         "schema": "ndf-embedded-projection-update/v1",
         "updated": verification["valid"],
         "path": str(path),
+        "outPath": rel(out_path),
         "payloadSha": payload.get("payloadSha"),
         "snapshotSha": payload.get("snapshotSha"),
         "absorbedActionId": payload.get("absorbedActionId"),
         "verification": verification,
         "embeddedBytes": len(encoded),
+        "launcherBytes": len(rendered.encode("utf-8")),
         "replayEpisode": replay_episode
         or ((payload.get("replay") or {}).get("focused") or {}).get("id"),
     }
@@ -9269,6 +9474,16 @@ def main() -> int:
         "--replay-episode",
         help="Canvas focused hop id loaded from .ndf/replay (not --episode record binding)",
     )
+    snapshot_parser.add_argument(
+        "--out",
+        help="Write canvas-json commander payload (default tmp/ndf-canvas-snapshot.json with --serve)",
+    )
+    snapshot_parser.add_argument(
+        "--serve",
+        action="store_true",
+        help="Serve spec/meta/cockpit and /snapshot.json; POST /api/action for catalog hops",
+    )
+    snapshot_parser.add_argument("--port", type=int, default=8765)
 
     topic_health_parser = sub.add_parser("topic-health")
     topic_health_parser.add_argument("--topic", required=True)
@@ -9506,6 +9721,7 @@ def main() -> int:
                     topic=args.topic,
                     probe_runtime=args.probe_runtime,
                     replay_episode=args.replay_episode,
+                    out=Path(args.out) if args.out else None,
                 )
                 receipt = record_projection_verification(
                     Path(args.update_embedded),
@@ -9553,7 +9769,28 @@ def main() -> int:
                 emit(result)
                 return 0 if result["valid"] else 1
             payload = snapshot(args.topic, args.probe_runtime, args.replay_episode)
-            emit(canvas_snapshot(payload) if args.format == "canvas-json" else payload)
+            projected = (
+                canvas_snapshot(payload)
+                if args.format == "canvas-json" or args.serve or args.out
+                else payload
+            )
+            if args.out or args.serve:
+                out_path = Path(args.out) if args.out else ROOT / "tmp" / "ndf-canvas-snapshot.json"
+                if args.format == "canvas-json" or args.serve or args.out:
+                    write_commander_snapshot(
+                        projected if isinstance(projected, dict) and projected.get("schema") == "ndf-workflow-canvas-snapshot/v1" else canvas_snapshot(payload),
+                        out_path,
+                    )
+            if args.serve:
+                serve_commander(
+                    topic=args.topic,
+                    probe_runtime=args.probe_runtime,
+                    replay_episode=args.replay_episode,
+                    out=Path(args.out) if args.out else ROOT / "tmp" / "ndf-canvas-snapshot.json",
+                    port=args.port,
+                )
+                return 0
+            emit(projected)
             return 0
         if args.command == "topic-health":
             payload, code = topic_health(args.topic)

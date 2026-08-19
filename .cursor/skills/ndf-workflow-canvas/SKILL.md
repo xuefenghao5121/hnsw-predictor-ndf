@@ -1,11 +1,12 @@
 ---
 name: ndf-workflow-canvas
 description: >-
-  Projects the local business project into a business-first Cursor Canvas, with
-  five tabs (Product / Topics / NDF Control / Agents / Replay). Close is a Topics
-  hop sequence, not a tab. Use when the user asks for an NDF workflow canvas,
-  product cockpit, Genesis, POC workbench, governance health, agent runtime,
-  sandbox delegation, or close visualization.
+  Projects the local business project into the NDF commander (React+D3) with
+  five tabs (Product / Topics / NDF Control / Agents / Replay). Cursor Canvas
+  is a launcher stub. Close is a Topics hop sequence, not a tab. Every control
+  is a closed NDF action-registry id. Use when the user asks for an NDF workflow
+  canvas, commander, product cockpit, Genesis, POC workbench, governance health,
+  agent runtime, sandbox delegation, or close visualization.
 disable-model-invocation: true
 ---
 
@@ -23,11 +24,21 @@ Read in this order:
 
 Never use `packages/ndf-harness/` or `.cursor/skills/ndf-harness/` as local
 process truth. Business truth comes from `spec/00–50` + Trunk; Meta controls flow.
-Canvas is a derived projection, not a product or process SoT.
+The derived cockpit is the NDF commander (`spec/meta/cockpit/`), not a growing
+Cursor Canvas. Canvas is a launcher stub. Every control is an id in
+`spec/meta/cockpit/action-registry.json`. UI MUST NOT invent hops.
 
 ## Open or refresh
 
-1. Run:
+1. Rebuild the commander payload (primary):
+
+   ```bash
+   python3 spec/meta/tools/ndf_workflow_status.py snapshot \
+     --out tmp/ndf-canvas-snapshot.json --topic <focused-topic-id> --json
+   python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic <focused-topic-id>
+   ```
+
+2. Optionally refresh the Cursor launcher:
 
    ```bash
    python3 spec/meta/tools/ndf_workflow_status.py snapshot \
@@ -35,19 +46,15 @@ Canvas is a derived projection, not a product or process SoT.
      --topic <focused-topic-id> --json
    ```
 
-2. Require `updated=true`; the command atomically replaces the complete SNAPSHOT, verifies
-   the **written** payload SHA (no second `snapshot()` compile), and writes a projection
-   receipt. Do not maintain an ad-hoc snake_case/camelCase transform. `const SNAPSHOT` is
-     compact JSON: Topics **directory** + one `business.focusedTopic` workbench, and Replay
-     hop **directory** + one `replay.focused` page. Write that object pretty-printed
-     (`indent=2`) so no TSX line exceeds ~8KB; Canvas loaders fail on a 32KB+ one-liner.
-     Do not embed every exploring workbench
-     or every hop Prompt. `--topic` selects the unique fat Topics page. Do not pass
-   `--probe-runtime` on routine refresh; header Refresh snapshot is the only probe and
-   MUST include `--topic` from Canvas `business-topic`. Over 120KB compact JSON MUST fail
-   rather than write a 20k-line object; the error names the overflowing bucket.
+   Require `updated=true`. Embed is schema `ndf-workflow-canvas-launcher/v1`
+   (freshness + Open NDF commander). The full five-tab payload is
+   `tmp/ndf-canvas-snapshot.json` (`--out`), pretty-printed canvas-json with
+   `enabledActions`. Do not embed every workbench or hop Prompt in `.canvas.tsx`.
+   `--topic` selects the unique fat Topics page. Do not pass `--probe-runtime`
+   on routine refresh; header Refresh snapshot is the only probe.
+   Over 120KB compact commander JSON MUST fail and name the overflowing bucket.
    Unchanged evidence (Merkle layer hit) MUST reuse persisted spec-health / Replay index
-   and MUST NOT re-run `ndf_graphcheck`. Canvas workbench uses a shallow graph preview or
+   and MUST NOT re-run `ndf_graphcheck`. Commander workbench uses a shallow graph preview or
    a cached verified plan; full ACP `create_manifest` stays on pack/repair-pack.
 3. Keep the layout defined in [layout.md](layout.md).
 4. Omit empty sections. Label snapshot time and repository SHA.
