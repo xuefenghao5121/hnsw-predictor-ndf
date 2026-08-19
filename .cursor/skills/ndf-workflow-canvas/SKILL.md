@@ -63,14 +63,13 @@ Cursor Canvas. Canvas is a launcher stub. Every control is an id in
 Canvas stub compile (host "Failed to load" / 页面加载出错):
 
 - Import **only** from `cursor/canvas`. Do not import `cursor/canvas/hooks`.
-- Cloud Agent preview loads `/opt/cursor/artifacts/canvases/<name>.canvas.bundle.gz`,
-  not the on-disk `.tsx` after Python `--update-embedded`. After embed, rewrite the
-  managed `.canvas.tsx` with the Write tool so gzip `userModule` contains the
-  launcher SNAPSHOT (must include the product name, not `const SNAPSHOT = {}`).
-- Cloud Agent canvas iframe may not provide `useCanvasAction`. The stub MUST be
-  hook-free static layout. Do not call `useCanvasAction()` on the launcher.
-- `--serve` binds `127.0.0.1` only. Cloud Agent VMs have no TCP ingress; do not
-  tell the human to open the cloud `http://127.0.0.1:8765/`.
+- Prefer a new `.canvas.tsx` name when the previous gzip is cached as Failed to load.
+- Cloud Agent preview loads `/opt/cursor/artifacts/canvases/<name>.canvas.bundle.gz`.
+  Python `--update-embedded` does not refresh gzip; rewrite via the Write tool.
+- `useCanvasAction()` returns `dispatch`. Call
+  `dispatch({ type: "newComposerChat", userPrompt })`.
+- On Cloud Agent, buttons command THIS Composer. Do not tell the human to open
+  `http://127.0.0.1:8765/`.
 
 Canvas actions that may change local evidence MUST use bound action/agent receipts.
 The header MUST show payload SHA, absorbed action and latest operation/result/blockers/time.

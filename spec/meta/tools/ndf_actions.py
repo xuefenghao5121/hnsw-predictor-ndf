@@ -377,10 +377,14 @@ def composer_prompt(
     ]
     if action_id == "open-ndf-commander":
         lines.append(
-            "Start the NDF commander: "
-            "python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --format canvas-json --json"
+            "Cloud Agent: this conversation IS the commander. Do not start snapshot --serve "
+            "(loopback HTTP is not reachable from the human browser)."
         )
-        lines.append("Then tell the human the local URL. Do not embed the full snapshot into Canvas.")
+        lines.append(
+            "Run snapshot --out tmp/ndf-canvas-snapshot.json, then rewrite the managed "
+            ".canvas.tsx with the Write tool so the gzip preview updates."
+        )
+        lines.append("Local workstation only: snapshot --serve --format canvas-json --json")
     elif action_id == "new-proposal":
         lines.append("Write the exact human product intent below to tmp/ndf-product-intent-<action_id>.md")
         lines.append("BEGIN HUMAN PRODUCT INTENT")

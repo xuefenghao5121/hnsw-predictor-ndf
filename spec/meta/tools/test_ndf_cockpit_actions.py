@@ -277,6 +277,12 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertFalse(launcher["commander"]["cloudIngress"])
         self.assertEqual(launcher["commander"]["bind"], "127.0.0.1")
 
+    def test_open_ndf_commander_prompt_does_not_advertise_cloud_http(self) -> None:
+        prompt = actions.composer_prompt("open-ndf-commander", _payload())
+        self.assertIn("this conversation IS the commander", prompt)
+        self.assertIn("Do not start snapshot --serve", prompt)
+        self.assertNotIn("http://127.0.0.1:8765", prompt)
+
     def test_cockpit_source_buttons_are_registered(self) -> None:
         if not SRC.is_dir():
             self.skipTest("cockpit src not present")

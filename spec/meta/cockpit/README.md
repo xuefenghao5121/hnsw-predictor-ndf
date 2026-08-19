@@ -11,7 +11,8 @@ python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic hotspot-
 
 Open `http://127.0.0.1:8765/` on the machine that ran `--serve` (loopback only).
 A Cloud Agent VM has no TCP ingress, so that URL is not reachable from the
-human browser. On a Cloud Agent run, open the Canvas gzip artifact instead.
+human browser. On a Cloud Agent run, command from Canvas buttons in this chat
+(`newComposerChat`); do not start `--serve` just to show a page.
 Composer hops return a prompt; snapshot hops rebuild
 `tmp/ndf-canvas-snapshot.json`. Button click is never `已确认` /
 `TOPIC已审核` / `可以开始实现`.
