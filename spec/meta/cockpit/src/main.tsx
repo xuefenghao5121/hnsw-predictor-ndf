@@ -5,13 +5,12 @@ import {
   useMemo,
   useState,
   type ErrorInfo,
-  type ReactElement,
   type ReactNode,
-  type UIEvent,
 } from "react";
 import { createRoot } from "react-dom/client";
 import { ActionButton } from "./ActionButton";
 import { dispatchAction, loadSnapshot } from "./api";
+import { GoldenPerformance } from "./charts/GoldenPerformance";
 import { ReplayTimeline } from "./charts/ReplayTimeline";
 import { TopicOverview } from "./charts/TopicOverview";
 import { requireAction } from "./catalog";
@@ -58,25 +57,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { message: string
   }
 }
 
-function VirtualRows<T>({ items, render }: { items: T[]; render: (item: T, index: number) => ReactElement }) {
-  const [start, setStart] = useState(0);
-  const row = 28;
-  const visible = 8;
-  const onScroll = (event: UIEvent<HTMLDivElement>) => {
-    setStart(Math.floor(event.currentTarget.scrollTop / row));
-  };
-  const slice = items.slice(start, start + visible + 2);
-  return (
-    <div className="virtual" onScroll={onScroll}>
-      <div style={{ height: items.length * row, position: "relative" }}>
-        <div style={{ position: "absolute", top: start * row, left: 0, right: 0 }}>
-          {slice.map((item, index) => render(item, start + index))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +73,7 @@ function App() {
     genesis: false,
   });
   const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [tech, setTech] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -129,11 +110,13 @@ function App() {
           setError(null);
         }
         if (result.prompt) {
+          setCopied(false);
           setDialog({
             title: `${action.label} · Composer (click is not ${action.humanPhrase || "a gate"})`,
             body: result.prompt,
           });
         } else if (result.path) {
+          setCopied(false);
           setDialog({ title: action.label, body: `openFile ${result.path}` });
         }
       } catch (err) {
@@ -203,148 +186,315 @@ function App() {
       {!snapshot && !error && <p className="muted">Loading snapshot…</p>}
       <main>
         {tab === "product" && (
-          <section className="card">
-            <h2>Product</h2>
-            <p className="muted">Golden {snapshot?.business?.performance?.goldenHeadStatus} · {snapshot?.business?.performance?.baselineId}</p>
-            {snapshot?.business?.performance?.warning && <p className="danger">{snapshot.business.performance.warning}</p>}
-            <div className="pills">
-              <ActionButton actionId="open-charter" enabled={enabledOf(snapshot, "open-charter")} onClick={() => run("open-charter")} />
-              <ActionButton actionId="open-golden" enabled={enabledOf(snapshot, "open-golden")} onClick={() => run("open-golden")} />
-              <ActionButton actionId="align-golden" enabled={enabledOf(snapshot, "align-golden")} onClick={() => run("align-golden")} />
+          <section className="page-stack">
+            <div className="hero card">
+              <div>
+                <p className="eyebrow">Business Project · {snapshot?.business?.identity?.phase}</p>
+                <h2>{snapshot?.business?.identity?.name}</h2>
+                <p>{snapshot?.business?.identity?.goal}</p>
+              </div>
+              <div className="scale-strip">
+                {(snapshot?.business?.identity?.scales || []).map(([scale, state]) => (
+                  <span className={`status-chip ${state}`} key={scale}>{scale} · {state}</span>
+                ))}
+              </div>
             </div>
-            <label className="muted">描述要探索或变更的产品想法</label>
-            <textarea value={productIntent} onChange={(event) => setProductIntent(event.target.value)} />
-            <ActionButton
-              actionId="new-proposal"
-              enabled={enabledOf(snapshot, "new-proposal")}
-              intent={productIntent}
-              onClick={() => run("new-proposal", { intent: productIntent })}
-            />
-            <h3>Active topics</h3>
-            <TopicOverview
-              topics={topics}
-              focusedId={snapshot?.business?.focusedTopicId}
-              onOpenWorkbench={(id) => {
-                setSelectedTopic(id);
-                void run("open-workbench", { topic: id }).then(() => setTab("topics"));
-              }}
-            />
-            <VirtualRows
-              items={topics}
-              render={(row) => (
-                <div key={row.id} className="row">
-                  <span>{row.id}</span>
-                  <span className="muted">{row.lifecycle}</span>
-                  {row.id !== snapshot?.business?.focusedTopicId && (
-                    <ActionButton
-                      actionId="open-workbench"
-                      enabled={enabledOf(snapshot, "open-workbench")}
-                      onClick={() => void run("open-workbench", { topic: row.id }).then(() => setTab("topics"))}
-                    />
-                  )}
+
+            <div className="card">
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">Golden / SLA</p>
+                  <h3>{snapshot?.business?.performance?.baselineId}</h3>
                 </div>
-              )}
-            />
+                <span className={`status-chip ${snapshot?.business?.performance?.goldenHeadStatus}`}>
+                  {snapshot?.business?.performance?.goldenHeadStatus}
+                </span>
+              </div>
+              {snapshot?.business?.performance?.warning && <p className="danger">{snapshot.business.performance.warning}</p>}
+              <GoldenPerformance
+                scenes={snapshot?.business?.performance?.scenes || []}
+                qps={snapshot?.business?.performance?.aggQps || []}
+                recall={snapshot?.business?.performance?.recall || []}
+              />
+              <div className="pills">
+                <ActionButton actionId="open-charter" enabled={enabledOf(snapshot, "open-charter")} onClick={() => run("open-charter")} />
+                <ActionButton actionId="open-golden" enabled={enabledOf(snapshot, "open-golden")} onClick={() => run("open-golden")} />
+                <ActionButton actionId="align-golden" enabled={enabledOf(snapshot, "align-golden")} onClick={() => run("align-golden")} />
+              </div>
+            </div>
+
+            <div className="card command-card">
+              <h3>New product proposal</h3>
+              <label className="muted">描述要探索或变更的产品想法</label>
+              <textarea value={productIntent} onChange={(event) => setProductIntent(event.target.value)} />
+              <ActionButton
+                actionId="new-proposal"
+                enabled={enabledOf(snapshot, "new-proposal")}
+                intent={productIntent}
+                onClick={() => run("new-proposal", { intent: productIntent })}
+              />
+            </div>
+
+            <div className="card">
+              <h3>Capability portfolio</h3>
+              <table>
+                <thead><tr><th>Capability</th><th>Stable</th><th>Draft</th><th>Open</th><th>Trunk surface</th></tr></thead>
+                <tbody>
+                  {(snapshot?.business?.capabilities || []).map(([name, stable, draft, open, path]) => (
+                    <tr key={name}><td>{name}</td><td>{stable}</td><td>{draft}</td><td>{open}</td><td className="muted">{path}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="card">
+              <h3>Active business topics</h3>
+              <TopicOverview
+                topics={topics}
+                focusedId={snapshot?.business?.focusedTopicId}
+                onOpenWorkbench={(id) => {
+                  setSelectedTopic(id);
+                  void run("open-workbench", { topic: id }).then(() => setTab("topics"));
+                }}
+              />
+              <table>
+                <thead><tr><th>Topic</th><th>Lifecycle</th><th>Hypothesis</th><th>Surface</th><th>Baseline</th><th>Blockers</th></tr></thead>
+                <tbody>
+                  {topics.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.id}</td><td>{row.lifecycle}</td><td>{row.hypothesis}</td>
+                      <td>{row.surface?.join(", ")}</td><td>{row.baseline}</td><td>{row.blockers?.join(", ") || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid-2">
+              <div className="card">
+                <h3>Product proposals</h3>
+                <table>
+                  <thead><tr><th>Proposal</th><th>Track</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {(snapshot?.business?.proposals || []).map(([title, track, status]) => (
+                      <tr key={title}><td>{title}</td><td>{track}</td><td>{status}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="card">
+                <h3>Roadmap</h3>
+                <table>
+                  <thead><tr><th>Phase</th><th>Work</th><th>Impact</th><th>Status</th><th>Evidence</th></tr></thead>
+                  <tbody>
+                    {(snapshot?.business?.roadmap || []).map(([phase, work, impact, status, evidence]) => (
+                      <tr key={phase}><td>{phase}</td><td>{work}</td><td>{impact}</td><td>{status}</td><td>{evidence}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="card">
+              <h3>Business risks</h3>
+              <div className="risk-list">
+                {(snapshot?.business?.risks || []).map((risk) => (
+                  <div className={`risk ${risk.severity || "info"}`} key={risk.kind}>
+                    <strong>{risk.kind}</strong><span>{risk.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </section>
         )}
 
         {tab === "topics" && (
-          <section className="card">
-            <h2>Topics</h2>
-            <select
-              value={selectedTopic}
-              onChange={(event) => setSelectedTopic(event.target.value)}
-            >
-              {topics.map((row) => (
-                <option key={row.id} value={row.id}>{row.id}</option>
-              ))}
-            </select>
-            {selectedTopic && selectedTopic !== snapshot?.business?.focusedTopicId && (
-              <ActionButton
-                actionId="open-workbench"
-                enabled={enabledOf(snapshot, "open-workbench")}
-                onClick={() => run("open-workbench", { topic: selectedTopic })}
-              />
-            )}
+          <section className="page-stack">
+            <div className="card topic-selector">
+              <div>
+                <p className="eyebrow">Topics directory</p>
+                <h2>{selectedTopic || "Select a topic"}</h2>
+              </div>
+              <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)}>
+                {topics.map((row) => <option key={row.id} value={row.id}>{row.id} · {row.lifecycle}</option>)}
+              </select>
+              {selectedTopic && selectedTopic !== snapshot?.business?.focusedTopicId && (
+                <ActionButton
+                  actionId="open-workbench"
+                  enabled={enabledOf(snapshot, "open-workbench")}
+                  onClick={() => run("open-workbench", { topic: selectedTopic })}
+                />
+              )}
+            </div>
             {focused && selectedTopic === snapshot?.business?.focusedTopicId && (
               <>
                 <div className="card">
-                  <h3>TOPIC 总览</h3>
-                  <p>{String(focused.topicOverview?.purpose || focused.hypothesis || "")}</p>
+                  <div className="section-heading">
+                    <div><p className="eyebrow">1 · Read only</p><h3>TOPIC 总览</h3></div>
+                    <span className={`status-chip ${focused.lifecycle}`}>{focused.lifecycle}</span>
+                  </div>
+                  <p>{focused.topicOverview?.purpose !== "Not explicitly recorded" ? focused.topicOverview?.purpose : focused.hypothesis}</p>
+                  <div className="metadata-grid">
+                    <span><strong>Surface</strong>{focused.topicOverview?.explore_surface?.join(", ") || "—"}</span>
+                    <span><strong>Depends on</strong>{focused.topicOverview?.idea_sources?.depends_on_topics?.join(", ") || "—"}</span>
+                    <span><strong>Proposal sources</strong>{focused.topicOverview?.idea_sources?.proposal_paths?.length || 0}</span>
+                  </div>
                   <ActionButton actionId="open-topic" enabled={enabledOf(snapshot, "open-topic")} onClick={() => run("open-topic")} />
                 </div>
-                <div className="grid-3">
-                  <div className="card">
-                    <h3>Design</h3>
-                    <p className="muted">{focused.spaces?.design?.purpose}</p>
-                    <ActionButton actionId="gate-pipeline" enabled={enabledOf(snapshot, "gate-pipeline")} onClick={() => run("gate-pipeline")} />
-                    <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
-                    <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
-                  </div>
-                  <div className="card">
-                    <h3>Implementation</h3>
-                    <p className="muted">本轮决策在页底</p>
-                    <ActionButton actionId="poc-prepare-baseline" enabled={enabledOf(snapshot, "poc-prepare-baseline")} onClick={() => run("poc-prepare-baseline")} />
-                    <ActionButton actionId="poc-isolation-repair" enabled={enabledOf(snapshot, "poc-isolation-repair")} onClick={() => run("poc-isolation-repair")} />
-                  </div>
-                  <div className="card">
-                    <h3>Test</h3>
-                    <ActionButton actionId="open-delta" enabled={enabledOf(snapshot, "open-delta")} onClick={() => run("open-delta")} />
-                    <ActionButton actionId="poc-measurement" enabled={enabledOf(snapshot, "poc-measurement")} onClick={() => run("poc-measurement")} />
+
+                <div>
+                  <p className="eyebrow">2 · Three-space reliability</p>
+                  <div className="grid-3">
+                    {(["design", "implementation", "test"] as const).map((space) => {
+                      const value = focused.spaces?.[space];
+                      return (
+                        <div className="card space-card" key={space}>
+                          <div className="section-heading">
+                            <h3>{space[0].toUpperCase() + space.slice(1)}</h3>
+                            <span className={`status-chip ${value?.ready ? "ready" : "blocked"}`}>{value?.ready ? "ready" : "blocked"}</span>
+                          </div>
+                          <p className="muted">{value?.purpose}</p>
+                          <p><strong>Gaps</strong> {value?.gaps?.join(", ") || "none"}</p>
+                          <p className="muted">{value?.clause_refs?.map((item) => item.id).join(" · ")}</p>
+                          {space === "design" && (
+                            <div className="pills">
+                              <ActionButton actionId="gate-pipeline" enabled={enabledOf(snapshot, "gate-pipeline")} onClick={() => run("gate-pipeline")} />
+                              <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
+                              <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
+                            </div>
+                          )}
+                          {space === "implementation" && (
+                            <div className="pills">
+                              <ActionButton actionId="poc-prepare-baseline" enabled={enabledOf(snapshot, "poc-prepare-baseline")} onClick={() => run("poc-prepare-baseline")} />
+                              <ActionButton actionId="poc-isolation-repair" enabled={enabledOf(snapshot, "poc-isolation-repair")} onClick={() => run("poc-isolation-repair")} />
+                            </div>
+                          )}
+                          {space === "test" && (
+                            <div className="pills">
+                              <ActionButton actionId="open-delta" enabled={enabledOf(snapshot, "open-delta")} onClick={() => run("open-delta")} />
+                              <ActionButton actionId="poc-measurement" enabled={enabledOf(snapshot, "poc-measurement")} onClick={() => run("poc-measurement")} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+
                 <div className="card">
-                  <h3>阻塞与修复</h3>
-                  <ActionButton actionId="refresh-topic" enabled={enabledOf(snapshot, "refresh-topic")} onClick={() => run("refresh-topic", { topic: focused.id })} />
-                  <ActionButton actionId="diagnose-topic" enabled={enabledOf(snapshot, "diagnose-topic")} onClick={() => run("diagnose-topic")} />
+                  <div className="section-heading">
+                    <div><p className="eyebrow">3 · Evidence routed</p><h3>阻塞与修复</h3></div>
+                    <div className="pills">
+                      <ActionButton actionId="refresh-topic" enabled={enabledOf(snapshot, "refresh-topic")} onClick={() => run("refresh-topic", { topic: focused.id })} />
+                      <ActionButton actionId="diagnose-topic" enabled={enabledOf(snapshot, "diagnose-topic")} onClick={() => run("diagnose-topic")} />
+                    </div>
+                  </div>
+                  <div className="check-strip">
+                    {Object.entries(focused.health?.checks || {}).map(([name, check]) => (
+                      <span className={`status-chip ${check.state}`} key={name}>{name} · {check.state}</span>
+                    ))}
+                  </div>
                   <table>
-                    <thead><tr><th>Kind</th><th>Space</th><th>Why</th></tr></thead>
+                    <thead><tr><th>Kind</th><th>Space</th><th>NDF 依据</th><th>Why blocked</th><th>Owner / write root</th></tr></thead>
                     <tbody>
                       {(focused.health?.findings || []).map((item, index) => (
-                        <tr key={index}><td>{item.kind}</td><td>{item.space}</td><td>{item.why_blocked}</td></tr>
+                        <tr key={`${item.kind}-${index}`}>
+                          <td>{item.kind}</td><td>{item.space}</td>
+                          <td>{item.clause_refs?.map((ref) => ref.id).join(", ")}</td>
+                          <td>{item.why_blocked}</td>
+                          <td>{item.repair_owner} · {item.allowed_write_root}</td>
+                        </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, foundation: !s.foundation }))}>
-                  NDF 基础追溯
-                </button>
-                {!collapsed.foundation && <pre className="muted">{JSON.stringify(focused, null, 2).slice(0, 800)}</pre>}
-                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, workflow: !s.workflow }))}>
-                  NDF 工作流 / Meta
-                </button>
-                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, mechanical: !s.mechanical }))}>
-                  机械上下文
-                </button>
-                {!collapsed.mechanical && (
-                  <p className="muted">
-                    {focused.delegation?.context_plan?.role} · plan {focused.delegation?.context_plan?.plan_sha?.slice(0, 12)}
-                  </p>
-                )}
-                <div className="card">
-                  <h3>本轮决策与实现委派</h3>
-                  <div className="pills">
-                    {(focused.decision?.offered || ["implement", "continue_exploring", "amend", "reject"]).map((chip) => (
-                      <button
-                        key={chip}
-                        type="button"
-                        data-ndf-action="decision-prefill"
-                        onClick={() => setDecisionText(chip)}
-                      >
-                        {chip}
-                      </button>
+
+                <div className="card disclosure">
+                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, foundation: !s.foundation }))}>
+                    4 · NDF 基础追溯 · clauses {focused.ndfFoundation?.clause_count || 0}
+                  </button>
+                  {!collapsed.foundation && (
+                    <div>
+                      <p className="muted">Stable summary: {JSON.stringify(focused.ndfFoundation?.stable_summary || {})}</p>
+                      <table>
+                        <thead><tr><th>Goal / clause</th><th>Design</th><th>Code / commit</th><th>Verification</th></tr></thead>
+                        <tbody>
+                          {(focused.traceability || []).map((row) => (
+                            <tr key={row.goal_or_clause}><td>{row.goal_or_clause}</td><td>{row.design}</td><td>{row.code_or_commit}</td><td>{row.verification}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="card disclosure">
+                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, workflow: !s.workflow }))}>
+                    5 · NDF 工作流 / Meta · {focused.workflowMeta?.spec_health_state}
+                  </button>
+                  {!collapsed.workflow && (
+                    <div>
+                      <p>{focused.workflowMeta?.note}</p>
+                      <div className="check-strip">
+                        {Object.entries(focused.workflowMeta?.spec_health_checks || {}).map(([name, state]) => (
+                          <span className={`status-chip ${state}`} key={name}>{name} · {state}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="card disclosure">
+                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, mechanical: !s.mechanical }))}>
+                    6 · 机械上下文 · {focused.delegation?.context_plan?.role || "plan unavailable"}
+                  </button>
+                  {!collapsed.mechanical && (
+                    <div className="metadata-grid">
+                      <span><strong>Plan SHA</strong>{focused.delegation?.context_plan?.plan_sha?.slice(0, 12) || "—"}</span>
+                      <span><strong>Context verify</strong>{String(focused.delegation?.context_verify?.valid)}</span>
+                      <span><strong>Static preflight</strong>{String(focused.delegation?.static_preflight_passed)}</span>
+                      <span><strong>Runtime ready</strong>{String(focused.delegation?.runtime_dispatch_ready)}</span>
+                      <span><strong>Dispatch blockers</strong>{focused.delegation?.dispatch_blockers?.join(", ") || "none"}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="card command-card">
+                  <div className="section-heading">
+                    <div><p className="eyebrow">7 · Sole full-topic command surface</p><h3>本轮决策与实现委派</h3></div>
+                    <span className={`status-chip ${focused.decision?.state}`}>{focused.decision?.state}</span>
+                  </div>
+                  <div className="next-actions">
+                    {(focused.health?.next_actions || []).map((action, index) => (
+                      <div key={`${action.task}-${index}`}>
+                        <strong>{action.label}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span>
+                      </div>
                     ))}
                   </div>
-                  <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} />
-                  <ActionButton
-                    actionId="generate-next-step"
-                    enabled={enabledOf(snapshot, "generate-next-step")}
-                    intent={decisionText}
-                    onClick={() => run("generate-next-step", { intent: decisionText })}
-                  />
-                  <ActionButton actionId="delegate-poc" enabled={enabledOf(snapshot, "delegate-poc")} onClick={() => run("delegate-poc")} />
-                  <ActionButton actionId="prepare-acp-lease" enabled={enabledOf(snapshot, "prepare-acp-lease")} onClick={() => run("prepare-acp-lease")} />
-                  <ActionButton actionId="next-close-hop" enabled={enabledOf(snapshot, "next-close-hop")} onClick={() => run("next-close-hop")} />
+                  <p className="muted">
+                    Latest {focused.decision?.briefing?.latest_round} · verdict {focused.decision?.briefing?.verdict}
+                  </p>
+                  <div className="pills">
+                    {(focused.decision?.offered || []).map((chip) => (
+                      <button key={chip} type="button" data-ndf-action="decision-prefill" onClick={() => setDecisionText(chip)}>{chip}</button>
+                    ))}
+                  </div>
+                  {Object.entries(focused.decision?.blocked || {}).map(([mode, reason]) => (
+                    <p className="danger" key={mode}>{mode} blocked: {reason}</p>
+                  ))}
+                  <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} placeholder="写下本轮决策；空文本不会派发" />
+                  <div className="pills">
+                    <ActionButton
+                      actionId="generate-next-step"
+                      enabled={enabledOf(snapshot, "generate-next-step")}
+                      intent={decisionText}
+                      onClick={() => run("generate-next-step", { intent: decisionText })}
+                    />
+                    <ActionButton actionId="delegate-poc" enabled={enabledOf(snapshot, "delegate-poc")} onClick={() => run("delegate-poc")} />
+                    <ActionButton actionId="prepare-acp-lease" enabled={enabledOf(snapshot, "prepare-acp-lease")} onClick={() => run("prepare-acp-lease")} />
+                    <ActionButton actionId="next-close-hop" enabled={enabledOf(snapshot, "next-close-hop")} onClick={() => run("next-close-hop")} />
+                  </div>
+                  <p className="muted">Click is not 已确认 / TOPIC已审核 / 可以开始实现.</p>
                 </div>
               </>
             )}
@@ -458,7 +608,18 @@ function App() {
           <div className="card">
             <h3>{dialog.title}</h3>
             <pre>{dialog.body}</pre>
-            <button type="button" data-ndf-action="collapse-section" onClick={() => setDialog(null)}>Dismiss</button>
+            <div className="pills">
+              <button
+                type="button"
+                data-ndf-action="copy-prompt"
+                onClick={() => {
+                  void navigator.clipboard.writeText(dialog.body).then(() => setCopied(true));
+                }}
+              >
+                {copied ? "已复制" : "复制 Prompt"}
+              </button>
+              <button type="button" data-ndf-action="collapse-section" onClick={() => setDialog(null)}>Dismiss</button>
+            </div>
           </div>
         </div>
       )}

@@ -146,6 +146,21 @@
       "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
     },
     {
+      "id": "copy-prompt",
+      "label": "复制 Prompt",
+      "tab": "any",
+      "module": "command-dialog",
+      "clauseRefs": ["META-011"],
+      "dispatch": "projection_only",
+      "operation": null,
+      "enableWhen": [],
+      "humanPhrase": null,
+      "requiresIntent": false,
+      "failClosed": "disable",
+      "mayWrite": [],
+      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+    },
+    {
       "id": "d3-zoom-filter",
       "label": "Overview zoom and filter",
       "tab": "any",

@@ -24,7 +24,7 @@ export type Snapshot = {
       phase?: string;
       charterPath?: string;
       charterExists?: boolean;
-      scales?: unknown[];
+      scales?: Array<[string, string]>;
     };
     performance?: {
       goldenHeadStatus?: string;
@@ -33,11 +33,16 @@ export type Snapshot = {
       warning?: string | null;
       scenes?: string[];
       aggQps?: number[];
+      steadyQps?: number[];
+      recall?: string[];
     };
+    capabilities?: Array<[string, number, number, number, string]>;
     topics?: TopicRow[];
     focusedTopic?: FocusedTopic | null;
     focusedTopicId?: string | null;
-    proposals?: unknown[];
+    proposals?: Array<[string, string, string]>;
+    roadmap?: Array<[string, string, string, string, string]>;
+    risks?: Array<{ kind?: string; severity?: string; message?: string; path?: string }>;
     nowNextBlocked?: { now?: string; next?: string; blocked?: number };
   };
   control?: {
@@ -76,15 +81,83 @@ export type TopicRow = {
 };
 
 export type FocusedTopic = TopicRow & {
-  topicOverview?: Record<string, unknown>;
-  spaces?: Record<string, { ready?: boolean; gaps?: string[]; purpose?: string }>;
-  decision?: { selected?: string | null; offered?: string[]; state?: string };
-  health?: { findings?: Array<{ kind?: string; space?: string; why_blocked?: string; clause_refs?: unknown }> };
+  topicOverview?: {
+    purpose?: string;
+    hypothesis?: string;
+    explore_surface?: string[];
+    idea_sources?: { depends_on_topics?: string[]; proposal_paths?: string[] };
+    lifecycle?: string;
+  };
+  spaces?: Record<string, {
+    ready?: boolean;
+    gaps?: string[];
+    purpose?: string;
+    clause_refs?: Array<{ id?: string; title?: string }>;
+    latest_round?: string;
+    latest_verdict?: string;
+    delta_path?: string;
+  }>;
+  decision?: {
+    selected?: string | null;
+    offered?: string[];
+    state?: string;
+    blocked?: Record<string, string>;
+    meanings?: Record<string, string>;
+    briefing?: { verdict?: string; latest_round?: string; latest_round_row?: string };
+  };
+  health?: {
+    findings?: Array<{
+      kind?: string;
+      severity?: string;
+      space?: string;
+      why_blocked?: string;
+      clause_refs?: Array<{ id?: string; title?: string }>;
+      repair_owner?: string;
+      repair_task?: string;
+      allowed_write_root?: string;
+    }>;
+    checks?: Record<string, { state?: string; summary?: string }>;
+    next_actions?: Array<{
+      label?: string;
+      owner?: string;
+      task?: string;
+      space?: string;
+      allowed_write_root?: string;
+    }>;
+  };
+  ndfFoundation?: {
+    stable_summary?: Record<string, number>;
+    explore_surface_bind?: Array<{ surface?: string; clauses?: unknown[] }>;
+    depends_on_edges?: unknown[];
+    clause_count?: number;
+  };
+  workflowMeta?: {
+    note?: string;
+    spec_health_state?: string;
+    spec_health_checks?: Record<string, string>;
+    node_count?: number;
+  };
+  traceability?: Array<{
+    goal_or_clause?: string;
+    design?: string;
+    code_or_commit?: string;
+    verification?: string;
+  }>;
   delegation?: {
+    safe_to_dispatch?: boolean;
     static_preflight_passed?: boolean;
     runtime_dispatch_ready?: boolean;
     context_plan?: { role?: string; plan_sha?: string; read_count?: number };
+    context_verify?: { valid?: boolean; errors?: Array<{ kind?: string; message?: string }> };
+    dispatch_blockers?: string[];
+    evaluated_at?: string;
   };
+  controlPipelines?: Record<string, {
+    label?: string;
+    needed?: boolean;
+    step_count?: number;
+    dispatch?: { state?: string; acknowledged?: boolean; blockers?: string[] };
+  }>;
 };
 
 export type HopRow = {

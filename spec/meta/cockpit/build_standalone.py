@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -12,6 +13,10 @@ COCKPIT = Path(__file__).resolve().parent
 DIST = COCKPIT / "dist"
 SNAPSHOT = ROOT / "tmp" / "ndf-canvas-snapshot.json"
 OUTPUT = ROOT / "docs" / "ndf-commander.html"
+TOOLS = ROOT / "spec" / "meta" / "tools"
+sys.path.insert(0, str(TOOLS))
+
+import ndf_actions  # noqa: E402
 
 
 def main() -> None:
@@ -30,9 +35,19 @@ def main() -> None:
     javascript = re.sub(r"<script", r"\\x3cscript", javascript, flags=re.IGNORECASE)
     css = (DIST / style_match.group(1).lstrip("/")).read_text(encoding="utf-8")
     snapshot = json.loads(SNAPSHOT.read_text(encoding="utf-8"))
+    action_responses = {
+        action["id"]: ndf_actions.standalone_action_template(action["id"], snapshot)
+        for action in ndf_actions.registry_actions()
+        if action.get("dispatch") != "projection_only"
+    }
     embedded = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).replace(
         "</", "<\\/"
     )
+    embedded_actions = json.dumps(
+        action_responses,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
 
     page = f"""<!doctype html>
 <html lang="zh-CN">
@@ -48,6 +63,7 @@ def main() -> None:
   <script>
     window.__NDF_STANDALONE__ = true;
     window.__NDF_SNAPSHOT__ = {embedded};
+    window.__NDF_ACTION_RESPONSES__ = {embedded_actions};
   </script>
   <script type="module">{javascript}</script>
 </body>

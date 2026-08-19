@@ -455,6 +455,79 @@ def composer_prompt(
     return "\n".join(lines) + "\n"
 
 
+def standalone_action_template(
+    action_id: str,
+    payload: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return the canonical static-commander response for one catalog action."""
+    action = registry_by_id().get(action_id)
+    if action is None:
+        raise ValueError(f"unregistered action: {action_id}")
+    dispatch = action.get("dispatch")
+    if dispatch == "composer":
+        return {
+            "id": action_id,
+            "dispatch": dispatch,
+            "prompt": composer_prompt(
+                action_id,
+                payload,
+                intent="__NDF_HUMAN_INTENT__",
+                topic="__NDF_TOPIC__",
+                episode_id="__NDF_EPISODE__",
+            ),
+        }
+    if dispatch == "openFile":
+        return {
+            "id": action_id,
+            "dispatch": dispatch,
+            "path": open_file_path(action_id, payload),
+        }
+    if dispatch == "snapshot":
+        topic = "__NDF_TOPIC__"
+        episode = "__NDF_EPISODE__"
+        command = {
+            "refresh-snapshot": (
+                "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
+                "--out tmp/ndf-canvas-snapshot.json --probe-runtime --json"
+            ),
+            "open-workbench": (
+                "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
+                f"--out tmp/ndf-canvas-snapshot.json --topic {topic} --json"
+            ),
+            "refresh-topic": (
+                "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
+                f"--out tmp/ndf-canvas-snapshot.json --topic {topic} --json"
+            ),
+            "inspect-ledger": (
+                "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
+                f"--out tmp/ndf-canvas-snapshot.json --replay-episode {episode} --json"
+            ),
+        }.get(action_id)
+        if command is None:
+            raise ValueError(f"snapshot action has no static command: {action_id}")
+        prompt = "\n".join(
+            [
+                "0. EXECUTE now. Do not explain this template.",
+                "This task is an NDF commander snapshot dispatch from the closed action catalog.",
+                f"action_id={action_id}",
+                f"label={action.get('label')}",
+                f"operation={action.get('operation')}",
+                f"clauses={', '.join(action.get('clauseRefs') or [])}",
+                "Button click is not a human gate.",
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
+                    f"--operation {action.get('operation')} --topic {topic} --json"
+                ),
+                command,
+                "python3 spec/meta/cockpit/build_standalone.py",
+                "Record action-finish success|failed after the operation.",
+                "MUST NOT write .openclaw/state.json from Cursor.",
+            ]
+        )
+        return {"id": action_id, "dispatch": dispatch, "prompt": prompt + "\n"}
+    return {"id": action_id, "dispatch": "projection_only"}
+
+
 def open_file_path(action_id: str, payload: Mapping[str, Any]) -> str | None:
     focused = _focused(payload) or {}
     topic_id = focused.get("id") or (payload.get("business") or {}).get("focusedTopicId")

@@ -302,6 +302,25 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("open-workbench", used)
         self.assertIn("inspect-ledger", used)
 
+    def test_standalone_templates_cover_every_non_projection_action(self) -> None:
+        payload = _payload()
+        for action in actions.registry_actions():
+            if action["dispatch"] == "projection_only":
+                continue
+            response = actions.standalone_action_template(action["id"], payload)
+            self.assertEqual(response["id"], action["id"])
+            self.assertEqual(response["dispatch"], action["dispatch"])
+            if action["dispatch"] in {"composer", "snapshot"}:
+                self.assertIn(f"action_id={action['id']}", response["prompt"])
+                self.assertNotIn("在当前 Cloud Agent 对话执行这个 NDF hop", response["prompt"])
+            if action["dispatch"] == "openFile":
+                self.assertTrue(response["path"])
+
+    def test_standalone_intent_template_preserves_human_slot(self) -> None:
+        response = actions.standalone_action_template("new-proposal", _payload())
+        self.assertIn("BEGIN HUMAN PRODUCT INTENT", response["prompt"])
+        self.assertIn("__NDF_HUMAN_INTENT__", response["prompt"])
+
 
 if __name__ == "__main__":
     unittest.main()

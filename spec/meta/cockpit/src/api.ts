@@ -4,6 +4,7 @@ declare global {
   interface Window {
     __NDF_SNAPSHOT__?: Snapshot;
     __NDF_STANDALONE__?: boolean;
+    __NDF_ACTION_RESPONSES__?: Record<string, ActionResponse>;
   }
 }
 
@@ -44,19 +45,27 @@ export async function loadSnapshot(): Promise<Snapshot> {
 
 export async function dispatchAction(request: ActionRequest): Promise<ActionResponse> {
   if (window.__NDF_STANDALONE__) {
-    const detail = [
-      `action_id=${request.id}`,
-      request.topic ? `topic=${request.topic}` : "",
-      request.episode ? `episode=${request.episode}` : "",
-      request.intent ? `intent=${request.intent}` : "",
-      "在当前 Cloud Agent 对话执行这个 NDF hop。",
-      "Button click is not a human gate.",
-      "MUST NOT write .openclaw/state.json from Cursor.",
-    ].filter(Boolean);
+    const template = window.__NDF_ACTION_RESPONSES__?.[request.id];
+    if (!template) {
+      throw new Error(`standalone action template missing: ${request.id}`);
+    }
+    const topic =
+      request.topic ||
+      window.__NDF_SNAPSHOT__?.business?.focusedTopicId ||
+      "<topic>";
+    const episode =
+      request.episode ||
+      window.__NDF_SNAPSHOT__?.replay?.focused?.id ||
+      "<episode>";
+    const replace = (value?: string | null) =>
+      value
+        ?.replaceAll("__NDF_HUMAN_INTENT__", request.intent?.trim() || "<human intent required>")
+        .replaceAll("__NDF_TOPIC__", topic)
+        .replaceAll("__NDF_EPISODE__", episode);
     return {
-      id: request.id,
-      dispatch: "composer",
-      prompt: detail.join("\n"),
+      ...template,
+      prompt: replace(template.prompt),
+      path: replace(template.path),
     };
   }
   const response = await fetch("/api/action", {
