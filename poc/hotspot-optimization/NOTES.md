@@ -23,6 +23,12 @@ Cursor 在收到「DESIGN已审核 / 可以开始实现」之后**非法自我�
 
 ## 状态
 
-- 三道门禁（TOPIC已审核 / DESIGN已审核 / 可以开始实现）**保持有效**，不要求重说。
-- 当前等待人工**本轮决策**（`selected_decision=implement`），之后 Delegate POC 到 Claude Code。
-- PERF Numbers / DELTA Rounds 仍 pending，未写任何观测数字。
+- 三道门禁回执仍以 `ndf/GATES.md` 为准；本 hop **不**新写口令、**不**改 GATES。
+- **2026-08-19 `poc_prepare_baseline`**：已把 Trunk 对照代码字节级拷进
+  `poc/hotspot-optimization/src/`（`disk_hnsw.cpp` / `disk_hnsw.h` / `simd*.h`），
+  并加 topic Makefile + `run_r0.sh` 以形成可测 R0 工作区。
+  **未改** `pqDistance`（无 D1 SIMD gather）。**未写** PERF Numbers / DELTA Rounds。
+- 拷贝对照 `baseline_trunk_sha` `a14339234133cc6c5a2348464954f744c6465efb`（与当前 HEAD 这些路径字节相同）。
+- 默认 `run_r0.sh` 只 build + `scripts/run_sustained.sh --config cfg-m24-ef60 --dry-run`。
+  实测 Numbers 留给 `poc_measurement`。
+- 下一步仍是人工**本轮决策**（`selected_decision`）后再 Delegate POC 做 D1；本 hop 不是实现委派。
