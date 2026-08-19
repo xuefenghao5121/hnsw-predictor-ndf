@@ -388,31 +388,6 @@ QPS and Recall.
         self.assertNotIn("BEH-100", ids)
         self.assertIn("BEH-100", plan["graph"]["missing_seeds"])
 
-    def test_prepare_baseline_is_claude_code_poc_task(self) -> None:
-        self.assertTrue(
-            context._role_task_compatible("claude-code", "poc_prepare_baseline", "poc")
-        )
-        self.assertEqual(
-            context.TASK_DEFAULT_SEEDS["poc_prepare_baseline"],
-            ("BEH-018", "BEH-025", "META-012"),
-        )
-        priv = context._privileges("claude-code", "poc_prepare_baseline", "poc", "demo")
-        self.assertEqual(priv["allowed_write_roots"], ["poc/demo/"])
-        self.assertIn("src/", priv["forbidden_write_paths"])
-        self.assertIn("spec/meta/", priv["forbidden_write_paths"])
-
-    def test_prepare_baseline_bundle_omits_perf_numbers(self) -> None:
-        bundle = context.expand_plan(
-            self._plan(role="claude-code", task="poc_prepare_baseline"),
-            root=self.root,
-        )
-        perf = next(
-            item["content"]
-            for item in bundle["files"]
-            if item["path"].endswith("PERF_BASELINE.md")
-        )
-        self.assertNotIn("SECRET_QPS", perf)
-
     def test_non_measurement_bundle_omits_perf_numbers(self) -> None:
         bundle = context.expand_plan(self._plan(), root=self.root)
         perf = next(item["content"] for item in bundle["files"] if item["path"].endswith("PERF_BASELINE.md"))
@@ -465,7 +440,7 @@ QPS and Recall.
         self.assertIn("forbidden_path", {item["kind"] for item in result["errors"]})
 
     def test_verify_rejects_stale_baseline(self) -> None:
-        plan = self._plan()
+        plan = self._plan(task="verification", role="claude-code")
         plan["baseline"]["baseline_status"] = "stale"
         self._resign(plan)
         result = context.verify_plan(plan, root=self.root)
@@ -556,10 +531,15 @@ QPS and Recall.
         self.assertFalse(evidence.validate_receipt(bad)["valid"])
 
     def test_short_gate_sha_never_verifies(self) -> None:
-        plan = self._plan()
+        plan = self._plan(task="verification", role="claude-code")
         receipt = {
             "gate": "implementation_approval",
             "status": "approved",
+            "phrase": "可以开始实现",
+            "expected_phrase": "可以开始实现",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T00:00:00Z",
+            "source_ref": "poc/demo/ndf/INTERFACE.md",
             "approved_content_sha": "abc123",
             "expected_content_sha": "abc123" + "0" * 58,
         }
@@ -567,6 +547,219 @@ QPS and Recall.
         self._resign(plan)
         result = context.verify_plan(plan, root=self.root)
         self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["errors"]})
+
+    def test_content_aligned_review_slice_manifest_drift_does_not_fail_verify(self) -> None:
+        sha = "a" * 64
+        plan = self._plan(task="poc_implementation", role="claude-code")
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "implementation_approval",
+                "status": "approved",
+                "phrase": "可以开始实现",
+                "expected_phrase": "可以开始实现",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "TOPIC+DESIGN+PERF",
+                "approved_content_sha": sha,
+                "expected_content_sha": sha,
+                "receipt_bundle_mode": "review_slice",
+                "expected_bundle_mode": "review_slice",
+                "receipt_slice_manifest_sha": "d" * 64,
+                "expected_slice_manifest_sha": "e" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertNotIn("gate_sha_mismatch", kinds, result["errors"])
+        self.assertNotIn("required_gate_not_valid", kinds, result["errors"])
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_review_slice_content_mismatch_still_fails_verify(self) -> None:
+        plan = self._plan(task="poc_implementation", role="claude-code")
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "implementation_approval",
+                "status": "approved",
+                "phrase": "可以开始实现",
+                "expected_phrase": "可以开始实现",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "TOPIC+DESIGN+PERF",
+                "approved_content_sha": "a" * 64,
+                "expected_content_sha": "b" * 64,
+                "receipt_bundle_mode": "review_slice",
+                "expected_bundle_mode": "review_slice",
+                "receipt_slice_manifest_sha": "d" * 64,
+                "expected_slice_manifest_sha": "e" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertIn("gate_sha_mismatch", kinds)
+        self.assertIn("required_gate_not_valid", kinds)
+
+    def test_gate_audit_task_treats_sha_mismatch_as_warning(self) -> None:
+        plan = self._plan(task="gate_sha_audit", role="openclaw")
+        receipt = {
+            "gate": "topic_review",
+            "status": "approved",
+            "phrase": "TOPIC已审核",
+            "expected_phrase": "TOPIC已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T00:00:00Z",
+            "source_ref": "poc/demo/ndf/TOPIC.md",
+            "approved_content_sha": "a" * 64,
+            "expected_content_sha": "b" * 64,
+        }
+        plan["gates"]["receipts"] = [receipt]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn("gate_sha_mismatch", {item["kind"] for item in result["errors"]})
+        self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["warnings"]})
+        self.assertTrue(result["valid"])
+
+    def test_binder_repair_treats_stale_baseline_and_gate_drift_as_warnings(self) -> None:
+        plan = self._plan(task="binder_amend", role="openclaw")
+        plan["baseline"]["baseline_status"] = "stale"
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "design_review",
+                "status": "approved",
+                "phrase": "DESIGN已审核",
+                "expected_phrase": "DESIGN已审核",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "poc/demo/ndf/DESIGN.md",
+                "approved_content_sha": "a" * 64,
+                "expected_content_sha": "b" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        warning_kinds = {item["kind"] for item in result["warnings"]}
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertIn("baseline_stale", warning_kinds)
+        self.assertIn("gate_sha_mismatch", warning_kinds)
+
+    def test_measurement_treats_stale_baseline_as_warning(self) -> None:
+        plan = self._plan(task="poc_measurement", role="claude-code")
+        plan["baseline"]["baseline_status"] = "stale"
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn(
+            "baseline_stale", {item["kind"] for item in result["errors"]}
+        )
+        self.assertIn(
+            "baseline_stale", {item["kind"] for item in result["warnings"]}
+        )
+
+    def test_selected_decision_header_is_mutable_section_not_file_drift(self) -> None:
+        self._write(
+            "poc/demo/ndf/TOPIC.md",
+            "> topic_id: demo\n"
+            "> status: exploring\n\n"
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        topic = self.root / "poc/demo/ndf/TOPIC.md"
+        topic.write_text(
+            "> topic_id: demo\n"
+            "> status: exploring\n"
+            "> selected_decision: reject\n\n"
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertNotIn("file_drift", kinds, result["errors"])
+        self.assertIn(
+            "mutable_section_drift",
+            {item["kind"] for item in result["warnings"]},
+        )
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_perf_numbers_edit_is_mutable_section_not_file_drift(self) -> None:
+        self._write(
+            "poc/demo/ndf/PERF_BASELINE.md",
+            "> vs: bl-demo\n"
+            "> config_id: cfg-demo\n"
+            "> measure_script: poc/demo/measure.py\n\n"
+            "<!-- ndf:gate-slice begin=perf_bind -->\n"
+            "bind card\n"
+            "<!-- ndf:gate-slice end=perf_bind -->\n\n"
+            "## Numbers\nQPS=1\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        perf = self.root / "poc/demo/ndf/PERF_BASELINE.md"
+        perf.write_text(
+            "> vs: bl-demo\n"
+            "> config_id: cfg-demo\n"
+            "> measure_script: poc/demo/measure.py\n\n"
+            "<!-- ndf:gate-slice begin=perf_bind -->\n"
+            "bind card\n"
+            "<!-- ndf:gate-slice end=perf_bind -->\n\n"
+            "## Numbers\nQPS=999\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn(
+            "file_drift", {item["kind"] for item in result["errors"]}, result["errors"]
+        )
+        self.assertIn(
+            "mutable_section_drift",
+            {item["kind"] for item in result["warnings"]},
+        )
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_contract_slice_edit_still_file_drifts(self) -> None:
+        self._write(
+            "poc/demo/ndf/TOPIC.md",
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        topic = self.root / "poc/demo/ndf/TOPIC.md"
+        topic.write_text(
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis Z\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        self.assertIn("file_drift", {item["kind"] for item in result["errors"]})
+        self.assertFalse(result["valid"])
+
+    def test_gate_info_parses_review_slice_nine_column_table(self) -> None:
+        sha = "f" * 64
+        slice_sha = "e" * 64
+        self._write(
+            "poc/demo/ndf/GATES.md",
+            "| gate | phrase | approved_by | approved_at | approved_content_sha |"
+            " bundle_mode | slice_manifest_sha | source_ref | status |\n"
+            "|------|--------|-------------|-------------|----------------------|"
+            "-------------|-------------------|------------|--------|\n"
+            f"| implementation_approval | 可以开始实现 | human | 2026-08-14T10:26:00Z |"
+            f" {sha} | review_slice | {slice_sha} | TOPIC+DESIGN+PERF | approved |\n",
+        )
+        info = context._gate_info(self.root, "demo")
+        receipt = next(
+            item
+            for item in info["receipts"]
+            if item["gate"] == "implementation_approval"
+        )
+        self.assertEqual(receipt["approved_content_sha"], sha)
+        self.assertEqual(receipt["status"], "approved")
+        self.assertEqual(receipt["bundle_mode"], "review_slice")
+        self.assertEqual(receipt["slice_manifest_sha"], slice_sha)
+        self.assertEqual(receipt["source_ref"], "TOPIC+DESIGN+PERF")
+        self.assertNotEqual(receipt["status"], "TOPIC+DESIGN+PERF")
 
     def test_manifest_resigned_after_closure_tamper_fails_rederivation(self) -> None:
         manifest = context.create_manifest(
@@ -597,6 +790,107 @@ QPS and Recall.
         )
         with self.assertRaisesRegex(ValueError, "incompatible role/task/track"):
             context.role_plan(manifest, role="claude-code")
+
+    def test_section_privileges_split_binder_and_measurement(self) -> None:
+        binder = context._privileges(
+            "openclaw", "binder_pipeline", "poc", "demo"
+        )
+        self.assertIn("design_contract", binder["allowed_sections"])
+        self.assertIn("perf_numbers", binder["forbidden_sections"])
+        self.assertIn("delta_rounds", binder["forbidden_sections"])
+
+        measurement = context._privileges(
+            "claude-code", "poc_measurement", "poc", "demo"
+        )
+        self.assertIn("perf_numbers", measurement["allowed_sections"])
+        self.assertIn("delta_rounds", measurement["allowed_sections"])
+        self.assertIn("gate_receipts", measurement["forbidden_sections"])
+
+    def test_project_control_land_privileges_cover_spec_meta(self) -> None:
+        land = context._privileges(
+            "project-control", "ndf_improvement_land", "process", None
+        )
+        draft = context._privileges(
+            "project-control", "ndf_improvement_proposal", "process", None
+        )
+        self.assertEqual(
+            land["allowed_write_roots"],
+            ["spec/meta/", "spec/meta/open/"],
+        )
+        self.assertEqual(draft["allowed_write_roots"], ["spec/meta/open/"])
+        self.assertNotIn("spec/meta/", draft["allowed_write_roots"])
+        self.assertNotIn("src/", land["allowed_write_roots"])
+        self.assertIn("src/", land["forbidden_write_paths"])
+
+    def test_project_control_manifest_binds_stage_identity_and_exact_targets(self) -> None:
+        proposal = self._write(
+            "spec/meta/open/proposal-meta-managed.md",
+            "# Managed\n\n> track: process\n> control-flow: managed\n",
+        )
+        proposal_sha = evidence.file_sha(proposal)
+        binding = {
+            "proposal_id": "meta-managed",
+            "flow_id": "flow-managed",
+            "hop": "confirm_land",
+            "origin": "human_confirmation",
+            "intent_sha": None,
+            "proposal_path": "spec/meta/open/proposal-meta-managed.md",
+            "proposal_sha": proposal_sha,
+            "land_targets": [
+                "spec/meta/process.md",
+                "spec/meta/tools/ndf_context.py",
+            ],
+        }
+        manifest = context.create_manifest(
+            root=self.root,
+            topic=None,
+            task="ndf_improvement_land",
+            track="process",
+            control_binding=binding,
+        )
+        self.assertEqual(manifest["control"], binding)
+        plan = context.role_plan(manifest, role="project-control")
+        self.assertEqual(plan["control"]["hop"], "confirm_land")
+        self.assertEqual(
+            plan["privileges"]["allowed_write_roots"],
+            [
+                "spec/meta/process.md",
+                "spec/meta/tools/ndf_context.py",
+                "spec/meta/open/proposal-meta-managed.md",
+            ],
+        )
+        proposal.write_text(proposal.read_text() + "\ndrift\n", encoding="utf-8")
+        result = context.verify_manifest_current(manifest, root=self.root)
+        self.assertIn(
+            "proposal_drift",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_project_control_manifest_rejects_missing_or_incompatible_stage(self) -> None:
+        with self.assertRaisesRegex(ValueError, "control binding"):
+            context.create_manifest(
+                root=self.root,
+                topic=None,
+                task="ndf_improvement_land",
+                track="process",
+            )
+        with self.assertRaisesRegex(ValueError, "incompatible project-control stage"):
+            context.create_manifest(
+                root=self.root,
+                topic=None,
+                task="ndf_improvement_proposal",
+                track="process",
+                control_binding={
+                    "proposal_id": "meta-managed",
+                    "flow_id": "flow-managed",
+                    "hop": "review",
+                    "origin": "human_intent",
+                    "intent_sha": "a" * 64,
+                    "proposal_path": "spec/meta/open/proposal-meta-managed.md",
+                    "proposal_sha": None,
+                    "land_targets": [],
+                },
+            )
 
     def test_recorded_lease_proof_survives_worktree_cleanup(self) -> None:
         head = subprocess.check_output(

@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-13T07:15:22Z",
-  "clause_count": 251,
+  "generated_at": "2026-08-19T13:35:40Z",
+  "clause_count": 256,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -1184,7 +1184,7 @@
       "id": "BEH-019",
       "title": "晋升闸门",
       "file": "meta/process.md",
-      "line": 65,
+      "line": 67,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1223,7 +1223,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 557,
+      "line": 896,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1284,7 +1284,8 @@
         "CON-SLA-013",
         "DEC-062",
         "DEC-063",
-        "DEC-071"
+        "DEC-071",
+        "DEC-PROJECT-GENESIS"
       ]
     },
     "BEH-022": {
@@ -1311,7 +1312,8 @@
         "API-010",
         "CON-SLA-013",
         "DEC-063",
-        "DEC-071"
+        "DEC-071",
+        "DEC-PROJECT-GENESIS"
       ]
     },
     "BEH-023": {
@@ -1341,7 +1343,8 @@
         "BEH-024",
         "CON-SLA-013",
         "DEC-063",
-        "DEC-071"
+        "DEC-071",
+        "DEC-PROJECT-GENESIS"
       ]
     },
     "BEH-024": {
@@ -1394,7 +1397,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 577,
+      "line": 916,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1427,11 +1430,14 @@
         "BEH-019",
         "BEH-020",
         "DEC-070",
+        "DEC-099",
+        "DEC-100",
         "DEF-022",
         "DEF-NDF-ORCHESTRATION",
         "META-003",
         "META-007",
         "META-008",
+        "META-011",
         "META-012"
       ]
     },
@@ -1439,7 +1445,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 720,
+      "line": 1059,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1608,6 +1614,8 @@
         "API-018",
         "BEH-033",
         "DEC-084",
+        "DEC-099",
+        "DEC-PROJECT-GENESIS",
         "MODEL-SUSTAINED-001"
       ]
     },
@@ -1673,7 +1681,8 @@
         "CHR-006",
         "DEC-059",
         "DEC-062",
-        "DEC-065"
+        "DEC-065",
+        "DEC-PROJECT-GENESIS"
       ]
     },
     "CHR-002": {
@@ -1704,7 +1713,9 @@
       "scope": "",
       "edges": {},
       "body_refs": [],
-      "backlinks": []
+      "backlinks": [
+        "DEC-PROJECT-GENESIS"
+      ]
     },
     "CHR-004": {
       "id": "CHR-004",
@@ -2280,7 +2291,8 @@
         "DEC-063",
         "DEC-066",
         "DEC-067",
-        "DEC-071"
+        "DEC-071",
+        "DEC-PROJECT-GENESIS"
       ]
     },
     "CON-SLA-014": {
@@ -4427,6 +4439,43 @@
       "body_refs": [],
       "backlinks": []
     },
+    "DEC-099": {
+      "id": "DEC-099",
+      "title": "DEC-099: cluster-gbdt 负结果 — cluster entropy 饱和、无聚集",
+      "file": "decisions/31-cluster-gbdt-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-037",
+        "BEH-034",
+        "BEH-025"
+      ],
+      "backlinks": []
+    },
+    "DEC-100": {
+      "id": "DEC-100",
+      "title": "DEC-100: page-packer 负结果 — 页内贪心打包边际不足",
+      "file": "decisions/32-page-packer-reject.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-037",
+        "BEH-025"
+      ],
+      "backlinks": []
+    },
     "DEC-HYGIENE-001": {
       "id": "DEC-HYGIENE-001",
       "title": "ADR: NDF 规范防腐化与双轨 SLA",
@@ -4440,6 +4489,30 @@
       "scope": "",
       "edges": {},
       "body_refs": [],
+      "backlinks": []
+    },
+    "DEC-PROJECT-GENESIS": {
+      "id": "DEC-PROJECT-GENESIS",
+      "title": "DEC: Project Genesis",
+      "file": "decisions/dec-project-genesis.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "META-009",
+        "CHR-001",
+        "CHR-003",
+        "BEH-021",
+        "BEH-022",
+        "BEH-023",
+        "BEH-034",
+        "CON-SLA-013"
+      ],
       "backlinks": []
     },
     "DEF-001": {
@@ -5463,7 +5536,7 @@
       "id": "META-006",
       "title": "金标更新义务",
       "file": "meta/process.md",
-      "line": 101,
+      "line": 108,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5486,7 +5559,7 @@
       "id": "META-007",
       "title": "POC 性能线唯一绑定",
       "file": "meta/process.md",
-      "line": 120,
+      "line": 127,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5541,7 +5614,7 @@
       "id": "META-009",
       "title": "Project Genesis 初始化轨",
       "file": "meta/process.md",
-      "line": 143,
+      "line": 150,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5556,6 +5629,7 @@
       },
       "body_refs": [],
       "backlinks": [
+        "DEC-PROJECT-GENESIS",
         "DEF-NDF-PROJECT-GENESIS"
       ]
     },
@@ -5563,7 +5637,7 @@
       "id": "META-010",
       "title": "人工门禁回执",
       "file": "meta/process.md",
-      "line": 181,
+      "line": 188,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5576,20 +5650,23 @@
           "META-008"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "META-014"
+      ],
       "backlinks": [
         "BEH-025",
         "DEF-NDF-GATE-RECEIPT",
         "META-011",
         "META-012",
-        "META-013"
+        "META-013",
+        "META-014"
       ]
     },
     "META-011": {
       "id": "META-011",
       "title": "Workflow 投影与 Claude Code 委派",
       "file": "meta/process.md",
-      "line": 203,
+      "line": 255,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5602,19 +5679,24 @@
           "META-010"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "BEH-025",
+        "META-010"
+      ],
       "backlinks": [
         "DEF-NDF-WORKFLOW-PROJECTION",
         "META-008",
         "META-012",
-        "META-013"
+        "META-013",
+        "META-014",
+        "META-015"
       ]
     },
     "META-012": {
       "id": "META-012",
       "title": "NDF 任务上下文与证据绑定",
       "file": "meta/process.md",
-      "line": 390,
+      "line": 563,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5633,14 +5715,15 @@
         "BEH-025"
       ],
       "backlinks": [
-        "META-013"
+        "META-013",
+        "META-014"
       ]
     },
     "META-013": {
       "id": "META-013",
       "title": "Agent Episode、事件链与回放等级",
       "file": "meta/process.md",
-      "line": 456,
+      "line": 637,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5655,9 +5738,63 @@
         ]
       },
       "body_refs": [
-        "META-011"
+        "META-015",
+        "META-011",
+        "META-014"
       ],
-      "backlinks": []
+      "backlinks": [
+        "META-014",
+        "META-015"
+      ]
+    },
+    "META-014": {
+      "id": "META-014",
+      "title": "Process Proposal 生命周期与回执",
+      "file": "meta/process.md",
+      "line": 819,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.16",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-010",
+          "META-011",
+          "META-012",
+          "META-013"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "META-010",
+        "META-013"
+      ]
+    },
+    "META-015": {
+      "id": "META-015",
+      "title": "回放沙箱与执行器边界",
+      "file": "meta/process.md",
+      "line": 782,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.17",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-011",
+          "META-013"
+        ]
+      },
+      "body_refs": [
+        "META-013"
+      ],
+      "backlinks": [
+        "META-013"
+      ]
     },
     "MODEL-SUSTAINED-001": {
       "id": "MODEL-SUSTAINED-001",

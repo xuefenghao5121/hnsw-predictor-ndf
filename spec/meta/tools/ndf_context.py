@@ -22,8 +22,8 @@ if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
 import ndf_index as ndx  # noqa: E402
+import ndf_gate_slices  # noqa: E402
 from ndf_workflow_evidence import (  # noqa: E402
-    bundle_sha,
     canonical_json_sha,
     file_sha,
     safe_tmp_report_path,
@@ -52,29 +52,49 @@ GATE_PHRASES = {
 PROCESS_TASKS = frozenset(
     {
         "ndf_improvement_proposal",
+        "ndf_improvement_land",
         "control_proposal",
         "spec_health",
         "project_control",
         "process",
     }
 )
+PROJECT_CONTROL_STAGE_TASKS = {
+    "ndf_improvement_proposal": frozenset({"draft"}),
+    "ndf_improvement_land": frozenset({"confirm_land", "review"}),
+}
+# Control tasks whose job includes inspecting/fixing gate SHA drift — mismatch
+# must not fail context-verify closed (that would prevent OpenClaw dispatch).
+GATE_AUDIT_TASKS = frozenset(
+    {
+        "gate_sha_audit",
+        "gate_pipeline",
+        "legacy_gate_audit",
+        "gate_receipt_draft",
+    }
+)
+CONTROL_REPAIR_TASKS = GATE_AUDIT_TASKS | frozenset(
+    {"binder_amend", "binder_pipeline"}
+)
 MEASUREMENT_TASKS = frozenset({"poc_measurement", "measurement", "verify", "verification"})
+MEASUREMENT_REPAIR_TASKS = frozenset({"poc_measurement", "measurement"})
 SEMANTIC_TASKS = frozenset({"promote", "partial", "semantic_core", "semantic-core"})
 TASK_DEFAULT_SEEDS = {
     "poc_measurement": ("META-007", "META-012", "BEH-025"),
-    "poc_prepare_baseline": ("BEH-018", "BEH-025", "META-012"),
     "measurement": ("META-007", "META-012"),
     "verify": ("META-012",),
     "verification": ("META-012",),
+    "poc_prepare_baseline": ("META-012", "BEH-018", "CON-POC-001", "BEH-025"),
     "promote": ("BEH-019", "META-004", "META-005", "META-012"),
     "partial": ("BEH-019", "META-004", "META-012"),
     "binder_amend": ("BEH-025", "META-010", "META-012"),
     "gate_sha_audit": ("META-010", "META-012"),
     "control_proposal": ("META-011", "META-012"),
     "ndf_improvement_proposal": ("META-011", "META-012"),
-    "episode_replay": ("META-012", "META-013"),
-    "replay_audit": ("META-012", "META-013"),
-    "replay_sandbox": ("META-012", "META-013"),
+    "ndf_improvement_land": ("META-011", "META-012"),
+    "episode_replay": ("META-012", "META-013", "META-015"),
+    "replay_audit": ("META-012", "META-013", "META-015"),
+    "replay_sandbox": ("META-012", "META-013", "META-015"),
 }
 PRIVILEGES = {
     "canvas": {
@@ -142,6 +162,8 @@ def _role_task_compatible(role: str, task: str, track: str) -> bool:
             "gate_sha_audit",
             "gate_receipt_draft",
             "binder_amend",
+            "gate_pipeline",
+            "binder_pipeline",
             "control_proposal",
             "close",
             "promote",
@@ -154,8 +176,8 @@ def _role_task_compatible(role: str, task: str, track: str) -> bool:
                 "project_genesis",
                 "implement",
                 "poc_implementation",
-                "poc_measurement",
                 "poc_prepare_baseline",
+                "poc_measurement",
                 "measurement",
                 "verify",
                 "verification",
@@ -325,6 +347,7 @@ def graph_closure(
     node_budget: int,
     byte_budget: int,
     root: Path,
+    include_bodies: bool = True,
 ) -> dict[str, Any]:
     """Compute deterministic, bounded task-specific graph closure."""
     relations = ["depends-on", "refines"]
@@ -358,9 +381,15 @@ def graph_closure(
         if clause is None:
             missing.append(cid)
             continue
-        text = _clause_text(clause, root)
-        size = len(text.encode("utf-8"))
-        if bytes_used + size > byte_budget:
+        if include_bodies:
+            text = _clause_text(clause, root)
+            size = len(text.encode("utf-8"))
+            clause_sha = canonical_json_sha(text)
+        else:
+            text = ""
+            size = 0
+            clause_sha = canonical_json_sha(cid)
+        if include_bodies and bytes_used + size > byte_budget:
             truncated.append("byte_budget")
             continue
         bytes_used += size
@@ -375,7 +404,7 @@ def graph_closure(
             "scope": clause.meta.get("scope"),
             "trunk_ref": clause.meta.get("trunk-ref"),
             "hop": hop,
-            "clause_sha": canonical_json_sha(text),
+            "clause_sha": clause_sha,
             "bytes": size,
             "edges": {key: list(value) for key, value in sorted(clause.edges.items())},
         }
@@ -425,6 +454,11 @@ def _file_records(paths: Iterable[Path], root: Path) -> list[dict[str, Any]]:
             phase = "git"
         else:
             phase = "binder"
+        slices = (
+            ndf_gate_slices.slice_content_fingerprints(path, root=root)
+            if path.is_file()
+            else []
+        )
         records.append(
             {
                 "order": index,
@@ -433,6 +467,7 @@ def _file_records(paths: Iterable[Path], root: Path) -> list[dict[str, Any]]:
                 "bytes": path.stat().st_size,
                 "phase": phase,
                 "reason": f"{phase}_root",
+                **({"slices": slices} if slices else {}),
             }
         )
     return records
@@ -469,54 +504,58 @@ def _gate_info(root: Path, topic: str | None) -> dict[str, Any]:
     gates = ndf / "GATES.md"
     receipts: list[dict[str, Any]] = []
     if gates.is_file():
-        for line in _read(gates).splitlines():
-            if not line.strip().startswith("|"):
-                continue
-            cells = [cell.strip().strip("`") for cell in line.strip().strip("|").split("|")]
-            if len(cells) < 7 or cells[0] in {"gate", "------"} or set(cells[0]) <= {"-", ":"}:
-                continue
-            receipts.append(
-                dict(
-                    zip(
-                        (
-                            "gate",
-                            "phrase",
-                            "approved_by",
-                            "approved_at",
-                            "approved_content_sha",
-                            "source_ref",
-                            "status",
-                        ),
-                        cells[:7],
-                    )
-                )
-            )
-    expected: dict[str, str | None] = {}
-    bundles = {
-        "topic_review": [ndf / "TOPIC.md"],
-        "design_review": [ndf / "TOPIC.md", ndf / "DESIGN.md"],
-        "implementation_approval": [
-            ndf / "TOPIC.md",
-            ndf / "DESIGN.md",
-            ndf / "PERF_BASELINE.md",
-            ndf / "DELTA.md",
-            ndf / "INTERFACE.md",
-        ],
-    }
+        receipts = [
+            dict(row) for row in ndf_gate_slices.parse_gates_table(_read(gates))
+        ]
     proposal_paths = _proposal_paths(_read(ndf / "TOPIC.md") if (ndf / "TOPIC.md").is_file() else "", ndf, root)
-    bundles["topic_review"].extend(proposal_paths)
-    for gate, paths in bundles.items():
-        expected[gate] = (
-            bundle_sha(paths, root=root) if paths and all(path.is_file() for path in paths) else None
-        )
+    specs = ndf_gate_slices.gate_bundle_specs(
+        root / "poc" / topic,
+        root=root,
+        proposal_paths=proposal_paths,
+    )
+    expected = {
+        gate: spec.get("expected_content_sha") for gate, spec in specs.items()
+    }
+    history = list(receipts)
+    latest_by_gate: dict[str, dict[str, Any]] = {}
+    for receipt in history:
+        latest_by_gate[str(receipt.get("gate"))] = receipt
+    receipts = [
+        latest_by_gate[gate]
+        for gate in ("topic_review", "design_review", "implementation_approval")
+        if gate in latest_by_gate
+    ]
     for receipt in receipts:
-        receipt["expected_content_sha"] = expected.get(receipt["gate"])
+        spec = specs.get(receipt["gate"], {})
+        receipt["expected_content_sha"] = spec.get("expected_content_sha")
         receipt["expected_phrase"] = GATE_PHRASES.get(receipt["gate"])
+        receipt["receipt_bundle_mode"] = (
+            receipt.get("bundle_mode") or "legacy_whole_file"
+        )
+        receipt["receipt_slice_manifest_sha"] = (
+            receipt.get("slice_manifest_sha") or None
+        )
+        receipt["expected_bundle_mode"] = spec.get("bundle_mode")
+        receipt["expected_slice_manifest_sha"] = spec.get(
+            "slice_manifest_sha"
+        )
     return {
         "path": _rel(gates, root) if gates.is_file() else None,
         "path_sha": file_sha(gates) if gates.is_file() else None,
         "expected": expected,
+        "bundle_specs": specs,
+        "bundle_mode": (
+            "review_slice"
+            if specs
+            and all(
+                spec.get("bundle_mode") == "review_slice"
+                for spec in specs.values()
+            )
+            else "legacy_whole_file"
+        ),
+        "mutable_sections": list(ndf_gate_slices.MUTABLE_SECTIONS),
         "receipts": receipts,
+        "receipt_history_count": len(history),
     }
 
 
@@ -558,31 +597,186 @@ def _ledger_joins(root: Path, topic: str | None) -> list[dict[str, Any]]:
     return joins
 
 
-def _privileges(role: str, task: str, track: str, topic: str | None) -> dict[str, Any]:
+def _normalize_control_binding(
+    root: Path,
+    task: str,
+    binding: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    stages = PROJECT_CONTROL_STAGE_TASKS.get(task)
+    if stages is None:
+        if binding is not None:
+            raise ValueError(f"control binding is not valid for task {task}")
+        return None
+    if not isinstance(binding, Mapping):
+        raise ValueError(f"{task} requires a control binding")
+    value = json.loads(json.dumps(dict(binding)))
+    required = ("proposal_id", "flow_id", "hop", "origin")
+    if any(not isinstance(value.get(field), str) or not value[field].strip() for field in required):
+        raise ValueError("control binding missing proposal_id/flow_id/hop/origin")
+    if value["hop"] not in stages:
+        raise ValueError(
+            f"incompatible project-control stage: {task}/{value['hop']}"
+        )
+    proposal_path = value.get("proposal_path")
+    if not isinstance(proposal_path, str) or not proposal_path:
+        raise ValueError("control binding requires proposal_path")
+    resolved = (root / proposal_path).resolve()
+    meta_open = (root / "spec" / "meta" / "open").resolve()
+    try:
+        resolved.relative_to(meta_open)
+    except ValueError as exc:
+        raise ValueError("control proposal_path must be under spec/meta/open/") from exc
+    if not resolved.name.startswith("proposal-meta-") or resolved.suffix != ".md":
+        raise ValueError("control proposal_path must name proposal-meta-*.md")
+    value["proposal_path"] = _rel(resolved, root)
+    proposal_sha = value.get("proposal_sha")
+    if value["hop"] in {"confirm_land", "review"}:
+        if not resolved.is_file() or not isinstance(proposal_sha, str):
+            raise ValueError("land/review control binding requires existing proposal_sha")
+        if file_sha(resolved) != proposal_sha:
+            raise ValueError("control proposal_sha does not match proposal bytes")
+    elif proposal_sha is not None and (
+        not isinstance(proposal_sha, str)
+        or (resolved.is_file() and file_sha(resolved) != proposal_sha)
+    ):
+        raise ValueError("draft proposal_sha does not match proposal bytes")
+    intent_sha = value.get("intent_sha")
+    if value["hop"] == "draft" and not (
+        isinstance(intent_sha, str) and re.fullmatch(r"[0-9a-f]{64}", intent_sha)
+    ):
+        raise ValueError("draft control binding requires intent_sha")
+    targets = value.get("land_targets") or []
+    if not isinstance(targets, list) or not all(
+        isinstance(item, str) and item and not Path(item).is_absolute()
+        for item in targets
+    ):
+        raise ValueError("control land_targets must be relative path strings")
+    normalized_targets: list[str] = []
+    for item in targets:
+        target = (root / item).resolve()
+        try:
+            target.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(f"control land target escapes repository: {item}") from exc
+        normalized_targets.append(_rel(target, root))
+    value["land_targets"] = _unique(normalized_targets)
+    return value
+
+
+def _privileges(
+    role: str,
+    task: str,
+    track: str,
+    topic: str | None,
+    control: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     if role not in PRIVILEGES:
         raise ValueError(f"unknown role: {role}")
     value = json.loads(json.dumps(PRIVILEGES[role]))
+    value["allowed_sections"] = []
+    value["forbidden_sections"] = []
+    value["mutable_sections"] = list(ndf_gate_slices.MUTABLE_SECTIONS)
     if role == "claude-code":
         if track == "poc":
             value["allowed_write_roots"] = [f"poc/{topic}/"] if topic else []
             value["forbidden_write_paths"].extend(["src/", "include/", "tests/"])
         elif track in {"promote", "bug", "refactor", "rollback"}:
             value["allowed_write_roots"] = ["src/", "include/", "tests/", "spec/50-verification/"]
-    if (
-        task in {"poc_measurement", "poc_prepare_baseline"}
-        and topic
-        and f"poc/{topic}/" not in value["allowed_write_roots"]
-    ):
+        if track == "poc":
+            value["allowed_sections"] = [
+                "poc_code",
+                "perf_numbers",
+                "delta_rounds",
+                "evidence",
+                "commits_append",
+                "topic_runtime_headers",
+            ]
+            value["forbidden_sections"] = [
+                "topic_contract",
+                "design_contract",
+                "perf_bind",
+                "delta_hypothesis",
+                "interface_contract",
+                "gate_receipts",
+            ]
+    if task == "poc_measurement" and topic and f"poc/{topic}/" not in value["allowed_write_roots"]:
         value["allowed_write_roots"].append(f"poc/{topic}/")
     if role == "openclaw":
-        if task in {"legacy_gate_audit", "gate_sha_audit"}:
+        if task == "gate_sha_audit":
             value["allowed_write_roots"] = []
-        elif task in {"gate_receipt_draft", "binder_amend"}:
-            value["allowed_write_roots"] = [f"poc/{topic}/ndf/"] if topic else []
+        elif task in {
+            "legacy_gate_audit",
+            "gate_receipt_draft",
+            "gate_pipeline",
+        }:
+            value["allowed_write_roots"] = (
+                [f"poc/{topic}/ndf/GATES.md"] if topic else []
+            )
+            value["allowed_sections"] = ["gate_receipts"]
+            value["forbidden_sections"] = [
+                "topic_contract",
+                "design_contract",
+                "perf_bind",
+                "perf_numbers",
+                "delta_hypothesis",
+                "delta_rounds",
+                "interface_contract",
+                "evidence",
+                "commits_append",
+            ]
+        elif task in {"binder_amend", "binder_pipeline"}:
+            value["allowed_write_roots"] = (
+                [
+                    f"poc/{topic}/ndf/{name}"
+                    for name in (
+                        "TOPIC.md",
+                        "DESIGN.md",
+                        "PERF_BASELINE.md",
+                        "DELTA.md",
+                        "INTERFACE.md",
+                        "COMMITS.md",
+                    )
+                ]
+                if topic
+                else []
+            )
+            value["allowed_sections"] = [
+                "topic_contract",
+                "design_contract",
+                "perf_bind",
+                "delta_hypothesis",
+                "interface_contract",
+                "ledger_skeleton",
+                "topic_runtime_headers",
+            ]
+            value["forbidden_sections"] = [
+                "gate_receipts",
+                "perf_numbers",
+                "delta_rounds",
+                "evidence",
+                "commits_append",
+                "decision_selected",
+            ]
         elif task == "control_proposal":
             value["allowed_write_roots"] = ["spec/open/", "spec/meta/open/"]
     if role == "project-control":
-        value["allowed_write_roots"] = ["spec/meta/open/"]
+        hop = str((control or {}).get("hop") or "")
+        proposal_path = (control or {}).get("proposal_path")
+        if task == "ndf_improvement_land" and hop == "confirm_land":
+            value["allowed_write_roots"] = [
+                *list((control or {}).get("land_targets") or []),
+                *([str(proposal_path)] if proposal_path else []),
+            ]
+        elif task == "ndf_improvement_land" and hop == "review":
+            value["allowed_write_roots"] = (
+                [str(proposal_path)] if proposal_path else []
+            )
+        elif task == "ndf_improvement_land":
+            value["allowed_write_roots"] = ["spec/meta/", "spec/meta/open/"]
+        elif task == "ndf_improvement_proposal" and proposal_path:
+            value["allowed_write_roots"] = [str(proposal_path)]
+        else:
+            value["allowed_write_roots"] = ["spec/meta/open/"]
     value["allowed_write_roots"] = _unique(value["allowed_write_roots"])
     value["forbidden_write_paths"] = _unique(value["forbidden_write_paths"])
     return value
@@ -599,6 +793,7 @@ def compile_plan(
     depth: int = 2,
     node_budget: int = 80,
     byte_budget: int = 256_000,
+    include_bodies: bool = True,
 ) -> dict[str, Any]:
     root = root.resolve()
     repo_head = _git(root, "rev-parse", "HEAD")
@@ -615,6 +810,7 @@ def compile_plan(
         node_budget=max(1, node_budget),
         byte_budget=max(1, byte_budget),
         root=root,
+        include_bodies=include_bodies,
     )
     plan: dict[str, Any] = {
         "schema": "ndf-context-plan/v1",
@@ -663,7 +859,7 @@ def compile_plan(
         for item in plan["gates"]["receipts"]
         if item.get("status", "").lower() in {"approved", "valid"}
     }
-    if task in {"poc_measurement", "poc_prepare_baseline", "implement", "poc_implementation"} and "implementation_approval" not in approved:
+    if task in {"poc_measurement", "implement", "poc_implementation", "poc_prepare_baseline"} and "implementation_approval" not in approved:
         plan["human_phrase"] = "可以开始实现"
     plan["plan_sha"] = canonical_json_sha(plan)
     return plan
@@ -676,12 +872,16 @@ def create_manifest(
     task: str,
     track: str,
     business_goal: str = "",
+    control_binding: Mapping[str, Any] | None = None,
     seed_ids: Iterable[str] = (),
     depth: int = 2,
     node_budget: int = 80,
     byte_budget: int = 256_000,
+    include_bodies: bool = True,
 ) -> dict[str, Any]:
     """Compile the role-neutral parent shared by all task views."""
+    root = root.resolve()
+    control = _normalize_control_binding(root, task, control_binding)
     requested_seeds = tuple(seed_ids)
     source = compile_plan(
         root=root,
@@ -693,6 +893,7 @@ def create_manifest(
         depth=depth,
         node_budget=node_budget,
         byte_budget=byte_budget,
+        include_bodies=include_bodies,
     )
     manifest: dict[str, Any] = {
         "schema": "ndf-task-manifest/v1",
@@ -701,6 +902,7 @@ def create_manifest(
         "topic": topic,
         "task": task,
         "track": track,
+        "control": control,
         "compiler_policy": {
             "depth": depth,
             "node_budget": node_budget,
@@ -721,7 +923,7 @@ def create_manifest(
         "trunk_ref_joins": source["trunk_ref_joins"],
         "conflicts": source["graph"].get("blockers", []),
         "role_policies": {
-            role: _privileges(role, task, track, topic)
+            role: _privileges(role, task, track, topic, control)
             for role in PRIVILEGES
         },
     }
@@ -737,6 +939,7 @@ def create_manifest(
                 "task": task,
                 "track": track,
                 "business_goal": manifest["business_goal"],
+                "control": control,
                 "requested_seed_ids": list(requested_seeds),
                 "binder_roots": manifest["binder_roots"],
                 "evidence_refs": manifest["evidence_refs"],
@@ -782,6 +985,7 @@ def verify_manifest_recorded(
                 "task": manifest.get("task"),
                 "track": manifest.get("track"),
                 "business_goal": manifest.get("business_goal"),
+                "control": manifest.get("control"),
                 "requested_seed_ids": manifest.get("compiler_policy", {}).get(
                     "requested_seed_ids", []
                 ),
@@ -799,6 +1003,7 @@ def verify_manifest_recorded(
             str(manifest.get("task") or ""),
             str(manifest.get("track") or ""),
             manifest.get("topic"),
+            manifest.get("control"),
         )
         for role in PRIVILEGES
     }
@@ -863,6 +1068,19 @@ def verify_manifest_current(
         path = repo / str(record.get("path") or "")
         if not path.is_file() or file_sha(path) != record.get("sha256"):
             errors.append({"kind": "evidence_drift", "path": record.get("path")})
+    control = manifest.get("control")
+    if isinstance(control, Mapping) and control.get("proposal_sha"):
+        proposal_path = repo / str(control.get("proposal_path") or "")
+        if (
+            not proposal_path.is_file()
+            or file_sha(proposal_path) != control.get("proposal_sha")
+        ):
+            errors.append(
+                {
+                    "kind": "proposal_drift",
+                    "path": control.get("proposal_path"),
+                }
+            )
     expected_generation = canonical_json_sha(
         {
             "repo_head": current_head,
@@ -902,6 +1120,11 @@ def verify_manifest_current(
             task=str(manifest.get("task") or ""),
             track=str(manifest.get("track") or ""),
             business_goal=str(manifest.get("business_goal") or ""),
+            control_binding=(
+                manifest.get("control")
+                if isinstance(manifest.get("control"), Mapping)
+                else None
+            ),
             seed_ids=policy.get("requested_seed_ids", []),
             depth=int(policy.get("depth", 2)),
             node_budget=int(policy.get("node_budget", 80)),
@@ -974,6 +1197,7 @@ def role_plan(
         "task": task,
         "track": track,
         "topic": topic,
+        "control": manifest.get("control"),
         "source_generation_sha": manifest["source_generation_sha"],
         "ordered_reads": manifest["binder_roots"],
         "seed_ids": manifest["clause_seeds"],
@@ -988,7 +1212,7 @@ def role_plan(
         "privileges": json.loads(
             json.dumps(
                 manifest.get("role_policies", {}).get(role)
-                or _privileges(role, task, track, topic)
+                or _privileges(role, task, track, topic, manifest.get("control"))
             )
         ),
         "human_phrase": None,
@@ -998,7 +1222,7 @@ def role_plan(
         for item in plan["gates"].get("receipts", [])
         if item.get("status", "").lower() in {"approved", "valid"}
     }
-    if task in {"poc_measurement", "poc_prepare_baseline", "implement", "poc_implementation"} and "implementation_approval" not in approved:
+    if task in {"poc_measurement", "implement", "poc_implementation", "poc_prepare_baseline"} and "implementation_approval" not in approved:
         plan["human_phrase"] = "可以开始实现"
     plan["plan_sha"] = canonical_json_sha(plan)
     return plan
@@ -1208,6 +1432,7 @@ def verify_plan(
                 "task": manifest.get("task"),
                 "track": manifest.get("track"),
                 "topic": manifest.get("topic"),
+                "control": manifest.get("control"),
                 "source_generation_sha": manifest.get("source_generation_sha"),
                 "ordered_reads": manifest.get("binder_roots"),
                 "seed_ids": manifest.get("clause_seeds"),
@@ -1225,6 +1450,7 @@ def verify_plan(
                     str(manifest.get("task") or ""),
                     str(manifest.get("track") or ""),
                     manifest.get("topic"),
+                    manifest.get("control"),
                 ),
             }
             drifted = sorted(
@@ -1254,17 +1480,54 @@ def verify_plan(
         path = repo / record["path"]
         if not path.is_file():
             errors.append({"kind": "missing_file", "path": record["path"]})
+            continue
+        actual = file_sha(path)
+        if actual == record.get("sha256"):
+            continue
+        recorded_slices = [
+            (item.get("slice_id"), item.get("content_sha"))
+            for item in (record.get("slices") or [])
+            if isinstance(item, Mapping)
+        ]
+        if recorded_slices:
+            current_slices = [
+                (item.get("slice_id"), item.get("content_sha"))
+                for item in ndf_gate_slices.slice_content_fingerprints(path, root=repo)
+            ]
+            finding = {
+                "kind": "file_drift",
+                "path": record["path"],
+                "expected": record.get("sha256"),
+                "actual": actual,
+            }
+            if recorded_slices == current_slices:
+                finding["kind"] = "mutable_section_drift"
+                warnings.append(finding)
+            else:
+                errors.append(finding)
         else:
-            actual = file_sha(path)
-            if actual != record.get("sha256"):
-                errors.append({"kind": "file_drift", "path": record["path"], "expected": record.get("sha256"), "actual": actual})
+            errors.append(
+                {
+                    "kind": "file_drift",
+                    "path": record["path"],
+                    "expected": record.get("sha256"),
+                    "actual": actual,
+                }
+            )
     privileges = plan.get("privileges", {})
     for allowed in privileges.get("allowed_write_roots", []):
         for forbidden in privileges.get("forbidden_write_paths", []):
             if _overlap(allowed, forbidden):
                 errors.append({"kind": "forbidden_path", "path": allowed, "forbidden": forbidden})
     if plan.get("baseline", {}).get("baseline_status") == "stale":
-        errors.append({"kind": "baseline_stale", "path": plan.get("baseline", {}).get("path")})
+        finding = {
+            "kind": "baseline_stale",
+            "path": plan.get("baseline", {}).get("path"),
+        }
+        if plan.get("task") in CONTROL_REPAIR_TASKS or plan.get("task") in MEASUREMENT_REPAIR_TASKS:
+            warnings.append(finding)
+        else:
+            errors.append(finding)
     for receipt in plan.get("gates", {}).get("receipts", []):
         if receipt.get("status", "").lower() not in {"approved", "valid"}:
             continue
@@ -1276,27 +1539,26 @@ def verify_plan(
             and receipt.get("approved_at")
             and receipt.get("source_ref")
         )
+        mode_aligned = ndf_gate_slices.receipt_mode_aligned(receipt)
         if (
             not semantic_complete
             or not expected
             or not recorded
             or len(recorded) != 64
             or recorded != expected
+            or not mode_aligned
         ):
-            errors.append(
-                {
-                    "kind": "gate_sha_mismatch",
-                    "gate": receipt.get("gate"),
-                    "expected": expected,
-                    "actual": recorded,
-                }
-            )
-    required_gate = plan.get("task") in {
-        "poc_measurement",
-        "poc_prepare_baseline",
-        "implement",
-        "poc_implementation",
-    }
+            finding = {
+                "kind": "gate_sha_mismatch",
+                "gate": receipt.get("gate"),
+                "expected": expected,
+                "actual": recorded,
+            }
+            if plan.get("task") in CONTROL_REPAIR_TASKS:
+                warnings.append(finding)
+            else:
+                errors.append(finding)
+    required_gate = plan.get("task") in {"poc_measurement", "implement", "poc_implementation", "poc_prepare_baseline"}
     if required_gate:
         implementation = [
             item
@@ -1305,6 +1567,7 @@ def verify_plan(
             and item.get("status", "").lower() in {"approved", "valid"}
             and item.get("approved_content_sha") == item.get("expected_content_sha")
             and len(item.get("approved_content_sha") or "") == 64
+            and ndf_gate_slices.receipt_mode_aligned(item)
         ]
         if not implementation:
             errors.append({"kind": "required_gate_not_valid", "gate": "implementation_approval"})

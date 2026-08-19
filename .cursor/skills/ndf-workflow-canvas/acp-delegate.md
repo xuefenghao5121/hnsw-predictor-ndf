@@ -3,7 +3,9 @@
 All tracks require `repo_root` from pack `workspace`. Worktree MUST be under `repo_root`.
 Resolve relative paths under `repo_root`, never assume process cwd.
 All prompts MUST cite `manifest_sha`, the Claude `context_plan.plan_sha`, and `episode_id`;
-the Agent MUST run context-verify before work and stop/recompile on drift. Role plans differ,
+the Agent MUST run context-verify before work and stop/recompile only if
+`context-verify.valid` is false (contract / expected_content_sha change). Do not stop
+on slice_manifest_sha inequality when content SHA matches. Role plans differ,
 but OpenClaw/Claude/Canvas MUST share the same manifest parent.
 
 ## Runtime lease handshake
@@ -11,7 +13,8 @@ but OpenClaw/Claude/Canvas MUST share the same manifest parent.
 Before any write, require `run_id`, `session_id`, `base_sha`, `repo_root`, isolated
 `worktree`, `branch` and `allowed_write_root`. Record `run_id` as the same-topic lease in
 gitignored runtime evidence and the same Episode. `lease-record` MUST resolve the exact latest
-verified dispatch `pack_sha`; file-imported leases are revalidated against that pack, manifest,
+lease-eligible dispatch `pack_sha` (`safe_to_dispatch` **or** static-ready
+`safe_to_delegate` / `static_preflight_passed`); file-imported leases are revalidated against that pack, manifest,
 plan, base SHA, worktree and allowed root. The Episode also records `acp.start`,
 `lease.acquired|released` and `refs/runs/<run-id>`.
 If static preflight is true but runtime readiness is false, only
@@ -49,19 +52,36 @@ Return SHA-256 for every changed file, the evidence bundle SHA, and evidence-bou
 the required isolation/topic-health/perf post-checks.
 Return a bound completion receipt containing source generation, context plan SHA,
 command/input/output SHAs, evidence paths, times, result and blockers.
+When the round needs a human next decision, the completion MUST also include
+`decision_briefing`: summary, verdict, decision_path[], and optional
+`suggested_paths[]` (mode/recommended/label/rationale/next_work/prefill) copied from
+the worker markdown Decision path. Do not leave those choices only in prose.
 Record available ACP/model/tool events under the Episode. If only completion is visible,
 set coverage=`completion_only`; do not synthesize a full stream.
+Then Composer MUST run POST_DISPATCH_SYNC: completion-record, lease release if still
+active, topic-health, official Canvas snapshot --update-embedded (no --probe-runtime). Tell the human to read
+the Topics **decision briefing** and write the next decision there. A worker markdown
+report is not the command surface and is not an NDF close.
 ```
 
 ## bounded POC repair
 
-Use `repair-pack --topic <topic> --task poc_isolation_repair|poc_measurement`.
+Use `repair-pack --topic <topic> --task poc_prepare_baseline|poc_isolation_repair|poc_measurement`.
 
+- `poc_prepare_baseline` is delegated when the Implementation gap `missing_baseline_workspace`
+  exists. Claude MUST copy the INTERFACE implementation slice and the required Trunk
+  baseline `.h/.cpp` into `poc/<topic>/` to form a buildable R0-aligned baseline
+  workspace. MUST NOT run measurement, MUST NOT amend PERF Numbers/DELTA, and MUST
+  not touch Trunk `src/`, `include/`, `tests/` or rewrite git history.
 - `poc_isolation_repair` may be delegated while normal implementation pack is blocked,
   but Claude may only repair/copy inside `poc/<topic>/`; Trunk cleanup or git history
   disposition requires human approval.
-- `poc_measurement` requires a valid implementation gate and complete perf bind.
-- Both tasks MUST run the repair pack `post_checks`, then `topic-health`, before refresh.
+- `poc_measurement` requires a valid implementation gate and a complete perf bind
+  skeleton (`vs` / `config_id` / `measure_script`). Unverified or pending Numbers are
+  the measurement input state, not a dispatch blocker. OpenClaw `binder_amend` cannot
+  write PERF Numbers or clear `unverified_measurement_claim`.
+- All repair tasks MUST run the repair pack `post_checks`, then `POST_DISPATCH_SYNC`
+  (`completion-record`, lease release if active, `topic-health`, Canvas snapshot).
 
 ## promote
 

@@ -254,18 +254,22 @@ TOPIC → DESIGN → PERF_BASELINE → DELTA → INTERFACE → GATES → proposa
 
 可写委派前必须由 `ndf_context.py` 走 `manifest-create` → `role-plan` → `context-expand` → `context-verify`。Canvas、指挥代理、实现代理引用**同一 Manifest SHA**；各角色 plan SHA 可以不同。禁止各代理自己拼接读序，禁止从 SLA/NOTES 偷观测数字。
 
-### 3.11 Episode 与回放 [[META-013]]
+### 3.11 Episode 与回放 [[META-013]] [[META-015]]
 
 可写委派创建或续接显式 Episode。上下文压缩只创建 checkpoint，不得用 summary 覆盖父事件。回放分级：
 
 | 级 | 含义 | 指挥时 |
 | --- | --- | --- |
-| R0 | 存储对象/事件校验 | 开指令，不跑模型/工具 |
-| R1 | 已记录观测 | 开指令，无副作用 |
-| R2 | 沙盒按档案重放 | 须完整期望、隔离、写根 ⊆ Context Plan ∩ lease |
-| R3 | 反事实分叉 | 新历史；模型再调用属于这里 |
+| R0 | 存储对象/事件校验 | CLI / 指令；Canvas 主路径不当成「已回放」 |
+| R1 | 已记录观测 | CLI / 指令；无副作用 |
+| R2 | 沙盒按档案重放 | 须 `bwrap` 或 `vm` adapter；Canvas「已回放」只认 [[META-015]] Lvm guest-proof |
+| R3 | 反事实分叉 | 新历史；**不得**出现在 Canvas Replay 页 |
 
-缺失的平台事件流报 coverage gap，禁止用编造的 transcript 补齐。
+缺失的平台事件流报 coverage gap，禁止用编造的 transcript 补齐。提示词、同机 worktree、仅 `bwrap` 观测不得标为已回放。
+
+### 3.11b Process 提案生命周期 [[META-014]]
+
+NDF Control 托管 process proposal 走 `pending_confirmation → confirmed_pending_land → implemented_pending_review → reviewed`。`draft` / `confirm_land` / `review` 用各自 child Episode。按钮点击、文件存在、Agent acknowledged 不得推进。历史无绑定提案只读展示。
 
 ### 3.12 指挥写入边界 vs 实现写入边界
 
@@ -373,11 +377,11 @@ action-begin → 操作 → action-finish(success|failed, blockers)
 
 | 人点的 | 实际命令 | 结果 |
 | --- | --- | --- |
-| 页眉 **Refresh snapshot** | `snapshot --update-embedded <canvas> --json`（**不要** `--topic`，不要 `--probe-runtime`） | 全表替换；Topics 只剩活跃短列表；工作台卸载 |
+| 页眉 **Refresh snapshot** | `snapshot --update-embedded <canvas> --json`（不要 `--probe-runtime`）。若已有聚焦 `business-topic`，带 `--topic` 保留一份工作台；未聚焦则省略 `--topic` | 全表替换；Topics 目录是薄摘要；至多一份 `focusedTopic` |
 | Topics **打开工作台** / **Refresh topic** | 同上并加 `--topic <topic>` | 只把这一题编进 `business.focusedTopic` |
 | Agents 需要运行时探活 | 仅在诊断管道时加 `--probe-runtime` | 只读 gateway health；不等于 ACP 可写 |
 
-禁止一次把全部 exploring 工作台嵌进 Canvas。未聚焦时不渲染三空间、本轮决策、Context Plan。
+禁止一次把全部 exploring 工作台嵌进 Canvas。未聚焦时不渲染三空间、本轮决策、Context Plan。紧凑 SNAPSHOT 超 120KB 必须失败，不得写巨型对象。
 
 ---
 
@@ -518,9 +522,9 @@ Delegate POC 还要求：Context Plan 核验、`static_preflight_passed`、`runt
 
 ### 6.3 NDF Control（流程与卫生）
 
-**看见什么**：Genesis 轨、项目级 spec-health（meta/product 图、index、全主题装订、闸摘要、提案卫生）、只读 Advisor、流程改进列表。
+**看见什么**：Genesis 轨、NDF 内核地图（process 种子覆盖）、项目级 spec-health（meta/product 图、index、装订、闸摘要、提案卫生）、只读 Advisor、工作流演进。
 
-**产品实现永不从这里委派。**
+**产品实现永不从这里委派。** 无活跃 exploring/blocked POC 时 `binder_health=not_applicable`，不算失败，也不渲染「去 Topics」。
 
 #### Genesis
 
@@ -538,14 +542,14 @@ G0 IDEA → G1 Foundation → G2 Trunk Candidate → G3 Freeze
 | `operational` 已 accepted | 折叠为「内核已绑定」 | 日常去 Product / Topics | 重跑 Genesis |
 | `operational_legacy` | 同样折叠；日常可继续 | adopt 可选 | 把缺历史 Genesis 当成阻断 |
 
-项目目标金标与性能 Golden Baseline 分开显示。
+项目目标金标与性能 Golden Baseline 分开显示。New Genesis **只在本页**，不在 Product。
 
 #### spec-health 与 Advisor
 
-- **Run NDF Control check**：`spec-health --json`。
+- **Run NDF Control check**：`spec-health --json`。finding 按平面分流：meta → process 提案；product_graph → Product；binder → Topics（仅有活跃 POC 时）。
 - **Diagnose with Advisor**：只读 `ndf_advise.py plan --surface graph|bind`。**禁止 apply、禁止静默写 SoT。**
 
-#### 流程改进 hop
+#### 流程改进 hop [[META-014]]
 
 人在「工作流演进」用自然语言提交。指挥用 `project-control-pack --task ndf_improvement_proposal` 起草 `spec/meta/open/proposal-meta-*.md`，停在「已确认」：
 
@@ -553,11 +557,11 @@ G0 IDEA → G1 Foundation → G2 Trunk Candidate → G3 Freeze
 提交流程改进 → waiting_confirm（人: 已确认）→ waiting_review（人: 已审核）
 ```
 
-`Implemented` 但尚未「已审核」的提案必须留在列表，不得当收口完成。起草写根只 `spec/meta/open/`；确认后的 land 才可写 `spec/meta/` 正文（写根来自 pack，不靠按钮推断）。
+推进按钮只打开审阅；必须等人发出原句 `已确认` / `已审核`。`Implemented` 但尚未「已审核」的托管提案必须留在列表。起草写根只 `spec/meta/open/`；确认后的 land 才可写 `spec/meta/` 正文。历史无绑定提案只读，不得自动生成可写 hop。
 
-### 6.4 Agents（运行时）
+### 6.4 Agents（身份与运行时）
 
-**看见什么**：`pipelineReachable`、`activeRuns`、CLI、probe 说明、session/run、worktree、允许写根、lease、completion。`stateExists` 与 workspace `match` 分开：仅有 `.openclaw/state.json` 不等于已绑定。OpenClaw 降级要显式标出。
+**看见什么**：OpenClaw / Claude Code / Canvas / context-compiler 身份卡；`pipelineReachable`、session/run、worktree、允许写根、lease。`stateExists` 与 workspace `match` 分开：仅有 `.openclaw/state.json` 不等于已绑定。每张身份卡「用该身份查看 Replay」只换 Replay 透镜，不在本页复制时间线。
 
 **下一步点哪**
 
@@ -566,20 +570,17 @@ G0 IDEA → G1 Foundation → G2 Trunk Candidate → G3 Freeze
 
 **禁止**：握手缺任一项（`run_id` / `session_id` / `base_sha` / `repo_root` / `worktree` / `allowed_write_root`）仍派发。缺任一项 = `unsafe`（[[META-011]]）。Canvas 不写项目 state 文件。
 
-### 6.5 Replay
+### 6.5 Replay（账本柜台，不是恢复控制台）
 
-**看见什么**：本地 `fsck`、Episode 列表、所选 manifest/role plan、coverage 与 join 缺口（`completion_only` / `messages_only` / 未知隐面）、事件链完整性、工具/模型观测策略、闸证据、变更文件、时间线。不展示隐藏推理。
+**看见什么**：hop 目录 + 当前一页账。三栏：人话 / 规范组装 / 实际发出。coverage 与 join 缺口、事件链、闸证据。不展示隐藏推理，不把每条 Prompt 全文塞进 SNAPSHOT。
 
 **下一步点哪**
 
-| 级 | 按钮含义 | 禁止 |
-| --- | --- | --- |
-| R0 | 打开「精确对象/事件校验」指令；不跑模型/工具 | 把打开 Composer 当成已审计完成 |
-| R1 | 打开「重建已记录观测」指令；无副作用 | 同上 |
-| R2 | 沙盒按档案重放；确认前必须钉 adapter / 网络 / 命令 / 写根 ⊆ Context Plan ∩ lease | 缺期望、缺隔离仍执行 |
-| R3 | 反事实分叉，**新历史** | 把模型再调用当成历史 replay |
+- 目录行 **查这条账**：只聚焦一页 ledger（同 Topics「打开工作台」）。
+- Canvas 主路径 **不得**放 R0/R1/R2/R3 按钮。R3 禁止出现。真正「已回放」走宿主 `guest-run` + [[META-015]] guest-proof，不得在现仓 cwd 执行 reconstruct。
+- 打开 Composer 只生成指令，不等于已审计 / 已回放。
 
-Diff 分六段：manifest / context / events / observations / results / verification。`historicalIntegrity` / `historicalSemantics` 与 `currentRestoreReady` / `currentDispatchReady` 分开：仓库前进或 worktree 清理可以挡住当前 restore，不得把合法历史 R0 标红。压缩只建 checkpoint commit；summary-only 不能 dispatch。
+`historicalIntegrity` / `historicalSemantics` 与 `currentRestoreReady` / `currentDispatchReady` 分开：仓库前进或 worktree 清理可以挡住当前 restore，不得把合法历史标红。压缩只建 checkpoint；summary-only 不能 dispatch。写回当前工作区是 CLI 危险选项，不在 Replay 页。
 
 ### 6.6 Close（Topics 页底 hop，不是页签）
 
@@ -696,7 +697,7 @@ OpenClaw 与 Claude 的 role plan SHA 不同，但 **Manifest SHA 必须相同**
 | `AGENTS.md` | 指挥工作流、track、写入边界、口令 |
 | `spec/meta/README.md` | 读序与分层 |
 | `spec/meta/language.md` | [[META-001]]…[[META-005]]、[[META-008]] |
-| `spec/meta/process.md` | [[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]…[[META-013]] |
+| `spec/meta/process.md` | [[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]…[[META-015]] |
 | `spec/meta/architecture.md` | [[ARCH-008]] 目录边界 |
 | `spec/meta/constraints.md` | [[CON-POC-001]] |
 | `spec/meta/glossary.md` | DEF-020…、DEF-NDF-* |

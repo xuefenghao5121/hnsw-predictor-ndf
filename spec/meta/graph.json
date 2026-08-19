@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-17T14:14:58Z",
-  "clause_count": 49,
+  "generated_at": "2026-08-19T13:35:39Z",
+  "clause_count": 50,
   "meta_only": true,
   "nodes": {
     "ADR-META-001": {
@@ -193,7 +193,7 @@
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 855,
+      "line": 896,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -221,7 +221,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 875,
+      "line": 916,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -266,7 +266,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 1018,
+      "line": 1059,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1177,7 +1177,8 @@
         "META-008",
         "META-012",
         "META-013",
-        "META-014"
+        "META-014",
+        "META-015"
       ]
     },
     "META-012": {
@@ -1226,18 +1227,20 @@
         ]
       },
       "body_refs": [
+        "META-015",
         "META-011",
         "META-014"
       ],
       "backlinks": [
-        "META-014"
+        "META-014",
+        "META-015"
       ]
     },
     "META-014": {
       "id": "META-014",
       "title": "Process Proposal 生命周期与回执",
       "file": "meta/process.md",
-      "line": 778,
+      "line": 819,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1255,6 +1258,30 @@
       "body_refs": [],
       "backlinks": [
         "META-010",
+        "META-013"
+      ]
+    },
+    "META-015": {
+      "id": "META-015",
+      "title": "回放沙箱与执行器边界",
+      "file": "meta/process.md",
+      "line": 782,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.17",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-011",
+          "META-013"
+        ]
+      },
+      "body_refs": [
+        "META-013"
+      ],
+      "backlinks": [
         "META-013"
       ]
     }

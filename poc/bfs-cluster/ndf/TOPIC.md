@@ -19,17 +19,21 @@ Pure k-means (BEH-037) 不感知 graph 结构 → BFS neighbors 可能分散到�
 BFS-supervised k-means: 修改赋值目标函数 → 惩罚 neighbor 的 cluster 分离 → 
 同时优化向量相似度 + graph 连接度 → 更好的 I/O 局部性。
 
-## Directions
+## R0 结果 (2026-08-10)
 
-### R0: BFS-supervised k-means + within-block cluster sort
-- 加载 graph adjacency (CSR)
-- 修改 k-means assignment: distance = raw_dist - λ × neighbors_in_cluster
-- 扫描 λ ∈ {0.1, 0.5, 1, 2, 5}
-- A/B: pure k=1024 vs BFS-supervised k=1024, sustained golden
+| λ | graph_aligned | QPS | vs pure k=1024 | 判定 |
+|---|---------------|-----|----------------|------|
+| 1.0 | 0.4–0.5% | ≈ baseline | — | 无分离 |
+| 100 | 0.4–0.5% | 1,774 | −2.1% (1,812) | 无收益 |
 
-### R1: λ 调参 + 多线程 scaling
-- 最优 λ 的 4T/16T 验证
-- 可能的 Compound: CQE peeking + BFS-cluster
+## Verdict
+
+**BFS-supervised k-means = 负结果。** Graph penalty 在 k=1024 下被 centroid 距离淹没；
+HNSW neighbor 多样性使 graph signal 过于稀疏。详见 [[DEC-098]]。
+
+## Directions (未执行)
+
+### R1: λ 调参 + 多线程 scaling — 取消（R0 证伪）
 
 ## Perf Baseline
 
