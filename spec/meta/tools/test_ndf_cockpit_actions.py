@@ -39,6 +39,8 @@ FORBIDDEN_UI_PATTERNS = (
 def _payload(**overrides: object) -> dict:
     base = {
         "schema": "ndf-workflow-canvas-snapshot/v1",
+        "repoBranch": "cursor/ndf-meta-integrate-pev95-063a",
+        "repoHead": "abc123",
         "projectionFreshness": {"state": "fresh"},
         "business": {
             "identity": {
@@ -155,6 +157,7 @@ class ActionRegistryTest(unittest.TestCase):
             {
                 "generated_at": "2026-08-15T00:00:00Z",
                 "repo_head": "abc",
+                "repo_branch": "cursor/existing-target",
                 "snapshot_sha": "def",
                 "evidence_generation": "def",
                 "embedded_projection": {"status": "unknown", "verified_path": None},
@@ -264,6 +267,7 @@ class ActionRegistryTest(unittest.TestCase):
             }
         )
         self.assertIn("enabledActions", canvas)
+        self.assertEqual(canvas["repoBranch"], "cursor/existing-target")
         self.assertIn("refresh-snapshot", canvas["enabledActions"])
         self.assertFalse(canvas["enabledActions"]["new-proposal"]["enabled"])
         launcher = actions.canvas_launcher_snapshot(canvas)
@@ -320,6 +324,20 @@ class ActionRegistryTest(unittest.TestCase):
         response = actions.standalone_action_template("new-proposal", _payload())
         self.assertIn("BEGIN HUMAN PRODUCT INTENT", response["prompt"])
         self.assertIn("__NDF_HUMAN_INTENT__", response["prompt"])
+
+    def test_composer_and_snapshot_prompts_pin_existing_target_branch(self) -> None:
+        payload = _payload()
+        for action_id in ("new-proposal", "refresh-snapshot"):
+            response = actions.standalone_action_template(action_id, payload)
+            prompt = response["prompt"]
+            self.assertIn(
+                "target_branch=cursor/ndf-meta-integrate-pev95-063a",
+                prompt,
+            )
+            self.assertIn("Do not create, rename, or switch to a replacement feature branch.", prompt)
+            self.assertIn("NDF runtime-lease worker MAY use its required isolated branch/worktree", prompt)
+            self.assertIn("pull --ff-only", prompt)
+            self.assertIn("never substitute a newly named branch", prompt)
 
     def test_control_pipeline_actions_live_on_bottom_command_surface(self) -> None:
         registry = actions.registry_by_id()

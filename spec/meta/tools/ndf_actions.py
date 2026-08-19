@@ -77,6 +77,35 @@ def _focused(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return topic if isinstance(topic, Mapping) else None
 
 
+def _git_execution_contract(payload: Mapping[str, Any]) -> list[str]:
+    branch = str(payload.get("repoBranch") or payload.get("repo_branch") or "").strip()
+    head = str(payload.get("repoHead") or payload.get("repo_head") or "").strip()
+    if not branch:
+        branch = "<unresolved-target-branch>"
+    return [
+        "Git execution contract (mandatory):",
+        "target_remote=origin",
+        f"target_branch={branch}",
+        f"snapshot_repo_head={head or '<unknown>'}",
+        (
+            "Keep the Command Agent workspace on exactly target_branch. Do not create, rename, "
+            "or switch to a replacement feature branch."
+        ),
+        (
+            "An NDF runtime-lease worker MAY use its required isolated branch/worktree, but that "
+            "worker branch MUST NOT replace the Command Agent target branch."
+        ),
+        (
+            "Before mutation, fetch target_remote/target_branch, switch to the same-named local "
+            "tracking branch if needed, and pull --ff-only."
+        ),
+        (
+            "If the target branch is missing, checkout is unsafe, or fast-forward fails, stop and "
+            "report the blocker; never substitute a newly named branch."
+        ),
+    ]
+
+
 def _space_gaps(payload: Mapping[str, Any], space: str) -> list[str]:
     focused = _focused(payload)
     if not focused:
@@ -371,6 +400,7 @@ def composer_prompt(
         f"label={action.get('label')}",
         f"operation={action.get('operation')}",
         f"clauses={', '.join(action.get('clauseRefs') or [])}",
+        *_git_execution_contract(payload),
         click_rule,
         "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
@@ -513,6 +543,7 @@ def standalone_action_template(
                 f"label={action.get('label')}",
                 f"operation={action.get('operation')}",
                 f"clauses={', '.join(action.get('clauseRefs') or [])}",
+                *_git_execution_contract(payload),
                 "Button click is not a human gate.",
                 (
                     "python3 spec/meta/tools/ndf_workflow_status.py action-begin "

@@ -12,6 +12,7 @@ export type Snapshot = {
   schema: string;
   generatedAt?: string;
   repoHead?: string;
+  repoBranch?: string;
   snapshotSha?: string;
   payloadSha?: string;
   absorbedActionId?: string | null;

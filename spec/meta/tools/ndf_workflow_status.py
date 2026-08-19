@@ -1270,6 +1270,11 @@ def git_head() -> str | None:
     return output if code == 0 else None
 
 
+def git_branch() -> str | None:
+    code, output = git("branch", "--show-current")
+    return output if code == 0 and output else None
+
+
 TRUNK_GOLDEN_PATHS = ("src", "include", "tests")
 
 
@@ -5898,6 +5903,7 @@ def snapshot(
         "schema": "ndf-workflow-snapshot/v2",
         "generated_at": now_iso(),
         "repo_head": git_head(),
+        "repo_branch": git_branch(),
         "snapshot_sha": generation_sha,
         "evidence_generation": generation_sha,
         "generation_layers": {
@@ -6373,6 +6379,7 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         "schema": "ndf-workflow-canvas-snapshot/v1",
         "generatedAt": payload["generated_at"],
         "repoHead": (payload["repo_head"] or "")[:12],
+        "repoBranch": payload.get("repo_branch"),
         "snapshotSha": payload["snapshot_sha"],
         "evidenceGeneration": payload.get("evidence_generation"),
         "embeddedProjection": payload.get("embedded_projection"),

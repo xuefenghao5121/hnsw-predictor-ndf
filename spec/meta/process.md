@@ -274,6 +274,13 @@ UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未�
 托管，或从可达 HTTPS 页面打开。工作台使用 MUST NOT 依赖 GitHub、CDN 或外网；
 命令继续回到同一 Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
 
+Snapshot MUST 投影生成该指挥面的命名 Git 分支；所有 Composer / snapshot Prompt MUST
+携带 `target_remote`、`target_branch` 与 snapshot repo HEAD。Command Agent MUST fetch
+并复用该远程目标分支，MUST NOT 另建替代 feature branch；目标分支不存在、无法安全切换
+或不能 fast-forward 时 MUST 停止并报告，不得自行换名继续。由 NDF runtime lease 管理的
+Claude Code/OpenClaw worker 仍 MAY 按隔离门禁使用独立 branch/worktree，但该 worker
+执行面不得替代或改变 Command Agent 的目标分支。
+
 ```text
 project_maturity | lifecycle | gates
 spaces.design/implementation/test | agent_run | health
