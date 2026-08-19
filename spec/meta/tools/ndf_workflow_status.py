@@ -6098,9 +6098,27 @@ def canvas_topic_workbench(
             "slices": slices,
             "bundleErrors": list(full.get("bundle_errors") or [])[:6],
         }
+    spaces = detail.get("spaces", row.get("spaces"))
+    if isinstance(spaces, Mapping):
+        spaces = dict(spaces)
+        impl = spaces.get("implementation")
+        if isinstance(impl, Mapping):
+            impl = dict(impl)
+            files = list(impl.get("code_files") or [])[:8]
+            impl["code_files"] = [
+                str(path).rsplit("/", 1)[-1] for path in files
+            ]
+            spaces["implementation"] = impl
+        test = spaces.get("test")
+        if isinstance(test, Mapping):
+            test = dict(test)
+            round_text = str(test.get("latest_round") or "")
+            if len(round_text) > 240:
+                test["latest_round"] = round_text[:240]
+            spaces["test"] = test
     row.update(
         {
-            "spaces": detail.get("spaces", row.get("spaces")),
+            "spaces": spaces,
             "topicOverview": detail.get("topic_overview", {}),
             "ndfFoundation": slim_canvas_foundation(detail.get("ndf_foundation")),
             "workflowMeta": {
@@ -6606,6 +6624,21 @@ def slim_canvas_context_plan(plan: Mapping[str, Any] | None) -> dict[str, Any] |
     }
 
 
+def _slim_verify_notes(items: Any) -> list[Any]:
+    notes: list[Any] = []
+    for item in list(items or [])[:8]:
+        if isinstance(item, Mapping):
+            notes.append(
+                {
+                    "kind": item.get("kind"),
+                    "message": str(item.get("message") or item.get("id") or "")[:160],
+                }
+            )
+        else:
+            notes.append(str(item)[:160])
+    return notes
+
+
 def slim_canvas_delegation(delegation: Mapping[str, Any] | None) -> dict[str, Any]:
     """Canvas may not embed full Task Manifest / graph closure."""
     data = dict(delegation or {})
@@ -6617,10 +6650,22 @@ def slim_canvas_delegation(delegation: Mapping[str, Any] | None) -> dict[str, An
         data["context_verify"] = {
             "valid": bool(verify.get("valid")),
             "plan_sha": verify.get("plan_sha") or data.get("plan_sha") or "",
-            "errors": list(verify.get("errors") or [])[:8],
-            "warnings": list(verify.get("warnings") or [])[:8],
+            "errors": _slim_verify_notes(verify.get("errors")),
+            "warnings": _slim_verify_notes(verify.get("warnings")),
         }
     return data
+
+
+def _slim_finding_diff_kinds(items: Any) -> list[str]:
+    kinds: list[str] = []
+    for item in items or []:
+        if isinstance(item, Mapping):
+            kinds.append(str(item.get("kind") or item.get("id") or "")[:80])
+        elif item:
+            kinds.append(str(item)[:80])
+        if len(kinds) >= 8:
+            break
+    return kinds
 
 
 def slim_canvas_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -6648,12 +6693,33 @@ def slim_canvas_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
             }
         )
     data["findings"] = findings
+    checks: dict[str, Any] = {}
+    for name, check in (data.get("checks") or {}).items():
+        if not isinstance(check, Mapping):
+            continue
+        checks[name] = {
+            "state": check.get("state"),
+            "exit_code": check.get("exit_code"),
+            "summary": str(check.get("summary") or "")[:160],
+        }
+    if checks:
+        data["checks"] = checks
     diagnosis = data.get("latest_diagnosis")
     if isinstance(diagnosis, Mapping):
+        diff = (
+            diagnosis.get("finding_diff")
+            if isinstance(diagnosis.get("finding_diff"), Mapping)
+            else {}
+        )
         data["latest_diagnosis"] = {
-            key: value
-            for key, value in diagnosis.items()
-            if key not in {"findings", "checks"}
+            "state": diagnosis.get("state"),
+            "generated_at": diagnosis.get("generated_at"),
+            "findings_hash": diagnosis.get("findings_hash"),
+            "finding_diff": {
+                "new": _slim_finding_diff_kinds(diff.get("new")),
+                "remaining": _slim_finding_diff_kinds(diff.get("remaining")),
+                "resolved": _slim_finding_diff_kinds(diff.get("resolved")),
+            },
         }
     return data
 

@@ -3236,6 +3236,64 @@ class WorkflowHealthTest(unittest.TestCase):
         compact = json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
         self.assertLess(len(compact.encode("utf-8")), 4_000)
 
+    def test_slim_canvas_health_keeps_diagnosis_freshness_only(self) -> None:
+        slim = workflow.slim_canvas_health(
+            {
+                "blockers": ["implementation:missing_baseline_workspace"],
+                "checks": {
+                    "perf_baseline": {
+                        "state": "passed",
+                        "exit_code": 0,
+                        "command": "python3 spec/meta/tools/ndf_perf_baseline.py check",
+                        "summary": "header " + ("x" * 400),
+                    }
+                },
+                "findings": [],
+                "latest_diagnosis": {
+                    "state": "stale",
+                    "generated_at": "2026-08-19T00:00:00Z",
+                    "findings_hash": "abc",
+                    "delegation": {"context_plan": {"pad": "z" * 50_000}},
+                    "spaces": {"design": {"pad": "y" * 4_000}},
+                    "decision": {"meanings": {"implement": "long"}},
+                    "finding_diff": {
+                        "new": [{"kind": "numbers_pending", "evidence": "n" * 200}],
+                        "remaining": [],
+                        "resolved": [{"kind": "gate_invalid"}],
+                    },
+                },
+            }
+        )
+        diagnosis = slim["latest_diagnosis"]
+        self.assertEqual(diagnosis["state"], "stale")
+        self.assertNotIn("delegation", diagnosis)
+        self.assertNotIn("spaces", diagnosis)
+        self.assertEqual(diagnosis["finding_diff"]["new"], ["numbers_pending"])
+        self.assertLessEqual(len(slim["checks"]["perf_baseline"]["summary"]), 160)
+        compact = json.dumps(slim, ensure_ascii=False, separators=(",", ":"))
+        self.assertLess(len(compact.encode("utf-8")), 2_000)
+
+    def test_slim_canvas_delegation_truncates_verify_messages(self) -> None:
+        slim = workflow.slim_canvas_delegation(
+            {
+                "context_verify": {
+                    "valid": False,
+                    "plan_sha": "",
+                    "errors": [
+                        {
+                            "kind": "context_compile_failed",
+                            "message": "invalid task manifest: " + ("BEH-025," * 80),
+                        }
+                    ],
+                    "warnings": ["w" * 400],
+                }
+            }
+        )
+        error = slim["context_verify"]["errors"][0]
+        self.assertEqual(error["kind"], "context_compile_failed")
+        self.assertLessEqual(len(error["message"]), 160)
+        self.assertLessEqual(len(slim["context_verify"]["warnings"][0]), 160)
+
     def test_pick_canvas_focused_honors_replay_episode(self) -> None:
         episodes = [
             {"id": "ep-old", "topic": "cluster-gbdt", "happenedAt": "2026-08-01T00:00:00Z"},
@@ -4619,6 +4677,13 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
                     }
                 ],
                 "next_actions": [],
+                "latest_diagnosis": {
+                    "state": "stale",
+                    "generated_at": "t",
+                    "delegation": {"context_plan": {"pad": "z" * 20_000}},
+                    "spaces": {"design": {"pad": "y" * 4_000}},
+                    "finding_diff": {"new": [], "remaining": [], "resolved": []},
+                },
             },
             "control_pipelines": {"gate": {"pipeline": "gate", "label": "gate", "needed": True, "steps": [{"kind": "x", "label": "y", "repair_task": "gate_pipeline"}]}},
             "decision": {},
@@ -4674,6 +4739,15 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
         self.assertNotIn("task_manifest", canvas["business"]["focusedTopic"]["delegation"])
         self.assertEqual(canvas["business"]["focusedTopic"]["delegation"]["context_plan"]["graph"]["nodes"], [])
         self.assertLessEqual(len(canvas["business"]["focusedTopic"]["delegation"]["context_plan"]["ordered_reads"]), 5)
+        self.assertNotIn(
+            "delegation",
+            canvas["business"]["focusedTopic"]["health"].get("latest_diagnosis") or {},
+        )
+        buckets = workflow.canvas_snapshot_buckets(canvas)
+        self.assertLessEqual(
+            buckets["focused_topic"],
+            workflow.ndf_replay.CANVAS_BUCKET_LIMITS["focused_topic"],
+        )
         self.assertLessEqual(
             len(canvas["business"]["focusedTopic"]["health"]["findings"][0].get("evidence") or ""),
             360,
