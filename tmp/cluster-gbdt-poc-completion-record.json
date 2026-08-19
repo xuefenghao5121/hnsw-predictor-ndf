@@ -1,0 +1,10 @@
+{
+  "schema": "ndf-agent-completion-verification/v1",
+  "valid": true,
+  "episode_id": "ep-poc-implementation-cluster-gbdt-20260814T090921Z",
+  "coverage": "completion_only",
+  "blob_sha": "65b18b3583a69d158961daa693b44f364bf20e7e5a5728d08e10adf11817af95",
+  "event_sha": "56e9cdd1ecb9ee79bcbc461128407947c9a2207e1daca41fe1b4a369b8a60d35",
+  "commit_sha": "11b9ac0154c220414a0683150c48e47867d66cac4a7f48c37bab108b48e8d172",
+  "write_violations": []
+}

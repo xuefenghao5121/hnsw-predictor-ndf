@@ -1,0 +1,3798 @@
+{
+  "schema": "ndf-workflow-canvas-snapshot/v1",
+  "generatedAt": "2026-08-12T20:21:50.814869+00:00",
+  "repoHead": "747b20b1c01d",
+  "snapshotSha": "11935b1325f71361ccd476719501fe39a34e49b7ec226d6e6bf61dcc768b473f",
+  "evidenceGeneration": "11935b1325f71361ccd476719501fe39a34e49b7ec226d6e6bf61dcc768b473f",
+  "embeddedProjection": {
+    "status": "unknown",
+    "verified_path": null
+  },
+  "payloadBinding": {
+    "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+    "source_generation_sha": "11935b1325f71361ccd476719501fe39a34e49b7ec226d6e6bf61dcc768b473f"
+  },
+  "projectionFreshness": {
+    "state": "verified_at_generation",
+    "snapshot_sha": "11935b1325f71361ccd476719501fe39a34e49b7ec226d6e6bf61dcc768b473f",
+    "latest_action": {
+      "action_id": "633b746b-fe8d-4001-9d59-6da10fb9a89a",
+      "blockers": [],
+      "evidence_generation": "7486b1e74efbeb3670afc0439a73252f37ae9839df746431731a412a339649f7",
+      "finished_at": "2026-08-12T18:44:04.768521+00:00",
+      "operation": "trusted-context-control-final",
+      "repo_head_after": "747b20b1c01d01d80df183173c7e6998634c160c",
+      "repo_head_before": "747b20b1c01d01d80df183173c7e6998634c160c",
+      "result": "success",
+      "schema": "ndf-workflow-action/v1",
+      "snapshot_sha_after": null,
+      "started_at": "2026-08-12T18:44:04.742043+00:00",
+      "status": "finished",
+      "topic": null
+    },
+    "in_progress": [],
+    "receipt_path": "tmp/ndf-workflow-actions.jsonl"
+  },
+  "absorbedActionId": "633b746b-fe8d-4001-9d59-6da10fb9a89a",
+  "business": {
+    "identity": {
+      "name": "DiskHNSW",
+      "phase": "P3 active",
+      "goal": "DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数据,实现与全内存 HNSW 可比的向量搜索召回率(≥95%),同时将常驻内存控制在限额内。",
+      "charterPath": "spec/00-charter/charter.md",
+      "scales": [
+        [
+          "SIFT1M",
+          "validated"
+        ],
+        [
+          "DEEP10M",
+          "validated"
+        ],
+        [
+          "100M",
+          "planned"
+        ]
+      ]
+    },
+    "performance": {
+      "protocol": "sustained",
+      "baselineId": "bl-trunk-golden-7ee4ee2",
+      "goldenSha": "7ee4ee2b0af0",
+      "goldenHeadStatus": "head_ahead_of_golden",
+      "repoHeadFull": "747b20b1c01d01d80df183173c7e6998634c160c",
+      "status": "head_ahead_of_golden",
+      "configs": [
+        "cfg-sla-ef100",
+        "cfg-adaptive-ef90",
+        "cfg-m24-ef60"
+      ],
+      "scenes": [
+        "256MB 1T",
+        "256MB 16T",
+        "512MB 1T",
+        "512MB 16T"
+      ],
+      "aggQps": [
+        1747,
+        5218,
+        2154,
+        8698
+      ],
+      "steadyQps": [
+        1917,
+        6929,
+        2519,
+        16341
+      ],
+      "recall": [
+        "96.60%",
+        "96.60%",
+        "96.59%",
+        "96.59%"
+      ],
+      "warning": "⚠️ 512MB 16T CV=6.0% 超标，后续补跑。"
+    },
+    "capabilities": [
+      [
+        "Search core",
+        12,
+        0,
+        3,
+        "src/core/disk_hnsw.cpp + include/disk_hnsw.h"
+      ],
+      [
+        "Fine rerank / I/O",
+        5,
+        0,
+        2,
+        "src/core/disk_hnsw.cpp + include/io_uring_wrapper.h"
+      ],
+      [
+        "Cache",
+        2,
+        0,
+        0,
+        "src/core/block_cache.cpp + include/block_cache.h"
+      ],
+      [
+        "Prefetch",
+        1,
+        0,
+        0,
+        "src/core/graph_prefetcher.cpp + include/graph_prefetcher.h"
+      ],
+      [
+        "Physical layout",
+        1,
+        0,
+        0,
+        "src/pipeline/cluster_reorder.cpp"
+      ],
+      [
+        "Metrics / honesty",
+        1,
+        0,
+        0,
+        "src/benchmark/ + scripts/run_sustained.sh"
+      ],
+      [
+        "Test infrastructure",
+        2,
+        0,
+        0,
+        "src/test/ + spec/50-verification/"
+      ]
+    ],
+    "topics": [
+      {
+        "id": "cluster-gbdt",
+        "path": "poc/cluster-gbdt",
+        "lifecycle": "exploring",
+        "hypothesis": "Cluster sort (BEH-037) 使相似向量集中 → 粗排 top candidates 可能集中在少数 cluster。 加 cluster 特征到 GBDT → 预测\"高 cluster 纯度 = 更少精细候选即可\"→ 更激进剪枝 → 更快 fine rerank。 方法: node_id → cluster_id 查找表 + cluster 熵/纯度特征 → retrain GBDT。",
+        "expectedImpact": "Not explicitly recorded",
+        "surface": [
+          "learned-pruning"
+        ],
+        "evidenceFiles": 0,
+        "numbers": "pending",
+        "baseline": "current",
+        "phase": "legacy gate audit",
+        "spaces": {
+          "design": {
+            "ready": false,
+            "gaps": [
+              "DESIGN.md",
+              "INTERFACE.md",
+              "gate:topic_review:legacy_unknown",
+              "gate:design_review:legacy_unknown",
+              "gate_topic_review_legacy_unknown",
+              "gate_design_review_legacy_unknown",
+              "gate_implementation_approval_legacy_unknown",
+              "missing_ledger"
+            ]
+          },
+          "implementation": {
+            "ready": false,
+            "gaps": [
+              "gate:implementation_approval:legacy_unknown"
+            ],
+            "code_files": [
+              "poc/cluster-gbdt/analyze_cluster_purity.py",
+              "poc/cluster-gbdt/train_cluster_gbdt.py"
+            ]
+          },
+          "test": {
+            "ready": false,
+            "gaps": [
+              "missing_config_id",
+              "missing_measure_script",
+              "missing_delta",
+              "numbers_pending",
+              "missing_perf_baseline_field"
+            ]
+          }
+        },
+        "blockers": [
+          "design:gate_design_review_legacy_unknown",
+          "design:gate_implementation_approval_legacy_unknown",
+          "design:gate_topic_review_legacy_unknown",
+          "design:missing_ledger",
+          "perf:missing_config_id",
+          "perf:missing_measure_script",
+          "test:missing_perf_baseline_field"
+        ],
+        "conflicts": [],
+        "gates": {
+          "topic_review": {
+            "state": "legacy_unknown",
+            "phrase": "TOPIC已审核",
+            "expectedContentSha": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207",
+            "approvedContentSha": null,
+            "shaAligned": false
+          },
+          "design_review": {
+            "state": "legacy_unknown",
+            "phrase": "DESIGN已审核",
+            "expectedContentSha": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207",
+            "approvedContentSha": null,
+            "shaAligned": false
+          },
+          "implementation_approval": {
+            "state": "legacy_unknown",
+            "phrase": "可以开始实现",
+            "expectedContentSha": "81d0ae091c9391a2b177c44de759b41c568fe0889c06edd1cdfe3469c73789cc",
+            "approvedContentSha": null,
+            "shaAligned": false
+          }
+        },
+        "nextHumanPhrase": "TOPIC已审核",
+        "delta": {
+          "exists": false,
+          "path": "poc/cluster-gbdt/ndf/DELTA.md",
+          "feature": null,
+          "hotspot": null,
+          "latest_round": null
+        },
+        "traceability": [
+          {
+            "goal_or_clause": "spec/20-behavior/learned-pruning",
+            "design": "design gaps",
+            "code_or_commit": "poc/cluster-gbdt/analyze_cluster_purity.py, poc/cluster-gbdt/train_cluster_gbdt.py",
+            "verification": "Numbers pending"
+          }
+        ],
+        "delegation": {
+          "safe_to_dispatch": false,
+          "static_preflight_passed": false,
+          "runtime_dispatch_ready": false,
+          "safe_to_delegate_control": true,
+          "perf_check_passed": false,
+          "isolation_passed": true,
+          "task_manifest": {
+            "schema": "ndf-task-manifest/v1",
+            "intent": "poc_implementation",
+            "business_goal": "poc_implementation",
+            "topic": "cluster-gbdt",
+            "task": "poc_implementation",
+            "track": "poc",
+            "workspace": {
+              "repo_root": "/home/huawei/hnsw-predictor-ndf",
+              "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+              "topic": "cluster-gbdt"
+            },
+            "source_generation_sha": "31a199afcca6e995fefadce37a66dba916b4716c4240eb48aa79f50a939b0daa",
+            "binder_roots": [
+              {
+                "order": 0,
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "sha256": "48a57491b72ee0500c9722ad05ec79f3521780f6c6cabd0c6991877530b5bfb2",
+                "bytes": 916,
+                "phase": "binder",
+                "reason": "binder_root"
+              },
+              {
+                "order": 1,
+                "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+                "sha256": "8e59717f9747f616d13b6069fe91c0269e8a9436bd011fc2732d4435490af9a7",
+                "bytes": 165,
+                "phase": "binder",
+                "reason": "binder_root"
+              }
+            ],
+            "clause_seeds": [
+              "META-012"
+            ],
+            "seed_sources": {
+              "topic": [],
+              "proposals": [],
+              "commits": [],
+              "task_defaults": [
+                "META-012"
+              ],
+              "explicit": []
+            },
+            "shared_graph_closure": {
+              "relations": [
+                "depends-on",
+                "refines"
+              ],
+              "direction": "upstream; verifies also reverse",
+              "depth": 8,
+              "node_budget": 240,
+              "byte_budget": 1048576,
+              "bytes_used": 23492,
+              "nodes": [
+                {
+                  "id": "META-012",
+                  "title": "NDF 任务上下文与证据绑定",
+                  "file": "spec/meta/process.md",
+                  "line": 381,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 0,
+                  "clause_sha": "b4c283c94b0b27420097535d3a18a96aaa1846dcd825f4a6849b172e6b004917",
+                  "bytes": 2613,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-008",
+                      "META-010",
+                      "META-011"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-002",
+                  "title": "NDF 图边与引用",
+                  "file": "spec/meta/language.md",
+                  "line": 56,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                  "bytes": 1150,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-008",
+                  "title": "NDF 工作空间视角",
+                  "file": "spec/meta/language.md",
+                  "line": 111,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                  "bytes": 1644,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-003"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-010",
+                  "title": "人工门禁回执",
+                  "file": "spec/meta/process.md",
+                  "line": 181,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                  "bytes": 1108,
+                  "edges": {
+                    "depends-on": [
+                      "META-001",
+                      "META-008"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-011",
+                  "title": "Workflow 投影与 Claude Code 委派",
+                  "file": "spec/meta/process.md",
+                  "line": 203,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                  "bytes": 9517,
+                  "edges": {
+                    "depends-on": [
+                      "META-008",
+                      "META-010"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-001",
+                  "title": "NDF 条款书写与元数据",
+                  "file": "spec/meta/language.md",
+                  "line": 11,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                  "bytes": 2288,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-002"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-003",
+                  "title": "分层与强制语气",
+                  "file": "spec/meta/language.md",
+                  "line": 81,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                  "bytes": 916,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-002",
+                  "title": "ADR: Meta 条款独立编号命名空间",
+                  "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+                  "line": 1,
+                  "kind": "decision",
+                  "level": "",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 3,
+                  "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+                  "bytes": 2397,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-001",
+                  "title": "ADR: NDF 元规范与产品契约分层",
+                  "file": "spec/meta/decisions/adr-meta-layer-split.md",
+                  "line": 1,
+                  "kind": "",
+                  "level": "",
+                  "status": "",
+                  "scope": null,
+                  "trunk_ref": null,
+                  "hop": 4,
+                  "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+                  "bytes": 1859,
+                  "edges": {}
+                }
+              ],
+              "missing_seeds": [],
+              "truncated": [],
+              "blockers": []
+            },
+            "implementation_surface": [
+              "poc/cluster-gbdt/"
+            ],
+            "ledger_joins": [],
+            "baseline": {
+              "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+              "baseline_status": "current",
+              "baseline_trunk_sha": "1f684c7",
+              "baseline_protocol": "CON-SLA-020 sustained",
+              "bind": {
+                "baseline": "bl-trunk-golden-7ee4ee2",
+                "config": "Config C (M=24, EF=60), SIFT1M"
+              },
+              "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+            },
+            "human_gates": {
+              "path": null,
+              "path_sha": null,
+              "expected": {
+                "topic_review": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207",
+                "design_review": null,
+                "implementation_approval": null
+              },
+              "receipts": []
+            },
+            "evidence_refs": [],
+            "trunk_ref_joins": [],
+            "conflicts": [],
+            "role_policies": {
+              "canvas": {
+                "allowed_write_roots": [],
+                "forbidden_write_paths": [
+                  "*"
+                ],
+                "summary_only": true
+              },
+              "human": {
+                "allowed_write_roots": [],
+                "forbidden_write_paths": [
+                  "*"
+                ],
+                "summary_only": true
+              },
+              "openclaw": {
+                "allowed_write_roots": [
+                  "spec/open/",
+                  "spec/meta/open/"
+                ],
+                "forbidden_write_paths": [
+                  "src/",
+                  "include/",
+                  "tests/",
+                  "spec/meta/process.md"
+                ],
+                "summary_only": false
+              },
+              "claude-code": {
+                "allowed_write_roots": [
+                  "poc/cluster-gbdt/"
+                ],
+                "forbidden_write_paths": [
+                  "spec/meta/",
+                  "spec/00-charter/",
+                  "spec/10-architecture/",
+                  "src/",
+                  "include/",
+                  "tests/"
+                ],
+                "summary_only": false
+              },
+              "project-control": {
+                "allowed_write_roots": [
+                  "spec/meta/open/"
+                ],
+                "forbidden_write_paths": [
+                  "src/",
+                  "include/",
+                  "tests/",
+                  "spec/00-charter/",
+                  "spec/20-behavior/"
+                ],
+                "summary_only": false
+              }
+            },
+            "manifest_sha": "7612fb1fa75379344ac16f90b2c024000d0ab92022349829d87643f9304b3c88"
+          },
+          "manifest_sha": "7612fb1fa75379344ac16f90b2c024000d0ab92022349829d87643f9304b3c88",
+          "context_plan": {
+            "schema": "ndf-context-plan/claude-code/v1",
+            "manifest_sha": "7612fb1fa75379344ac16f90b2c024000d0ab92022349829d87643f9304b3c88",
+            "workspace": {
+              "repo_root": "/home/huawei/hnsw-predictor-ndf",
+              "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+              "topic": "cluster-gbdt"
+            },
+            "role": "claude-code",
+            "task": "poc_implementation",
+            "track": "poc",
+            "topic": "cluster-gbdt",
+            "source_generation_sha": "31a199afcca6e995fefadce37a66dba916b4716c4240eb48aa79f50a939b0daa",
+            "ordered_reads": [
+              {
+                "order": 0,
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "sha256": "48a57491b72ee0500c9722ad05ec79f3521780f6c6cabd0c6991877530b5bfb2",
+                "bytes": 916,
+                "phase": "binder",
+                "reason": "binder_root"
+              },
+              {
+                "order": 1,
+                "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+                "sha256": "8e59717f9747f616d13b6069fe91c0269e8a9436bd011fc2732d4435490af9a7",
+                "bytes": 165,
+                "phase": "binder",
+                "reason": "binder_root"
+              }
+            ],
+            "seed_ids": [
+              "META-012"
+            ],
+            "seed_sources": {
+              "topic": [],
+              "proposals": [],
+              "commits": [],
+              "task_defaults": [
+                "META-012"
+              ],
+              "explicit": []
+            },
+            "graph": {
+              "relations": [
+                "depends-on",
+                "refines"
+              ],
+              "direction": "upstream; verifies also reverse",
+              "depth": 8,
+              "node_budget": 240,
+              "byte_budget": 1048576,
+              "bytes_used": 23492,
+              "nodes": [
+                {
+                  "id": "META-012",
+                  "title": "NDF 任务上下文与证据绑定",
+                  "file": "spec/meta/process.md",
+                  "line": 381,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 0,
+                  "clause_sha": "b4c283c94b0b27420097535d3a18a96aaa1846dcd825f4a6849b172e6b004917",
+                  "bytes": 2613,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-008",
+                      "META-010",
+                      "META-011"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-002",
+                  "title": "NDF 图边与引用",
+                  "file": "spec/meta/language.md",
+                  "line": 56,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                  "bytes": 1150,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-008",
+                  "title": "NDF 工作空间视角",
+                  "file": "spec/meta/language.md",
+                  "line": 111,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                  "bytes": 1644,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-003"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-010",
+                  "title": "人工门禁回执",
+                  "file": "spec/meta/process.md",
+                  "line": 181,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                  "bytes": 1108,
+                  "edges": {
+                    "depends-on": [
+                      "META-001",
+                      "META-008"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-011",
+                  "title": "Workflow 投影与 Claude Code 委派",
+                  "file": "spec/meta/process.md",
+                  "line": 203,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                  "bytes": 9517,
+                  "edges": {
+                    "depends-on": [
+                      "META-008",
+                      "META-010"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-001",
+                  "title": "NDF 条款书写与元数据",
+                  "file": "spec/meta/language.md",
+                  "line": 11,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                  "bytes": 2288,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-002"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-003",
+                  "title": "分层与强制语气",
+                  "file": "spec/meta/language.md",
+                  "line": 81,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                  "bytes": 916,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-002",
+                  "title": "ADR: Meta 条款独立编号命名空间",
+                  "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+                  "line": 1,
+                  "kind": "decision",
+                  "level": "",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 3,
+                  "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+                  "bytes": 2397,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-001",
+                  "title": "ADR: NDF 元规范与产品契约分层",
+                  "file": "spec/meta/decisions/adr-meta-layer-split.md",
+                  "line": 1,
+                  "kind": "",
+                  "level": "",
+                  "status": "",
+                  "scope": null,
+                  "trunk_ref": null,
+                  "hop": 4,
+                  "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+                  "bytes": 1859,
+                  "edges": {}
+                }
+              ],
+              "missing_seeds": [],
+              "truncated": [],
+              "blockers": []
+            },
+            "implementation_surface": [
+              "poc/cluster-gbdt/"
+            ],
+            "ledger_joins": [],
+            "baseline": {
+              "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+              "baseline_status": "current",
+              "baseline_trunk_sha": "1f684c7",
+              "baseline_protocol": "CON-SLA-020 sustained",
+              "bind": {
+                "baseline": "bl-trunk-golden-7ee4ee2",
+                "config": "Config C (M=24, EF=60), SIFT1M"
+              },
+              "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+            },
+            "gates": {
+              "path": null,
+              "path_sha": null,
+              "expected": {
+                "topic_review": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207",
+                "design_review": null,
+                "implementation_approval": null
+              },
+              "receipts": []
+            },
+            "evidence_refs": [],
+            "trunk_ref_joins": [],
+            "privileges": {
+              "allowed_write_roots": [
+                "poc/cluster-gbdt/"
+              ],
+              "forbidden_write_paths": [
+                "spec/meta/",
+                "spec/00-charter/",
+                "spec/10-architecture/",
+                "src/",
+                "include/",
+                "tests/"
+              ],
+              "summary_only": false
+            },
+            "human_phrase": "可以开始实现",
+            "plan_sha": "b35e47bea3f501dbe3cf495ef950b715b622d308ce9094d877a344a93ea7d809"
+          },
+          "context_verify": {
+            "schema": "ndf-context-verification/v1",
+            "valid": false,
+            "plan_sha": "b35e47bea3f501dbe3cf495ef950b715b622d308ce9094d877a344a93ea7d809",
+            "manifest_sha": "7612fb1fa75379344ac16f90b2c024000d0ab92022349829d87643f9304b3c88",
+            "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+            "errors": [
+              {
+                "kind": "required_gate_not_valid",
+                "gate": "implementation_approval"
+              }
+            ],
+            "warnings": []
+          },
+          "plan_sha": "b35e47bea3f501dbe3cf495ef950b715b622d308ce9094d877a344a93ea7d809",
+          "dispatch_blockers": [
+            "implementation_gate:legacy_unknown",
+            "perf_check_failed",
+            "context_verify_failed",
+            "runtime_unavailable"
+          ],
+          "evaluated_at": "2026-08-12T20:21:48.897966+00:00"
+        },
+        "health": {
+          "blockers": [
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ],
+          "conflicts": [],
+          "stale": false,
+          "checks": {
+            "perf_baseline": {
+              "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic cluster-gbdt",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "topic: cluster-gbdt TOPIC baseline_trunk_sha: 1f684c7 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] miss…"
+            },
+            "isolation": {
+              "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+              "exit_code": 0,
+              "state": "passed",
+              "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T20:21:48Z - topics: cluster-gbdt - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['cluster-gbdt'] summary: 0 er…"
+            },
+            "bindcheck": {
+              "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic cluster-gbdt --report -",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T20:21:48Z - topics: 1 (cluster-gbdt) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing…"
+            }
+          },
+          "findings": [
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_topic_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "topic_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "TOPIC已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_design_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "design_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "DESIGN已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_implementation_approval_legacy_unknown",
+              "severity": "error",
+              "evidence": "implementation_approval receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "可以开始实现"
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_delta",
+              "severity": "warning",
+              "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_perf_baseline_field",
+              "severity": "error",
+              "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_design",
+              "severity": "warning",
+              "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_interface",
+              "severity": "warning",
+              "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_ledger",
+              "severity": "error",
+              "evidence": "missing Commit Ledger COMMITS.md",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "numbers_pending",
+              "severity": "info",
+              "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+              "repair_owner": "claude-code",
+              "repair_task": "poc_measurement",
+              "allowed_write_root": "poc/cluster-gbdt/",
+              "human_gate": null
+            }
+          ],
+          "next_actions": [
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "TOPIC已审核",
+              "kind": "gate_topic_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "DESIGN已审核",
+              "kind": "gate_design_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "可以开始实现",
+              "kind": "gate_implementation_approval_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null,
+              "kind": "missing_delta"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null,
+              "kind": "missing_design"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "claude-code",
+              "task": "poc_measurement",
+              "allowed_write_root": "poc/cluster-gbdt/",
+              "human_gate": null,
+              "kind": "numbers_pending"
+            }
+          ],
+          "latest_diagnosis": {
+            "checks": {
+              "bindcheck": {
+                "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic cluster-gbdt --report -",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T19:31:28Z - topics: 1 (cluster-gbdt) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing…"
+              },
+              "isolation": {
+                "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+                "exit_code": 0,
+                "state": "passed",
+                "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T19:31:28Z - topics: cluster-gbdt - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['cluster-gbdt'] summary: 0 er…"
+              },
+              "perf_baseline": {
+                "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic cluster-gbdt",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "topic: cluster-gbdt TOPIC baseline_trunk_sha: 1f684c7 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] miss…"
+              }
+            },
+            "delegation": {
+              "context_plan": {
+                "baseline": {
+                  "baseline_protocol": "CON-SLA-020 sustained",
+                  "baseline_status": "current",
+                  "baseline_trunk_sha": "1f684c7",
+                  "bind": {
+                    "baseline": "bl-trunk-golden-7ee4ee2",
+                    "config": "Config C (M=24, EF=60), SIFT1M"
+                  },
+                  "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b",
+                  "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md"
+                },
+                "evidence_refs": [],
+                "gates": {
+                  "expected": {
+                    "design_review": null,
+                    "implementation_approval": null,
+                    "topic_review": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207"
+                  },
+                  "path": null,
+                  "path_sha": null,
+                  "receipts": []
+                },
+                "graph": {
+                  "blockers": [],
+                  "byte_budget": 256000,
+                  "bytes_used": 19015,
+                  "depth": 2,
+                  "direction": "upstream; verifies also reverse",
+                  "missing_seeds": [],
+                  "node_budget": 80,
+                  "nodes": [
+                    {
+                      "bytes": 2392,
+                      "clause_sha": "ed0dc8add3592972da99b06d9d33e3cb9dc3d8169380fc30e5386df436f231ee",
+                      "edges": {
+                        "depends-on": [
+                          "META-002",
+                          "META-008",
+                          "META-010",
+                          "META-011"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 0,
+                      "id": "META-012",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 381,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 任务上下文与证据绑定"
+                    },
+                    {
+                      "bytes": 1150,
+                      "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                      "edges": {
+                        "depends-on": [
+                          "META-001"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 1,
+                      "id": "META-002",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 56,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 图边与引用"
+                    },
+                    {
+                      "bytes": 1644,
+                      "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                      "edges": {
+                        "depends-on": [
+                          "META-002",
+                          "META-003"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 1,
+                      "id": "META-008",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 111,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 工作空间视角"
+                    },
+                    {
+                      "bytes": 1108,
+                      "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                      "edges": {
+                        "depends-on": [
+                          "META-001",
+                          "META-008"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 1,
+                      "id": "META-010",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 181,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "人工门禁回执"
+                    },
+                    {
+                      "bytes": 9517,
+                      "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                      "edges": {
+                        "depends-on": [
+                          "META-008",
+                          "META-010"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 1,
+                      "id": "META-011",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 203,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "Workflow 投影与 Claude Code 委派"
+                    },
+                    {
+                      "bytes": 2288,
+                      "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                      "edges": {
+                        "depends-on": [
+                          "ADR-META-002"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 2,
+                      "id": "META-001",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 11,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 条款书写与元数据"
+                    },
+                    {
+                      "bytes": 916,
+                      "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                      "edges": {
+                        "depends-on": [
+                          "META-001"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 2,
+                      "id": "META-003",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 81,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "分层与强制语气"
+                    }
+                  ],
+                  "relations": [
+                    "depends-on",
+                    "refines"
+                  ],
+                  "truncated": [
+                    "depth"
+                  ]
+                },
+                "human_phrase": "可以开始实现",
+                "implementation_surface": [
+                  "poc/cluster-gbdt/"
+                ],
+                "ordered_reads": [
+                  {
+                    "bytes": 916,
+                    "order": 0,
+                    "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                    "phase": "binder",
+                    "reason": "binder_root",
+                    "sha256": "48a57491b72ee0500c9722ad05ec79f3521780f6c6cabd0c6991877530b5bfb2"
+                  },
+                  {
+                    "bytes": 165,
+                    "order": 1,
+                    "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+                    "phase": "binder",
+                    "reason": "binder_root",
+                    "sha256": "8e59717f9747f616d13b6069fe91c0269e8a9436bd011fc2732d4435490af9a7"
+                  }
+                ],
+                "plan_sha": "6b94db23fac51c8b04d8d3548f139c6efd91b55152d855d60e5d4ef811c487bf",
+                "privileges": {
+                  "allowed_write_roots": [
+                    "poc/cluster-gbdt/"
+                  ],
+                  "forbidden_write_paths": [
+                    "spec/meta/",
+                    "spec/00-charter/",
+                    "spec/10-architecture/",
+                    "src/",
+                    "include/",
+                    "tests/"
+                  ],
+                  "summary_only": false
+                },
+                "role": "claude-code",
+                "schema": "ndf-context-plan/v1",
+                "seed_ids": [
+                  "META-012"
+                ],
+                "seed_sources": {
+                  "commits": [],
+                  "explicit": [],
+                  "proposals": [],
+                  "task_defaults": [
+                    "META-012"
+                  ],
+                  "topic": []
+                },
+                "source_generation_sha": "beffaa6b1545c30a4dcf3d9e3a49322307f13b8ab375626c26350a098f647df5",
+                "task": "poc_implementation",
+                "topic": "cluster-gbdt",
+                "track": "poc",
+                "workspace": {
+                  "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+                  "repo_root": "/home/huawei/hnsw-predictor-ndf",
+                  "topic": "cluster-gbdt"
+                }
+              },
+              "context_verify": {
+                "errors": [
+                  {
+                    "gate": "implementation_approval",
+                    "kind": "required_gate_not_valid"
+                  }
+                ],
+                "plan_sha": "6b94db23fac51c8b04d8d3548f139c6efd91b55152d855d60e5d4ef811c487bf",
+                "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+                "schema": "ndf-context-verification/v1",
+                "valid": false,
+                "warnings": [
+                  {
+                    "kind": "graph_truncated",
+                    "reasons": [
+                      "depth"
+                    ]
+                  }
+                ]
+              },
+              "dispatch_blockers": [
+                "implementation_gate:legacy_unknown",
+                "perf_check_failed",
+                "context_verify_failed",
+                "runtime_unavailable"
+              ],
+              "evaluated_at": "2026-08-12T19:31:28.982787+00:00",
+              "isolation_passed": true,
+              "perf_check_passed": false,
+              "plan_sha": "6b94db23fac51c8b04d8d3548f139c6efd91b55152d855d60e5d4ef811c487bf",
+              "runtime_dispatch_ready": false,
+              "safe_to_delegate_control": true,
+              "safe_to_dispatch": false,
+              "static_preflight_passed": false
+            },
+            "finding_diff": {
+              "new": [],
+              "previous_findings_hash": "ccda98fbf604caad4c42ca642c3b1785da8ad90cec863cbc8bf16ac9e9df3b90",
+              "remaining": [
+                "gate_design_review_legacy_unknown",
+                "gate_implementation_approval_legacy_unknown",
+                "gate_topic_review_legacy_unknown",
+                "missing_delta",
+                "missing_design",
+                "missing_interface",
+                "missing_ledger",
+                "missing_perf_baseline_field",
+                "numbers_pending"
+              ],
+              "resolved": []
+            },
+            "findings": [
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "topic_review receipt state is legacy_unknown",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "design_review receipt state is legacy_unknown",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "implementation_approval receipt state is legacy_unknown",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+                "human_gate": null,
+                "kind": "missing_perf_baseline_field",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_design",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_interface",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "missing Commit Ledger COMMITS.md",
+                "human_gate": null,
+                "kind": "missing_ledger",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/",
+                "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "repair_owner": "claude-code",
+                "repair_task": "poc_measurement",
+                "scope": "topic",
+                "severity": "info",
+                "space": "Test"
+              }
+            ],
+            "findings_hash": "ccda98fbf604caad4c42ca642c3b1785da8ad90cec863cbc8bf16ac9e9df3b90",
+            "generated_at": "2026-08-12T19:31:28.983109+00:00",
+            "lifecycle": "exploring",
+            "next_actions": [
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "owner": "openclaw",
+                "space": "Test",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": null,
+                "kind": "missing_design",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "owner": "claude-code",
+                "space": "Test",
+                "stage": "repair",
+                "task": "poc_measurement"
+              }
+            ],
+            "phase_hint": "legacy_gate_audit",
+            "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+            "schema": "ndf-topic-health/v1",
+            "snapshot_sha": "7486b1e74efbeb3670afc0439a73252f37ae9839df746431731a412a339649f7",
+            "spaces": {
+              "design": {
+                "gaps": [
+                  "DESIGN.md",
+                  "INTERFACE.md",
+                  "gate:topic_review:legacy_unknown",
+                  "gate:design_review:legacy_unknown",
+                  "gate_topic_review_legacy_unknown",
+                  "gate_design_review_legacy_unknown",
+                  "gate_implementation_approval_legacy_unknown",
+                  "missing_ledger"
+                ],
+                "ready": false
+              },
+              "implementation": {
+                "code_files": [
+                  "poc/cluster-gbdt/analyze_cluster_purity.py",
+                  "poc/cluster-gbdt/train_cluster_gbdt.py"
+                ],
+                "gaps": [
+                  "gate:implementation_approval:legacy_unknown"
+                ],
+                "ready": false
+              },
+              "test": {
+                "gaps": [
+                  "missing_config_id",
+                  "missing_measure_script",
+                  "missing_delta",
+                  "numbers_pending",
+                  "missing_perf_baseline_field"
+                ],
+                "ready": false
+              }
+            },
+            "state": "stale",
+            "topic": "cluster-gbdt"
+          }
+        }
+      },
+      {
+        "id": "page-packer",
+        "path": "poc/page-packer",
+        "lifecycle": "exploring",
+        "hypothesis": "Cluster sort (BEH-037) 将相似向量集中到同一 block，但 4KB 页内（8 vectors） 仍含 ~3 个不同 cluster。贪心页面打包：对每 cluster 段内用 graph adjacency 贪心分配页 → 每页 graph neighbors 最大化 → 更高页命中率 → 更高 QPS。 两步: 1. within-block cluster sort (existing) 2. per-cluster-segment greedy page packing (new)",
+        "expectedImpact": "Not explicitly recorded",
+        "surface": [
+          "vecblock-layout"
+        ],
+        "evidenceFiles": 0,
+        "numbers": "pending",
+        "baseline": "current",
+        "phase": "legacy gate audit",
+        "spaces": {
+          "design": {
+            "ready": false,
+            "gaps": [
+              "DESIGN.md",
+              "INTERFACE.md",
+              "gate:topic_review:legacy_unknown",
+              "gate:design_review:legacy_unknown",
+              "gate_topic_review_legacy_unknown",
+              "gate_design_review_legacy_unknown",
+              "gate_implementation_approval_legacy_unknown",
+              "missing_ledger"
+            ]
+          },
+          "implementation": {
+            "ready": false,
+            "gaps": [
+              "gate:implementation_approval:legacy_unknown"
+            ],
+            "code_files": [
+              "poc/page-packer/run_r0.sh"
+            ]
+          },
+          "test": {
+            "ready": false,
+            "gaps": [
+              "missing_config_id",
+              "missing_measure_script",
+              "missing_delta",
+              "numbers_pending",
+              "missing_perf_baseline_field"
+            ]
+          }
+        },
+        "blockers": [
+          "design:gate_design_review_legacy_unknown",
+          "design:gate_implementation_approval_legacy_unknown",
+          "design:gate_topic_review_legacy_unknown",
+          "design:missing_ledger",
+          "perf:missing_config_id",
+          "perf:missing_measure_script",
+          "test:missing_perf_baseline_field"
+        ],
+        "conflicts": [],
+        "gates": {
+          "topic_review": {
+            "state": "legacy_unknown",
+            "phrase": "TOPIC已审核",
+            "expectedContentSha": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+            "approvedContentSha": null,
+            "shaAligned": false
+          },
+          "design_review": {
+            "state": "legacy_unknown",
+            "phrase": "DESIGN已审核",
+            "expectedContentSha": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+            "approvedContentSha": null,
+            "shaAligned": false
+          },
+          "implementation_approval": {
+            "state": "legacy_unknown",
+            "phrase": "可以开始实现",
+            "expectedContentSha": "9e78e57f502f7e304268b4e3b2ffbef85a9e78caec2a51268942ef74a4995984",
+            "approvedContentSha": null,
+            "shaAligned": false
+          }
+        },
+        "nextHumanPhrase": "TOPIC已审核",
+        "delta": {
+          "exists": false,
+          "path": "poc/page-packer/ndf/DELTA.md",
+          "feature": null,
+          "hotspot": null,
+          "latest_round": null
+        },
+        "traceability": [
+          {
+            "goal_or_clause": "spec/20-behavior/vecblock-layout",
+            "design": "design gaps",
+            "code_or_commit": "poc/page-packer/run_r0.sh",
+            "verification": "Numbers pending"
+          }
+        ],
+        "delegation": {
+          "safe_to_dispatch": false,
+          "static_preflight_passed": false,
+          "runtime_dispatch_ready": false,
+          "safe_to_delegate_control": true,
+          "perf_check_passed": false,
+          "isolation_passed": true,
+          "task_manifest": {
+            "schema": "ndf-task-manifest/v1",
+            "intent": "poc_implementation",
+            "business_goal": "poc_implementation",
+            "topic": "page-packer",
+            "task": "poc_implementation",
+            "track": "poc",
+            "workspace": {
+              "repo_root": "/home/huawei/hnsw-predictor-ndf",
+              "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+              "topic": "page-packer"
+            },
+            "source_generation_sha": "718fa0688451032f3926cc354638f98144ca44039cb52a38e4fd244e7db26f2f",
+            "binder_roots": [
+              {
+                "order": 0,
+                "path": "poc/page-packer/ndf/TOPIC.md",
+                "sha256": "fb47b7ad0289222fce4fc0212a1aeb55a833469f1c0138d397137f275d2861fc",
+                "bytes": 1002,
+                "phase": "binder",
+                "reason": "binder_root"
+              },
+              {
+                "order": 1,
+                "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+                "sha256": "248a5909c799c63fffcc53cc22a3373621fd179dbaad1c3500d6abb33385751a",
+                "bytes": 164,
+                "phase": "binder",
+                "reason": "binder_root"
+              }
+            ],
+            "clause_seeds": [
+              "META-012"
+            ],
+            "seed_sources": {
+              "topic": [],
+              "proposals": [],
+              "commits": [],
+              "task_defaults": [
+                "META-012"
+              ],
+              "explicit": []
+            },
+            "shared_graph_closure": {
+              "relations": [
+                "depends-on",
+                "refines"
+              ],
+              "direction": "upstream; verifies also reverse",
+              "depth": 8,
+              "node_budget": 240,
+              "byte_budget": 1048576,
+              "bytes_used": 23492,
+              "nodes": [
+                {
+                  "id": "META-012",
+                  "title": "NDF 任务上下文与证据绑定",
+                  "file": "spec/meta/process.md",
+                  "line": 381,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 0,
+                  "clause_sha": "b4c283c94b0b27420097535d3a18a96aaa1846dcd825f4a6849b172e6b004917",
+                  "bytes": 2613,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-008",
+                      "META-010",
+                      "META-011"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-002",
+                  "title": "NDF 图边与引用",
+                  "file": "spec/meta/language.md",
+                  "line": 56,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                  "bytes": 1150,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-008",
+                  "title": "NDF 工作空间视角",
+                  "file": "spec/meta/language.md",
+                  "line": 111,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                  "bytes": 1644,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-003"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-010",
+                  "title": "人工门禁回执",
+                  "file": "spec/meta/process.md",
+                  "line": 181,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                  "bytes": 1108,
+                  "edges": {
+                    "depends-on": [
+                      "META-001",
+                      "META-008"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-011",
+                  "title": "Workflow 投影与 Claude Code 委派",
+                  "file": "spec/meta/process.md",
+                  "line": 203,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                  "bytes": 9517,
+                  "edges": {
+                    "depends-on": [
+                      "META-008",
+                      "META-010"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-001",
+                  "title": "NDF 条款书写与元数据",
+                  "file": "spec/meta/language.md",
+                  "line": 11,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                  "bytes": 2288,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-002"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-003",
+                  "title": "分层与强制语气",
+                  "file": "spec/meta/language.md",
+                  "line": 81,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                  "bytes": 916,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-002",
+                  "title": "ADR: Meta 条款独立编号命名空间",
+                  "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+                  "line": 1,
+                  "kind": "decision",
+                  "level": "",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 3,
+                  "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+                  "bytes": 2397,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-001",
+                  "title": "ADR: NDF 元规范与产品契约分层",
+                  "file": "spec/meta/decisions/adr-meta-layer-split.md",
+                  "line": 1,
+                  "kind": "",
+                  "level": "",
+                  "status": "",
+                  "scope": null,
+                  "trunk_ref": null,
+                  "hop": 4,
+                  "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+                  "bytes": 1859,
+                  "edges": {}
+                }
+              ],
+              "missing_seeds": [],
+              "truncated": [],
+              "blockers": []
+            },
+            "implementation_surface": [
+              "poc/page-packer/"
+            ],
+            "ledger_joins": [],
+            "baseline": {
+              "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+              "baseline_status": "current",
+              "baseline_trunk_sha": "9df8b74",
+              "baseline_protocol": "CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热",
+              "bind": {
+                "baseline": "bl-trunk-golden-7ee4ee2",
+                "config": "Config C (M=24, EF=60), SIFT1M"
+              },
+              "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+            },
+            "human_gates": {
+              "path": null,
+              "path_sha": null,
+              "expected": {
+                "topic_review": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+                "design_review": null,
+                "implementation_approval": null
+              },
+              "receipts": []
+            },
+            "evidence_refs": [],
+            "trunk_ref_joins": [],
+            "conflicts": [],
+            "role_policies": {
+              "canvas": {
+                "allowed_write_roots": [],
+                "forbidden_write_paths": [
+                  "*"
+                ],
+                "summary_only": true
+              },
+              "human": {
+                "allowed_write_roots": [],
+                "forbidden_write_paths": [
+                  "*"
+                ],
+                "summary_only": true
+              },
+              "openclaw": {
+                "allowed_write_roots": [
+                  "spec/open/",
+                  "spec/meta/open/"
+                ],
+                "forbidden_write_paths": [
+                  "src/",
+                  "include/",
+                  "tests/",
+                  "spec/meta/process.md"
+                ],
+                "summary_only": false
+              },
+              "claude-code": {
+                "allowed_write_roots": [
+                  "poc/page-packer/"
+                ],
+                "forbidden_write_paths": [
+                  "spec/meta/",
+                  "spec/00-charter/",
+                  "spec/10-architecture/",
+                  "src/",
+                  "include/",
+                  "tests/"
+                ],
+                "summary_only": false
+              },
+              "project-control": {
+                "allowed_write_roots": [
+                  "spec/meta/open/"
+                ],
+                "forbidden_write_paths": [
+                  "src/",
+                  "include/",
+                  "tests/",
+                  "spec/00-charter/",
+                  "spec/20-behavior/"
+                ],
+                "summary_only": false
+              }
+            },
+            "manifest_sha": "e79ee0cedfab3da8087ef5329621f21a5b293da54475c7699896acb573052957"
+          },
+          "manifest_sha": "e79ee0cedfab3da8087ef5329621f21a5b293da54475c7699896acb573052957",
+          "context_plan": {
+            "schema": "ndf-context-plan/claude-code/v1",
+            "manifest_sha": "e79ee0cedfab3da8087ef5329621f21a5b293da54475c7699896acb573052957",
+            "workspace": {
+              "repo_root": "/home/huawei/hnsw-predictor-ndf",
+              "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+              "topic": "page-packer"
+            },
+            "role": "claude-code",
+            "task": "poc_implementation",
+            "track": "poc",
+            "topic": "page-packer",
+            "source_generation_sha": "718fa0688451032f3926cc354638f98144ca44039cb52a38e4fd244e7db26f2f",
+            "ordered_reads": [
+              {
+                "order": 0,
+                "path": "poc/page-packer/ndf/TOPIC.md",
+                "sha256": "fb47b7ad0289222fce4fc0212a1aeb55a833469f1c0138d397137f275d2861fc",
+                "bytes": 1002,
+                "phase": "binder",
+                "reason": "binder_root"
+              },
+              {
+                "order": 1,
+                "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+                "sha256": "248a5909c799c63fffcc53cc22a3373621fd179dbaad1c3500d6abb33385751a",
+                "bytes": 164,
+                "phase": "binder",
+                "reason": "binder_root"
+              }
+            ],
+            "seed_ids": [
+              "META-012"
+            ],
+            "seed_sources": {
+              "topic": [],
+              "proposals": [],
+              "commits": [],
+              "task_defaults": [
+                "META-012"
+              ],
+              "explicit": []
+            },
+            "graph": {
+              "relations": [
+                "depends-on",
+                "refines"
+              ],
+              "direction": "upstream; verifies also reverse",
+              "depth": 8,
+              "node_budget": 240,
+              "byte_budget": 1048576,
+              "bytes_used": 23492,
+              "nodes": [
+                {
+                  "id": "META-012",
+                  "title": "NDF 任务上下文与证据绑定",
+                  "file": "spec/meta/process.md",
+                  "line": 381,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 0,
+                  "clause_sha": "b4c283c94b0b27420097535d3a18a96aaa1846dcd825f4a6849b172e6b004917",
+                  "bytes": 2613,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-008",
+                      "META-010",
+                      "META-011"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-002",
+                  "title": "NDF 图边与引用",
+                  "file": "spec/meta/language.md",
+                  "line": 56,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                  "bytes": 1150,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-008",
+                  "title": "NDF 工作空间视角",
+                  "file": "spec/meta/language.md",
+                  "line": 111,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                  "bytes": 1644,
+                  "edges": {
+                    "depends-on": [
+                      "META-002",
+                      "META-003"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-010",
+                  "title": "人工门禁回执",
+                  "file": "spec/meta/process.md",
+                  "line": 181,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                  "bytes": 1108,
+                  "edges": {
+                    "depends-on": [
+                      "META-001",
+                      "META-008"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-011",
+                  "title": "Workflow 投影与 Claude Code 委派",
+                  "file": "spec/meta/process.md",
+                  "line": 203,
+                  "kind": "req",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 1,
+                  "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                  "bytes": 9517,
+                  "edges": {
+                    "depends-on": [
+                      "META-008",
+                      "META-010"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-001",
+                  "title": "NDF 条款书写与元数据",
+                  "file": "spec/meta/language.md",
+                  "line": 11,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                  "bytes": 2288,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-002"
+                    ]
+                  }
+                },
+                {
+                  "id": "META-003",
+                  "title": "分层与强制语气",
+                  "file": "spec/meta/language.md",
+                  "line": 81,
+                  "kind": "def",
+                  "level": "must",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 2,
+                  "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                  "bytes": 916,
+                  "edges": {
+                    "depends-on": [
+                      "META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-002",
+                  "title": "ADR: Meta 条款独立编号命名空间",
+                  "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+                  "line": 1,
+                  "kind": "decision",
+                  "level": "",
+                  "status": "stable",
+                  "scope": "ndf-process",
+                  "trunk_ref": null,
+                  "hop": 3,
+                  "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+                  "bytes": 2397,
+                  "edges": {
+                    "depends-on": [
+                      "ADR-META-001"
+                    ]
+                  }
+                },
+                {
+                  "id": "ADR-META-001",
+                  "title": "ADR: NDF 元规范与产品契约分层",
+                  "file": "spec/meta/decisions/adr-meta-layer-split.md",
+                  "line": 1,
+                  "kind": "",
+                  "level": "",
+                  "status": "",
+                  "scope": null,
+                  "trunk_ref": null,
+                  "hop": 4,
+                  "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+                  "bytes": 1859,
+                  "edges": {}
+                }
+              ],
+              "missing_seeds": [],
+              "truncated": [],
+              "blockers": []
+            },
+            "implementation_surface": [
+              "poc/page-packer/"
+            ],
+            "ledger_joins": [],
+            "baseline": {
+              "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+              "baseline_status": "current",
+              "baseline_trunk_sha": "9df8b74",
+              "baseline_protocol": "CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热",
+              "bind": {
+                "baseline": "bl-trunk-golden-7ee4ee2",
+                "config": "Config C (M=24, EF=60), SIFT1M"
+              },
+              "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+            },
+            "gates": {
+              "path": null,
+              "path_sha": null,
+              "expected": {
+                "topic_review": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+                "design_review": null,
+                "implementation_approval": null
+              },
+              "receipts": []
+            },
+            "evidence_refs": [],
+            "trunk_ref_joins": [],
+            "privileges": {
+              "allowed_write_roots": [
+                "poc/page-packer/"
+              ],
+              "forbidden_write_paths": [
+                "spec/meta/",
+                "spec/00-charter/",
+                "spec/10-architecture/",
+                "src/",
+                "include/",
+                "tests/"
+              ],
+              "summary_only": false
+            },
+            "human_phrase": "可以开始实现",
+            "plan_sha": "49cdfa7b00cf790df14a3a6fc04da88d461c312ef89ea735908092f5bf818946"
+          },
+          "context_verify": {
+            "schema": "ndf-context-verification/v1",
+            "valid": false,
+            "plan_sha": "49cdfa7b00cf790df14a3a6fc04da88d461c312ef89ea735908092f5bf818946",
+            "manifest_sha": "e79ee0cedfab3da8087ef5329621f21a5b293da54475c7699896acb573052957",
+            "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+            "errors": [
+              {
+                "kind": "required_gate_not_valid",
+                "gate": "implementation_approval"
+              }
+            ],
+            "warnings": []
+          },
+          "plan_sha": "49cdfa7b00cf790df14a3a6fc04da88d461c312ef89ea735908092f5bf818946",
+          "dispatch_blockers": [
+            "implementation_gate:legacy_unknown",
+            "perf_check_failed",
+            "context_verify_failed",
+            "runtime_unavailable"
+          ],
+          "evaluated_at": "2026-08-12T20:21:49.995796+00:00"
+        },
+        "health": {
+          "blockers": [
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ],
+          "conflicts": [],
+          "stale": false,
+          "checks": {
+            "perf_baseline": {
+              "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic page-packer",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "topic: page-packer TOPIC baseline_trunk_sha: 9df8b74 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] missi…"
+            },
+            "isolation": {
+              "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic page-packer --workspace --report -",
+              "exit_code": 0,
+              "state": "passed",
+              "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T20:21:49Z - topics: page-packer - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['page-packer'] summary: 0 erro…"
+            },
+            "bindcheck": {
+              "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic page-packer --report -",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T20:21:49Z - topics: 1 (page-packer) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing_…"
+            }
+          },
+          "findings": [
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_topic_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "topic_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "TOPIC已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_design_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "design_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "DESIGN已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_implementation_approval_legacy_unknown",
+              "severity": "error",
+              "evidence": "implementation_approval receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "可以开始实现"
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_delta",
+              "severity": "warning",
+              "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_perf_baseline_field",
+              "severity": "error",
+              "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_design",
+              "severity": "warning",
+              "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_interface",
+              "severity": "warning",
+              "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_ledger",
+              "severity": "error",
+              "evidence": "missing Commit Ledger COMMITS.md",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "numbers_pending",
+              "severity": "info",
+              "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+              "repair_owner": "claude-code",
+              "repair_task": "poc_measurement",
+              "allowed_write_root": "poc/page-packer/",
+              "human_gate": null
+            }
+          ],
+          "next_actions": [
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "TOPIC已审核",
+              "kind": "gate_topic_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "DESIGN已审核",
+              "kind": "gate_design_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "可以开始实现",
+              "kind": "gate_implementation_approval_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null,
+              "kind": "missing_delta"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null,
+              "kind": "missing_design"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "claude-code",
+              "task": "poc_measurement",
+              "allowed_write_root": "poc/page-packer/",
+              "human_gate": null,
+              "kind": "numbers_pending"
+            }
+          ],
+          "latest_diagnosis": {
+            "checks": {
+              "bindcheck": {
+                "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic page-packer --report -",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T19:31:28Z - topics: 1 (page-packer) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing_…"
+              },
+              "isolation": {
+                "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic page-packer --workspace --report -",
+                "exit_code": 0,
+                "state": "passed",
+                "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T19:31:28Z - topics: page-packer - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['page-packer'] summary: 0 erro…"
+              },
+              "perf_baseline": {
+                "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic page-packer",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "topic: page-packer TOPIC baseline_trunk_sha: 9df8b74 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] missi…"
+              }
+            },
+            "delegation": {
+              "context_plan": {
+                "baseline": {
+                  "baseline_protocol": "CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热",
+                  "baseline_status": "current",
+                  "baseline_trunk_sha": "9df8b74",
+                  "bind": {
+                    "baseline": "bl-trunk-golden-7ee4ee2",
+                    "config": "Config C (M=24, EF=60), SIFT1M"
+                  },
+                  "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b",
+                  "path": "poc/page-packer/ndf/PERF_BASELINE.md"
+                },
+                "evidence_refs": [],
+                "gates": {
+                  "expected": {
+                    "design_review": null,
+                    "implementation_approval": null,
+                    "topic_review": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e"
+                  },
+                  "path": null,
+                  "path_sha": null,
+                  "receipts": []
+                },
+                "graph": {
+                  "blockers": [],
+                  "byte_budget": 256000,
+                  "bytes_used": 19015,
+                  "depth": 2,
+                  "direction": "upstream; verifies also reverse",
+                  "missing_seeds": [],
+                  "node_budget": 80,
+                  "nodes": [
+                    {
+                      "bytes": 2392,
+                      "clause_sha": "ed0dc8add3592972da99b06d9d33e3cb9dc3d8169380fc30e5386df436f231ee",
+                      "edges": {
+                        "depends-on": [
+                          "META-002",
+                          "META-008",
+                          "META-010",
+                          "META-011"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 0,
+                      "id": "META-012",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 381,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 任务上下文与证据绑定"
+                    },
+                    {
+                      "bytes": 1150,
+                      "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+                      "edges": {
+                        "depends-on": [
+                          "META-001"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 1,
+                      "id": "META-002",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 56,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 图边与引用"
+                    },
+                    {
+                      "bytes": 1644,
+                      "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+                      "edges": {
+                        "depends-on": [
+                          "META-002",
+                          "META-003"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 1,
+                      "id": "META-008",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 111,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 工作空间视角"
+                    },
+                    {
+                      "bytes": 1108,
+                      "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+                      "edges": {
+                        "depends-on": [
+                          "META-001",
+                          "META-008"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 1,
+                      "id": "META-010",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 181,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "人工门禁回执"
+                    },
+                    {
+                      "bytes": 9517,
+                      "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+                      "edges": {
+                        "depends-on": [
+                          "META-008",
+                          "META-010"
+                        ]
+                      },
+                      "file": "spec/meta/process.md",
+                      "hop": 1,
+                      "id": "META-011",
+                      "kind": "req",
+                      "level": "must",
+                      "line": 203,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "Workflow 投影与 Claude Code 委派"
+                    },
+                    {
+                      "bytes": 2288,
+                      "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+                      "edges": {
+                        "depends-on": [
+                          "ADR-META-002"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 2,
+                      "id": "META-001",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 11,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "NDF 条款书写与元数据"
+                    },
+                    {
+                      "bytes": 916,
+                      "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+                      "edges": {
+                        "depends-on": [
+                          "META-001"
+                        ]
+                      },
+                      "file": "spec/meta/language.md",
+                      "hop": 2,
+                      "id": "META-003",
+                      "kind": "def",
+                      "level": "must",
+                      "line": 81,
+                      "scope": "ndf-process",
+                      "status": "stable",
+                      "title": "分层与强制语气"
+                    }
+                  ],
+                  "relations": [
+                    "depends-on",
+                    "refines"
+                  ],
+                  "truncated": [
+                    "depth"
+                  ]
+                },
+                "human_phrase": "可以开始实现",
+                "implementation_surface": [
+                  "poc/page-packer/"
+                ],
+                "ordered_reads": [
+                  {
+                    "bytes": 1002,
+                    "order": 0,
+                    "path": "poc/page-packer/ndf/TOPIC.md",
+                    "phase": "binder",
+                    "reason": "binder_root",
+                    "sha256": "fb47b7ad0289222fce4fc0212a1aeb55a833469f1c0138d397137f275d2861fc"
+                  },
+                  {
+                    "bytes": 164,
+                    "order": 1,
+                    "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+                    "phase": "binder",
+                    "reason": "binder_root",
+                    "sha256": "248a5909c799c63fffcc53cc22a3373621fd179dbaad1c3500d6abb33385751a"
+                  }
+                ],
+                "plan_sha": "d1e3750a98a7c932cfbd500711ceec2bef010af7d5da6846871c69116b0006a4",
+                "privileges": {
+                  "allowed_write_roots": [
+                    "poc/page-packer/"
+                  ],
+                  "forbidden_write_paths": [
+                    "spec/meta/",
+                    "spec/00-charter/",
+                    "spec/10-architecture/",
+                    "src/",
+                    "include/",
+                    "tests/"
+                  ],
+                  "summary_only": false
+                },
+                "role": "claude-code",
+                "schema": "ndf-context-plan/v1",
+                "seed_ids": [
+                  "META-012"
+                ],
+                "seed_sources": {
+                  "commits": [],
+                  "explicit": [],
+                  "proposals": [],
+                  "task_defaults": [
+                    "META-012"
+                  ],
+                  "topic": []
+                },
+                "source_generation_sha": "b783831bbb1411258b2d61fa992840e4f898e83746e54e276321c355c5c8e999",
+                "task": "poc_implementation",
+                "topic": "page-packer",
+                "track": "poc",
+                "workspace": {
+                  "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+                  "repo_root": "/home/huawei/hnsw-predictor-ndf",
+                  "topic": "page-packer"
+                }
+              },
+              "context_verify": {
+                "errors": [
+                  {
+                    "gate": "implementation_approval",
+                    "kind": "required_gate_not_valid"
+                  }
+                ],
+                "plan_sha": "d1e3750a98a7c932cfbd500711ceec2bef010af7d5da6846871c69116b0006a4",
+                "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+                "schema": "ndf-context-verification/v1",
+                "valid": false,
+                "warnings": [
+                  {
+                    "kind": "graph_truncated",
+                    "reasons": [
+                      "depth"
+                    ]
+                  }
+                ]
+              },
+              "dispatch_blockers": [
+                "implementation_gate:legacy_unknown",
+                "perf_check_failed",
+                "context_verify_failed",
+                "runtime_unavailable"
+              ],
+              "evaluated_at": "2026-08-12T19:31:29.002514+00:00",
+              "isolation_passed": true,
+              "perf_check_passed": false,
+              "plan_sha": "d1e3750a98a7c932cfbd500711ceec2bef010af7d5da6846871c69116b0006a4",
+              "runtime_dispatch_ready": false,
+              "safe_to_delegate_control": true,
+              "safe_to_dispatch": false,
+              "static_preflight_passed": false
+            },
+            "finding_diff": {
+              "new": [],
+              "previous_findings_hash": "56e3f9a243b37d760294e4e4d9edb880d0ca529120d006cb91b3df582e5d40a1",
+              "remaining": [
+                "gate_design_review_legacy_unknown",
+                "gate_implementation_approval_legacy_unknown",
+                "gate_topic_review_legacy_unknown",
+                "missing_delta",
+                "missing_design",
+                "missing_interface",
+                "missing_ledger",
+                "missing_perf_baseline_field",
+                "numbers_pending"
+              ],
+              "resolved": []
+            },
+            "findings": [
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "topic_review receipt state is legacy_unknown",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "design_review receipt state is legacy_unknown",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "implementation_approval receipt state is legacy_unknown",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+                "human_gate": null,
+                "kind": "missing_perf_baseline_field",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_design",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_interface",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "missing Commit Ledger COMMITS.md",
+                "human_gate": null,
+                "kind": "missing_ledger",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/",
+                "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "repair_owner": "claude-code",
+                "repair_task": "poc_measurement",
+                "scope": "topic",
+                "severity": "info",
+                "space": "Test"
+              }
+            ],
+            "findings_hash": "56e3f9a243b37d760294e4e4d9edb880d0ca529120d006cb91b3df582e5d40a1",
+            "generated_at": "2026-08-12T19:31:29.002839+00:00",
+            "lifecycle": "exploring",
+            "next_actions": [
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "owner": "openclaw",
+                "space": "Test",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": null,
+                "kind": "missing_design",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "owner": "claude-code",
+                "space": "Test",
+                "stage": "repair",
+                "task": "poc_measurement"
+              }
+            ],
+            "phase_hint": "legacy_gate_audit",
+            "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+            "schema": "ndf-topic-health/v1",
+            "snapshot_sha": "7486b1e74efbeb3670afc0439a73252f37ae9839df746431731a412a339649f7",
+            "spaces": {
+              "design": {
+                "gaps": [
+                  "DESIGN.md",
+                  "INTERFACE.md",
+                  "gate:topic_review:legacy_unknown",
+                  "gate:design_review:legacy_unknown",
+                  "gate_topic_review_legacy_unknown",
+                  "gate_design_review_legacy_unknown",
+                  "gate_implementation_approval_legacy_unknown",
+                  "missing_ledger"
+                ],
+                "ready": false
+              },
+              "implementation": {
+                "code_files": [
+                  "poc/page-packer/run_r0.sh"
+                ],
+                "gaps": [
+                  "gate:implementation_approval:legacy_unknown"
+                ],
+                "ready": false
+              },
+              "test": {
+                "gaps": [
+                  "missing_config_id",
+                  "missing_measure_script",
+                  "missing_delta",
+                  "numbers_pending",
+                  "missing_perf_baseline_field"
+                ],
+                "ready": false
+              }
+            },
+            "state": "stale",
+            "topic": "page-packer"
+          }
+        }
+      }
+    ],
+    "proposals": [
+      [
+        "Proposal: ARMv9 (AArch64) 架构支持",
+        "boundary (项目边界拓展)",
+        "**draft (待审核)**"
+      ],
+      [
+        "Proposal: DEC-097 - multi-thread-scaling 方向 E/C/F 收益受限根因分析",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: POC — WILLNEED_BG futex 替换 sched_yield",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: Data Layout Optimization for LLC Miss Reduction",
+        "poc",
+        "exploring"
+      ],
+      [
+        "Proposal: POC — VelesDB 推测性预取 (Speculative Prefetch) 研究",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: POC - 借鉴 Turbocharging Vector Databases (VLDB 2025) 的 I/O 优化技术",
+        "poc",
+        "draft"
+      ],
+      [
+        "Promote: Vecblock Cluster Reorder (BEH-037)",
+        "unknown",
+        "unknown"
+      ],
+      [
+        "Promote: CQE Peeking → Fine Rerank io_uring Path",
+        "unknown",
+        "unknown"
+      ]
+    ],
+    "roadmap": [
+      [
+        "P3-1",
+        "CSR 上磁盘 + 分页加载",
+        "CSR 不占内存",
+        "🔴",
+        "DEC-085 (1M rejected, 100M 待评)"
+      ],
+      [
+        "P3-2",
+        "1-hop CSR 预取",
+        "掩盖 CSR I/O",
+        "🔴",
+        "-"
+      ],
+      [
+        "P3-3",
+        "PQ codes mmap",
+        "-304MB RSS",
+        "🟡",
+        "-"
+      ],
+      [
+        "P3-4",
+        "图裁剪 R_max=16-20",
+        "减 CSR 磁盘 I/O",
+        "🟡",
+        "DEC-038"
+      ],
+      [
+        "P3-5",
+        "io_uring + O_DIRECT 重评估",
+        "page cache 失效时",
+        "⚪",
+        "DEC-076"
+      ],
+      [
+        "P3-6",
+        "SPDK 评估",
+        "I/O 带宽",
+        "⚪",
+        "DEC-027"
+      ]
+    ],
+    "risks": [
+      {
+        "kind": "stale_baselines",
+        "severity": "warning",
+        "topics": [
+          "gbdt-learned-pruning",
+          "l4-cache-mgmt",
+          "multi-thread-scaling",
+          "sustained-query-benchmark"
+        ]
+      },
+      {
+        "kind": "golden_variance",
+        "severity": "warning",
+        "message": "⚠️ 512MB 16T CV=6.0% 超标，后续补跑。"
+      },
+      {
+        "kind": "architecture_debt",
+        "severity": "info",
+        "message": "God class, friend coupling, and runtime knob sprawl remain recorded debt",
+        "path": "spec/10-architecture/modules.md#ARCH-007"
+      },
+      {
+        "kind": "measurement_trap",
+        "severity": "info",
+        "message": "Cache-warmed/short-query results must not replace sustained evidence",
+        "path": "spec/open/optimization-roadmap.md"
+      }
+    ],
+    "nowNextBlocked": {
+      "now": "cluster-gbdt",
+      "next": "legacy_gate_audit",
+      "blocked": 14
+    }
+  },
+  "control": {
+    "maturity": "operational_legacy",
+    "genesis": {
+      "project_maturity": "operational_legacy",
+      "accepted": false,
+      "genesis_trunk_sha": null,
+      "genesis_trunk_sha_resolves": false,
+      "clause_count": 130,
+      "paths": {
+        "proposal": {
+          "path": "spec/open/proposal-project-genesis.md",
+          "exists": false
+        },
+        "idea": {
+          "path": "spec/open/project-genesis/IDEA.md",
+          "exists": false
+        },
+        "foundation": {
+          "path": "spec/open/project-genesis/FOUNDATION.md",
+          "exists": false
+        },
+        "gates": {
+          "path": "spec/open/project-genesis/GATES.md",
+          "exists": false
+        },
+        "decision": {
+          "path": "spec/decisions/dec-project-genesis.md",
+          "exists": false
+        }
+      },
+      "rail": [
+        {
+          "id": "G0",
+          "label": "IDEA",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/IDEA.md",
+          "content_sha": null,
+          "next_phrase": "IDEA已审核"
+        },
+        {
+          "id": "G1",
+          "label": "Foundation",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/FOUNDATION.md",
+          "content_sha": null,
+          "next_phrase": "VERIFICATION已审核"
+        },
+        {
+          "id": "G2",
+          "label": "Trunk Candidate",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/GATES.md",
+          "content_sha": null,
+          "next_phrase": "可以建立初始主线"
+        },
+        {
+          "id": "G3",
+          "label": "Freeze",
+          "state": "legacy",
+          "path": "spec/decisions/dec-project-genesis.md",
+          "content_sha": null,
+          "next_phrase": "GENESIS已审核"
+        }
+      ],
+      "next_step": null,
+      "warning": "Genesis provenance missing; legacy operational project"
+    },
+    "metaClauses": 46,
+    "metaGraph": {
+      "meta_clause_count": 46,
+      "meta_graph_index_generated_at": "2026-08-12T11:44:45Z",
+      "meta_graphcheck": "passed",
+      "state": "stale",
+      "checks": {
+        "binder_health": {
+          "command": "python3 spec/meta/tools/ndf_bindcheck.py check --all-topics --report -",
+          "exit_code": 1,
+          "state": "failed",
+          "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T19:31:29Z - topics: 28 (bfs-cluster, bg-thread-futex, block-size-tuning, cgroup-v1-support, cluster-gbdt, csr-on-disk, data-layout-optimization, fine-rerank-incremental, fine-rerank-iouring, framework-driven-optimization, gbdt-learned-pruning, gbdt-retrain, helmsman-adaptive, i…"
+        },
+        "index_consistency": {
+          "command": "python3 spec/meta/tools/ndf_index.py validate",
+          "exit_code": 1,
+          "state": "failed",
+          "summary": "clauses: 250 dangling_refs: 6 ARCH-007 - CONFLICT-002 (10-architecture/modules.md:173) API-011 - BEH-036 (30-interfaces/env.md:90) API-011 - API-020 (30-interfaces/env.md:90) DEC-084 - DEC-083 (decisions/20-sustained-benchmark-methodology.md:9) REF-HELMSMAN - Q-002 (refs/helmsman-osdi26.md:1) REF-HELMSMAN - Q-001 (refs/helmsman-osdi26.md:1) unlinked_nodes:…"
+        },
+        "meta_graph": {
+          "command": "python3 spec/meta/tools/ndf_graphcheck.py --meta --format text --report -",
+          "exit_code": 0,
+          "state": "passed",
+          "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-12T19:31:28Z - clauses: 47 - hard_errors: 0 - warnings: 1 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 1 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlinked…"
+        },
+        "product_graph": {
+          "command": "python3 spec/meta/tools/ndf_graphcheck.py --product --format text --report -",
+          "exit_code": 0,
+          "state": "passed",
+          "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-12T19:31:28Z - clauses: 250 - hard_errors: 0 - warnings: 15 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 15 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlin…"
+        }
+      },
+      "findings": [
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "evidence": "clauses: 250 dangling_refs: 6 ARCH-007 - CONFLICT-002 (10-architecture/modules.md:173) API-011 - BEH-036 (30-interfaces/env.md:90) API-011 - API-020 (30-interfaces/env.md:90) DEC-084 - DEC-083 (decisions/20-sustained-benchmark-methodology.md:9) REF-HELMSMAN - Q-002 (refs/helmsman-osdi26.md:1) REF-HELMSMAN - Q-001 (refs/helmsman-osdi26.md:1) unlinked_nodes:…",
+          "human_gate": "已确认 → 已审核",
+          "kind": "index_consistency_failed",
+          "repair_owner": "openclaw",
+          "repair_task": "control_proposal",
+          "scope": "project",
+          "severity": "error",
+          "space": "Design"
+        },
+        {
+          "allowed_write_root": "poc/*/ndf/",
+          "evidence": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T19:31:29Z - topics: 28 (bfs-cluster, bg-thread-futex, block-size-tuning, cgroup-v1-support, cluster-gbdt, csr-on-disk, data-layout-optimization, fine-rerank-incremental, fine-rerank-iouring, framework-driven-optimization, gbdt-learned-pruning, gbdt-retrain, helmsman-adaptive, i…",
+          "human_gate": null,
+          "kind": "binder_health_failed",
+          "repair_owner": "openclaw",
+          "repair_task": "binder_amend",
+          "scope": "project",
+          "severity": "error",
+          "space": "Design"
+        },
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "evidence": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product",
+          "human_gate": "已确认 → 已审核",
+          "kind": "proposal_plane_misfile",
+          "repair_owner": "openclaw",
+          "repair_task": "control_proposal",
+          "scope": "project",
+          "severity": "warning",
+          "space": "Design"
+        }
+      ],
+      "next_actions": [
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "human_gate": "已确认 → 已审核",
+          "kind": "index_consistency_failed",
+          "owner": "openclaw",
+          "space": "Design",
+          "stage": "repair",
+          "task": "control_proposal"
+        },
+        {
+          "allowed_write_root": "poc/*/ndf/",
+          "human_gate": null,
+          "kind": "binder_health_failed",
+          "owner": "openclaw",
+          "space": "Design",
+          "stage": "repair",
+          "task": "binder_amend"
+        }
+      ],
+      "advisor": {
+        "bind": "python3 spec/meta/tools/ndf_advise.py plan --surface bind --low-hanging-fruit",
+        "graph": "python3 spec/meta/tools/ndf_advise.py plan --surface graph --low-hanging-fruit",
+        "read_only": true
+      },
+      "proposal_plane_warnings": [
+        {
+          "kind": "proposal_plane_misfile",
+          "severity": "warning",
+          "path": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md",
+          "plane": "product",
+          "track": "process",
+          "message": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product"
+        }
+      ]
+    },
+    "legacyUnknownTopics": 2,
+    "invalidatedReceipts": 0,
+    "processProposals": [
+      [
+        "Proposal: POC 回合 plan harness（ndf_close） {#PROP-META-NDF-CLOSE-PLAN}",
+        "Pending"
+      ],
+      [
+        "Process 提案：OpenClaw Control 委派",
+        "unknown"
+      ],
+      [
+        "Process 提案：Per-Project Workspace 绑定",
+        "unknown"
+      ],
+      [
+        "提案: 补全 sustained-param-retuning promote 后的 NDF 图卫生",
+        "proposal"
+      ]
+    ],
+    "proposalPlaneWarnings": [
+      [
+        "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md",
+        "process",
+        "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product"
+      ]
+    ],
+    "close": {
+      "stateSource": "tree/git/bound-receipts",
+      "topics": [
+        {
+          "topicId": "cluster-gbdt",
+          "lifecycle": "exploring",
+          "evidenceReady": false,
+          "proposalReady": false,
+          "closePlanReady": false,
+          "finalizationReady": false,
+          "steps": [
+            {
+              "id": "evidence",
+              "status": "pending",
+              "source": null,
+              "evidence_state": null
+            },
+            {
+              "id": "proposal",
+              "status": "pending",
+              "source": null,
+              "evidence_state": null
+            },
+            {
+              "id": "plan",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "integrate",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "graph",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "verify",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "finalize",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            }
+          ],
+          "branches": {
+            "promote": {
+              "mode": "promote",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "verify",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            },
+            "partial": {
+              "mode": "partial",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "verify",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            },
+            "reject": {
+              "mode": "reject",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": false,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            }
+          },
+          "nextStep": "evidence",
+          "blockers": [
+            "close:evidence_missing",
+            "close:notes_only_untrusted",
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ]
+        },
+        {
+          "topicId": "page-packer",
+          "lifecycle": "exploring",
+          "evidenceReady": false,
+          "proposalReady": false,
+          "closePlanReady": false,
+          "finalizationReady": false,
+          "steps": [
+            {
+              "id": "evidence",
+              "status": "pending",
+              "source": null,
+              "evidence_state": null
+            },
+            {
+              "id": "proposal",
+              "status": "pending",
+              "source": null,
+              "evidence_state": null
+            },
+            {
+              "id": "plan",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "integrate",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "graph",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "verify",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            },
+            {
+              "id": "finalize",
+              "status": "pending",
+              "source": null,
+              "evidence_state": "missing"
+            }
+          ],
+          "branches": {
+            "promote": {
+              "mode": "promote",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "verify",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            },
+            "partial": {
+              "mode": "partial",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "verify",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            },
+            "reject": {
+              "mode": "reject",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": false,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "proposal",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": null
+                },
+                {
+                  "id": "plan",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "integrate",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "graph",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                },
+                {
+                  "id": "finalize",
+                  "status": "pending",
+                  "source": null,
+                  "evidence_state": "missing"
+                }
+              ],
+              "nextStep": "evidence"
+            }
+          },
+          "nextStep": "evidence",
+          "blockers": [
+            "close:evidence_missing",
+            "close:notes_only_untrusted",
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ]
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "implementation": {
+      "provider": "claude-code-acp",
+      "status": "unavailable",
+      "pipelineReachable": false,
+      "defaultSession": "d21779ab-aad3-408c-a717-f871eae0884e",
+      "activeRuns": [],
+      "cliAvailable": true,
+      "probeNote": "Claude CLI presence is not ACP pipeline/run evidence",
+      "workspace": {
+        "binding": {
+          "repoRoot": "/home/huawei/hnsw-predictor-ndf",
+          "statePath": ".openclaw/state.json",
+          "activeTopic": null
+        },
+        "stateExists": true,
+        "match": false,
+        "state": "unbound"
+      }
+    },
+    "control": {
+      "provider": "openclaw",
+      "defaultSessionKey": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+      "reachable": null,
+      "configuredSessionVisible": null,
+      "probe": null,
+      "workspace": {
+        "binding": {
+          "repoRoot": "/home/huawei/hnsw-predictor-ndf",
+          "statePath": ".openclaw/state.json",
+          "activeTopic": null
+        },
+        "stateExists": true,
+        "match": false,
+        "state": "unbound"
+      }
+    }
+  },
+  "replay": {
+    "schema": "ndf-replay-summary/v1",
+    "state": "not_initialized",
+    "fsck": null,
+    "episodes": []
+  },
+  "payloadSha": "7445feb57330667e263d501c1dd5d0757731dfac4dc77747caa0ab12571f7b39"
+}

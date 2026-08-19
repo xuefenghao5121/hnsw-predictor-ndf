@@ -10,24 +10,24 @@ output/
 output2/
 
 # 日志
-logs/
+# logs/
 
 # POC文档
-poc/
+# poc/
 
 # spec文档 NDF迭代记录
-spec/
+# spec/
 
 # AI 工具相关
-.claude/
-.openclaw/
-.cursor/
-skills/
-AGENTS.md
-MEMORY.md
-tmp/
-.ndf/replay/
-packages/
+# .claude/
+# .openclaw/
+# .cursor/
+# skills/
+# AGENTS.md
+# MEMORY.md
+# tmp/
+# .ndf/replay/
+# packages/
 bento/
 
 # 目标文件

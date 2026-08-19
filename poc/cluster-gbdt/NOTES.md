@@ -1,5 +1,6 @@
 # cluster-gbdt — Notes
-> status: exploring | created: 2026-08-10
+> status: rejected | created: 2026-08-10 | closed: 2026-08-15
+> Rejects: cluster-gbdt | DEC-099 | proposal-reject-cluster-gbdt
 
 ## Method
 

@@ -1,0 +1,7 @@
+{
+  "schema": "ndf-control-pipeline-binding/v1",
+  "topic": "page-packer",
+  "pipeline": "gate",
+  "episode_id": "ep-gate-pipeline-page-packer-20260818T064800Z",
+  "updated_at": "2026-08-18T06:47:36.312574+00:00"
+}

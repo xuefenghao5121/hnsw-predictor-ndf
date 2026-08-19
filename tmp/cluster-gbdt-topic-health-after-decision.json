@@ -1,0 +1,4061 @@
+{
+  "schema": "ndf-topic-health/v1",
+  "generated_at": "2026-08-14T19:45:33.428178+00:00",
+  "snapshot_sha": "c638ab0c67058938ec285c1b6c5a0eb6a7e4fc544b1f64b23240d13c38f5b11c",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "topic": "cluster-gbdt",
+  "lifecycle": "exploring",
+  "phase_hint": "await_topic_review",
+  "decision": {
+    "state": "selected",
+    "selected": "reject",
+    "open_decision": "先重测现行 Trunk R0，再决定 amend/continue_exploring/reject；尚未选择关闭",
+    "decision_required": false,
+    "close_requested": true,
+    "close_eligible": false,
+    "allowed": [
+      "amend",
+      "continue_exploring",
+      "implement",
+      "partial",
+      "promote",
+      "reject"
+    ],
+    "offered": [
+      "amend",
+      "continue_exploring",
+      "implement",
+      "partial",
+      "promote",
+      "reject"
+    ],
+    "blocked": {},
+    "round_started": true,
+    "meanings": {
+      "implement": "Realize the currently approved DESIGN/INTERFACE as the first POC round. TOPIC/DESIGN stay frozen.",
+      "continue_exploring": "Keep the same TOPIC/DESIGN. Open another DELTA round (measure/analyze/in-design tweak). Do not amend contract slices.",
+      "amend": "Same active_hypothesis only: revise binder or contract slices and re-run affected gates. Hypothesis fork MUST NOT use amend; draft a track=poc proposal and open a sibling topic.",
+      "promote": "Close the topic by promoting a verified slice to Trunk.",
+      "partial": "Close a verified subset; leave the topic exploring.",
+      "reject": "Close the topic as a negative result."
+    },
+    "source": "TOPIC.md:selected_decision",
+    "briefing": {
+      "schema": "ndf-decision-briefing/v1",
+      "summary": "R1 entropy analysis (A1 candidate) on current Trunk a143392. Groundtruth top-100 (9999 queries, k=1024): normalized entropy 0.9945 (saturated near max), purity 0.0634, dominant_frac 0.0237; top-100 candidates span ~94/1024 clusters. Cluster concentration does not occur in top candidates; entropy has near-zero per-query variance (std 0.0038). Verdict: A1 (cluster entropy) provides no incremental signal over distance features, consistent with R0 purity negative. A2/A3 remain deferred. Heavy PQ coarse simulation not started (decisive negative). Topic remains exploring; no promotion, no close.",
+      "verdict": "A1 (cluster entropy) does NOT provide incremental signal",
+      "latest_round": "R1-entropy",
+      "latest_round_row": "R1-entropy | 2026-08-14 | yes — Trunk a143392 | groundtruth top-100 entropy/purity/dominant_frac; k=1024 assignments | entropy=0.9945 (saturated) purity=0.063 dominant_frac=0.024; top-100 spans ~94/1024 clusters; no concentration | **A1 rejected: no incremental signal ❌**",
+      "decision_path": [
+        "Do NOT start the heavy PQ coarse simulation (r1_pq_coarse_analysis.py): entropy analysis finished with a decisive negative.",
+        "A2 (k=4096/8192) and A3 (per-cluster predictor) remain deferred, gated on A1 showing an incremental trend — which it does not.",
+        "Topic remains exploring; no automatic promotion or close."
+      ],
+      "suggested_paths": [
+        {
+          "mode": "reject",
+          "route": "close",
+          "recommended": true,
+          "label": "负结果关闭",
+          "rationale": "A1 无增量，A2/A3 门控失败。走 DEC + TOPIC=rejected。",
+          "next_work": "Close reject: DEC, TOPIC=rejected, archive poc binder. Do not start A2/A3 or PQ simulation.",
+          "prefill": "A1 已证伪（entropy 饱和、无聚集）。A2/A3 门在 A1 增量趋势，未满足。走负结果关闭，不要再开 A2/A3 或 PQ simulation。"
+        },
+        {
+          "mode": "new_poc",
+          "route": "new_poc",
+          "recommended": true,
+          "label": "另开新 POC",
+          "rationale": "放弃 cluster-concentration 家族。重提 track=poc 提案并开平级新 topic，depends_on_topics 含 cluster-gbdt。禁止改当前 TOPIC 假设。",
+          "next_work": "Draft spec/open/proposal-*.md track=poc for a sibling topic; depends_on_topics includes cluster-gbdt; stop at 已确认. MUST NOT binder_amend current TOPIC/DESIGN.",
+          "prefill": "A1 证伪后不再沿用 cluster 聚集假设。重提产品提案，开平级新 POC；不要改当前 TOPIC/DESIGN。"
+        },
+        {
+          "mode": "continue_exploring",
+          "route": "delegate_poc",
+          "recommended": false,
+          "label": "仍做 A2",
+          "rationale": "A1 门控未满足。仅在人明文覆盖时做 A2。",
+          "next_work": "MUST NOT rerun A1 or start PQ coarse simulation. If the human overrides, only A2 with the override reason in the pack.",
+          "prefill": "我覆盖 A1 门控，仍要做 A2（更细粒度 k）。不要重跑 A1，不要 PQ coarse simulation。覆盖理由："
+        }
+      ],
+      "evidence_paths": [
+        "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+        "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+        "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+        "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+        "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+      ],
+      "open_files": [
+        {
+          "label": "DELTA",
+          "path": "poc/cluster-gbdt/ndf/DELTA.md"
+        },
+        {
+          "label": "NOTES",
+          "path": "poc/cluster-gbdt/NOTES.md"
+        },
+        {
+          "label": "TOPIC",
+          "path": "poc/cluster-gbdt/ndf/TOPIC.md"
+        },
+        {
+          "label": "poc-implementation-completion.json",
+          "path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json"
+        },
+        {
+          "label": "r1-entropy-analysis-20260814.md",
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md"
+        },
+        {
+          "label": "post-check-topic-health.json",
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+        }
+      ],
+      "completion_path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+      "source": "completion"
+    }
+  },
+  "control_pipelines": {
+    "schema": "ndf-control-pipelines/v1",
+    "gate": {
+      "pipeline": "gate",
+      "label": "启动门禁流水线",
+      "task": "gate_pipeline",
+      "step_count": 3,
+      "steps": [
+        {
+          "stage": "repair",
+          "space": "Design",
+          "owner": "openclaw",
+          "task": "gate_sha_audit",
+          "allowed_write_root": "poc/cluster-gbdt/ndf/",
+          "human_gate": "TOPIC已审核",
+          "kind": "gate_topic_review_invalidated",
+          "gate": "topic_review",
+          "gate_order": 1,
+          "binder_facet": null,
+          "binder_order": null,
+          "pipeline": "gate",
+          "label": "门禁 1/3 门禁失效SHA审计 · TOPIC已审核"
+        },
+        {
+          "stage": "repair",
+          "space": "Design",
+          "owner": "openclaw",
+          "task": "gate_sha_audit",
+          "allowed_write_root": "poc/cluster-gbdt/ndf/",
+          "human_gate": "DESIGN已审核",
+          "kind": "gate_design_review_invalidated",
+          "gate": "design_review",
+          "gate_order": 2,
+          "binder_facet": null,
+          "binder_order": null,
+          "pipeline": "gate",
+          "label": "门禁 2/3 门禁失效SHA审计 · DESIGN已审核"
+        },
+        {
+          "stage": "repair",
+          "space": "Design",
+          "owner": "openclaw",
+          "task": "gate_sha_audit",
+          "allowed_write_root": "poc/cluster-gbdt/ndf/",
+          "human_gate": "可以开始实现",
+          "kind": "gate_implementation_approval_invalidated",
+          "gate": "implementation_approval",
+          "gate_order": 3,
+          "binder_facet": null,
+          "binder_order": null,
+          "pipeline": "gate",
+          "label": "门禁 3/3 门禁失效SHA审计 · 可以开始实现"
+        }
+      ],
+      "needed": true,
+      "handoff": null,
+      "blocked_by_binder": false,
+      "decision_required": false,
+      "close_eligible": false,
+      "dispatch": {
+        "schema": "ndf-control-dispatch-view/v1",
+        "state": "gate_confirmed",
+        "request_id": "53912641-6104-4006-86f8-61f243ffd548",
+        "episode_id": "ep-gate-pipeline-cluster-gbdt-20260814T071814Z",
+        "acknowledged": false,
+        "request_event_sha": null,
+        "response_event_sha": null,
+        "blockers": [],
+        "recorded_at": "2026-08-14T07:27:00.584179+00:00",
+        "receipt_path": "tmp/ndf-control-dispatch.jsonl"
+      },
+      "active_episode_id": "ep-gate-pipeline-cluster-gbdt-20260814T071814Z",
+      "resume": true,
+      "force_new_episode": false,
+      "retry_request_id": null,
+      "stale_episode_id": null
+    },
+    "binder": {
+      "pipeline": "binder",
+      "label": "启动装订器流水线",
+      "task": "binder_pipeline",
+      "step_count": 6,
+      "steps": [],
+      "needed": false,
+      "handoff_from_gate": null,
+      "dispatch": {
+        "schema": "ndf-control-dispatch-view/v1",
+        "state": "acknowledged",
+        "request_id": "4707d248-cbb3-4876-a007-0d74a10ce3a2",
+        "episode_id": "ep-binder-amend-cluster-gbdt-20260814T194120Z",
+        "acknowledged": true,
+        "request_event_sha": "c4949cf3497aa0fd93fc351776b84edbf987ee64ee47a92dd9596ab4ce1cf69a",
+        "response_event_sha": "dc141c9c6aaba66c8286445e8ccb9064d0bd7c2b1da77f99ae3e970936b067d4",
+        "blockers": [],
+        "recorded_at": "2026-08-14T19:45:24.224185+00:00",
+        "receipt_path": "tmp/ndf-control-dispatch.jsonl"
+      },
+      "active_episode_id": "ep-binder-amend-cluster-gbdt-20260814T194120Z",
+      "resume": true,
+      "force_new_episode": false,
+      "retry_request_id": null,
+      "stale_episode_id": null
+    }
+  },
+  "spaces": {
+    "design": {
+      "ready": false,
+      "gaps": [
+        "gate:topic_review:invalidated",
+        "gate:design_review:invalidated",
+        "gate_topic_review_invalidated",
+        "gate_design_review_invalidated",
+        "gate_implementation_approval_invalidated"
+      ],
+      "purpose": "契约与前两闸完备：人审过这个 POC 要做什么、怎么设计。",
+      "clause_refs": [
+        {
+          "id": "BEH-025",
+          "title": "POC 主题装订纪律"
+        },
+        {
+          "id": "CON-POC-001",
+          "title": "POC 隔离"
+        }
+      ]
+    },
+    "implementation": {
+      "ready": false,
+      "gaps": [
+        "gate:implementation_approval:invalidated"
+      ],
+      "code_files": [
+        "poc/cluster-gbdt/analyze_cluster_purity.py",
+        "poc/cluster-gbdt/r1_entropy_analysis.py",
+        "poc/cluster-gbdt/r1_pq_coarse_analysis.py",
+        "poc/cluster-gbdt/train_cluster_gbdt.py"
+      ],
+      "purpose": "第三闸 + poc/ 代码：按已审设计实现，且不碰 Trunk。",
+      "clause_refs": [
+        {
+          "id": "BEH-018",
+          "title": "探索不得改 Trunk"
+        },
+        {
+          "id": "CON-POC-001",
+          "title": "POC 隔离"
+        }
+      ]
+    },
+    "test": {
+      "ready": true,
+      "gaps": [],
+      "purpose": "PERF 绑定、DELTA 轮次与 Numbers：用证据判断假设是否成立。",
+      "clause_refs": [
+        {
+          "id": "META-007",
+          "title": "金标绑定"
+        },
+        {
+          "id": "BEH-025",
+          "title": "POC 主题装订纪律"
+        }
+      ],
+      "latest_round": "| round | date | bind unchanged? | feature notes | hotspot notes | conclusion | |-------|------|-----------------|---------------|---------------|------------| | R0 | 2026-08-10 | yes | 12-feature GBDT trained; cluster…",
+      "delta_path": "poc/cluster-gbdt/ndf/DELTA.md",
+      "latest_verdict": "A1 (cluster entropy) does NOT provide incremental signal"
+    }
+  },
+  "checks": {
+    "perf_baseline": {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic cluster-gbdt",
+      "exit_code": 0,
+      "state": "passed",
+      "summary": "topic: cluster-gbdt TOPIC baseline_trunk_sha: a143392 TOPIC baseline_status: current TOPIC perf_baseline: ndf/PERF_BASELINE.md card: poc/cluster-gbdt/ndf/PERF_BASELINE.md bind vs: bl-trunk-golden-7ee4ee2 bind config_id: cfg-m24-ef60 bind measure: scripts/run_sustained.sh trunk_sha: a143392 protocol: CON-SLA-020 sustained status: verified measure_binary: (no…"
+    },
+    "isolation": {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+      "exit_code": 0,
+      "state": "passed",
+      "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-14T19:45:30Z - topics: cluster-gbdt - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['cluster-gbdt'] summary: 0 er…"
+    },
+    "bindcheck": {
+      "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic cluster-gbdt --report -",
+      "exit_code": 0,
+      "state": "passed",
+      "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-14T19:45:30Z - topics: 1 (cluster-gbdt) - checks: bind,dual,grain - hard_errors: 0 - warnings: 0 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| Issue index _(none)_ Figures by topic _(none)_ Appendix: ledger bipartite (clause↔sha) topic cluster…"
+    },
+    "meta_graph": {
+      "command": "python3 spec/meta/tools/ndf_graphcheck.py --meta --format text --report -",
+      "exit_code": 0,
+      "state": "passed",
+      "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-14T19:45:29Z - clauses: 48 - hard_errors: 0 - warnings: 1 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 1 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlinked…"
+    },
+    "product_graph": {
+      "command": "python3 spec/meta/tools/ndf_graphcheck.py --product --format text --report -",
+      "exit_code": 0,
+      "state": "passed",
+      "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-14T19:45:29Z - clauses: 251 - hard_errors: 0 - warnings: 15 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 15 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlin…"
+    }
+  },
+  "findings": [
+    {
+      "scope": "topic",
+      "space": "Design",
+      "kind": "gate_topic_review_invalidated",
+      "severity": "error",
+      "evidence": "topic_review receipt state is invalidated",
+      "repair_owner": "openclaw",
+      "repair_task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "TOPIC已审核",
+      "gate": "topic_review",
+      "gate_order": 1,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 1/3 门禁失效SHA审计 · TOPIC已审核",
+      "source": "gate",
+      "why_blocked": "TOPIC 契约切片未经有效人工审核，不能进入 DESIGN 或写 poc/。",
+      "clause_refs": [
+        {
+          "id": "BEH-025",
+          "title": "POC 主题装订纪律"
+        },
+        {
+          "id": "CON-POC-001",
+          "title": "POC 隔离"
+        }
+      ]
+    },
+    {
+      "scope": "topic",
+      "space": "Design",
+      "kind": "gate_design_review_invalidated",
+      "severity": "error",
+      "evidence": "design_review receipt state is invalidated",
+      "repair_owner": "openclaw",
+      "repair_task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "DESIGN已审核",
+      "gate": "design_review",
+      "gate_order": 2,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 2/3 门禁失效SHA审计 · DESIGN已审核",
+      "source": "gate",
+      "why_blocked": "DESIGN 契约未审，不能写 INTERFACE 或开码。",
+      "clause_refs": [
+        {
+          "id": "BEH-025",
+          "title": "POC 主题装订纪律"
+        },
+        {
+          "id": "CON-POC-001",
+          "title": "POC 隔离"
+        }
+      ]
+    },
+    {
+      "scope": "topic",
+      "space": "Design",
+      "kind": "gate_implementation_approval_invalidated",
+      "severity": "error",
+      "evidence": "implementation_approval receipt state is invalidated",
+      "repair_owner": "openclaw",
+      "repair_task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "可以开始实现",
+      "gate": "implementation_approval",
+      "gate_order": 3,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 3/3 门禁失效SHA审计 · 可以开始实现",
+      "source": "gate",
+      "why_blocked": "第三闸未过，不能委派 poc/ 实现。",
+      "clause_refs": [
+        {
+          "id": "BEH-025",
+          "title": "POC 主题装订纪律"
+        },
+        {
+          "id": "CON-POC-001",
+          "title": "POC 隔离"
+        }
+      ]
+    }
+  ],
+  "findings_hash": "fb62a43fb9a3d9eeb3d33a501670d21c3f34eb44a0011007e62ba8b738839bad",
+  "finding_diff": {
+    "resolved": [],
+    "remaining": [],
+    "new": [
+      "gate_design_review_invalidated",
+      "gate_implementation_approval_invalidated",
+      "gate_topic_review_invalidated"
+    ],
+    "previous_findings_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
+  "next_actions": [
+    {
+      "stage": "repair",
+      "space": "Design",
+      "owner": "openclaw",
+      "task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "TOPIC已审核",
+      "kind": "gate_topic_review_invalidated",
+      "gate": "topic_review",
+      "gate_order": 1,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 1/3 门禁失效SHA审计 · TOPIC已审核"
+    },
+    {
+      "stage": "repair",
+      "space": "Design",
+      "owner": "openclaw",
+      "task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "DESIGN已审核",
+      "kind": "gate_design_review_invalidated",
+      "gate": "design_review",
+      "gate_order": 2,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 2/3 门禁失效SHA审计 · DESIGN已审核"
+    },
+    {
+      "stage": "repair",
+      "space": "Design",
+      "owner": "openclaw",
+      "task": "gate_sha_audit",
+      "allowed_write_root": "poc/cluster-gbdt/ndf/",
+      "human_gate": "可以开始实现",
+      "kind": "gate_implementation_approval_invalidated",
+      "gate": "implementation_approval",
+      "gate_order": 3,
+      "binder_facet": null,
+      "binder_order": null,
+      "pipeline": "gate",
+      "label": "门禁 3/3 门禁失效SHA审计 · 可以开始实现"
+    }
+  ],
+  "delegation": {
+    "safe_to_dispatch": false,
+    "static_preflight_passed": false,
+    "runtime_dispatch_ready": false,
+    "safe_to_delegate_control": false,
+    "perf_check_passed": true,
+    "isolation_passed": true,
+    "task_manifest": {
+      "schema": "ndf-task-manifest/v1",
+      "intent": "poc_implementation",
+      "business_goal": "poc_implementation",
+      "topic": "cluster-gbdt",
+      "task": "poc_implementation",
+      "track": "poc",
+      "compiler_policy": {
+        "depth": 8,
+        "node_budget": 240,
+        "byte_budget": 1048576,
+        "requested_seed_ids": []
+      },
+      "workspace": {
+        "repo_root": "/home/huawei/hnsw-predictor-ndf",
+        "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+        "topic": "cluster-gbdt"
+      },
+      "source_generation_sha": "4a19610020ea4215d205f97c9246d5fc6ecb0d6d522ddc56e2184818306e6807",
+      "binder_roots": [
+        {
+          "order": 0,
+          "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+          "sha256": "0b7944530b27c611c828fa91e733bc922f0f237c820d0305f7db5a4186b1be8c",
+          "bytes": 1771,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 1,
+          "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+          "sha256": "5bc122b58409e14a4cccd0ef4bea4714134ae36f6ff2940fd1d136109e025fcb",
+          "bytes": 6192,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 2,
+          "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+          "sha256": "dad047c086b66c2aa8bba509ed5d0cfd031a645943b6951b13bf5097a69b72dd",
+          "bytes": 2791,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 3,
+          "path": "poc/cluster-gbdt/ndf/DELTA.md",
+          "sha256": "2502e8bfdf13369d64b7422aa6bc8136c45e32f2eadfc4c84352a5348f7e0adb",
+          "bytes": 3213,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 4,
+          "path": "poc/cluster-gbdt/ndf/INTERFACE.md",
+          "sha256": "424f57deb1642deaf2d441306a6d1492e102f592b57519573ba16a3d22c9d8c6",
+          "bytes": 2569,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 5,
+          "path": "poc/cluster-gbdt/ndf/GATES.md",
+          "sha256": "a56a8daa72f2ad762a6b2608a1f91a78d21ce8edd87d91d8f73d2157ee728501",
+          "bytes": 34524,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 6,
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-256mb_256mb_1t_n1000_r15.log",
+          "sha256": "403863a3e10d5d8bc41482b57e9061a06309800ff5d971bba10915f21288be96",
+          "bytes": 4355,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 7,
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log",
+          "sha256": "e733d22399b2c036057199d35d3a77c7c4e026b8be6d5ae3ba80d05b717da3fd",
+          "bytes": 4356,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 8,
+          "path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+          "sha256": "ba323aa016c7ec9d6bd584e114f395ffb4323bec8f6177b19cf1a7f2a9522283",
+          "bytes": 5622,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 9,
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+          "sha256": "aff8d894a80f744b9e7984a21ceb4377ebae3ecda584887e8ea59cc3e900e09d",
+          "bytes": 399,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 10,
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json",
+          "sha256": "9ab2cf80c0343e790d0f87fd9ad4bbf55a05cc25ca462b1ec404a6daef0e0ff1",
+          "bytes": 118366,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 11,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+          "sha256": "f29f9f40d40fa60b6a041beb0c3dafa9e9144033052652419789af1cd0999a99",
+          "bytes": 2218,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 12,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-attempt-20260814.md",
+          "sha256": "920c85e7cac507402175a3fdbb617eb94e5347c5e8a3b6ed24d48a2035ade2ae",
+          "bytes": 1787,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 13,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-verified-20260814.md",
+          "sha256": "f65aec2b5448945962fac1226fd6b4bef0f8f9c816fc5346713f2ef098c3f751",
+          "bytes": 1886,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 14,
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+          "sha256": "0dd911fcc70f6f5072373857d529303ecc90ac804e9a33840de3594fc4b3cbe6",
+          "bytes": 3356,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 15,
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+          "sha256": "de27efd70c345392202b04cb68d36d645bf8b425551f3321ced6d472cce49edb",
+          "bytes": 3321,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 16,
+          "path": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "sha256": "67ca194a715fb0e8b4c0386c279cf6eb79563be5e191ad2a98d5f2ec12f19f98",
+          "bytes": 1798,
+          "phase": "git",
+          "reason": "git_root"
+        }
+      ],
+      "clause_seeds": [
+        "BEH-025",
+        "DEF-023",
+        "BEH-034",
+        "BEH-037",
+        "CON-SLA-020",
+        "META-012"
+      ],
+      "seed_sources": {
+        "topic": [],
+        "proposals": [],
+        "commits": [
+          "BEH-025",
+          "DEF-023",
+          "BEH-034",
+          "BEH-037",
+          "CON-SLA-020"
+        ],
+        "task_defaults": [
+          "META-012"
+        ],
+        "explicit": []
+      },
+      "shared_graph_closure": {
+        "relations": [
+          "depends-on",
+          "refines"
+        ],
+        "direction": "upstream; verifies also reverse",
+        "depth": 8,
+        "node_budget": 240,
+        "byte_budget": 1048576,
+        "bytes_used": 121923,
+        "nodes": [
+          {
+            "id": "BEH-025",
+            "title": "POC 主题装订纪律",
+            "file": "spec/meta/process.md",
+            "line": 763,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "de364f428e2e1cb2c3cbba3ff44d4be002cd51e10cf7bfc733f4142856ee0fec",
+            "bytes": 7315,
+            "edges": {
+              "depends-on": [
+                "DEF-022",
+                "DEF-023",
+                "CON-POC-001"
+              ],
+              "refines": [
+                "BEH-018",
+                "ARCH-008"
+              ]
+            }
+          },
+          {
+            "id": "DEF-023",
+            "title": "DEF: Commit Ledger（提交账本）",
+            "file": "spec/meta/glossary.md",
+            "line": 31,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "abd41a7b602d69431deccdca7ebfaf6a9c8c29ebc3c9d773f9251cab46aa02e2",
+            "bytes": 385,
+            "edges": {
+              "depends-on": [
+                "DEF-022"
+              ]
+            }
+          },
+          {
+            "id": "BEH-034",
+            "title": "GBDT 学习式候选数预测",
+            "file": "spec/20-behavior/search.md",
+            "line": 273,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "f1dd0be88e532cced5c9092deb0f2f1342ff68a629b38d6953cfc889c62a7f08",
+            "bytes": 3054,
+            "edges": {
+              "depends-on": [
+                "API-018",
+                "DEC-084"
+              ],
+              "refines": [
+                "BEH-004"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-020",
+            "title": "SIFT1M Sustained 基线 SLA",
+            "file": "spec/40-constraints/sla.md",
+            "line": 354,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1",
+            "hop": 0,
+            "clause_sha": "ce8c79072da520ac162137010f50443ffe94cc5f3d319f0409eed106ffb5f75f",
+            "bytes": 3120,
+            "edges": {
+              "depends-on": [
+                "CON-SLA-014",
+                "CON-SLA-019",
+                "BEH-035",
+                "API-019",
+                "API-011",
+                "API-012",
+                "API-013",
+                "DEC-084",
+                "DEC-086"
+              ]
+            }
+          },
+          {
+            "id": "META-012",
+            "title": "NDF 任务上下文与证据绑定",
+            "file": "spec/meta/process.md",
+            "line": 538,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "375a64bac85a863627d0b13e3d20bbad61ce7d86d492421b67ee597fec2e8bc9",
+            "bytes": 4297,
+            "edges": {
+              "depends-on": [
+                "META-002",
+                "META-008",
+                "META-010",
+                "META-011"
+              ]
+            }
+          },
+          {
+            "id": "DEF-022",
+            "title": "DEF: Topic Binder（主题装订器）",
+            "file": "spec/meta/glossary.md",
+            "line": 21,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "891ed0585f28fc39a19afc6fc88a4675f7527aaa4c81f55fc690c165bfbc9be4",
+            "bytes": 645,
+            "edges": {
+              "depends-on": [
+                "DEF-020"
+              ]
+            }
+          },
+          {
+            "id": "CON-POC-001",
+            "title": "POC 不纳入生产 SLA",
+            "file": "spec/meta/constraints.md",
+            "line": 7,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "174500bbaee58a069db6335aa4f4e886b0613e8cc0cf12fb02e84792f6bd690b",
+            "bytes": 430,
+            "edges": {
+              "depends-on": [
+                "ARCH-008"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "BEH-018",
+            "title": "探索期 NDF 纪律",
+            "file": "spec/meta/process.md",
+            "line": 24,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "8782f4fae2e3aa0f6cc9bc0eedcf63bb74f5ee124c255466588bea4b046a1117",
+            "bytes": 3420,
+            "edges": {
+              "depends-on": [
+                "ARCH-008",
+                "DEF-020"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "ARCH-008",
+            "title": "`models/` 与 `poc/` 边界",
+            "file": "spec/meta/architecture.md",
+            "line": 7,
+            "kind": "arch",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "4e9700a83ca75ccb818cdd226a59cdf69a27944c5e8e4456899acacc7cd629eb",
+            "bytes": 1910,
+            "edges": {
+              "depends-on": [
+                "DEF-020",
+                "DEF-021"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "API-018",
+            "title": "GBDT 学习式候选数预测环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 189,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "7f59fae",
+            "hop": 1,
+            "clause_sha": "0d9f83b69635f486bff2d5b97d1c90c2a24a0de22b82477cd68099cbbb242c25",
+            "bytes": 1335,
+            "edges": {
+              "depends-on": [
+                "BEH-004",
+                "DEC-084"
+              ]
+            }
+          },
+          {
+            "id": "DEC-084",
+            "title": "决策",
+            "file": "spec/decisions/20-sustained-benchmark-methodology.md",
+            "line": 9,
+            "kind": "decision",
+            "level": "info",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "1b866a63d742542d5f123e564fbd1ea3ca1fcbad5bbbac703f12a68b43b6982a",
+            "bytes": 12237,
+            "edges": {}
+          },
+          {
+            "id": "BEH-004",
+            "title": "贪心下降",
+            "file": "spec/20-behavior/search.md",
+            "line": 64,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "b8dbe4a38f7bb1d7a0164838ebfa61bdd2cf8145fde06d3e1da021bfa25f6efc",
+            "bytes": 460,
+            "edges": {
+              "refines": [
+                "BEH-001"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-014",
+            "title": "严格 cgroup 隔离测试协议",
+            "file": "spec/40-constraints/sla.md",
+            "line": 170,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "974394618e6b765704b5f932ee92f3e693e7040ba085cfb3ad74583add067da1",
+            "bytes": 2938,
+            "edges": {
+              "depends-on": [
+                "DEC-065"
+              ],
+              "refines": [
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-019",
+            "title": "禁止预热被测 query",
+            "file": "spec/40-constraints/sla.md",
+            "line": 316,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "78932cc30536f5e3d42ed2c9fbe75eba73986bb65a36c58eea73b89a955b6ce5",
+            "bytes": 2073,
+            "edges": {
+              "depends-on": [
+                "CON-HONEST-002",
+                "DEC-084"
+              ],
+              "model": [
+                "MODEL-SUSTAINED-001"
+              ],
+              "refines": [
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "BEH-035",
+            "title": "多轮随机采样持续查询基准",
+            "file": "spec/20-behavior/test-infra.md",
+            "line": 40,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "4ae3205db46ad09358d6c6088cc2bca43205fc694ba587099c42fdaafa71855f",
+            "bytes": 2653,
+            "edges": {
+              "depends-on": [
+                "API-019",
+                "CON-SLA-019",
+                "DEC-084"
+              ],
+              "model": [
+                "MODEL-SUSTAINED-001"
+              ]
+            }
+          },
+          {
+            "id": "API-019",
+            "title": "多轮采样 benchmark CLI",
+            "file": "spec/30-interfaces/cli.md",
+            "line": 197,
+            "kind": "interface",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "f95498a499575481adb62ec96907e12751023da5fcab0801860ae18b6761be8d",
+            "bytes": 2771,
+            "edges": {
+              "refines": [
+                "API-002"
+              ]
+            }
+          },
+          {
+            "id": "API-011",
+            "title": "Benchmark / 调参环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 90,
+            "kind": "req",
+            "level": "should",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1",
+            "hop": 1,
+            "clause_sha": "31748253052ca0a419cf0e69a27efb97d3fec928143cdbce90d9090f3764e17a",
+            "bytes": 2596,
+            "edges": {
+              "depends-on": [
+                "CON-002",
+                "DEC-073",
+                "DEC-086"
+              ]
+            }
+          },
+          {
+            "id": "API-012",
+            "title": "L4 WILLNEED 环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 128,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "2f008f7f60229e68416d20f7e4fdba4071604969",
+            "hop": 1,
+            "clause_sha": "bf6023f317171deb053845466d2be958b2ebca2eaf53aa802a7d7cc85879a3ff",
+            "bytes": 962,
+            "edges": {
+              "depends-on": [
+                "BEH-024",
+                "DEC-070"
+              ]
+            }
+          },
+          {
+            "id": "API-013",
+            "title": "WILLNEED 多线程扩展环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 143,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "162377ee75dbb6a3042572bce47686b92a86aa42",
+            "hop": 1,
+            "clause_sha": "8dafc189111444ddff7ff2687bdb615964d97b6b802c4b9c9cede4f0042f3843",
+            "bytes": 1085,
+            "edges": {
+              "depends-on": [
+                "API-012",
+                "BEH-027",
+                "BEH-028",
+                "DEC-074",
+                "DEC-075"
+              ]
+            }
+          },
+          {
+            "id": "DEC-086",
+            "title": "DEC-086: Sustained 口径下主线调参结论",
+            "file": "spec/decisions/22-sustained-param-retuning.md",
+            "line": 1,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "2bcd4a8aca69db48895592fa860375325ee9a67c170054591863ee3b7079211c",
+            "bytes": 3110,
+            "edges": {
+              "affects": [
+                "API-011",
+                "API-017"
+              ],
+              "depends-on": [
+                "DEC-084"
+              ]
+            }
+          },
+          {
+            "id": "META-002",
+            "title": "NDF 图边与引用",
+            "file": "spec/meta/language.md",
+            "line": 56,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+            "bytes": 1150,
+            "edges": {
+              "depends-on": [
+                "META-001"
+              ]
+            }
+          },
+          {
+            "id": "META-008",
+            "title": "NDF 工作空间视角",
+            "file": "spec/meta/language.md",
+            "line": 111,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+            "bytes": 1644,
+            "edges": {
+              "depends-on": [
+                "META-002",
+                "META-003"
+              ]
+            }
+          },
+          {
+            "id": "META-010",
+            "title": "人工门禁回执",
+            "file": "spec/meta/process.md",
+            "line": 181,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "221bfa66affd83605b52b0365d0e6f82aeac9c733655e2848fc7645f42fedc7b",
+            "bytes": 2938,
+            "edges": {
+              "depends-on": [
+                "META-001",
+                "META-008"
+              ]
+            }
+          },
+          {
+            "id": "META-011",
+            "title": "Workflow 投影与 Claude Code 委派",
+            "file": "spec/meta/process.md",
+            "line": 244,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "74cdcd1c30e5f2acabdf7213998ac3e9f8a7995c4816cd04fe959eb67720a58d",
+            "bytes": 16601,
+            "edges": {
+              "depends-on": [
+                "META-008",
+                "META-010"
+              ]
+            }
+          },
+          {
+            "id": "DEF-020",
+            "title": "DEF: POC（概念验证）",
+            "file": "spec/meta/glossary.md",
+            "line": 9,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "471e9846b3acaaa069357d96a598b73f4a148ef81b49e1c10551a9a6eb619fc5",
+            "bytes": 375,
+            "edges": {}
+          },
+          {
+            "id": "CHR-008",
+            "title": "探索与晋升双轨",
+            "file": "spec/meta/process.md",
+            "line": 10,
+            "kind": "arch",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "fa59f0d5cd011b64451ca691355b773a2d3b7ec6077357f174ec3354b84d51e2",
+            "bytes": 769,
+            "edges": {}
+          },
+          {
+            "id": "DEF-021",
+            "title": "DEF: 晋升（Promote）",
+            "file": "spec/meta/glossary.md",
+            "line": 15,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "45551a9b0b2ecd8158fda730948daab6de49c948baa29e590daeffdcf51a7bb6",
+            "bytes": 339,
+            "edges": {}
+          },
+          {
+            "id": "BEH-001",
+            "title": "搜索流程状态机",
+            "file": "spec/20-behavior/search.md",
+            "line": 5,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "6f1a2d916f43ebd4235e15bce85e524457faf30784146b6c56e7f26b6375752b",
+            "bytes": 930,
+            "edges": {}
+          },
+          {
+            "id": "DEC-065",
+            "title": "D-065: 严格 cgroup 隔离测试协议确立",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "d8374fb1973676b0071f7c9b7f6ba9e54d54bd2d4d9537105e1d57d5adef0bcc",
+            "bytes": 3167,
+            "edges": {
+              "affects": [
+                "CON-HONEST-002",
+                "CHR-006",
+                "CON-SLA-011",
+                "CON-SLA-014",
+                "VER-039"
+              ]
+            }
+          },
+          {
+            "id": "CON-HONEST-002",
+            "title": "诚实 I/O 基准协议",
+            "file": "spec/40-constraints/sla.md",
+            "line": 49,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "7e7b63f35b371dd61758f5604179db65930dcc5047aae61b13f0c1d7668e624b",
+            "bytes": 2546,
+            "edges": {
+              "depends-on": [
+                "DEC-057",
+                "DEC-062",
+                "DEC-065"
+              ],
+              "refines": [
+                "DEC-039",
+                "DEC-059"
+              ]
+            }
+          },
+          {
+            "id": "API-002",
+            "title": "Data Pipeline CLI",
+            "file": "spec/30-interfaces/cli.md",
+            "line": 64,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "3681937927ddfb4e09e172e9b61d265878fc6cf5f69adc77ee760fde832bee50",
+            "bytes": 950,
+            "edges": {}
+          },
+          {
+            "id": "CON-002",
+            "title": "内存与缓存限制",
+            "file": "spec/40-constraints/constants.md",
+            "line": 21,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "e0708f45f255df64057caa62e7bd86db9565899d6c518196c5c4dd7d75885244",
+            "bytes": 836,
+            "edges": {}
+          },
+          {
+            "id": "DEC-073",
+            "title": "D-073: flat_vec_cache 默认值 4MB → 64MB",
+            "file": "spec/decisions/11-perf-gap-4t-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "92e2850c4856d92ab3138d82f67fcefc46701e95b335bd7de02ade811c83f891",
+            "bytes": 1137,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "CON-SLA-014",
+                "CON-SLA-016"
+              ],
+              "depends-on": [
+                "DEC-068",
+                "DEC-069",
+                "DEC-070",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "BEH-024",
+            "title": "L4 Page Cache 主动管理",
+            "file": "spec/20-behavior/search.md",
+            "line": 156,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "8a131863ec8f8cf68ff290967f3d0bb2ac3d0681e58958a1631862dde7589847",
+            "bytes": 1564,
+            "edges": {
+              "depends-on": [
+                "DEC-067",
+                "CON-SLA-014",
+                "DEC-068"
+              ],
+              "model": [
+                "MODEL-WILLNEED-001"
+              ],
+              "refines": [
+                "BEH-006"
+              ]
+            }
+          },
+          {
+            "id": "DEC-070",
+            "title": "D-070: WILLNEED readahead hint promote",
+            "file": "spec/decisions/08-willneed-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "240eb38513b1df84bb7385d36fda3b79bd00efb75d45eca4a7aa16484e06e7a3",
+            "bytes": 1839,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "API-012"
+              ],
+              "depends-on": [
+                "DEC-068",
+                "CON-SLA-014",
+                "BEH-025"
+              ]
+            }
+          },
+          {
+            "id": "BEH-027",
+            "title": "WILLNEED 后台线程化",
+            "file": "spec/20-behavior/search.md",
+            "line": 192,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "4ce630c25d19b68e5d7070d86b5332cc97f192795511da29d8fe689d719c52f0",
+            "bytes": 1446,
+            "edges": {
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "CON-SLA-014"
+              ],
+              "model": [
+                "MODEL-WILLNEED-001"
+              ],
+              "refines": [
+                "BEH-024"
+              ]
+            }
+          },
+          {
+            "id": "BEH-028",
+            "title": "WILLNEED BG 页合并",
+            "file": "spec/20-behavior/search.md",
+            "line": 216,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "e09140cfd2268f608ac6623ad594eaea9b7b0063f0b3398ae35643b1d750af60",
+            "bytes": 999,
+            "edges": {
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "DEC-075",
+                "CON-SLA-014"
+              ],
+              "refines": [
+                "BEH-027"
+              ]
+            }
+          },
+          {
+            "id": "DEC-074",
+            "title": "D-074: WILLNEED 后台线程化 + VisitedList 池化",
+            "file": "spec/decisions/12-mt-scaling-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "3d6021270d546d90f4f319c0d8ac88b274a4d42fe0f2417645a37115109e06a4",
+            "bytes": 1368,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "BEH-027",
+                "API-013",
+                "CON-SLA-017"
+              ],
+              "depends-on": [
+                "DEC-070",
+                "DEC-073",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "DEC-075",
+            "title": "D-075: WILLNEED BG 页合并",
+            "file": "spec/decisions/13-l4-d2-pagemerge-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "08cb0d31cc0b7282b06045d34fe13d57feba31a77383b5b3dce5589d31694a81",
+            "bytes": 1042,
+            "edges": {
+              "affects": [
+                "BEH-027",
+                "BEH-028",
+                "CON-SLA-018"
+              ],
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "META-001",
+            "title": "NDF 条款书写与元数据",
+            "file": "spec/meta/language.md",
+            "line": 11,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+            "bytes": 2288,
+            "edges": {
+              "depends-on": [
+                "ADR-META-002"
+              ]
+            }
+          },
+          {
+            "id": "META-003",
+            "title": "分层与强制语气",
+            "file": "spec/meta/language.md",
+            "line": 81,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+            "bytes": 916,
+            "edges": {
+              "depends-on": [
+                "META-001"
+              ]
+            }
+          },
+          {
+            "id": "DEC-057",
+            "title": "D-057: O_DIRECT 诚实基准测试 - Page Cache 加速比量化",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "8a1b8473b94d5adcb26224d8f93316bc526a860d94732678a66ba3c3828fe656",
+            "bytes": 3101,
+            "edges": {
+              "affects": [
+                "DEC-039",
+                "CHR-006",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-062",
+            "title": "D-062: Buffered 为生产优化主目标 — 修正 DEC-059 优先级叙事",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 346,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "3790c631c5406de73861a7700fd604a81199be7748ec3196d91751062db75b96",
+            "bytes": 2160,
+            "edges": {
+              "affects": [
+                "DEC-059",
+                "DEC-060",
+                "CHR-001",
+                "CHR-006",
+                "CON-HONEST-002",
+                "CON-SLA-013",
+                "BEH-021"
+              ]
+            }
+          },
+          {
+            "id": "DEC-039",
+            "title": "D-039: 诚实 I/O 测量协议",
+            "file": "spec/decisions/04-p2.md",
+            "line": 157,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "19f9a4bd88039ff25e1e00ca3d59663630ce9740b76a50738db4b7c428edebc0",
+            "bytes": 1361,
+            "edges": {
+              "affects": [
+                "DEC-021",
+                "DEC-059",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-059",
+            "title": "D-059: 战略重新校准 - O_DIRECT 地板优化 + Page Cache 受限加速",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 86,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "bb8c4a13f0a9706aad506d36dfc19b044c9ba796807fce8fa9a09c770ff4077e",
+            "bytes": 4289,
+            "edges": {
+              "affects": [
+                "CHR-001",
+                "CHR-004",
+                "CHR-006",
+                "DEC-030",
+                "DEC-057",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-068",
+            "title": "D-068: Promote l4-cache-mgmt - flat_vec_cache + O_DIRECT 4T fix",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 143,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "2ea703351bfbd669b0de85c35aaefcfd6e3550daa24c49bd05874f95efb23714",
+            "bytes": 1555,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "CHR-006"
+              ]
+            }
+          },
+          {
+            "id": "DEC-069",
+            "title": "D-069: Promote flat_vec_cache cap fix",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 179,
+            "kind": "decision",
+            "level": "",
+            "status": "",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "80277384da7e4e6fe632ee70399a6c95c23aa81a52ffb948339a1eeaa0ed0b87",
+            "bytes": 647,
+            "edges": {
+              "affects": [
+                "BEH-024"
+              ]
+            }
+          },
+          {
+            "id": "DEC-067",
+            "title": "D-067: DEC-066 修正 - 环境变量拼写错误导致假基线",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 109,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "68c79494d9854ad15c170a771b9a1686ef10c650cabd8743af5b5fae6e13046e",
+            "bytes": 1939,
+            "edges": {
+              "affects": [
+                "DEC-066",
+                "CHR-006",
+                "CON-SLA-011",
+                "VER-039",
+                "CON-SLA-013"
+              ]
+            }
+          },
+          {
+            "id": "BEH-006",
+            "title": "PQ 距离表构建",
+            "file": "spec/20-behavior/search.md",
+            "line": 88,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "c6de4696604456bc560962b11bd6a594e02a26ab352ba0eef6769b2aeded42a1",
+            "bytes": 480,
+            "edges": {
+              "refines": [
+                "BEH-005"
+              ]
+            }
+          },
+          {
+            "id": "ADR-META-002",
+            "title": "ADR: Meta 条款独立编号命名空间",
+            "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+            "line": 1,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+            "bytes": 2397,
+            "edges": {
+              "depends-on": [
+                "ADR-META-001"
+              ]
+            }
+          },
+          {
+            "id": "BEH-005",
+            "title": "PQ 距离计算",
+            "file": "spec/20-behavior/search.md",
+            "line": 74,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 4,
+            "clause_sha": "d49dd815441dddb6537a55f82d42f161fe02df9e1fb754682ba7e6d554914e2a",
+            "bytes": 495,
+            "edges": {
+              "refines": [
+                "BEH-001"
+              ]
+            }
+          },
+          {
+            "id": "ADR-META-001",
+            "title": "ADR: NDF 元规范与产品契约分层",
+            "file": "spec/meta/decisions/adr-meta-layer-split.md",
+            "line": 1,
+            "kind": "",
+            "level": "",
+            "status": "",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 4,
+            "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+            "bytes": 1859,
+            "edges": {}
+          }
+        ],
+        "missing_seeds": [
+          "BEH-037"
+        ],
+        "truncated": [],
+        "blockers": []
+      },
+      "implementation_surface": [
+        "poc/cluster-gbdt/",
+        "include/gbdt_model.h",
+        "include/disk_hnsw.h",
+        "src/core/disk_hnsw.cpp",
+        "poc/gbdt-learned-pruning/",
+        "poc/vecblock-cluster-reorder/",
+        "spec/50-verification/configs/cfg-m24-ef60.md",
+        "spec/30-interfaces/",
+        "poc/cluster-gbdt/analyze_cluster_purity.py",
+        "poc/cluster-gbdt/train_cluster_gbdt.py",
+        "poc/cluster-gbdt/cluster_assignments_100k.npy",
+        "spec/meta/templates/poc/DESIGN.md.stub",
+        "spec/meta/tools/ndf_poc_isolation.py",
+        "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+        "poc/cluster-gbdt/r1_entropy_analysis.py",
+        "poc/cluster-gbdt/cluster_assignments_1M.npy",
+        "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log"
+      ],
+      "ledger_joins": [
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 4,
+          "commits": [],
+          "clauses": [
+            "BEH-025",
+            "DEF-023"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 9,
+          "commits": [
+            "a9c76de"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 15,
+          "commits": [
+            "a143392"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 16,
+          "commits": [
+            "a143392"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 17,
+          "commits": [
+            "a143392",
+            "20260814"
+          ],
+          "clauses": [
+            "BEH-025",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 18,
+          "commits": [
+            "a143392",
+            "20260814"
+          ],
+          "clauses": [
+            "BEH-025",
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        }
+      ],
+      "baseline": {
+        "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+        "baseline_status": "current",
+        "baseline_trunk_sha": "a143392",
+        "baseline_protocol": "CON-SLA-020 sustained",
+        "bind": {
+          "vs": "bl-trunk-golden-7ee4ee2",
+          "config_id": "cfg-m24-ef60",
+          "measure_script": "scripts/run_sustained.sh",
+          "trunk_sha": "a143392"
+        },
+        "bind_sha": "2b66854114d809d639169c9dce2d844a9bd790686ba1d10aab9d32127e594448"
+      },
+      "human_gates": {
+        "path": "poc/cluster-gbdt/ndf/GATES.md",
+        "path_sha": "a56a8daa72f2ad762a6b2608a1f91a78d21ce8edd87d91d8f73d2157ee728501",
+        "expected": {
+          "topic_review": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+          "design_review": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+          "implementation_approval": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905"
+        },
+        "bundle_specs": {
+          "topic_review": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              }
+            ],
+            "slice_manifest_sha": "0cd304f8ec862827fef3d4b5cac58cca1fd9b7861a73b40070a881a3e5067372",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          },
+          "design_review": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/DESIGN.md",
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              },
+              {
+                "slice_id": "design_contract",
+                "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+                "content_sha": "e485f4aa42688c638af60bb68cad0280167bf7482de75f63a10182cb61704b0e",
+                "start_line": 14,
+                "end_line": 115
+              }
+            ],
+            "slice_manifest_sha": "97e2802c612358fc253396d3c7a0fa830fbd916ad3c5435b5faaa2809b794e4d",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          },
+          "implementation_approval": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/DELTA.md",
+              "poc/cluster-gbdt/ndf/DESIGN.md",
+              "poc/cluster-gbdt/ndf/INTERFACE.md",
+              "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              },
+              {
+                "slice_id": "design_contract",
+                "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+                "content_sha": "e485f4aa42688c638af60bb68cad0280167bf7482de75f63a10182cb61704b0e",
+                "start_line": 14,
+                "end_line": 115
+              },
+              {
+                "slice_id": "perf_bind",
+                "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+                "content_sha": "8778d426fdb43ee6216bbbd67069f53adc3bb147af84c62caf4d5e48044cfb94",
+                "start_line": 4,
+                "end_line": 22
+              },
+              {
+                "slice_id": "delta_hypothesis",
+                "path": "poc/cluster-gbdt/ndf/DELTA.md",
+                "content_sha": "9fcf0224d20d0e80a94a445d40d1bf1e736e5abad7148e696c479e5b377a7b9f",
+                "start_line": 36,
+                "end_line": 52
+              },
+              {
+                "slice_id": "interface_contract",
+                "path": "poc/cluster-gbdt/ndf/INTERFACE.md",
+                "content_sha": "cd08efd9a7aada8731f829854e6d6757f91ae4134b20329be679e9171ff9b889",
+                "start_line": 11,
+                "end_line": 63
+              }
+            ],
+            "slice_manifest_sha": "d65e5ba0c033714b75d9ea47306193fec1f84734651a2fb764f36398156b9200",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          }
+        },
+        "bundle_mode": "review_slice",
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ],
+        "receipts": [
+          {
+            "gate": "topic_review",
+            "phrase": "TOPIC已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T18:52:00Z",
+            "approved_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "1d7f609f3a45f3ecc9b64f986fcb0c465873d06504da629e5509776a360adbf5",
+            "source_ref": "poc/cluster-gbdt/ndf/TOPIC.md",
+            "status": "approved",
+            "expected_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "expected_phrase": "TOPIC已审核",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "1d7f609f3a45f3ecc9b64f986fcb0c465873d06504da629e5509776a360adbf5",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "0cd304f8ec862827fef3d4b5cac58cca1fd9b7861a73b40070a881a3e5067372"
+          },
+          {
+            "gate": "design_review",
+            "phrase": "DESIGN已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T18:56:00Z",
+            "approved_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "0bf458129ed5e8e9da9ecc896a5d3524f0624a11bdef5753c9600e9e66a09f1f",
+            "source_ref": "TOPIC.md + DESIGN.md",
+            "status": "approved",
+            "expected_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "expected_phrase": "DESIGN已审核",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "0bf458129ed5e8e9da9ecc896a5d3524f0624a11bdef5753c9600e9e66a09f1f",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "97e2802c612358fc253396d3c7a0fa830fbd916ad3c5435b5faaa2809b794e4d"
+          },
+          {
+            "gate": "implementation_approval",
+            "phrase": "可以开始实现",
+            "approved_by": "human",
+            "approved_at": "2026-08-14T10:26:00Z",
+            "approved_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "dc4fc0b893bf681dd99994d4e86f8fdd9c2dbf1f400128106f35ad734a533242",
+            "source_ref": "TOPIC+DESIGN+PERF_BASELINE+DELTA+INTERFACE",
+            "status": "approved",
+            "expected_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "expected_phrase": "可以开始实现",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "dc4fc0b893bf681dd99994d4e86f8fdd9c2dbf1f400128106f35ad734a533242",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "d65e5ba0c033714b75d9ea47306193fec1f84734651a2fb764f36398156b9200"
+          }
+        ],
+        "receipt_history_count": 41
+      },
+      "evidence_refs": [
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-256mb_256mb_1t_n1000_r15.log",
+          "sha256": "403863a3e10d5d8bc41482b57e9061a06309800ff5d971bba10915f21288be96"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log",
+          "sha256": "e733d22399b2c036057199d35d3a77c7c4e026b8be6d5ae3ba80d05b717da3fd"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+          "sha256": "ba323aa016c7ec9d6bd584e114f395ffb4323bec8f6177b19cf1a7f2a9522283"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+          "sha256": "aff8d894a80f744b9e7984a21ceb4377ebae3ecda584887e8ea59cc3e900e09d"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json",
+          "sha256": "9ab2cf80c0343e790d0f87fd9ad4bbf55a05cc25ca462b1ec404a6daef0e0ff1"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+          "sha256": "f29f9f40d40fa60b6a041beb0c3dafa9e9144033052652419789af1cd0999a99"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-attempt-20260814.md",
+          "sha256": "920c85e7cac507402175a3fdbb617eb94e5347c5e8a3b6ed24d48a2035ade2ae"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-verified-20260814.md",
+          "sha256": "f65aec2b5448945962fac1226fd6b4bef0f8f9c816fc5346713f2ef098c3f751"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+          "sha256": "0dd911fcc70f6f5072373857d529303ecc90ac804e9a33840de3594fc4b3cbe6"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+          "sha256": "de27efd70c345392202b04cb68d36d645bf8b425551f3321ced6d472cce49edb"
+        }
+      ],
+      "trunk_ref_joins": [
+        {
+          "id": "CON-SLA-020",
+          "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1"
+        },
+        {
+          "id": "API-018",
+          "trunk_ref": "7f59fae"
+        },
+        {
+          "id": "CON-SLA-019",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "BEH-035",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "API-019",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "API-011",
+          "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1"
+        },
+        {
+          "id": "API-012",
+          "trunk_ref": "2f008f7f60229e68416d20f7e4fdba4071604969"
+        },
+        {
+          "id": "API-013",
+          "trunk_ref": "162377ee75dbb6a3042572bce47686b92a86aa42"
+        }
+      ],
+      "conflicts": [],
+      "role_policies": {
+        "canvas": {
+          "allowed_write_roots": [],
+          "forbidden_write_paths": [
+            "*"
+          ],
+          "summary_only": true,
+          "allowed_sections": [],
+          "forbidden_sections": [],
+          "mutable_sections": [
+            "topic_runtime_headers",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits",
+            "gates"
+          ]
+        },
+        "human": {
+          "allowed_write_roots": [],
+          "forbidden_write_paths": [
+            "*"
+          ],
+          "summary_only": true,
+          "allowed_sections": [],
+          "forbidden_sections": [],
+          "mutable_sections": [
+            "topic_runtime_headers",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits",
+            "gates"
+          ]
+        },
+        "openclaw": {
+          "allowed_write_roots": [
+            "spec/open/",
+            "spec/meta/open/"
+          ],
+          "forbidden_write_paths": [
+            "src/",
+            "include/",
+            "tests/",
+            "spec/meta/process.md"
+          ],
+          "summary_only": false,
+          "allowed_sections": [],
+          "forbidden_sections": [],
+          "mutable_sections": [
+            "topic_runtime_headers",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits",
+            "gates"
+          ]
+        },
+        "claude-code": {
+          "allowed_write_roots": [
+            "poc/cluster-gbdt/"
+          ],
+          "forbidden_write_paths": [
+            "spec/meta/",
+            "spec/00-charter/",
+            "spec/10-architecture/",
+            "src/",
+            "include/",
+            "tests/"
+          ],
+          "summary_only": false,
+          "allowed_sections": [
+            "poc_code",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits_append",
+            "topic_runtime_headers"
+          ],
+          "forbidden_sections": [
+            "topic_contract",
+            "design_contract",
+            "perf_bind",
+            "delta_hypothesis",
+            "interface_contract",
+            "gate_receipts"
+          ],
+          "mutable_sections": [
+            "topic_runtime_headers",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits",
+            "gates"
+          ]
+        },
+        "project-control": {
+          "allowed_write_roots": [
+            "spec/meta/open/"
+          ],
+          "forbidden_write_paths": [
+            "src/",
+            "include/",
+            "tests/",
+            "spec/00-charter/",
+            "spec/20-behavior/"
+          ],
+          "summary_only": false,
+          "allowed_sections": [],
+          "forbidden_sections": [],
+          "mutable_sections": [
+            "topic_runtime_headers",
+            "perf_numbers",
+            "delta_rounds",
+            "evidence",
+            "commits",
+            "gates"
+          ]
+        }
+      },
+      "compiler_derivation": {
+        "schema": "ndf-context-compiler-derivation/v1",
+        "compiler_id": "ndf-context-compiler/v1",
+        "compiler_sha": "af539c2e7da4521b2b6440fd0f19c15d54b3b1e8ec2ae78bd910baf7bf88eeed",
+        "policy_sha": "ac00e1e4fb946e04ffb1201026edb64302f6e7f2339dc7a4280c6312bbf42698",
+        "input_sha": "3824e9ef1bff36265d7870368b2848d89b1765b6f3b71b9abed1a086e2bd7c0c",
+        "derived_sha": "b9b2978357b3c29b1c2104481cfa2891cbfbe819ab14844b6648aeaba5cebf5d"
+      },
+      "manifest_sha": "5c643745ce510fce127901905dd27194f750ae2fe95fb44694f375845c4fd20a"
+    },
+    "manifest_sha": "5c643745ce510fce127901905dd27194f750ae2fe95fb44694f375845c4fd20a",
+    "context_plan": {
+      "schema": "ndf-context-plan/claude-code/v1",
+      "manifest_sha": "5c643745ce510fce127901905dd27194f750ae2fe95fb44694f375845c4fd20a",
+      "workspace": {
+        "repo_root": "/home/huawei/hnsw-predictor-ndf",
+        "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+        "topic": "cluster-gbdt"
+      },
+      "role": "claude-code",
+      "task": "poc_implementation",
+      "track": "poc",
+      "topic": "cluster-gbdt",
+      "source_generation_sha": "4a19610020ea4215d205f97c9246d5fc6ecb0d6d522ddc56e2184818306e6807",
+      "ordered_reads": [
+        {
+          "order": 0,
+          "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+          "sha256": "0b7944530b27c611c828fa91e733bc922f0f237c820d0305f7db5a4186b1be8c",
+          "bytes": 1771,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 1,
+          "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+          "sha256": "5bc122b58409e14a4cccd0ef4bea4714134ae36f6ff2940fd1d136109e025fcb",
+          "bytes": 6192,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 2,
+          "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+          "sha256": "dad047c086b66c2aa8bba509ed5d0cfd031a645943b6951b13bf5097a69b72dd",
+          "bytes": 2791,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 3,
+          "path": "poc/cluster-gbdt/ndf/DELTA.md",
+          "sha256": "2502e8bfdf13369d64b7422aa6bc8136c45e32f2eadfc4c84352a5348f7e0adb",
+          "bytes": 3213,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 4,
+          "path": "poc/cluster-gbdt/ndf/INTERFACE.md",
+          "sha256": "424f57deb1642deaf2d441306a6d1492e102f592b57519573ba16a3d22c9d8c6",
+          "bytes": 2569,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 5,
+          "path": "poc/cluster-gbdt/ndf/GATES.md",
+          "sha256": "a56a8daa72f2ad762a6b2608a1f91a78d21ce8edd87d91d8f73d2157ee728501",
+          "bytes": 34524,
+          "phase": "binder",
+          "reason": "binder_root"
+        },
+        {
+          "order": 6,
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-256mb_256mb_1t_n1000_r15.log",
+          "sha256": "403863a3e10d5d8bc41482b57e9061a06309800ff5d971bba10915f21288be96",
+          "bytes": 4355,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 7,
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log",
+          "sha256": "e733d22399b2c036057199d35d3a77c7c4e026b8be6d5ae3ba80d05b717da3fd",
+          "bytes": 4356,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 8,
+          "path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+          "sha256": "ba323aa016c7ec9d6bd584e114f395ffb4323bec8f6177b19cf1a7f2a9522283",
+          "bytes": 5622,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 9,
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+          "sha256": "aff8d894a80f744b9e7984a21ceb4377ebae3ecda584887e8ea59cc3e900e09d",
+          "bytes": 399,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 10,
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json",
+          "sha256": "9ab2cf80c0343e790d0f87fd9ad4bbf55a05cc25ca462b1ec404a6daef0e0ff1",
+          "bytes": 118366,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 11,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+          "sha256": "f29f9f40d40fa60b6a041beb0c3dafa9e9144033052652419789af1cd0999a99",
+          "bytes": 2218,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 12,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-attempt-20260814.md",
+          "sha256": "920c85e7cac507402175a3fdbb617eb94e5347c5e8a3b6ed24d48a2035ade2ae",
+          "bytes": 1787,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 13,
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-verified-20260814.md",
+          "sha256": "f65aec2b5448945962fac1226fd6b4bef0f8f9c816fc5346713f2ef098c3f751",
+          "bytes": 1886,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 14,
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+          "sha256": "0dd911fcc70f6f5072373857d529303ecc90ac804e9a33840de3594fc4b3cbe6",
+          "bytes": 3356,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 15,
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+          "sha256": "de27efd70c345392202b04cb68d36d645bf8b425551f3321ced6d472cce49edb",
+          "bytes": 3321,
+          "phase": "evidence",
+          "reason": "evidence_root"
+        },
+        {
+          "order": 16,
+          "path": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "sha256": "67ca194a715fb0e8b4c0386c279cf6eb79563be5e191ad2a98d5f2ec12f19f98",
+          "bytes": 1798,
+          "phase": "git",
+          "reason": "git_root"
+        }
+      ],
+      "seed_ids": [
+        "BEH-025",
+        "DEF-023",
+        "BEH-034",
+        "BEH-037",
+        "CON-SLA-020",
+        "META-012"
+      ],
+      "seed_sources": {
+        "topic": [],
+        "proposals": [],
+        "commits": [
+          "BEH-025",
+          "DEF-023",
+          "BEH-034",
+          "BEH-037",
+          "CON-SLA-020"
+        ],
+        "task_defaults": [
+          "META-012"
+        ],
+        "explicit": []
+      },
+      "graph": {
+        "relations": [
+          "depends-on",
+          "refines"
+        ],
+        "direction": "upstream; verifies also reverse",
+        "depth": 8,
+        "node_budget": 240,
+        "byte_budget": 1048576,
+        "bytes_used": 121923,
+        "nodes": [
+          {
+            "id": "BEH-025",
+            "title": "POC 主题装订纪律",
+            "file": "spec/meta/process.md",
+            "line": 763,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "de364f428e2e1cb2c3cbba3ff44d4be002cd51e10cf7bfc733f4142856ee0fec",
+            "bytes": 7315,
+            "edges": {
+              "depends-on": [
+                "DEF-022",
+                "DEF-023",
+                "CON-POC-001"
+              ],
+              "refines": [
+                "BEH-018",
+                "ARCH-008"
+              ]
+            }
+          },
+          {
+            "id": "DEF-023",
+            "title": "DEF: Commit Ledger（提交账本）",
+            "file": "spec/meta/glossary.md",
+            "line": 31,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "abd41a7b602d69431deccdca7ebfaf6a9c8c29ebc3c9d773f9251cab46aa02e2",
+            "bytes": 385,
+            "edges": {
+              "depends-on": [
+                "DEF-022"
+              ]
+            }
+          },
+          {
+            "id": "BEH-034",
+            "title": "GBDT 学习式候选数预测",
+            "file": "spec/20-behavior/search.md",
+            "line": 273,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "f1dd0be88e532cced5c9092deb0f2f1342ff68a629b38d6953cfc889c62a7f08",
+            "bytes": 3054,
+            "edges": {
+              "depends-on": [
+                "API-018",
+                "DEC-084"
+              ],
+              "refines": [
+                "BEH-004"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-020",
+            "title": "SIFT1M Sustained 基线 SLA",
+            "file": "spec/40-constraints/sla.md",
+            "line": 354,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1",
+            "hop": 0,
+            "clause_sha": "ce8c79072da520ac162137010f50443ffe94cc5f3d319f0409eed106ffb5f75f",
+            "bytes": 3120,
+            "edges": {
+              "depends-on": [
+                "CON-SLA-014",
+                "CON-SLA-019",
+                "BEH-035",
+                "API-019",
+                "API-011",
+                "API-012",
+                "API-013",
+                "DEC-084",
+                "DEC-086"
+              ]
+            }
+          },
+          {
+            "id": "META-012",
+            "title": "NDF 任务上下文与证据绑定",
+            "file": "spec/meta/process.md",
+            "line": 538,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 0,
+            "clause_sha": "375a64bac85a863627d0b13e3d20bbad61ce7d86d492421b67ee597fec2e8bc9",
+            "bytes": 4297,
+            "edges": {
+              "depends-on": [
+                "META-002",
+                "META-008",
+                "META-010",
+                "META-011"
+              ]
+            }
+          },
+          {
+            "id": "DEF-022",
+            "title": "DEF: Topic Binder（主题装订器）",
+            "file": "spec/meta/glossary.md",
+            "line": 21,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "891ed0585f28fc39a19afc6fc88a4675f7527aaa4c81f55fc690c165bfbc9be4",
+            "bytes": 645,
+            "edges": {
+              "depends-on": [
+                "DEF-020"
+              ]
+            }
+          },
+          {
+            "id": "CON-POC-001",
+            "title": "POC 不纳入生产 SLA",
+            "file": "spec/meta/constraints.md",
+            "line": 7,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "174500bbaee58a069db6335aa4f4e886b0613e8cc0cf12fb02e84792f6bd690b",
+            "bytes": 430,
+            "edges": {
+              "depends-on": [
+                "ARCH-008"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "BEH-018",
+            "title": "探索期 NDF 纪律",
+            "file": "spec/meta/process.md",
+            "line": 24,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "8782f4fae2e3aa0f6cc9bc0eedcf63bb74f5ee124c255466588bea4b046a1117",
+            "bytes": 3420,
+            "edges": {
+              "depends-on": [
+                "ARCH-008",
+                "DEF-020"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "ARCH-008",
+            "title": "`models/` 与 `poc/` 边界",
+            "file": "spec/meta/architecture.md",
+            "line": 7,
+            "kind": "arch",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "4e9700a83ca75ccb818cdd226a59cdf69a27944c5e8e4456899acacc7cd629eb",
+            "bytes": 1910,
+            "edges": {
+              "depends-on": [
+                "DEF-020",
+                "DEF-021"
+              ],
+              "refines": [
+                "CHR-008"
+              ]
+            }
+          },
+          {
+            "id": "API-018",
+            "title": "GBDT 学习式候选数预测环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 189,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "7f59fae",
+            "hop": 1,
+            "clause_sha": "0d9f83b69635f486bff2d5b97d1c90c2a24a0de22b82477cd68099cbbb242c25",
+            "bytes": 1335,
+            "edges": {
+              "depends-on": [
+                "BEH-004",
+                "DEC-084"
+              ]
+            }
+          },
+          {
+            "id": "DEC-084",
+            "title": "决策",
+            "file": "spec/decisions/20-sustained-benchmark-methodology.md",
+            "line": 9,
+            "kind": "decision",
+            "level": "info",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "1b866a63d742542d5f123e564fbd1ea3ca1fcbad5bbbac703f12a68b43b6982a",
+            "bytes": 12237,
+            "edges": {}
+          },
+          {
+            "id": "BEH-004",
+            "title": "贪心下降",
+            "file": "spec/20-behavior/search.md",
+            "line": 64,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "b8dbe4a38f7bb1d7a0164838ebfa61bdd2cf8145fde06d3e1da021bfa25f6efc",
+            "bytes": 460,
+            "edges": {
+              "refines": [
+                "BEH-001"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-014",
+            "title": "严格 cgroup 隔离测试协议",
+            "file": "spec/40-constraints/sla.md",
+            "line": 170,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "974394618e6b765704b5f932ee92f3e693e7040ba085cfb3ad74583add067da1",
+            "bytes": 2938,
+            "edges": {
+              "depends-on": [
+                "DEC-065"
+              ],
+              "refines": [
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "CON-SLA-019",
+            "title": "禁止预热被测 query",
+            "file": "spec/40-constraints/sla.md",
+            "line": 316,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "78932cc30536f5e3d42ed2c9fbe75eba73986bb65a36c58eea73b89a955b6ce5",
+            "bytes": 2073,
+            "edges": {
+              "depends-on": [
+                "CON-HONEST-002",
+                "DEC-084"
+              ],
+              "model": [
+                "MODEL-SUSTAINED-001"
+              ],
+              "refines": [
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "BEH-035",
+            "title": "多轮随机采样持续查询基准",
+            "file": "spec/20-behavior/test-infra.md",
+            "line": 40,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "4ae3205db46ad09358d6c6088cc2bca43205fc694ba587099c42fdaafa71855f",
+            "bytes": 2653,
+            "edges": {
+              "depends-on": [
+                "API-019",
+                "CON-SLA-019",
+                "DEC-084"
+              ],
+              "model": [
+                "MODEL-SUSTAINED-001"
+              ]
+            }
+          },
+          {
+            "id": "API-019",
+            "title": "多轮采样 benchmark CLI",
+            "file": "spec/30-interfaces/cli.md",
+            "line": 197,
+            "kind": "interface",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "47ed9e7",
+            "hop": 1,
+            "clause_sha": "f95498a499575481adb62ec96907e12751023da5fcab0801860ae18b6761be8d",
+            "bytes": 2771,
+            "edges": {
+              "refines": [
+                "API-002"
+              ]
+            }
+          },
+          {
+            "id": "API-011",
+            "title": "Benchmark / 调参环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 90,
+            "kind": "req",
+            "level": "should",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1",
+            "hop": 1,
+            "clause_sha": "31748253052ca0a419cf0e69a27efb97d3fec928143cdbce90d9090f3764e17a",
+            "bytes": 2596,
+            "edges": {
+              "depends-on": [
+                "CON-002",
+                "DEC-073",
+                "DEC-086"
+              ]
+            }
+          },
+          {
+            "id": "API-012",
+            "title": "L4 WILLNEED 环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 128,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "2f008f7f60229e68416d20f7e4fdba4071604969",
+            "hop": 1,
+            "clause_sha": "bf6023f317171deb053845466d2be958b2ebca2eaf53aa802a7d7cc85879a3ff",
+            "bytes": 962,
+            "edges": {
+              "depends-on": [
+                "BEH-024",
+                "DEC-070"
+              ]
+            }
+          },
+          {
+            "id": "API-013",
+            "title": "WILLNEED 多线程扩展环境变量",
+            "file": "spec/30-interfaces/env.md",
+            "line": 143,
+            "kind": "req",
+            "level": "may",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": "162377ee75dbb6a3042572bce47686b92a86aa42",
+            "hop": 1,
+            "clause_sha": "8dafc189111444ddff7ff2687bdb615964d97b6b802c4b9c9cede4f0042f3843",
+            "bytes": 1085,
+            "edges": {
+              "depends-on": [
+                "API-012",
+                "BEH-027",
+                "BEH-028",
+                "DEC-074",
+                "DEC-075"
+              ]
+            }
+          },
+          {
+            "id": "DEC-086",
+            "title": "DEC-086: Sustained 口径下主线调参结论",
+            "file": "spec/decisions/22-sustained-param-retuning.md",
+            "line": 1,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "2bcd4a8aca69db48895592fa860375325ee9a67c170054591863ee3b7079211c",
+            "bytes": 3110,
+            "edges": {
+              "affects": [
+                "API-011",
+                "API-017"
+              ],
+              "depends-on": [
+                "DEC-084"
+              ]
+            }
+          },
+          {
+            "id": "META-002",
+            "title": "NDF 图边与引用",
+            "file": "spec/meta/language.md",
+            "line": 56,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+            "bytes": 1150,
+            "edges": {
+              "depends-on": [
+                "META-001"
+              ]
+            }
+          },
+          {
+            "id": "META-008",
+            "title": "NDF 工作空间视角",
+            "file": "spec/meta/language.md",
+            "line": 111,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+            "bytes": 1644,
+            "edges": {
+              "depends-on": [
+                "META-002",
+                "META-003"
+              ]
+            }
+          },
+          {
+            "id": "META-010",
+            "title": "人工门禁回执",
+            "file": "spec/meta/process.md",
+            "line": 181,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "221bfa66affd83605b52b0365d0e6f82aeac9c733655e2848fc7645f42fedc7b",
+            "bytes": 2938,
+            "edges": {
+              "depends-on": [
+                "META-001",
+                "META-008"
+              ]
+            }
+          },
+          {
+            "id": "META-011",
+            "title": "Workflow 投影与 Claude Code 委派",
+            "file": "spec/meta/process.md",
+            "line": 244,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 1,
+            "clause_sha": "74cdcd1c30e5f2acabdf7213998ac3e9f8a7995c4816cd04fe959eb67720a58d",
+            "bytes": 16601,
+            "edges": {
+              "depends-on": [
+                "META-008",
+                "META-010"
+              ]
+            }
+          },
+          {
+            "id": "DEF-020",
+            "title": "DEF: POC（概念验证）",
+            "file": "spec/meta/glossary.md",
+            "line": 9,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "471e9846b3acaaa069357d96a598b73f4a148ef81b49e1c10551a9a6eb619fc5",
+            "bytes": 375,
+            "edges": {}
+          },
+          {
+            "id": "CHR-008",
+            "title": "探索与晋升双轨",
+            "file": "spec/meta/process.md",
+            "line": 10,
+            "kind": "arch",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "fa59f0d5cd011b64451ca691355b773a2d3b7ec6077357f174ec3354b84d51e2",
+            "bytes": 769,
+            "edges": {}
+          },
+          {
+            "id": "DEF-021",
+            "title": "DEF: 晋升（Promote）",
+            "file": "spec/meta/glossary.md",
+            "line": 15,
+            "kind": "def",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "45551a9b0b2ecd8158fda730948daab6de49c948baa29e590daeffdcf51a7bb6",
+            "bytes": 339,
+            "edges": {}
+          },
+          {
+            "id": "BEH-001",
+            "title": "搜索流程状态机",
+            "file": "spec/20-behavior/search.md",
+            "line": 5,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "6f1a2d916f43ebd4235e15bce85e524457faf30784146b6c56e7f26b6375752b",
+            "bytes": 930,
+            "edges": {}
+          },
+          {
+            "id": "DEC-065",
+            "title": "D-065: 严格 cgroup 隔离测试协议确立",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "d8374fb1973676b0071f7c9b7f6ba9e54d54bd2d4d9537105e1d57d5adef0bcc",
+            "bytes": 3167,
+            "edges": {
+              "affects": [
+                "CON-HONEST-002",
+                "CHR-006",
+                "CON-SLA-011",
+                "CON-SLA-014",
+                "VER-039"
+              ]
+            }
+          },
+          {
+            "id": "CON-HONEST-002",
+            "title": "诚实 I/O 基准协议",
+            "file": "spec/40-constraints/sla.md",
+            "line": 49,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "7e7b63f35b371dd61758f5604179db65930dcc5047aae61b13f0c1d7668e624b",
+            "bytes": 2546,
+            "edges": {
+              "depends-on": [
+                "DEC-057",
+                "DEC-062",
+                "DEC-065"
+              ],
+              "refines": [
+                "DEC-039",
+                "DEC-059"
+              ]
+            }
+          },
+          {
+            "id": "API-002",
+            "title": "Data Pipeline CLI",
+            "file": "spec/30-interfaces/cli.md",
+            "line": 64,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "3681937927ddfb4e09e172e9b61d265878fc6cf5f69adc77ee760fde832bee50",
+            "bytes": 950,
+            "edges": {}
+          },
+          {
+            "id": "CON-002",
+            "title": "内存与缓存限制",
+            "file": "spec/40-constraints/constants.md",
+            "line": 21,
+            "kind": "constraint",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "e0708f45f255df64057caa62e7bd86db9565899d6c518196c5c4dd7d75885244",
+            "bytes": 836,
+            "edges": {}
+          },
+          {
+            "id": "DEC-073",
+            "title": "D-073: flat_vec_cache 默认值 4MB → 64MB",
+            "file": "spec/decisions/11-perf-gap-4t-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "92e2850c4856d92ab3138d82f67fcefc46701e95b335bd7de02ade811c83f891",
+            "bytes": 1137,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "CON-SLA-014",
+                "CON-SLA-016"
+              ],
+              "depends-on": [
+                "DEC-068",
+                "DEC-069",
+                "DEC-070",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "BEH-024",
+            "title": "L4 Page Cache 主动管理",
+            "file": "spec/20-behavior/search.md",
+            "line": 156,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "8a131863ec8f8cf68ff290967f3d0bb2ac3d0681e58958a1631862dde7589847",
+            "bytes": 1564,
+            "edges": {
+              "depends-on": [
+                "DEC-067",
+                "CON-SLA-014",
+                "DEC-068"
+              ],
+              "model": [
+                "MODEL-WILLNEED-001"
+              ],
+              "refines": [
+                "BEH-006"
+              ]
+            }
+          },
+          {
+            "id": "DEC-070",
+            "title": "D-070: WILLNEED readahead hint promote",
+            "file": "spec/decisions/08-willneed-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "240eb38513b1df84bb7385d36fda3b79bd00efb75d45eca4a7aa16484e06e7a3",
+            "bytes": 1839,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "API-012"
+              ],
+              "depends-on": [
+                "DEC-068",
+                "CON-SLA-014",
+                "BEH-025"
+              ]
+            }
+          },
+          {
+            "id": "BEH-027",
+            "title": "WILLNEED 后台线程化",
+            "file": "spec/20-behavior/search.md",
+            "line": 192,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "4ce630c25d19b68e5d7070d86b5332cc97f192795511da29d8fe689d719c52f0",
+            "bytes": 1446,
+            "edges": {
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "CON-SLA-014"
+              ],
+              "model": [
+                "MODEL-WILLNEED-001"
+              ],
+              "refines": [
+                "BEH-024"
+              ]
+            }
+          },
+          {
+            "id": "BEH-028",
+            "title": "WILLNEED BG 页合并",
+            "file": "spec/20-behavior/search.md",
+            "line": 216,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "e09140cfd2268f608ac6623ad594eaea9b7b0063f0b3398ae35643b1d750af60",
+            "bytes": 999,
+            "edges": {
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "DEC-075",
+                "CON-SLA-014"
+              ],
+              "refines": [
+                "BEH-027"
+              ]
+            }
+          },
+          {
+            "id": "DEC-074",
+            "title": "D-074: WILLNEED 后台线程化 + VisitedList 池化",
+            "file": "spec/decisions/12-mt-scaling-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "3d6021270d546d90f4f319c0d8ac88b274a4d42fe0f2417645a37115109e06a4",
+            "bytes": 1368,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "BEH-027",
+                "API-013",
+                "CON-SLA-017"
+              ],
+              "depends-on": [
+                "DEC-070",
+                "DEC-073",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "DEC-075",
+            "title": "D-075: WILLNEED BG 页合并",
+            "file": "spec/decisions/13-l4-d2-pagemerge-promote.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "08cb0d31cc0b7282b06045d34fe13d57feba31a77383b5b3dce5589d31694a81",
+            "bytes": 1042,
+            "edges": {
+              "affects": [
+                "BEH-027",
+                "BEH-028",
+                "CON-SLA-018"
+              ],
+              "depends-on": [
+                "DEC-070",
+                "DEC-074",
+                "CON-SLA-014"
+              ]
+            }
+          },
+          {
+            "id": "META-001",
+            "title": "NDF 条款书写与元数据",
+            "file": "spec/meta/language.md",
+            "line": 11,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+            "bytes": 2288,
+            "edges": {
+              "depends-on": [
+                "ADR-META-002"
+              ]
+            }
+          },
+          {
+            "id": "META-003",
+            "title": "分层与强制语气",
+            "file": "spec/meta/language.md",
+            "line": 81,
+            "kind": "def",
+            "level": "must",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 2,
+            "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+            "bytes": 916,
+            "edges": {
+              "depends-on": [
+                "META-001"
+              ]
+            }
+          },
+          {
+            "id": "DEC-057",
+            "title": "D-057: O_DIRECT 诚实基准测试 - Page Cache 加速比量化",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 5,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "8a1b8473b94d5adcb26224d8f93316bc526a860d94732678a66ba3c3828fe656",
+            "bytes": 3101,
+            "edges": {
+              "affects": [
+                "DEC-039",
+                "CHR-006",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-062",
+            "title": "D-062: Buffered 为生产优化主目标 — 修正 DEC-059 优先级叙事",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 346,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "3790c631c5406de73861a7700fd604a81199be7748ec3196d91751062db75b96",
+            "bytes": 2160,
+            "edges": {
+              "affects": [
+                "DEC-059",
+                "DEC-060",
+                "CHR-001",
+                "CHR-006",
+                "CON-HONEST-002",
+                "CON-SLA-013",
+                "BEH-021"
+              ]
+            }
+          },
+          {
+            "id": "DEC-039",
+            "title": "D-039: 诚实 I/O 测量协议",
+            "file": "spec/decisions/04-p2.md",
+            "line": 157,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "19f9a4bd88039ff25e1e00ca3d59663630ce9740b76a50738db4b7c428edebc0",
+            "bytes": 1361,
+            "edges": {
+              "affects": [
+                "DEC-021",
+                "DEC-059",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-059",
+            "title": "D-059: 战略重新校准 - O_DIRECT 地板优化 + Page Cache 受限加速",
+            "file": "spec/decisions/05-odirect-floor.md",
+            "line": 86,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "bb8c4a13f0a9706aad506d36dfc19b044c9ba796807fce8fa9a09c770ff4077e",
+            "bytes": 4289,
+            "edges": {
+              "affects": [
+                "CHR-001",
+                "CHR-004",
+                "CHR-006",
+                "DEC-030",
+                "DEC-057",
+                "CON-HONEST-002"
+              ]
+            }
+          },
+          {
+            "id": "DEC-068",
+            "title": "D-068: Promote l4-cache-mgmt - flat_vec_cache + O_DIRECT 4T fix",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 143,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "2ea703351bfbd669b0de85c35aaefcfd6e3550daa24c49bd05874f95efb23714",
+            "bytes": 1555,
+            "edges": {
+              "affects": [
+                "BEH-024",
+                "CHR-006"
+              ]
+            }
+          },
+          {
+            "id": "DEC-069",
+            "title": "D-069: Promote flat_vec_cache cap fix",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 179,
+            "kind": "decision",
+            "level": "",
+            "status": "",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "80277384da7e4e6fe632ee70399a6c95c23aa81a52ffb948339a1eeaa0ed0b87",
+            "bytes": 647,
+            "edges": {
+              "affects": [
+                "BEH-024"
+              ]
+            }
+          },
+          {
+            "id": "DEC-067",
+            "title": "D-067: DEC-066 修正 - 环境变量拼写错误导致假基线",
+            "file": "spec/decisions/06-strict-cgroup.md",
+            "line": 109,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "68c79494d9854ad15c170a771b9a1686ef10c650cabd8743af5b5fae6e13046e",
+            "bytes": 1939,
+            "edges": {
+              "affects": [
+                "DEC-066",
+                "CHR-006",
+                "CON-SLA-011",
+                "VER-039",
+                "CON-SLA-013"
+              ]
+            }
+          },
+          {
+            "id": "BEH-006",
+            "title": "PQ 距离表构建",
+            "file": "spec/20-behavior/search.md",
+            "line": 88,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "c6de4696604456bc560962b11bd6a594e02a26ab352ba0eef6769b2aeded42a1",
+            "bytes": 480,
+            "edges": {
+              "refines": [
+                "BEH-005"
+              ]
+            }
+          },
+          {
+            "id": "ADR-META-002",
+            "title": "ADR: Meta 条款独立编号命名空间",
+            "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+            "line": 1,
+            "kind": "decision",
+            "level": "",
+            "status": "stable",
+            "scope": "ndf-process",
+            "trunk_ref": null,
+            "hop": 3,
+            "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+            "bytes": 2397,
+            "edges": {
+              "depends-on": [
+                "ADR-META-001"
+              ]
+            }
+          },
+          {
+            "id": "BEH-005",
+            "title": "PQ 距离计算",
+            "file": "spec/20-behavior/search.md",
+            "line": 74,
+            "kind": "req",
+            "level": "must",
+            "status": "stable",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 4,
+            "clause_sha": "d49dd815441dddb6537a55f82d42f161fe02df9e1fb754682ba7e6d554914e2a",
+            "bytes": 495,
+            "edges": {
+              "refines": [
+                "BEH-001"
+              ]
+            }
+          },
+          {
+            "id": "ADR-META-001",
+            "title": "ADR: NDF 元规范与产品契约分层",
+            "file": "spec/meta/decisions/adr-meta-layer-split.md",
+            "line": 1,
+            "kind": "",
+            "level": "",
+            "status": "",
+            "scope": null,
+            "trunk_ref": null,
+            "hop": 4,
+            "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+            "bytes": 1859,
+            "edges": {}
+          }
+        ],
+        "missing_seeds": [
+          "BEH-037"
+        ],
+        "truncated": [],
+        "blockers": []
+      },
+      "implementation_surface": [
+        "poc/cluster-gbdt/",
+        "include/gbdt_model.h",
+        "include/disk_hnsw.h",
+        "src/core/disk_hnsw.cpp",
+        "poc/gbdt-learned-pruning/",
+        "poc/vecblock-cluster-reorder/",
+        "spec/50-verification/configs/cfg-m24-ef60.md",
+        "spec/30-interfaces/",
+        "poc/cluster-gbdt/analyze_cluster_purity.py",
+        "poc/cluster-gbdt/train_cluster_gbdt.py",
+        "poc/cluster-gbdt/cluster_assignments_100k.npy",
+        "spec/meta/templates/poc/DESIGN.md.stub",
+        "spec/meta/tools/ndf_poc_isolation.py",
+        "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+        "poc/cluster-gbdt/r1_entropy_analysis.py",
+        "poc/cluster-gbdt/cluster_assignments_1M.npy",
+        "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log"
+      ],
+      "ledger_joins": [
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 4,
+          "commits": [],
+          "clauses": [
+            "BEH-025",
+            "DEF-023"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 9,
+          "commits": [
+            "a9c76de"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 15,
+          "commits": [
+            "a143392"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 16,
+          "commits": [
+            "a143392"
+          ],
+          "clauses": [
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 17,
+          "commits": [
+            "a143392",
+            "20260814"
+          ],
+          "clauses": [
+            "BEH-025",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        },
+        {
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 18,
+          "commits": [
+            "a143392",
+            "20260814"
+          ],
+          "clauses": [
+            "BEH-025",
+            "BEH-034",
+            "BEH-037",
+            "CON-SLA-020"
+          ],
+          "paths": [],
+          "proposals": []
+        }
+      ],
+      "baseline": {
+        "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+        "baseline_status": "current",
+        "baseline_trunk_sha": "a143392",
+        "baseline_protocol": "CON-SLA-020 sustained",
+        "bind": {
+          "vs": "bl-trunk-golden-7ee4ee2",
+          "config_id": "cfg-m24-ef60",
+          "measure_script": "scripts/run_sustained.sh",
+          "trunk_sha": "a143392"
+        },
+        "bind_sha": "2b66854114d809d639169c9dce2d844a9bd790686ba1d10aab9d32127e594448"
+      },
+      "gates": {
+        "path": "poc/cluster-gbdt/ndf/GATES.md",
+        "path_sha": "a56a8daa72f2ad762a6b2608a1f91a78d21ce8edd87d91d8f73d2157ee728501",
+        "expected": {
+          "topic_review": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+          "design_review": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+          "implementation_approval": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905"
+        },
+        "bundle_specs": {
+          "topic_review": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              }
+            ],
+            "slice_manifest_sha": "0cd304f8ec862827fef3d4b5cac58cca1fd9b7861a73b40070a881a3e5067372",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          },
+          "design_review": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/DESIGN.md",
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              },
+              {
+                "slice_id": "design_contract",
+                "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+                "content_sha": "e485f4aa42688c638af60bb68cad0280167bf7482de75f63a10182cb61704b0e",
+                "start_line": 14,
+                "end_line": 115
+              }
+            ],
+            "slice_manifest_sha": "97e2802c612358fc253396d3c7a0fa830fbd916ad3c5435b5faaa2809b794e4d",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          },
+          "implementation_approval": {
+            "bundle_mode": "review_slice",
+            "expected_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "bundle_paths": [
+              "poc/cluster-gbdt/ndf/DELTA.md",
+              "poc/cluster-gbdt/ndf/DESIGN.md",
+              "poc/cluster-gbdt/ndf/INTERFACE.md",
+              "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+              "poc/cluster-gbdt/ndf/TOPIC.md"
+            ],
+            "slices": [
+              {
+                "slice_id": "topic_contract",
+                "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+                "content_sha": "9f405a1aae4f013406b924e5940e83b1af26e992e6e8089f6b1f7e1ab0b3a000",
+                "start_line": 14,
+                "end_line": 39
+              },
+              {
+                "slice_id": "design_contract",
+                "path": "poc/cluster-gbdt/ndf/DESIGN.md",
+                "content_sha": "e485f4aa42688c638af60bb68cad0280167bf7482de75f63a10182cb61704b0e",
+                "start_line": 14,
+                "end_line": 115
+              },
+              {
+                "slice_id": "perf_bind",
+                "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+                "content_sha": "8778d426fdb43ee6216bbbd67069f53adc3bb147af84c62caf4d5e48044cfb94",
+                "start_line": 4,
+                "end_line": 22
+              },
+              {
+                "slice_id": "delta_hypothesis",
+                "path": "poc/cluster-gbdt/ndf/DELTA.md",
+                "content_sha": "9fcf0224d20d0e80a94a445d40d1bf1e736e5abad7148e696c479e5b377a7b9f",
+                "start_line": 36,
+                "end_line": 52
+              },
+              {
+                "slice_id": "interface_contract",
+                "path": "poc/cluster-gbdt/ndf/INTERFACE.md",
+                "content_sha": "cd08efd9a7aada8731f829854e6d6757f91ae4134b20329be679e9171ff9b889",
+                "start_line": 11,
+                "end_line": 63
+              }
+            ],
+            "slice_manifest_sha": "d65e5ba0c033714b75d9ea47306193fec1f84734651a2fb764f36398156b9200",
+            "errors": [],
+            "mutable_sections": [
+              "topic_runtime_headers",
+              "perf_numbers",
+              "delta_rounds",
+              "evidence",
+              "commits",
+              "gates"
+            ]
+          }
+        },
+        "bundle_mode": "review_slice",
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ],
+        "receipts": [
+          {
+            "gate": "topic_review",
+            "phrase": "TOPIC已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T18:52:00Z",
+            "approved_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "1d7f609f3a45f3ecc9b64f986fcb0c465873d06504da629e5509776a360adbf5",
+            "source_ref": "poc/cluster-gbdt/ndf/TOPIC.md",
+            "status": "approved",
+            "expected_content_sha": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+            "expected_phrase": "TOPIC已审核",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "1d7f609f3a45f3ecc9b64f986fcb0c465873d06504da629e5509776a360adbf5",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "0cd304f8ec862827fef3d4b5cac58cca1fd9b7861a73b40070a881a3e5067372"
+          },
+          {
+            "gate": "design_review",
+            "phrase": "DESIGN已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T18:56:00Z",
+            "approved_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "0bf458129ed5e8e9da9ecc896a5d3524f0624a11bdef5753c9600e9e66a09f1f",
+            "source_ref": "TOPIC.md + DESIGN.md",
+            "status": "approved",
+            "expected_content_sha": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+            "expected_phrase": "DESIGN已审核",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "0bf458129ed5e8e9da9ecc896a5d3524f0624a11bdef5753c9600e9e66a09f1f",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "97e2802c612358fc253396d3c7a0fa830fbd916ad3c5435b5faaa2809b794e4d"
+          },
+          {
+            "gate": "implementation_approval",
+            "phrase": "可以开始实现",
+            "approved_by": "human",
+            "approved_at": "2026-08-14T10:26:00Z",
+            "approved_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "bundle_mode": "review_slice",
+            "slice_manifest_sha": "dc4fc0b893bf681dd99994d4e86f8fdd9c2dbf1f400128106f35ad734a533242",
+            "source_ref": "TOPIC+DESIGN+PERF_BASELINE+DELTA+INTERFACE",
+            "status": "approved",
+            "expected_content_sha": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+            "expected_phrase": "可以开始实现",
+            "receipt_bundle_mode": "review_slice",
+            "receipt_slice_manifest_sha": "dc4fc0b893bf681dd99994d4e86f8fdd9c2dbf1f400128106f35ad734a533242",
+            "expected_bundle_mode": "review_slice",
+            "expected_slice_manifest_sha": "d65e5ba0c033714b75d9ea47306193fec1f84734651a2fb764f36398156b9200"
+          }
+        ],
+        "receipt_history_count": 41
+      },
+      "evidence_refs": [
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-256mb_256mb_1t_n1000_r15.log",
+          "sha256": "403863a3e10d5d8bc41482b57e9061a06309800ff5d971bba10915f21288be96"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log",
+          "sha256": "e733d22399b2c036057199d35d3a77c7c4e026b8be6d5ae3ba80d05b717da3fd"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/poc-implementation-completion.json",
+          "sha256": "ba323aa016c7ec9d6bd584e114f395ffb4323bec8f6177b19cf1a7f2a9522283"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+          "sha256": "aff8d894a80f744b9e7984a21ceb4377ebae3ecda584887e8ea59cc3e900e09d"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json",
+          "sha256": "9ab2cf80c0343e790d0f87fd9ad4bbf55a05cc25ca462b1ec404a6daef0e0ff1"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-512mb-20260814.log",
+          "sha256": "f29f9f40d40fa60b6a041beb0c3dafa9e9144033052652419789af1cd0999a99"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-attempt-20260814.md",
+          "sha256": "920c85e7cac507402175a3fdbb617eb94e5347c5e8a3b6ed24d48a2035ade2ae"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r0-remeasure-verified-20260814.md",
+          "sha256": "f65aec2b5448945962fac1226fd6b4bef0f8f9c816fc5346713f2ef098c3f751"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+          "sha256": "0dd911fcc70f6f5072373857d529303ecc90ac804e9a33840de3594fc4b3cbe6"
+        },
+        {
+          "path": "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+          "sha256": "de27efd70c345392202b04cb68d36d645bf8b425551f3321ced6d472cce49edb"
+        }
+      ],
+      "trunk_ref_joins": [
+        {
+          "id": "CON-SLA-020",
+          "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1"
+        },
+        {
+          "id": "API-018",
+          "trunk_ref": "7f59fae"
+        },
+        {
+          "id": "CON-SLA-019",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "BEH-035",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "API-019",
+          "trunk_ref": "47ed9e7"
+        },
+        {
+          "id": "API-011",
+          "trunk_ref": "c63694fe44762fea06443b78496c546e216d8cd1"
+        },
+        {
+          "id": "API-012",
+          "trunk_ref": "2f008f7f60229e68416d20f7e4fdba4071604969"
+        },
+        {
+          "id": "API-013",
+          "trunk_ref": "162377ee75dbb6a3042572bce47686b92a86aa42"
+        }
+      ],
+      "privileges": {
+        "allowed_write_roots": [
+          "poc/cluster-gbdt/"
+        ],
+        "forbidden_write_paths": [
+          "spec/meta/",
+          "spec/00-charter/",
+          "spec/10-architecture/",
+          "src/",
+          "include/",
+          "tests/"
+        ],
+        "summary_only": false,
+        "allowed_sections": [
+          "poc_code",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits_append",
+          "topic_runtime_headers"
+        ],
+        "forbidden_sections": [
+          "topic_contract",
+          "design_contract",
+          "perf_bind",
+          "delta_hypothesis",
+          "interface_contract",
+          "gate_receipts"
+        ],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "human_phrase": null,
+      "plan_sha": "752e13014a50cb1c67a332234ef0482193eb485b502382725c4de5545f2ecacb"
+    },
+    "context_verify": {
+      "schema": "ndf-context-verification/v1",
+      "valid": false,
+      "plan_sha": "752e13014a50cb1c67a332234ef0482193eb485b502382725c4de5545f2ecacb",
+      "manifest_sha": "5c643745ce510fce127901905dd27194f750ae2fe95fb44694f375845c4fd20a",
+      "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+      "errors": [
+        {
+          "kind": "gate_sha_mismatch",
+          "gate": "topic_review",
+          "expected": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249",
+          "actual": "2e01943b486e2eb1616cc2cbf191fc99cef26aab4418cf0193a3949722ffd249"
+        },
+        {
+          "kind": "gate_sha_mismatch",
+          "gate": "design_review",
+          "expected": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b",
+          "actual": "484d8e0f0f60f9d31ad5ae71c0c41ff35c15594883556c8e5f728f3091e3042b"
+        },
+        {
+          "kind": "gate_sha_mismatch",
+          "gate": "implementation_approval",
+          "expected": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905",
+          "actual": "ff9dcadcd53cf705ed5ba87d6fd66e0438177db989c5b062f9d3e8c1c05ae905"
+        },
+        {
+          "kind": "required_gate_not_valid",
+          "gate": "implementation_approval"
+        }
+      ],
+      "warnings": [
+        {
+          "kind": "ledger_commit_unresolvable",
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 17,
+          "commit": "20260814"
+        },
+        {
+          "kind": "ledger_commit_unresolvable",
+          "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+          "line": 18,
+          "commit": "20260814"
+        }
+      ]
+    },
+    "plan_sha": "752e13014a50cb1c67a332234ef0482193eb485b502382725c4de5545f2ecacb",
+    "dispatch_blockers": [
+      "implementation_gate:invalidated",
+      "context_verify_failed",
+      "runtime_unavailable"
+    ],
+    "evaluated_at": "2026-08-14T19:45:33.426613+00:00"
+  },
+  "state": "current"
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "request_id": "req-ndf-draft-mapping-confirm-20260817T0838Z",
+  "task": "ndf_improvement_land",
+  "track": "process",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "bf3c4361c3492b8cd392a33872b2377c3af101c9d0997570fc713d604549f870",
+  "context_plan_sha": "edebc035383bf88e5885064885894a5b1c086fb0b114f8ad616b154ca3d391c3",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "req-ndf-draft-mapping-confirm-20260817T0838Z",
+  "message": "{\"schema\":\"ndf-agent-message/v1\",\"request_id\":\"req-ndf-draft-mapping-confirm-20260817T0838Z\",\"direction\":\"request\",\"role\":\"openclaw\",\"task\":\"ndf_improvement_land\",\"track\":\"process\",\"episode_id\":\"ep-ndf-improvement-land-draft-mapping-20260817T0828Z\",\"manifest_sha\":\"bf3c4361c3492b8cd392a33872b2377c3af101c9d0997570fc713d604549f870\",\"context_plan_sha\":\"edebc035383bf88e5885064885894a5b1c086fb0b114f8ad616b154ca3d391c3\",\"context_verify_valid\":true,\"safe_to_delegate\":true,\"human_phrase\":{\"phrase\":\"已确认\",\"actor\":\"human\",\"source\":\"current Composer chat\",\"received_at\":\"2026-08-17T08:37:00Z\"},\"workspace\":{\"repo_root\":\"/home/huawei/hnsw-predictor-ndf\",\"repo_name\":\"hnsw-predictor-ndf\",\"repo_head\":\"a14339234133cc6c5a2348464954f744c6465efb\",\"state_path\":\".openclaw/state.json\",\"active_topic\":null,\"topic_dir\":null,\"topic_ndf_dir\":null},\"proposal\":{\"path\":\"spec/meta/open/proposal-meta-draft-mapping.md\",\"title\":\"Process 提案：Draft 状态并发映射（探索→晋升受控路径）\",\"hop\":\"waiting_confirm\",\"next_human_phrase\":\"已确认\"},\"pack_allowed_write_roots\":[\"spec/meta/\",\"spec/meta/open/\"],\"context_plan_allowed_write_roots\":[\"spec/meta/open/\"],\"forbidden_paths\":[\"src/\",\"include/\",\"tests/\",\".openclaw/state.json\",\"product or POC documents\",\"human approval fabrication\"],\"instructions\":[\"Continue the existing proposal Episode; MUST NOT draft a second proposal-meta-*.md.\",\"Treat the exact human phrase 已确认 above as confirmation for this focused proposal only.\",\"Before any write, validate every proposal depends-on ID exists: CHR-008, BEH-018, BEH-019, DEF-021, DEF-022, ARCH-008, META-010. If any is missing, stop with blockers and make no landing changes.\",\"Obey the intersection of the verified Context Plan and pack write privileges. The Context Plan currently lists only spec/meta/open/ while the top-level pack lists spec/meta/ and spec/meta/open/. If this prevents the required stable META/tool landing, fail closed and report privilege_mismatch; do not partially mark the proposal Implemented.\",\"If and only if the verified privileges authorize the full proposal landing, implement only the focused proposal under permitted spec/meta roots, set the proposal header Status: Implemented on 2026-08-17, run the proposal meta verification, and return exact changed files and verification results.\",\"MUST NOT modify .openclaw/state.json, product/POC documents, src/, include/, or tests/. MUST NOT forge approved_by.\",\"After successful full landing, stop at waiting_review and ask the human to send exactly 已审核 in this Composer chat. Dispatch or confirmation is not review.\"]}",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "mcp_request": {
+    "server": "openclaw",
+    "toolName": "chat_send",
+    "arguments": {
+      "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+      "thinking": "high",
+      "timeout_seconds": 600
+    }
+  }
+}

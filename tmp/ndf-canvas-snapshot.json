@@ -1,0 +1,2077 @@
+{
+  "schema": "ndf-workflow-canvas-snapshot/v1",
+  "generatedAt": "2026-08-12T16:43:32.993673+00:00",
+  "repoHead": "6203426fa4dc",
+  "snapshotSha": "fe48d2c9c9e56d3d71f223d752d52a8dc35e9daada440ae9c72614051a62021d",
+  "projectionFreshness": {
+    "state": "fresh",
+    "snapshot_sha": "fe48d2c9c9e56d3d71f223d752d52a8dc35e9daada440ae9c72614051a62021d",
+    "latest_action": {
+      "action_id": "a73c9a2a-d57a-4792-9c85-6577f2e6ca12",
+      "blockers": [],
+      "finished_at": "2026-08-12T16:43:32.566836+00:00",
+      "operation": "workflow-action-control-loop-finalize",
+      "repo_head_after": "6203426fa4dcd0904bb8aae94fb48ef1f9cdb1d2",
+      "repo_head_before": "6203426fa4dcd0904bb8aae94fb48ef1f9cdb1d2",
+      "result": "success",
+      "schema": "ndf-workflow-action/v1",
+      "snapshot_sha_after": "fe48d2c9c9e56d3d71f223d752d52a8dc35e9daada440ae9c72614051a62021d",
+      "started_at": "2026-08-12T16:43:32.537625+00:00",
+      "status": "finished",
+      "topic": null
+    },
+    "in_progress": [],
+    "receipt_path": "tmp/ndf-workflow-actions.jsonl"
+  },
+  "business": {
+    "identity": {
+      "name": "DiskHNSW",
+      "phase": "P3 active",
+      "goal": "DiskHNSW MUST 在 cgroup 内存限额(≥512MB)下,使用磁盘驻留向量数据,实现与全内存 HNSW 可比的向量搜索召回率(≥95%),同时将常驻内存控制在限额内。",
+      "charterPath": "spec/00-charter/charter.md",
+      "scales": [
+        [
+          "SIFT1M",
+          "validated"
+        ],
+        [
+          "DEEP10M",
+          "validated"
+        ],
+        [
+          "100M",
+          "planned"
+        ]
+      ]
+    },
+    "performance": {
+      "protocol": "sustained",
+      "baselineId": "bl-trunk-golden-7ee4ee2",
+      "goldenSha": "7ee4ee2b0af0",
+      "status": "current",
+      "configs": [
+        "cfg-sla-ef100",
+        "cfg-adaptive-ef90",
+        "cfg-m24-ef60"
+      ],
+      "scenes": [
+        "256MB 1T",
+        "256MB 16T",
+        "512MB 1T",
+        "512MB 16T"
+      ],
+      "aggQps": [
+        1747,
+        5218,
+        2154,
+        8698
+      ],
+      "steadyQps": [
+        1917,
+        6929,
+        2519,
+        16341
+      ],
+      "recall": [
+        "96.60%",
+        "96.60%",
+        "96.59%",
+        "96.59%"
+      ],
+      "warning": "⚠️ 512MB 16T CV=6.0% 超标，后续补跑。"
+    },
+    "capabilities": [
+      [
+        "Search core",
+        12,
+        0,
+        3,
+        "src/core/disk_hnsw.cpp + include/disk_hnsw.h"
+      ],
+      [
+        "Fine rerank / I/O",
+        5,
+        0,
+        2,
+        "src/core/disk_hnsw.cpp + include/io_uring_wrapper.h"
+      ],
+      [
+        "Cache",
+        2,
+        0,
+        0,
+        "src/core/block_cache.cpp + include/block_cache.h"
+      ],
+      [
+        "Prefetch",
+        1,
+        0,
+        0,
+        "src/core/graph_prefetcher.cpp + include/graph_prefetcher.h"
+      ],
+      [
+        "Physical layout",
+        1,
+        0,
+        0,
+        "src/pipeline/cluster_reorder.cpp"
+      ],
+      [
+        "Metrics / honesty",
+        1,
+        0,
+        0,
+        "src/benchmark/ + scripts/run_sustained.sh"
+      ],
+      [
+        "Test infrastructure",
+        2,
+        0,
+        0,
+        "src/test/ + spec/50-verification/"
+      ]
+    ],
+    "topics": [
+      {
+        "id": "cluster-gbdt",
+        "path": "poc/cluster-gbdt",
+        "lifecycle": "exploring",
+        "hypothesis": "Cluster sort (BEH-037) 使相似向量集中 → 粗排 top candidates 可能集中在少数 cluster。 加 cluster 特征到 GBDT → 预测\"高 cluster 纯度 = 更少精细候选即可\"→ 更激进剪枝 → 更快 fine rerank。 方法: node_id → cluster_id 查找表 + cluster 熵/纯度特征 → retrain GBDT。",
+        "expectedImpact": "Not explicitly recorded",
+        "surface": [
+          "learned-pruning"
+        ],
+        "evidenceFiles": 0,
+        "numbers": "pending",
+        "baseline": "current",
+        "phase": "legacy gate audit",
+        "spaces": {
+          "design": {
+            "ready": false,
+            "gaps": [
+              "DESIGN.md",
+              "INTERFACE.md",
+              "gate:topic_review:legacy_unknown",
+              "gate:design_review:legacy_unknown",
+              "gate_topic_review_legacy_unknown",
+              "gate_design_review_legacy_unknown",
+              "gate_implementation_approval_legacy_unknown",
+              "missing_ledger"
+            ]
+          },
+          "implementation": {
+            "ready": false,
+            "gaps": [
+              "gate:implementation_approval:legacy_unknown"
+            ],
+            "code_files": [
+              "poc/cluster-gbdt/analyze_cluster_purity.py",
+              "poc/cluster-gbdt/train_cluster_gbdt.py"
+            ]
+          },
+          "test": {
+            "ready": false,
+            "gaps": [
+              "missing_config_id",
+              "missing_measure_script",
+              "missing_delta",
+              "numbers_pending",
+              "missing_perf_baseline_field"
+            ]
+          }
+        },
+        "blockers": [
+          "design:gate_design_review_legacy_unknown",
+          "design:gate_implementation_approval_legacy_unknown",
+          "design:gate_topic_review_legacy_unknown",
+          "design:missing_ledger",
+          "perf:missing_config_id",
+          "perf:missing_measure_script",
+          "test:missing_perf_baseline_field"
+        ],
+        "conflicts": [],
+        "gates": {
+          "topic_review": {
+            "state": "legacy_unknown",
+            "phrase": "TOPIC已审核",
+            "expectedContentSha": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207"
+          },
+          "design_review": {
+            "state": "legacy_unknown",
+            "phrase": "DESIGN已审核",
+            "expectedContentSha": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207"
+          },
+          "implementation_approval": {
+            "state": "legacy_unknown",
+            "phrase": "可以开始实现",
+            "expectedContentSha": "81d0ae091c9391a2b177c44de759b41c568fe0889c06edd1cdfe3469c73789cc"
+          }
+        },
+        "nextHumanPhrase": "TOPIC已审核",
+        "delta": {
+          "exists": false,
+          "path": "poc/cluster-gbdt/ndf/DELTA.md",
+          "feature": null,
+          "hotspot": null,
+          "latest_round": null
+        },
+        "traceability": [
+          {
+            "goal_or_clause": "spec/20-behavior/learned-pruning",
+            "design": "design gaps",
+            "code_or_commit": "poc/cluster-gbdt/analyze_cluster_purity.py, poc/cluster-gbdt/train_cluster_gbdt.py",
+            "verification": "Numbers pending"
+          }
+        ],
+        "delegation": {
+          "safe_to_dispatch": false,
+          "safe_to_delegate_control": true,
+          "perf_check_passed": false,
+          "isolation_passed": true,
+          "dispatch_blockers": [
+            "implementation_gate:legacy_unknown",
+            "perf_check_failed"
+          ],
+          "evaluated_at": "2026-08-12T16:43:32.764798+00:00"
+        },
+        "health": {
+          "blockers": [
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ],
+          "conflicts": [],
+          "stale": false,
+          "checks": {
+            "perf_baseline": {
+              "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic cluster-gbdt",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "topic: cluster-gbdt TOPIC baseline_trunk_sha: 1f684c7 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] miss…"
+            },
+            "isolation": {
+              "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+              "exit_code": 0,
+              "state": "passed",
+              "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T16:43:32Z - topics: cluster-gbdt - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['cluster-gbdt'] summary: 0 er…"
+            },
+            "bindcheck": {
+              "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic cluster-gbdt --report -",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:32Z - topics: 1 (cluster-gbdt) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing…"
+            }
+          },
+          "findings": [
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_topic_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "topic_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "TOPIC已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_design_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "design_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "DESIGN已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_implementation_approval_legacy_unknown",
+              "severity": "error",
+              "evidence": "implementation_approval receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "可以开始实现"
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_delta",
+              "severity": "warning",
+              "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_perf_baseline_field",
+              "severity": "error",
+              "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_design",
+              "severity": "warning",
+              "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_interface",
+              "severity": "warning",
+              "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_ledger",
+              "severity": "error",
+              "evidence": "missing Commit Ledger COMMITS.md",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "numbers_pending",
+              "severity": "info",
+              "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+              "repair_owner": "claude-code",
+              "repair_task": "poc_measurement",
+              "allowed_write_root": "poc/cluster-gbdt/",
+              "human_gate": null
+            }
+          ],
+          "next_actions": [
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "TOPIC已审核",
+              "kind": "gate_topic_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "DESIGN已审核",
+              "kind": "gate_design_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": "可以开始实现",
+              "kind": "gate_implementation_approval_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null,
+              "kind": "missing_delta"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/cluster-gbdt/ndf/",
+              "human_gate": null,
+              "kind": "missing_design"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "claude-code",
+              "task": "poc_measurement",
+              "allowed_write_root": "poc/cluster-gbdt/",
+              "human_gate": null,
+              "kind": "numbers_pending"
+            }
+          ],
+          "latest_diagnosis": {
+            "checks": {
+              "bindcheck": {
+                "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic cluster-gbdt --report -",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:24Z - topics: 1 (cluster-gbdt) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing…"
+              },
+              "isolation": {
+                "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+                "exit_code": 0,
+                "state": "passed",
+                "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T16:43:24Z - topics: cluster-gbdt - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['cluster-gbdt'] summary: 0 er…"
+              },
+              "perf_baseline": {
+                "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic cluster-gbdt",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "topic: cluster-gbdt TOPIC baseline_trunk_sha: 1f684c7 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] miss…"
+              }
+            },
+            "delegation": {
+              "dispatch_blockers": [
+                "implementation_gate:legacy_unknown",
+                "perf_check_failed"
+              ],
+              "evaluated_at": "2026-08-12T16:43:24.398748+00:00",
+              "isolation_passed": true,
+              "perf_check_passed": false,
+              "safe_to_delegate_control": true,
+              "safe_to_dispatch": false
+            },
+            "findings": [
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "topic_review receipt state is legacy_unknown",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "design_review receipt state is legacy_unknown",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "implementation_approval receipt state is legacy_unknown",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+                "human_gate": null,
+                "kind": "missing_perf_baseline_field",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_design",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_interface",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "evidence": "missing Commit Ledger COMMITS.md",
+                "human_gate": null,
+                "kind": "missing_ledger",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/",
+                "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "repair_owner": "claude-code",
+                "repair_task": "poc_measurement",
+                "scope": "topic",
+                "severity": "info",
+                "space": "Test"
+              }
+            ],
+            "generated_at": "2026-08-12T16:43:24.398875+00:00",
+            "lifecycle": "exploring",
+            "next_actions": [
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "owner": "openclaw",
+                "space": "Test",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/ndf/",
+                "human_gate": null,
+                "kind": "missing_design",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/cluster-gbdt/",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "owner": "claude-code",
+                "space": "Test",
+                "stage": "repair",
+                "task": "poc_measurement"
+              }
+            ],
+            "phase_hint": "legacy_gate_audit",
+            "repo_head": "6203426fa4dcd0904bb8aae94fb48ef1f9cdb1d2",
+            "schema": "ndf-topic-health/v1",
+            "snapshot_sha": "fe48d2c9c9e56d3d71f223d752d52a8dc35e9daada440ae9c72614051a62021d",
+            "spaces": {
+              "design": {
+                "gaps": [
+                  "DESIGN.md",
+                  "INTERFACE.md",
+                  "gate:topic_review:legacy_unknown",
+                  "gate:design_review:legacy_unknown",
+                  "gate_topic_review_legacy_unknown",
+                  "gate_design_review_legacy_unknown",
+                  "gate_implementation_approval_legacy_unknown",
+                  "missing_ledger"
+                ],
+                "ready": false
+              },
+              "implementation": {
+                "code_files": [
+                  "poc/cluster-gbdt/analyze_cluster_purity.py",
+                  "poc/cluster-gbdt/train_cluster_gbdt.py"
+                ],
+                "gaps": [
+                  "gate:implementation_approval:legacy_unknown"
+                ],
+                "ready": false
+              },
+              "test": {
+                "gaps": [
+                  "missing_config_id",
+                  "missing_measure_script",
+                  "missing_delta",
+                  "numbers_pending",
+                  "missing_perf_baseline_field"
+                ],
+                "ready": false
+              }
+            },
+            "state": "current",
+            "topic": "cluster-gbdt"
+          }
+        }
+      },
+      {
+        "id": "page-packer",
+        "path": "poc/page-packer",
+        "lifecycle": "exploring",
+        "hypothesis": "Cluster sort (BEH-037) 将相似向量集中到同一 block，但 4KB 页内（8 vectors） 仍含 ~3 个不同 cluster。贪心页面打包：对每 cluster 段内用 graph adjacency 贪心分配页 → 每页 graph neighbors 最大化 → 更高页命中率 → 更高 QPS。 两步: 1. within-block cluster sort (existing) 2. per-cluster-segment greedy page packing (new)",
+        "expectedImpact": "Not explicitly recorded",
+        "surface": [
+          "vecblock-layout"
+        ],
+        "evidenceFiles": 0,
+        "numbers": "pending",
+        "baseline": "current",
+        "phase": "legacy gate audit",
+        "spaces": {
+          "design": {
+            "ready": false,
+            "gaps": [
+              "DESIGN.md",
+              "INTERFACE.md",
+              "gate:topic_review:legacy_unknown",
+              "gate:design_review:legacy_unknown",
+              "gate_topic_review_legacy_unknown",
+              "gate_design_review_legacy_unknown",
+              "gate_implementation_approval_legacy_unknown",
+              "missing_ledger"
+            ]
+          },
+          "implementation": {
+            "ready": false,
+            "gaps": [
+              "gate:implementation_approval:legacy_unknown"
+            ],
+            "code_files": [
+              "poc/page-packer/run_r0.sh"
+            ]
+          },
+          "test": {
+            "ready": false,
+            "gaps": [
+              "missing_config_id",
+              "missing_measure_script",
+              "missing_delta",
+              "numbers_pending",
+              "missing_perf_baseline_field"
+            ]
+          }
+        },
+        "blockers": [
+          "design:gate_design_review_legacy_unknown",
+          "design:gate_implementation_approval_legacy_unknown",
+          "design:gate_topic_review_legacy_unknown",
+          "design:missing_ledger",
+          "perf:missing_config_id",
+          "perf:missing_measure_script",
+          "test:missing_perf_baseline_field"
+        ],
+        "conflicts": [],
+        "gates": {
+          "topic_review": {
+            "state": "legacy_unknown",
+            "phrase": "TOPIC已审核",
+            "expectedContentSha": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e"
+          },
+          "design_review": {
+            "state": "legacy_unknown",
+            "phrase": "DESIGN已审核",
+            "expectedContentSha": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e"
+          },
+          "implementation_approval": {
+            "state": "legacy_unknown",
+            "phrase": "可以开始实现",
+            "expectedContentSha": "9e78e57f502f7e304268b4e3b2ffbef85a9e78caec2a51268942ef74a4995984"
+          }
+        },
+        "nextHumanPhrase": "TOPIC已审核",
+        "delta": {
+          "exists": false,
+          "path": "poc/page-packer/ndf/DELTA.md",
+          "feature": null,
+          "hotspot": null,
+          "latest_round": null
+        },
+        "traceability": [
+          {
+            "goal_or_clause": "spec/20-behavior/vecblock-layout",
+            "design": "design gaps",
+            "code_or_commit": "poc/page-packer/run_r0.sh",
+            "verification": "Numbers pending"
+          }
+        ],
+        "delegation": {
+          "safe_to_dispatch": false,
+          "safe_to_delegate_control": true,
+          "perf_check_passed": false,
+          "isolation_passed": true,
+          "dispatch_blockers": [
+            "implementation_gate:legacy_unknown",
+            "perf_check_failed"
+          ],
+          "evaluated_at": "2026-08-12T16:43:32.940835+00:00"
+        },
+        "health": {
+          "blockers": [
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ],
+          "conflicts": [],
+          "stale": false,
+          "checks": {
+            "perf_baseline": {
+              "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic page-packer",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "topic: page-packer TOPIC baseline_trunk_sha: 9df8b74 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] missi…"
+            },
+            "isolation": {
+              "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic page-packer --workspace --report -",
+              "exit_code": 0,
+              "state": "passed",
+              "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T16:43:32Z - topics: page-packer - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['page-packer'] summary: 0 erro…"
+            },
+            "bindcheck": {
+              "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic page-packer --report -",
+              "exit_code": 1,
+              "state": "failed",
+              "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:32Z - topics: 1 (page-packer) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing_…"
+            }
+          },
+          "findings": [
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_topic_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "topic_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "TOPIC已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_design_review_legacy_unknown",
+              "severity": "error",
+              "evidence": "design_review receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "DESIGN已审核"
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "gate_implementation_approval_legacy_unknown",
+              "severity": "error",
+              "evidence": "implementation_approval receipt state is legacy_unknown",
+              "repair_owner": "openclaw",
+              "repair_task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "可以开始实现"
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_delta",
+              "severity": "warning",
+              "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "missing_perf_baseline_field",
+              "severity": "error",
+              "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_design",
+              "severity": "warning",
+              "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_interface",
+              "severity": "warning",
+              "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Design",
+              "kind": "missing_ledger",
+              "severity": "error",
+              "evidence": "missing Commit Ledger COMMITS.md",
+              "repair_owner": "openclaw",
+              "repair_task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null
+            },
+            {
+              "scope": "topic",
+              "space": "Test",
+              "kind": "numbers_pending",
+              "severity": "info",
+              "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+              "repair_owner": "claude-code",
+              "repair_task": "poc_measurement",
+              "allowed_write_root": "poc/page-packer/",
+              "human_gate": null
+            }
+          ],
+          "next_actions": [
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "TOPIC已审核",
+              "kind": "gate_topic_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "DESIGN已审核",
+              "kind": "gate_design_review_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "legacy_gate_audit",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": "可以开始实现",
+              "kind": "gate_implementation_approval_legacy_unknown"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null,
+              "kind": "missing_delta"
+            },
+            {
+              "stage": "repair",
+              "space": "Design",
+              "owner": "openclaw",
+              "task": "binder_amend",
+              "allowed_write_root": "poc/page-packer/ndf/",
+              "human_gate": null,
+              "kind": "missing_design"
+            },
+            {
+              "stage": "repair",
+              "space": "Test",
+              "owner": "claude-code",
+              "task": "poc_measurement",
+              "allowed_write_root": "poc/page-packer/",
+              "human_gate": null,
+              "kind": "numbers_pending"
+            }
+          ],
+          "latest_diagnosis": {
+            "checks": {
+              "bindcheck": {
+                "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic page-packer --report -",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:24Z - topics: 1 (page-packer) - checks: bind,dual,grain - hard_errors: 1 - warnings: 2 Summary by kind | kind | def | count | severity | |------|-----|------:|----------| | missing_ledger | REPRO-BIND-GAP | 1 | error | | missing_design | BEH-025 | 1 | warning | | missing_…"
+              },
+              "isolation": {
+                "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic page-packer --workspace --report -",
+                "exit_code": 0,
+                "state": "passed",
+                "summary": "NDF poc isolation report Generated by spec/meta/tools/ndf_poc_isolation.py at 2026-08-12T16:43:24Z - topics: page-packer - hard_errors: 0 Issue index _(none)_ Scheme A (BEH-018 §6): poc MUST NOT write src//include//tests/; copy into poc/<topic/ before editing. Read-only link to unmodified Trunk is OK. ndf_poc_isolation topics=['page-packer'] summary: 0 erro…"
+              },
+              "perf_baseline": {
+                "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic page-packer",
+                "exit_code": 1,
+                "state": "failed",
+                "summary": "topic: page-packer TOPIC baseline_trunk_sha: 9df8b74 TOPIC baseline_status: current TOPIC perf_baseline: (none) bind vs: (none) bind config_id: (none) bind measure: (none) trunk_sha: (none) protocol: (none) status: (none) DELTA.md: MISSING [warning] missing_delta: missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review) [error] missi…"
+              }
+            },
+            "delegation": {
+              "dispatch_blockers": [
+                "implementation_gate:legacy_unknown",
+                "perf_check_failed"
+              ],
+              "evaluated_at": "2026-08-12T16:43:24.418670+00:00",
+              "isolation_passed": true,
+              "perf_check_passed": false,
+              "safe_to_delegate_control": true,
+              "safe_to_dispatch": false
+            },
+            "findings": [
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "topic_review receipt state is legacy_unknown",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "design_review receipt state is legacy_unknown",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "implementation_approval receipt state is legacy_unknown",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "repair_owner": "openclaw",
+                "repair_task": "legacy_gate_audit",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "missing ndf/DELTA.md (feature/hotspot logic space; required after DESIGN review)",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "TOPIC lacks `perf_baseline:` (required after golden bind / R0)",
+                "human_gate": null,
+                "kind": "missing_perf_baseline_field",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Test"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "binder missing DESIGN.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_design",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "binder missing INTERFACE.md (design surface; required before new code)",
+                "human_gate": null,
+                "kind": "missing_interface",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "warning",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "evidence": "missing Commit Ledger COMMITS.md",
+                "human_gate": null,
+                "kind": "missing_ledger",
+                "repair_owner": "openclaw",
+                "repair_task": "binder_amend",
+                "scope": "topic",
+                "severity": "error",
+                "space": "Design"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/",
+                "evidence": "PERF_BASELINE Numbers are pending measurement evidence",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "repair_owner": "claude-code",
+                "repair_task": "poc_measurement",
+                "scope": "topic",
+                "severity": "info",
+                "space": "Test"
+              }
+            ],
+            "generated_at": "2026-08-12T16:43:24.418814+00:00",
+            "lifecycle": "exploring",
+            "next_actions": [
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "TOPIC已审核",
+                "kind": "gate_topic_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "DESIGN已审核",
+                "kind": "gate_design_review_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": "可以开始实现",
+                "kind": "gate_implementation_approval_legacy_unknown",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "legacy_gate_audit"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": null,
+                "kind": "missing_delta",
+                "owner": "openclaw",
+                "space": "Test",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/ndf/",
+                "human_gate": null,
+                "kind": "missing_design",
+                "owner": "openclaw",
+                "space": "Design",
+                "stage": "repair",
+                "task": "binder_amend"
+              },
+              {
+                "allowed_write_root": "poc/page-packer/",
+                "human_gate": null,
+                "kind": "numbers_pending",
+                "owner": "claude-code",
+                "space": "Test",
+                "stage": "repair",
+                "task": "poc_measurement"
+              }
+            ],
+            "phase_hint": "legacy_gate_audit",
+            "repo_head": "6203426fa4dcd0904bb8aae94fb48ef1f9cdb1d2",
+            "schema": "ndf-topic-health/v1",
+            "snapshot_sha": "fe48d2c9c9e56d3d71f223d752d52a8dc35e9daada440ae9c72614051a62021d",
+            "spaces": {
+              "design": {
+                "gaps": [
+                  "DESIGN.md",
+                  "INTERFACE.md",
+                  "gate:topic_review:legacy_unknown",
+                  "gate:design_review:legacy_unknown",
+                  "gate_topic_review_legacy_unknown",
+                  "gate_design_review_legacy_unknown",
+                  "gate_implementation_approval_legacy_unknown",
+                  "missing_ledger"
+                ],
+                "ready": false
+              },
+              "implementation": {
+                "code_files": [
+                  "poc/page-packer/run_r0.sh"
+                ],
+                "gaps": [
+                  "gate:implementation_approval:legacy_unknown"
+                ],
+                "ready": false
+              },
+              "test": {
+                "gaps": [
+                  "missing_config_id",
+                  "missing_measure_script",
+                  "missing_delta",
+                  "numbers_pending",
+                  "missing_perf_baseline_field"
+                ],
+                "ready": false
+              }
+            },
+            "state": "current",
+            "topic": "page-packer"
+          }
+        }
+      }
+    ],
+    "proposals": [
+      [
+        "Proposal: ARMv9 (AArch64) 架构支持",
+        "boundary (项目边界拓展)",
+        "**draft (待审核)**"
+      ],
+      [
+        "Proposal: DEC-097 - multi-thread-scaling 方向 E/C/F 收益受限根因分析",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: POC — WILLNEED_BG futex 替换 sched_yield",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: Data Layout Optimization for LLC Miss Reduction",
+        "poc",
+        "exploring"
+      ],
+      [
+        "Proposal: POC — VelesDB 推测性预取 (Speculative Prefetch) 研究",
+        "poc",
+        "proposal"
+      ],
+      [
+        "Proposal: POC - 借鉴 Turbocharging Vector Databases (VLDB 2025) 的 I/O 优化技术",
+        "poc",
+        "draft"
+      ],
+      [
+        "Promote: Vecblock Cluster Reorder (BEH-037)",
+        "unknown",
+        "unknown"
+      ],
+      [
+        "Promote: CQE Peeking → Fine Rerank io_uring Path",
+        "unknown",
+        "unknown"
+      ]
+    ],
+    "roadmap": [
+      [
+        "P3-1",
+        "CSR 上磁盘 + 分页加载",
+        "CSR 不占内存",
+        "🔴",
+        "DEC-085 (1M rejected, 100M 待评)"
+      ],
+      [
+        "P3-2",
+        "1-hop CSR 预取",
+        "掩盖 CSR I/O",
+        "🔴",
+        "-"
+      ],
+      [
+        "P3-3",
+        "PQ codes mmap",
+        "-304MB RSS",
+        "🟡",
+        "-"
+      ],
+      [
+        "P3-4",
+        "图裁剪 R_max=16-20",
+        "减 CSR 磁盘 I/O",
+        "🟡",
+        "DEC-038"
+      ],
+      [
+        "P3-5",
+        "io_uring + O_DIRECT 重评估",
+        "page cache 失效时",
+        "⚪",
+        "DEC-076"
+      ],
+      [
+        "P3-6",
+        "SPDK 评估",
+        "I/O 带宽",
+        "⚪",
+        "DEC-027"
+      ]
+    ],
+    "risks": [
+      {
+        "kind": "stale_baselines",
+        "severity": "warning",
+        "topics": [
+          "gbdt-learned-pruning",
+          "l4-cache-mgmt",
+          "multi-thread-scaling",
+          "sustained-query-benchmark"
+        ]
+      },
+      {
+        "kind": "golden_variance",
+        "severity": "warning",
+        "message": "⚠️ 512MB 16T CV=6.0% 超标，后续补跑。"
+      },
+      {
+        "kind": "architecture_debt",
+        "severity": "info",
+        "message": "God class, friend coupling, and runtime knob sprawl remain recorded debt",
+        "path": "spec/10-architecture/modules.md#ARCH-007"
+      },
+      {
+        "kind": "measurement_trap",
+        "severity": "info",
+        "message": "Cache-warmed/short-query results must not replace sustained evidence",
+        "path": "spec/open/optimization-roadmap.md"
+      }
+    ],
+    "nowNextBlocked": {
+      "now": "cluster-gbdt",
+      "next": "legacy_gate_audit",
+      "blocked": 14
+    }
+  },
+  "control": {
+    "maturity": "operational_legacy",
+    "genesis": {
+      "project_maturity": "operational_legacy",
+      "accepted": false,
+      "genesis_trunk_sha": null,
+      "genesis_trunk_sha_resolves": false,
+      "clause_count": 130,
+      "paths": {
+        "proposal": {
+          "path": "spec/open/proposal-project-genesis.md",
+          "exists": false
+        },
+        "idea": {
+          "path": "spec/open/project-genesis/IDEA.md",
+          "exists": false
+        },
+        "foundation": {
+          "path": "spec/open/project-genesis/FOUNDATION.md",
+          "exists": false
+        },
+        "gates": {
+          "path": "spec/open/project-genesis/GATES.md",
+          "exists": false
+        },
+        "decision": {
+          "path": "spec/decisions/dec-project-genesis.md",
+          "exists": false
+        }
+      },
+      "rail": [
+        {
+          "id": "G0",
+          "label": "IDEA",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/IDEA.md",
+          "content_sha": null,
+          "next_phrase": "IDEA已审核"
+        },
+        {
+          "id": "G1",
+          "label": "Foundation",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/FOUNDATION.md",
+          "content_sha": null,
+          "next_phrase": "VERIFICATION已审核"
+        },
+        {
+          "id": "G2",
+          "label": "Trunk Candidate",
+          "state": "legacy",
+          "path": "spec/open/project-genesis/GATES.md",
+          "content_sha": null,
+          "next_phrase": "可以建立初始主线"
+        },
+        {
+          "id": "G3",
+          "label": "Freeze",
+          "state": "legacy",
+          "path": "spec/decisions/dec-project-genesis.md",
+          "content_sha": null,
+          "next_phrase": "GENESIS已审核"
+        }
+      ],
+      "next_step": null,
+      "warning": "Genesis provenance missing; legacy operational project"
+    },
+    "metaClauses": 46,
+    "metaGraph": {
+      "meta_clause_count": 46,
+      "meta_graph_index_generated_at": "2026-08-12T11:44:45Z",
+      "meta_graphcheck": "passed",
+      "state": "current",
+      "checks": {
+        "binder_health": {
+          "command": "python3 spec/meta/tools/ndf_bindcheck.py check --all-topics --report -",
+          "exit_code": 1,
+          "state": "failed",
+          "summary": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:24Z - topics: 28 (bfs-cluster, bg-thread-futex, block-size-tuning, cgroup-v1-support, cluster-gbdt, csr-on-disk, data-layout-optimization, fine-rerank-incremental, fine-rerank-iouring, framework-driven-optimization, gbdt-learned-pruning, gbdt-retrain, helmsman-adaptive, i…"
+        },
+        "index_consistency": {
+          "command": "python3 spec/meta/tools/ndf_index.py validate",
+          "exit_code": 1,
+          "state": "failed",
+          "summary": "clauses: 249 dangling_refs: 6 ARCH-007 - CONFLICT-002 (10-architecture/modules.md:173) API-011 - BEH-036 (30-interfaces/env.md:90) API-011 - API-020 (30-interfaces/env.md:90) DEC-084 - DEC-083 (decisions/20-sustained-benchmark-methodology.md:9) REF-HELMSMAN - Q-002 (refs/helmsman-osdi26.md:1) REF-HELMSMAN - Q-001 (refs/helmsman-osdi26.md:1) unlinked_nodes:…"
+        },
+        "meta_graph": {
+          "command": "python3 spec/meta/tools/ndf_graphcheck.py --meta --format text --report -",
+          "exit_code": 0,
+          "state": "passed",
+          "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-12T16:43:24Z - clauses: 46 - hard_errors: 0 - warnings: 1 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 1 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlinked…"
+        },
+        "product_graph": {
+          "command": "python3 spec/meta/tools/ndf_graphcheck.py --product --format text --report -",
+          "exit_code": 0,
+          "state": "passed",
+          "summary": "NDF graphcheck report Generated by spec/meta/tools/ndf_graphcheck.py at 2026-08-12T16:43:24Z - clauses: 249 - hard_errors: 0 - warnings: 15 Summary by kind | kind | count | severity | |------|------:|----------| | unlinked | 15 | warning | Issue index | | sev | kind | from | edge | to | loc | |--:|-----|------|------|------|----|-----| | 1 | warning | unlin…"
+        }
+      },
+      "findings": [
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "evidence": "clauses: 249 dangling_refs: 6 ARCH-007 - CONFLICT-002 (10-architecture/modules.md:173) API-011 - BEH-036 (30-interfaces/env.md:90) API-011 - API-020 (30-interfaces/env.md:90) DEC-084 - DEC-083 (decisions/20-sustained-benchmark-methodology.md:9) REF-HELMSMAN - Q-002 (refs/helmsman-osdi26.md:1) REF-HELMSMAN - Q-001 (refs/helmsman-osdi26.md:1) unlinked_nodes:…",
+          "human_gate": "已确认 → 已审核",
+          "kind": "index_consistency_failed",
+          "repair_owner": "openclaw",
+          "repair_task": "control_proposal",
+          "scope": "project",
+          "severity": "error",
+          "space": "Design"
+        },
+        {
+          "allowed_write_root": "poc/*/ndf/",
+          "evidence": "NDF bindcheck report Generated by spec/meta/tools/ndf_bindcheck.py at 2026-08-12T16:43:24Z - topics: 28 (bfs-cluster, bg-thread-futex, block-size-tuning, cgroup-v1-support, cluster-gbdt, csr-on-disk, data-layout-optimization, fine-rerank-incremental, fine-rerank-iouring, framework-driven-optimization, gbdt-learned-pruning, gbdt-retrain, helmsman-adaptive, i…",
+          "human_gate": null,
+          "kind": "binder_health_failed",
+          "repair_owner": "openclaw",
+          "repair_task": "binder_amend",
+          "scope": "project",
+          "severity": "error",
+          "space": "Design"
+        },
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "evidence": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product",
+          "human_gate": "已确认 → 已审核",
+          "kind": "proposal_plane_misfile",
+          "repair_owner": "openclaw",
+          "repair_task": "control_proposal",
+          "scope": "project",
+          "severity": "warning",
+          "space": "Design"
+        }
+      ],
+      "next_actions": [
+        {
+          "allowed_write_root": "spec/meta/open/",
+          "human_gate": "已确认 → 已审核",
+          "kind": "index_consistency_failed",
+          "owner": "openclaw",
+          "space": "Design",
+          "stage": "repair",
+          "task": "control_proposal"
+        },
+        {
+          "allowed_write_root": "poc/*/ndf/",
+          "human_gate": null,
+          "kind": "binder_health_failed",
+          "owner": "openclaw",
+          "space": "Design",
+          "stage": "repair",
+          "task": "binder_amend"
+        }
+      ],
+      "advisor": {
+        "bind": "python3 spec/meta/tools/ndf_advise.py plan --surface bind --low-hanging-fruit",
+        "graph": "python3 spec/meta/tools/ndf_advise.py plan --surface graph --low-hanging-fruit",
+        "read_only": true
+      },
+      "proposal_plane_warnings": [
+        {
+          "kind": "proposal_plane_misfile",
+          "severity": "warning",
+          "path": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md",
+          "plane": "product",
+          "track": "process",
+          "message": "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product"
+        }
+      ]
+    },
+    "legacyUnknownTopics": 2,
+    "invalidatedReceipts": 0,
+    "processProposals": [
+      [
+        "Proposal: POC 回合 plan harness（ndf_close） {#PROP-META-NDF-CLOSE-PLAN}",
+        "Pending"
+      ],
+      [
+        "Process 提案：OpenClaw Control 委派",
+        "unknown"
+      ],
+      [
+        "Process 提案：Per-Project Workspace 绑定",
+        "unknown"
+      ],
+      [
+        "提案: 补全 sustained-param-retuning promote 后的 NDF 图卫生",
+        "proposal"
+      ]
+    ],
+    "proposalPlaneWarnings": [
+      [
+        "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md",
+        "process",
+        "spec/open/proposal-golden-baseline-rerun-7ee4ee2.md is under spec/open/ but track='process'; classified as product"
+      ]
+    ],
+    "close": {
+      "stateSource": "tree/git/tool-evidence",
+      "topics": [
+        {
+          "topicId": "cluster-gbdt",
+          "lifecycle": "exploring",
+          "evidenceReady": true,
+          "proposalReady": false,
+          "closePlanReady": false,
+          "finalizationReady": false,
+          "steps": [
+            {
+              "id": "evidence",
+              "plane": "Business",
+              "label": "POC evidence ready",
+              "status": "completed",
+              "source": "binder/evidence/NOTES"
+            },
+            {
+              "id": "proposal",
+              "plane": "Control",
+              "label": "Promote/reject proposal reviewed",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "plan",
+              "plane": "Control",
+              "label": "Read-only close plan generated",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "integrate",
+              "plane": "Runtime",
+              "label": "Integration/reject code disposition completed",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "graph",
+              "plane": "Control",
+              "label": "Index and graphcheck green",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "verify",
+              "plane": "Business",
+              "label": "Build, performance and golden verified",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "finalize",
+              "plane": "Control",
+              "label": "Binder and archive finalized",
+              "status": "pending",
+              "source": "poc/cluster-gbdt"
+            }
+          ],
+          "branches": {
+            "promote": {
+              "mode": "promote",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "promote proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only promote close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Code integration",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "verify",
+                  "plane": "Business",
+                  "label": "Build, performance and golden verified",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/cluster-gbdt"
+                }
+              ],
+              "nextStep": "proposal"
+            },
+            "partial": {
+              "mode": "partial",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "partial proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only partial close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Code integration",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "verify",
+                  "plane": "Business",
+                  "label": "Build, performance and golden verified",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/cluster-gbdt"
+                }
+              ],
+              "nextStep": "proposal"
+            },
+            "reject": {
+              "mode": "reject",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": false,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "reject proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only reject close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Reject code disposition",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/cluster-gbdt"
+                }
+              ],
+              "nextStep": "proposal"
+            }
+          },
+          "nextStep": "proposal",
+          "blockers": [
+            "close:reviewed_proposal_missing",
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ]
+        },
+        {
+          "topicId": "page-packer",
+          "lifecycle": "exploring",
+          "evidenceReady": true,
+          "proposalReady": false,
+          "closePlanReady": false,
+          "finalizationReady": false,
+          "steps": [
+            {
+              "id": "evidence",
+              "plane": "Business",
+              "label": "POC evidence ready",
+              "status": "completed",
+              "source": "binder/evidence/NOTES"
+            },
+            {
+              "id": "proposal",
+              "plane": "Control",
+              "label": "Promote/reject proposal reviewed",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "plan",
+              "plane": "Control",
+              "label": "Read-only close plan generated",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "integrate",
+              "plane": "Runtime",
+              "label": "Integration/reject code disposition completed",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "graph",
+              "plane": "Control",
+              "label": "Index and graphcheck green",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "verify",
+              "plane": "Business",
+              "label": "Build, performance and golden verified",
+              "status": "pending",
+              "source": null
+            },
+            {
+              "id": "finalize",
+              "plane": "Control",
+              "label": "Binder and archive finalized",
+              "status": "pending",
+              "source": "poc/page-packer"
+            }
+          ],
+          "branches": {
+            "promote": {
+              "mode": "promote",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "promote proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only promote close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Code integration",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "verify",
+                  "plane": "Business",
+                  "label": "Build, performance and golden verified",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/page-packer"
+                }
+              ],
+              "nextStep": "proposal"
+            },
+            "partial": {
+              "mode": "partial",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": true,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "partial proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only partial close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Code integration",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "verify",
+                  "plane": "Business",
+                  "label": "Build, performance and golden verified",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/page-packer"
+                }
+              ],
+              "nextStep": "proposal"
+            },
+            "reject": {
+              "mode": "reject",
+              "proposalReady": false,
+              "closePlanReady": false,
+              "verificationRequired": false,
+              "finalizationReady": false,
+              "finalized": false,
+              "steps": [
+                {
+                  "id": "evidence",
+                  "plane": "Business",
+                  "label": "POC evidence ready",
+                  "status": "completed",
+                  "source": "binder/evidence/NOTES"
+                },
+                {
+                  "id": "proposal",
+                  "plane": "Control",
+                  "label": "reject proposal reviewed",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "plan",
+                  "plane": "Control",
+                  "label": "Read-only reject close plan",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "integrate",
+                  "plane": "Runtime",
+                  "label": "Reject code disposition",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "graph",
+                  "plane": "Control",
+                  "label": "Index and graphcheck green",
+                  "status": "pending",
+                  "source": null
+                },
+                {
+                  "id": "finalize",
+                  "plane": "Control",
+                  "label": "Binder and archive finalized",
+                  "status": "pending",
+                  "source": "poc/page-packer"
+                }
+              ],
+              "nextStep": "proposal"
+            }
+          },
+          "nextStep": "proposal",
+          "blockers": [
+            "close:reviewed_proposal_missing",
+            "design:gate_design_review_legacy_unknown",
+            "design:gate_implementation_approval_legacy_unknown",
+            "design:gate_topic_review_legacy_unknown",
+            "design:missing_ledger",
+            "perf:missing_config_id",
+            "perf:missing_measure_script",
+            "test:missing_perf_baseline_field"
+          ]
+        }
+      ]
+    }
+  },
+  "runtime": {
+    "implementation": {
+      "provider": "claude-code-acp",
+      "status": "unavailable",
+      "pipelineReachable": false,
+      "defaultSession": "d21779ab-aad3-408c-a717-f871eae0884e",
+      "activeRuns": [],
+      "cliAvailable": true,
+      "probeNote": "Claude CLI presence is not ACP pipeline/run evidence",
+      "workspace": {
+        "binding": {
+          "repoRoot": "/home/huawei/hnsw-predictor-ndf",
+          "statePath": ".openclaw/state.json",
+          "activeTopic": null
+        },
+        "stateExists": true
+      }
+    },
+    "control": {
+      "provider": "openclaw",
+      "defaultSessionKey": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+      "reachable": true,
+      "configuredSessionVisible": true,
+      "probe": {
+        "reachable": true,
+        "degraded": true,
+        "sessions": [
+          {
+            "key": "agent:main:main",
+            "updatedAt": 1786551650212,
+            "age": 1363786
+          },
+          {
+            "key": "agent:main:cron:023fb61f-d8c1-4d8f-91ce-d7f5ab020e96",
+            "updatedAt": 1786539604707,
+            "age": 13409291
+          },
+          {
+            "key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+            "updatedAt": 1786538409365,
+            "age": 14604633
+          },
+          {
+            "key": "agent:main:subagent:f77d7f35-6d32-4d97-bee8-fa9f13014c71",
+            "updatedAt": 1785015247925,
+            "age": 1537766073
+          },
+          {
+            "key": "agent:main:subagent:1036ec41-ff1b-4a31-abe4-2bb658f3d0a7",
+            "updatedAt": 1785011150500,
+            "age": 1541863498
+          }
+        ],
+        "channels": {
+          "telegram": {
+            "enabled": true,
+            "running": false,
+            "health_state": "not-running"
+          },
+          "feishu": {
+            "enabled": true,
+            "running": true,
+            "health_state": null
+          }
+        },
+        "probed_at": "2026-08-12T16:43:34.308746+00:00"
+      },
+      "workspace": {
+        "binding": {
+          "repoRoot": "/home/huawei/hnsw-predictor-ndf",
+          "statePath": ".openclaw/state.json",
+          "activeTopic": null
+        },
+        "stateExists": true
+      }
+    }
+  }
+}

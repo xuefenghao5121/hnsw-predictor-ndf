@@ -83,6 +83,7 @@ IMPLEMENTATION_REPAIR_TASKS = frozenset(
     {
         "poc_isolation_repair",
         "poc_measurement",
+        "poc_prepare_baseline",
     }
 )
 PROJECT_CONTROL_TASKS = frozenset({"ndf_improvement_proposal"})
@@ -1116,6 +1117,31 @@ def implementation_files(topic_dir: Path) -> list[str]:
     return sorted(files)
 
 
+def missing_baseline_workspace_finding(
+    topic: str,
+    *,
+    active: bool,
+    implementation_approval_state: str,
+    impl_files: list[str],
+) -> dict[str, Any] | None:
+    """Writable Implementation hop only after the third gate is valid."""
+    if not active or impl_files or implementation_approval_state != "valid":
+        return None
+    return finding(
+        scope="topic",
+        space="Implementation",
+        kind="missing_baseline_workspace",
+        severity="error",
+        evidence=(
+            f"No comparison/baseline code under poc/{topic}/; "
+            "copy Trunk counterparts before R0. Do not fill PERF Numbers."
+        ),
+        repair_owner="claude-code",
+        repair_task="poc_prepare_baseline",
+        allowed_write_root=f"poc/{topic}/",
+    )
+
+
 def perf_view(topic: str, topic_dir: Path) -> dict[str, Any]:
     ndf = topic_dir / "ndf"
     topic_text = read_text(ndf / "TOPIC.md")
@@ -1308,7 +1334,7 @@ def readiness(topic_dir: Path, gates: dict[str, Any], perf: dict[str, Any]) -> d
     if gates["implementation_approval"]["state"] != "valid":
         impl_gaps.append(f"gate:implementation_approval:{gates['implementation_approval']['state']}")
     if not impl_files:
-        impl_gaps.append("no_topic_code")
+        impl_gaps.append("missing_baseline_workspace")
     test_gaps = list(perf["errors"])
     if not perf["delta_exists"]:
         test_gaps.append("missing_delta")
@@ -1375,6 +1401,15 @@ def topic_view(topic_dir: Path) -> dict[str, Any]:
                 allowed_write_root=f"poc/{topic_id}/",
             )
         )
+    impl_files = implementation_files(topic_dir)
+    baseline_finding = missing_baseline_workspace_finding(
+        topic_id,
+        active=active,
+        implementation_approval_state=gates["implementation_approval"]["state"],
+        impl_files=impl_files,
+    )
+    if baseline_finding:
+        findings.append(baseline_finding)
     spaces = readiness(topic_dir, gates, perf)
     for item in findings:
         if item["severity"] != "error":
@@ -1536,6 +1571,45 @@ def topic_view(topic_dir: Path) -> dict[str, Any]:
     }
 
 
+def closed_leftover_topic_ids() -> set[str]:
+    """Topics already rejected in archive or product DEC, even if live TOPIC still exploring."""
+    ids: set[str] = set()
+    archive = SPEC / "archive"
+    if archive.is_dir():
+        for topic_md in archive.glob("**/poc-*/ndf/TOPIC.md"):
+            folder = topic_md.parent.parent.name
+            if not folder.startswith("poc-"):
+                continue
+            topic_id = folder[len("poc-") :]
+            status = normalize_lifecycle(header(read_text(topic_md), "status"))
+            if status == "rejected":
+                ids.add(topic_id)
+    decisions = SPEC / "decisions"
+    if decisions.is_dir():
+        for path in decisions.glob("*.md"):
+            for match in re.finditer(
+                r"(?im)^>\s*Rejects:\s*([a-z0-9-]+)\b",
+                read_text(path),
+            ):
+                ids.add(match.group(1))
+    return ids
+
+
+def is_active_topic_view(view: dict[str, Any], leftover_ids: set[str] | None = None) -> bool:
+    closed = leftover_ids if leftover_ids is not None else closed_leftover_topic_ids()
+    return view["lifecycle"] in {"exploring", "blocked"} and view["topic_id"] not in closed
+
+
+def workbench_details(
+    selected: dict[str, Any] | None,
+    leftover_ids: set[str],
+) -> list[dict[str, Any]]:
+    """Embed at most one focused topic workbench; never every exploring topic."""
+    if selected and selected["topic_id"] not in leftover_ids:
+        return [selected]
+    return []
+
+
 def list_topic_views() -> list[dict[str, Any]]:
     if not POC.is_dir():
         return []
@@ -1548,7 +1622,8 @@ def list_topic_views() -> list[dict[str, Any]]:
 
 
 def attach_surface_conflicts(views: list[dict[str, Any]]) -> None:
-    active = [v for v in views if v["lifecycle"] in {"exploring", "blocked"}]
+    leftover = closed_leftover_topic_ids()
+    active = [v for v in views if is_active_topic_view(v, leftover)]
     for index, left in enumerate(active):
         left_surface = set(left["explore_surface"])
         for right in active[index + 1 :]:
@@ -2370,7 +2445,8 @@ def roadmap_summary() -> list[dict[str, Any]]:
 
 
 def business_risks(views: list[dict[str, Any]], performance: dict[str, Any]) -> list[dict[str, Any]]:
-    active = [view for view in views if view["lifecycle"] in {"exploring", "blocked"}]
+    leftover = closed_leftover_topic_ids()
+    active = [view for view in views if is_active_topic_view(view, leftover)]
     stale = [view["topic_id"] for view in views if view["baseline_status"] == "stale"]
     conflicts = []
     for view in active:
@@ -3145,7 +3221,8 @@ def snapshot(topic: str | None, probe_runtime: bool = False) -> dict[str, Any]:
         selected = next((view for view in views if view["topic_id"] == topic or Path(view["path"]).name == topic), None)
         if selected is None:
             raise FileNotFoundError(f"unknown topic: {topic}")
-    active = [view for view in views if view["lifecycle"] in {"exploring", "blocked"}]
+    leftover_ids = closed_leftover_topic_ids()
+    active = [view for view in views if is_active_topic_view(view, leftover_ids)]
     product_proposals, process_proposals = scan_proposals()
     performance = performance_summary()
     blockers = sum(len(view["health"]["blockers"]) for view in active)
@@ -3170,9 +3247,7 @@ def snapshot(topic: str | None, probe_runtime: bool = False) -> dict[str, Any]:
     identity = business_identity()
     active_summaries = [topic_business_summary(view) for view in active]
     primary = active_summaries[0] if active_summaries else None
-    details = list(active)
-    if selected and selected not in details:
-        details.append(selected)
+    details: list[dict[str, Any]] = workbench_details(selected, leftover_ids)
     generation_sha = source_generation_sha()
     for detail in details:
         detail["health"]["latest_diagnosis"] = latest_topic_health(
@@ -3250,6 +3325,50 @@ def snapshot(topic: str | None, probe_runtime: bool = False) -> dict[str, Any]:
     return payload
 
 
+def canvas_topic_row(
+    item: dict[str, Any],
+    detail: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """List rows stay thin. Pass detail only for the focused workbench."""
+    workbench = bool(detail)
+    detail = detail or {}
+    gates_src = detail.get("gates") if workbench else {}
+    return {
+        "id": item["topic_id"],
+        "path": item["path"],
+        "lifecycle": item["lifecycle"],
+        "hypothesis": item["hypothesis"],
+        "expectedImpact": item["expected_impact"],
+        "surface": [value.rsplit("/", 1)[-1] for value in item["explore_surface"]],
+        "evidenceFiles": item["current_evidence"]["evidence_files"],
+        "numbers": item["current_evidence"]["numbers"],
+        "baseline": item["baseline_status"],
+        "phase": item["phase_hint"].replace("_", " "),
+        "spaces": detail.get("spaces", {}) if workbench else {},
+        "blockers": item["control_blockers"],
+        "conflicts": item["surface_conflicts"],
+        "gates": {
+            name: {
+                "state": gate["state"],
+                "phrase": gate["phrase"],
+                "expectedContentSha": gate.get("expected_content_sha"),
+                "approvedContentSha": (gates_src.get(name) or {}).get("approved_content_sha")
+                if workbench
+                else None,
+                "shaAligned": (gates_src.get(name) or {}).get("sha_aligned", False)
+                if workbench
+                else False,
+            }
+            for name, gate in item["gates"].items()
+        },
+        "nextHumanPhrase": item["next_human_phrase"],
+        "delta": detail.get("delta", {}) if workbench else {},
+        "traceability": detail.get("traceability", []) if workbench else [],
+        "delegation": detail.get("delegation", {}) if workbench else {},
+        "health": detail.get("health", {}) if workbench else {},
+    }
+
+
 def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     """Return the stable, camelCase payload embedded by the Cursor Canvas."""
     business = payload["business"]
@@ -3257,48 +3376,29 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     detail_by_id = {
         item["topic_id"]: item for item in payload.get("topics_detail", [])
     }
-    topics = []
-    for item in business["topics"]:
-        detail = detail_by_id.get(item["topic_id"], {})
-        spaces = detail.get("spaces", {})
-        topics.append(
-            {
-                "id": item["topic_id"],
-                "path": item["path"],
-                "lifecycle": item["lifecycle"],
-                "hypothesis": item["hypothesis"],
-                "expectedImpact": item["expected_impact"],
-                "surface": [
-                    value.rsplit("/", 1)[-1] for value in item["explore_surface"]
-                ],
-                "evidenceFiles": item["current_evidence"]["evidence_files"],
-                "numbers": item["current_evidence"]["numbers"],
-                "baseline": item["baseline_status"],
-                "phase": item["phase_hint"].replace("_", " "),
-                "spaces": spaces,
-                "blockers": item["control_blockers"],
-                "conflicts": item["surface_conflicts"],
-                "gates": {
-                    name: {
-                        "state": gate["state"],
-                        "phrase": gate["phrase"],
-                        "expectedContentSha": gate.get("expected_content_sha"),
-                        "approvedContentSha": detail.get("gates", {})
-                        .get(name, {})
-                        .get("approved_content_sha"),
-                        "shaAligned": detail.get("gates", {})
-                        .get(name, {})
-                        .get("sha_aligned", False),
-                    }
-                    for name, gate in item["gates"].items()
-                },
-                "nextHumanPhrase": item["next_human_phrase"],
-                "delta": detail.get("delta", {}),
-                "traceability": detail.get("traceability", []),
-                "delegation": detail.get("delegation", {}),
-                "health": detail.get("health", {}),
-            }
-        )
+    topics = [canvas_topic_row(item) for item in business["topics"]]
+    selected = payload.get("selected_topic")
+    focused_id = (
+        selected.get("topic_id")
+        if isinstance(selected, dict)
+        else selected
+    )
+    focused_detail = (
+        selected
+        if isinstance(selected, dict) and selected.get("spaces") is not None
+        else detail_by_id.get(focused_id)
+        if focused_id
+        else None
+    )
+    focused_summary = next(
+        (item for item in business["topics"] if item["topic_id"] == focused_id),
+        None,
+    )
+    focused_topic = (
+        canvas_topic_row(focused_summary, focused_detail)
+        if focused_id and focused_summary and focused_detail
+        else None
+    )
     scenes = performance.get("best_scenes", [])
     capabilities = []
     for capability in business["capabilities"]:
@@ -3386,6 +3486,8 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
             },
             "capabilities": capabilities,
             "topics": topics,
+            "focusedTopicId": focused_id,
+            "focusedTopic": focused_topic,
             "proposals": [
                 [
                     proposal["title"],
@@ -3776,6 +3878,17 @@ def repair_pack(
             )
             if reason
         ]
+    elif task == "poc_prepare_baseline":
+        static_ready = active and approval_valid and context_valid
+        blockers = [
+            reason
+            for reason in (
+                None if approval_valid else "implementation_gate_not_valid",
+                None if active else "topic_lifecycle_closed",
+                None if context_valid else "context_verify_failed",
+            )
+            if reason
+        ]
     else:
         isolation_failed = (
             view["health"]["checks"]["isolation"]["state"] == "failed"
@@ -3806,6 +3919,21 @@ def repair_pack(
         "topic": view["topic_id"],
         "track": "poc",
         "task": task,
+        "instructions": (
+            f"Copy Trunk comparison/baseline code into poc/{topic}/. "
+            "Do not modify Trunk src/, include/, or tests/. "
+            "Do not fill PERF_BASELINE Numbers; that remains poc_measurement."
+            if task == "poc_prepare_baseline"
+            else (
+                "Fill PERF_BASELINE Numbers and DELTA from a measured run. "
+                "Do not rewrite git history."
+                if task == "poc_measurement"
+                else (
+                    f"Repair isolation failures inside poc/{topic}/. "
+                    "Do not rewrite git history."
+                )
+            )
+        ),
         "provider": "claude-code-acp",
         "base_sha": git_head(),
         "workspace": workspace_binding(topic),

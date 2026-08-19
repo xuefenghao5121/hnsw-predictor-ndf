@@ -1,0 +1,25 @@
+{
+  "schema": "ndf-replay-sandbox-profile/v1",
+  "sandbox": true,
+  "network": "none",
+  "adapter": ["/usr/bin/bwrap"],
+  "confirm_cost": true,
+  "confirm_side_effects": true,
+  "commands": [["/bin/true"]],
+  "allowed_write_roots": [],
+  "target": {
+    "run_id": "environment-probe",
+    "role": "openclaw",
+    "manifest_sha": "692dd417bb8fc1e3e0a080b62c2b3b65f6fbebd93b50137f9b9ec474dd59262d",
+    "plan_sha": "e6f926f6e45ed59841a96a5e0c0a46b3d0a3d91299d8276085a165ecaf39ffc3",
+    "env_allowlist_fingerprint": "0000000000000000000000000000000000000000000000000000000000000000",
+    "cwd": "/home/huawei/hnsw-predictor-ndf",
+    "tool_runtime_version": "bwrap-host-probe"
+  },
+  "expected_outputs": [
+    {
+      "path": "tmp/r2-probe",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

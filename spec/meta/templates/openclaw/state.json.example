@@ -1,0 +1,21 @@
+{
+  "current_proposal": "null",
+  "scenario_type": "poc",
+  "track": "poc",
+  "workspace": {
+    "repo_root": "/absolute/path/to/repo",
+    "repo_name": "hnsw-predictor-ndf",
+    "repo_head": "git-sha",
+    "state_path": ".openclaw/state.json",
+    "bound_sha": "git-sha-at-bind",
+    "bound_at": "2026-08-12T12:00:00+00:00",
+    "active_topic": "bfs-cluster"
+  },
+  "validation_round": 0,
+  "max_validation_rounds": 3,
+  "pending_decision": "null",
+  "validation_status": "n/a",
+  "perf_status": "n/a",
+  "last_activity": "null",
+  "notes": "OpenClaw copies/adapts this into .openclaw/state.json on workspace bind"
+}

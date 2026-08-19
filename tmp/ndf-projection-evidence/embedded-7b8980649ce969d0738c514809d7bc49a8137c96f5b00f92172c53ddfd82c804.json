@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "absorbedActionId": true,
+    "payloadSha": true,
+    "snapshotSha": true
+  },
+  "embedded": {
+    "absorbedActionId": "e1a6c705-ba81-4eae-8db4-b04f28458ed1",
+    "canonicalPayloadSha": "7b8980649ce969d0738c514809d7bc49a8137c96f5b00f92172c53ddfd82c804",
+    "payloadSha": "7b8980649ce969d0738c514809d7bc49a8137c96f5b00f92172c53ddfd82c804",
+    "snapshotSha": "afada4e41ebba0df01d266cc699323e32d05cae1bd46156a1a05a74e51b7cadb"
+  },
+  "fresh": {
+    "absorbedActionId": "e1a6c705-ba81-4eae-8db4-b04f28458ed1",
+    "payloadSha": "7b8980649ce969d0738c514809d7bc49a8137c96f5b00f92172c53ddfd82c804",
+    "snapshotSha": "afada4e41ebba0df01d266cc699323e32d05cae1bd46156a1a05a74e51b7cadb"
+  },
+  "schema": "ndf-embedded-projection-evidence/v1",
+  "source_file_sha": "6e1d1113241a0a672577af354960f775adda51a66b305a4b671b5afd80f1668b",
+  "source_path": "/home/huawei/.cursor/projects/home-huawei-hnsw-predictor-ndf/canvases/ndf-workflow.canvas.tsx",
+  "topic": "hotspot-optimization"
+}

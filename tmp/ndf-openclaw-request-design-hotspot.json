@@ -1,0 +1,43 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "binder_pipeline",
+  "track": "poc",
+  "topic": "hotspot-optimization",
+  "pipeline": "binder",
+  "hop": "design",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "e13e8159063c5a572a361f73f2de98cef8735d831ba8eb832773a2f672d0accd",
+  "context_plan_sha": "f17ac95693888777b91d2ba05a3e3ed2f5f9aa6389513bf10b015de6bbb1c44d",
+  "plan_sha": "f17ac95693888777b91d2ba05a3e3ed2f5f9aa6389513bf10b015de6bbb1c44d",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "368c08cd-ed61-460e-846c-a18d2a7233fe",
+  "request_id": "req-binder-design-hotspot-optimization-20260818T163400Z",
+  "origin": "human_phrase",
+  "human_utterance": "TOPIC已审核",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_name": "hnsw-predictor-ndf",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "state_path": ".openclaw/state.json",
+    "active_topic": "hotspot-optimization",
+    "topic_dir": "poc/hotspot-optimization/",
+    "topic_ndf_dir": "poc/hotspot-optimization/ndf/"
+  },
+  "allowed_write_roots": ["poc/hotspot-optimization/ndf/DESIGN.md"],
+  "forbidden": [
+    "src/",
+    "include/",
+    "tests/",
+    "spec/meta/",
+    "INTERFACE.md",
+    "PERF_BASELINE.md",
+    "DELTA.md",
+    "GATES.md",
+    "topic code",
+    "GATES.md approved_by",
+    "human approval fabrication"
+  ],
+  "next_human_phrase": "DESIGN已审核",
+  "message": "【track=poc】【control=binder_pipeline】topic: hotspot-optimization\npipeline: binder\nbinder_facet: design\nsession_key: agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35\nmanifest_sha: e13e8159063c5a572a361f73f2de98cef8735d831ba8eb832773a2f672d0accd\nplan_sha: f17ac95693888777b91d2ba05a3e3ed2f5f9aa6389513bf10b015de6bbb1c44d\nworkspace.repo_root: /home/huawei/hnsw-predictor-ndf\nallowed_write_roots: poc/hotspot-optimization/ndf/DESIGN.md\nnext_human_phrase: DESIGN已审核\n\nYou are OpenClaw. Human already sent TOPIC已审核; gate receipt is recorded. This hop is binder facet design only.\n\nWrite exactly one file: poc/hotspot-optimization/ndf/DESIGN.md\nFollow spec/meta/templates/poc/DESIGN.md.stub. Include <!-- ndf:gate-slice begin=design_contract --> ... end=design_contract -->.\nRead TOPIC.md and spec/open/proposal-poc-hotspot-optimization.md first.\n\nDesign MUST:\n- Primary slice D1 / H1: FastScan/QuickerADC-style SIMD for pqDistance (distance values identical, Recall@10 unchanged).\n- Optional later slices D2 RaBitQ (must validate rotation vs HNSW graph, DEC-072), D3 VisitedList pool + WILLNEED adaptive, D4 not recommended.\n- Copy-then-edit: copy src/core/disk_hnsw.cpp (pqDistance) and needed headers into poc/hotspot-optimization/ before any edit. MUST NOT write Trunk src/include/tests.\n- Non-goals: no new Trunk SLA/DEC/must, no INTERFACE.md this hop, no POC code this hop.\n- Web paper numbers are not this-repo observations.\n- Bind verification to CON-SLA-014 / CON-SLA-019 / CON-SLA-020; do not copy SLA numbers as claims.\n\nMUST NOT write INTERFACE.md, PERF_BASELINE.md, DELTA.md, GATES.md, or theme code.\nMUST NOT set approved_by or treat this as DESIGN已审核.\nUpdate .openclaw/state.json workspace binding: human_phrase TOPIC已审核, pending_decision waiting_design_review.\nReturn DESIGN path. Stop and wait for the exact phrase DESIGN已审核."
+}

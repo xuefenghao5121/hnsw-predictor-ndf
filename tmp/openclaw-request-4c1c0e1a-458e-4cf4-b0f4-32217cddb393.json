@@ -1,0 +1,15 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "ndf_improvement_proposal",
+  "track": "process",
+  "topic": null,
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "8ed97997be2260c8d1d143d315205f148913b8b414750d94f620f7df5e67f7d5",
+  "context_plan_sha": "4f0fcb845b1546d47491b3ddee5ebfdf36027525e3293f038b1957d952597b31",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "4c1c0e1a-458e-4cf4-b0f4-32217cddb393",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "thinking": "high",
+  "timeout_seconds": 600,
+  "message": "NDF Control delegation — ndf_improvement_proposal\n\nworkspace: {\"repo_root\":\"/home/huawei/hnsw-predictor-ndf\",\"repo_name\":\"hnsw-predictor-ndf\",\"repo_head\":\"a14339234133cc6c5a2348464954f744c6465efb\",\"state_path\":\".openclaw/state.json\",\"active_topic\":null,\"topic_dir\":null,\"topic_ndf_dir\":null}\nepisode_id: ep-process-draft-mapping-20260817T063247Z\nmanifest_sha: 8ed97997be2260c8d1d143d315205f148913b8b414750d94f620f7df5e67f7d5\nplan_sha: 4f0fcb845b1546d47491b3ddee5ebfdf36027525e3293f038b1957d952597b31\nintent_sha: 3ce52d919df17810e44535dd159c3733923380e05f585c7681ee98d9e01c9c06\nrequest.origin: human_intent\nallowed_write_roots: [\"spec/meta/open/\"]\nforbidden_paths: [\"src/\",\"include/\",\"tests/\",\"spec/meta/ (stable body)\",\".openclaw/state.json\",\"product or POC documents\",\"human approval fabrication\"]\nnext_human_phrase: 已确认\n\nExact human intent:\nDraft Mapping 意图，从“探索”到“晋升”的受控路径。NDF 是唯一事实源，因此 Draft 机制必须解决“探索中的不确定性”与“已批准的稳定性”之间的冲突。为了不污染 NDF 的 8 个固定模块，Draft 状态完全通过文件系统的并发映射来处理\n\nTask: Draft exactly one focused track=process proposal under spec/meta/open/ implementing this intent at proposal level only. Report the proposal path. Stop at the exact phrase 已确认. MUST NOT edit stable spec/meta body, product/POC documents, or .openclaw/state.json. MUST NOT approve gates or forge approved_by. Do not land the proposal. This is a human-initiated META workflow improvement, not a spec-health repair."
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "binder_pipeline",
+  "track": "poc",
+  "topic": "hotspot-optimization",
+  "pipeline": "binder",
+  "hop": "design",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "e13e8159063c5a572a361f73f2de98cef8735d831ba8eb832773a2f672d0accd",
+  "context_plan_sha": "f17ac95693888777b91d2ba05a3e3ed2f5f9aa6389513bf10b015de6bbb1c44d",
+  "plan_sha": "f17ac95693888777b91d2ba05a3e3ed2f5f9aa6389513bf10b015de6bbb1c44d",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "368c08cd-ed61-460e-846c-a18d2a7233fe",
+  "request_id": "req-binder-design-hotspot-optimization-20260818T163400Z",
+  "origin": "human_phrase",
+  "proposal_path": "poc/hotspot-optimization/ndf/DESIGN.md",
+  "next_human_phrase": "DESIGN已审核",
+  "message": "DESIGN path: poc/hotspot-optimization/ndf/DESIGN.md\nPrimary slice D1/H1 SIMD pqDistance, distance values must match, Recall@10 unchanged.\nCopy-then-edit declared, files not copied this hop.\nNo INTERFACE, no POC code, no GATES approved_by.\nNext phrase: DESIGN已审核"
+}

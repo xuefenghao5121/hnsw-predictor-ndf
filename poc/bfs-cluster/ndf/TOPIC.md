@@ -1,14 +1,17 @@
 # Topic: bfs-cluster
 
 > ndf_topic: bfs-cluster
-> status: exploring
+> status: rejected (2026-08-12, DEC-098: BFS-supervised k-means graph penalty 无效)
 > created: 2026-08-10
+> closed: 2026-08-12
 > explore_surface: spec/20-behavior/vecblock-layout, spec/20-behavior/cluster-vecblock-layout
 > depends_on_topics: vecblock-cluster-reorder (promoted)
 > baseline_status: current
 > baseline_trunk_sha: 4a70704
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > reference: BEH-037 (cluster vecblock layout), DEC-018 (page shuffle)
+> rejects_dec: DEC-098
+> archive: spec/archive/2026-08/poc-bfs-cluster/
 
 ## Hypothesis
 

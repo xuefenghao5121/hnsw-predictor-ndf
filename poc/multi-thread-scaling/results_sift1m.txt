@@ -1,0 +1,271 @@
+
+=== SIFT1M Scaling Sweep (CON-SLA-014, 512MB cgroup) ===
+=== DiskHNSW Scaling ===
+--- 1T ---
+Recall: 95.80%
+Mean:   0.36 ms
+P50:    0.33 ms
+P95:    0.67 ms
+P99:    0.86 ms
+QPS:    2744.1
+RSS:    197 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 573440
+anon_thp 0
+  cgroup_file: file 330215424
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 2T ---
+Recall: 95.80%
+Mean:   0.35 ms
+P50:    0.33 ms
+P95:    0.58 ms
+P99:    0.64 ms
+QPS:    5679.7
+RSS:    199 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 593920
+anon_thp 0
+  cgroup_file: file 328683520
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 4T ---
+Recall: 95.80%
+Mean:   0.41 ms
+P50:    0.35 ms
+P95:    0.75 ms
+P99:    0.89 ms
+QPS:    9656.8
+RSS:    202 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 610304
+anon_thp 0
+  cgroup_file: file 322949120
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 8T ---
+Recall: 95.80%
+Mean:   0.54 ms
+P50:    0.43 ms
+P95:    1.24 ms
+P99:    1.46 ms
+QPS:    14349.9
+RSS:    210 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 622592
+anon_thp 0
+  cgroup_file: file 316395520
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 12T ---
+Recall: 95.80%
+Mean:   0.64 ms
+P50:    0.57 ms
+P95:    1.38 ms
+P99:    1.53 ms
+QPS:    17609.7
+RSS:    217 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 622592
+anon_thp 0
+  cgroup_file: file 308027392
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 16T ---
+Recall: 95.80%
+Mean:   0.83 ms
+P50:    0.63 ms
+P95:    1.71 ms
+P99:    1.83 ms
+QPS:    18043.6
+RSS:    225 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 626688
+anon_thp 0
+  cgroup_file: file 299708416
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 24T ---
+Recall: 95.80%
+Mean:   1.22 ms
+P50:    1.15 ms
+P95:    2.06 ms
+P99:    2.71 ms
+QPS:    17288.2
+RSS:    240 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 618496
+anon_thp 0
+  cgroup_file: file 283521024
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+
+=== hnswlib Native Scaling ===
+--- 1T ---
+Recall: 98.30%
+Mean:   19.47 ms
+P50:    19.03 ms
+P95:    30.78 ms
+P99:    35.22 ms
+QPS:    51.4
+RSS:    503 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 630784
+anon_thp 0
+  cgroup_file: file 1249280
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 2T ---
+Recall: 98.30%
+Mean:   16.48 ms
+P50:    16.17 ms
+P95:    27.13 ms
+P99:    29.80 ms
+QPS:    121.0
+RSS:    507 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 634880
+anon_thp 0
+  cgroup_file: file 983040
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 4T ---
+Recall: 98.30%
+Mean:   18.46 ms
+P50:    18.80 ms
+P95:    28.72 ms
+P99:    32.71 ms
+QPS:    214.1
+RSS:    507 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 626688
+anon_thp 0
+  cgroup_file: file 1073152
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 8T ---
+Recall: 98.30%
+Mean:   17.63 ms
+P50:    17.51 ms
+P95:    28.63 ms
+P99:    33.48 ms
+QPS:    440.5
+RSS:    507 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 634880
+anon_thp 0
+  cgroup_file: file 1126400
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 12T ---
+Recall: 98.30%
+Mean:   23.30 ms
+P50:    22.89 ms
+P95:    37.17 ms
+P99:    43.35 ms
+QPS:    496.4
+RSS:    506 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 638976
+anon_thp 0
+  cgroup_file: file 1253376
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 16T ---
+Recall: 98.30%
+Mean:   23.54 ms
+P50:    22.96 ms
+P95:    35.54 ms
+P99:    45.53 ms
+QPS:    648.3
+RSS:    456 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 651264
+anon_thp 0
+  cgroup_file: file 1323008
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0
+--- 24T ---
+Recall: 98.30%
+Mean:   31.45 ms
+P50:    30.45 ms
+P95:    46.76 ms
+P99:    54.84 ms
+QPS:    731.1
+RSS:    508 MB
+  cgroup_peak: 536870912
+  cgroup_oom: oom 0
+oom_kill 0
+oom_group_kill 0
+  cgroup_anon: anon 651264
+anon_thp 0
+  cgroup_file: file 1196032
+file_mapped 200704
+file_dirty 0
+file_writeback 0
+file_thp 0

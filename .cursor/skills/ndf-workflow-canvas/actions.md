@@ -22,7 +22,7 @@ payload clears the safety block.
 | Open topic | `openFile` for `poc/<topic>/ndf/TOPIC.md` |
 | Resolve control next step | Use `health.next_actions[]`; show the concrete OpenClaw task (`legacy_gate_audit`, `gate_sha_audit`, `gate_receipt_draft`, `binder_amend`) |
 | Repair with OpenClaw | `control-pack --task <finding.repair_task>` → OpenClaw; then topic-health + refresh |
-| Repair with Claude Code | `repair-pack --task poc_isolation_repair|poc_measurement` → ACP; then post-checks + refresh |
+| Repair with Claude Code | `repair-pack --task poc_isolation_repair|poc_measurement|poc_prepare_baseline` → ACP; then post-checks + refresh |
 | Prepare ACP lease | Static preflight passed/runtime not ready: context-verify, full handshake, lease-record, refresh before work |
 | Delegate POC | Require verified projection + Context Plan + `static_preflight_passed` + `runtime_dispatch_ready`, then send `acp-delegate.md#poc` |
 | Run NDF Control check | `spec-health --json`; render project graph/index/binder/proposal conformance |
@@ -73,6 +73,9 @@ For normal POC implementation, Composer MUST:
 For bounded repair, use `repair-pack`; an isolation repair MAY run while normal
 `pack.safe_to_dispatch=false`, but remains confined to `poc/<topic>/` and MUST NOT
 rewrite git history. Measurement repair still requires the implementation gate and a valid perf bind.
+`poc_prepare_baseline` copies Trunk comparison code into `poc/<topic>/` after the third
+gate (`可以开始实现`); it MUST NOT fill PERF Numbers and is not a page-bottom
+「本轮决策 / 生成下一步」 hop.
 
 Every mutating Agent bridge MUST pass the same `episode_id` through pack, runtime lease and
 completion evidence. OpenClaw and Claude role plans have different plan SHA values but share

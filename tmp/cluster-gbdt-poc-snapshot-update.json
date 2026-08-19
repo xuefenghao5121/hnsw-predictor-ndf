@@ -1,0 +1,55 @@
+{
+  "schema": "ndf-embedded-projection-update/v1",
+  "updated": true,
+  "path": "/home/huawei/.cursor/projects/home-huawei-hnsw-predictor-ndf/canvases/ndf-workflow.canvas.tsx",
+  "payloadSha": "aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba",
+  "snapshotSha": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+  "absorbedActionId": "0bf9250d-c1fb-42aa-859c-87d3174049ca",
+  "verification": {
+    "schema": "ndf-embedded-projection-verification/v1",
+    "valid": true,
+    "path": "/home/huawei/.cursor/projects/home-huawei-hnsw-predictor-ndf/canvases/ndf-workflow.canvas.tsx",
+    "checks": {
+      "snapshotSha": true,
+      "payloadSha": true,
+      "absorbedActionId": true
+    },
+    "embedded": {
+      "snapshotSha": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+      "payloadSha": "aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba",
+      "canonicalPayloadSha": "aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba",
+      "absorbedActionId": "0bf9250d-c1fb-42aa-859c-87d3174049ca"
+    },
+    "fresh": {
+      "snapshotSha": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+      "payloadSha": "aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba",
+      "absorbedActionId": "0bf9250d-c1fb-42aa-859c-87d3174049ca"
+    }
+  },
+  "receipt": {
+    "schema": "ndf-projection-receipt/v2",
+    "task": "snapshot_embedded",
+    "topic": null,
+    "mode": "process",
+    "step": "verify-embedded",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "source_generation_sha": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+    "manifest_sha": null,
+    "context_plan_sha": null,
+    "command": "ndf_workflow_status.py snapshot --verify-embedded",
+    "input_sha": "cbfd1a30e1348740b0f2c3f097248c0f91aaf176cdc93fbf035a5ccbc4f77baa",
+    "output_sha": "d7916903aacd97071a893a295ab1638385cc29202a06f9b95e26f0be2ff69a26",
+    "evidence_paths": [
+      "tmp/ndf-projection-evidence/embedded-aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba.json"
+    ],
+    "started_at": "2026-08-14T09:31:00.989264+00:00",
+    "finished_at": "2026-08-14T09:31:00.989264+00:00",
+    "result": "passed",
+    "blockers": [],
+    "projection_sha": "aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba",
+    "snapshot_sha_after": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+    "absorbed_action_id": "0bf9250d-c1fb-42aa-859c-87d3174049ca",
+    "episode_id": null,
+    "receipt_path": "tmp/ndf-projection-evidence/receipt-aef2f8714a4d8dafa57a98405683030f9461a71f1a641d8e172d96b5c3981bba.json"
+  }
+}

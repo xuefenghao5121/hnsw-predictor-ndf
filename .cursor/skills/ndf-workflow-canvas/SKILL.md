@@ -70,6 +70,8 @@ three independent columns:
 
 - Design: goals, hypothesis, DESIGN/INTERFACE, proposals and gaps.
 - Implementation: topic code, isolation, COMMITS and Claude Code run state.
+  Preparing the baseline workspace (`poc_prepare_baseline`) lives on this card after
+  「可以开始实现」; it is not page-bottom 「本轮决策 / 生成下一步」.
 - Test: baseline bind, Numbers, evidence, DELTA Hotspot/Rounds and stale state.
 
 Gate state comes only from valid `GATES.md` receipts. File existence is readiness

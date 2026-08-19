@@ -1,13 +1,17 @@
 # Topic: cluster-gbdt
 
 > ndf_topic: cluster-gbdt
-> status: exploring
+> status: rejected
 > created: 2026-08-10
+> closed: 2026-08-15
 > explore_surface: spec/20-behavior/learned-pruning
 > depends_on_topics: vecblock-cluster-reorder (promoted)
 > baseline_status: current
 > baseline_trunk_sha: 1f684c7
 > baseline_protocol: CON-SLA-020 sustained
+> selected_decision: reject
+> rejects_dec: DEC-099
+> archive: spec/archive/2026-08/poc-cluster-gbdt/
 
 ## Hypothesis
 

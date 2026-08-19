@@ -1,0 +1,22 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "control_proposal",
+  "track": "poc",
+  "topic": null,
+  "pipeline": null,
+  "hop": "draft",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "6cff56313a8300221a5dba594c2d80318f45463fb500d7f86b204233ca8b96f8",
+  "context_plan_sha": "3dd8fd41ef63a5e9c58005bb799addbca3b86595323df02b925a75e8c378ba78",
+  "plan_sha": "3dd8fd41ef63a5e9c58005bb799addbca3b86595323df02b925a75e8c378ba78",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "aec0cf31-e9e2-41a5-901c-24bdce25efe8",
+  "request_id": "req-control-proposal-577ae7b4-4ccc-412c-a262-ffa09ba17540",
+  "origin": "human_intent",
+  "intent_file": "tmp/ndf-product-intent-577ae7b4-4ccc-412c-a262-ffa09ba17540.md",
+  "intent_sha": "f77726f35acb0b0c608814095d8baf29537c6308f7c830fce6c9c6754fcc2897",
+  "proposal_path": "spec/open/proposal-poc-topk-recall-alignment.md",
+  "next_human_phrase": "已确认",
+  "message": "Proposal path: spec/open/proposal-poc-topk-recall-alignment.md\nStatus line: Status: Pending confirmation\nTrack: poc\n\n核心结论：\n1. 数学上成立：Recall@k 对 k 单调不减，换大 K 必然让 Recall 数字变大——但这是度量口径变化，不是算法改进。\n2. 事实前提要纠正：DiskANN 用的是更小的 K（1-recall@1 / 5-recall@5），不是更大。big-ann-benchmarks 官方标准就是 recall@10（和本仓一致）。所以「业界用大 Top-K」这个印象是反的。\n3. 合法 vs 不合法：直接把 must 门槛从 @10 换 @100 抬头条数字 = benchmark 挑选，和本仓 DEC-084 诚实测量纪律冲突；但多 K 并行报告（@1/@10/@100）做跨论文可比口径是合法且加分的。\n4. 提案定位：POC 探索「多 K 召回口径对齐」，不动 CHR-006 的 Recall@10 ≥ 95% 门槛，只新增 @1/@100 作为对齐观测面。\n\n已停在人工回执。下一步回复：已确认"
+}

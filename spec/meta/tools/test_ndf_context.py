@@ -388,6 +388,31 @@ QPS and Recall.
         self.assertNotIn("BEH-100", ids)
         self.assertIn("BEH-100", plan["graph"]["missing_seeds"])
 
+    def test_prepare_baseline_is_claude_code_poc_task(self) -> None:
+        self.assertTrue(
+            context._role_task_compatible("claude-code", "poc_prepare_baseline", "poc")
+        )
+        self.assertEqual(
+            context.TASK_DEFAULT_SEEDS["poc_prepare_baseline"],
+            ("BEH-018", "BEH-025", "META-012"),
+        )
+        priv = context._privileges("claude-code", "poc_prepare_baseline", "poc", "demo")
+        self.assertEqual(priv["allowed_write_roots"], ["poc/demo/"])
+        self.assertIn("src/", priv["forbidden_write_paths"])
+        self.assertIn("spec/meta/", priv["forbidden_write_paths"])
+
+    def test_prepare_baseline_bundle_omits_perf_numbers(self) -> None:
+        bundle = context.expand_plan(
+            self._plan(role="claude-code", task="poc_prepare_baseline"),
+            root=self.root,
+        )
+        perf = next(
+            item["content"]
+            for item in bundle["files"]
+            if item["path"].endswith("PERF_BASELINE.md")
+        )
+        self.assertNotIn("SECRET_QPS", perf)
+
     def test_non_measurement_bundle_omits_perf_numbers(self) -> None:
         bundle = context.expand_plan(self._plan(), root=self.root)
         perf = next(item["content"] for item in bundle["files"] if item["path"].endswith("PERF_BASELINE.md"))

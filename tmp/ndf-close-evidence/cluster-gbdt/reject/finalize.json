@@ -1,0 +1,23 @@
+{
+  "actor": "composer",
+  "blockers": [],
+  "command": "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json",
+  "context_plan_sha": null,
+  "evidence_paths": [
+    "tmp/topic-health-after-close-cluster-gbdt.json"
+  ],
+  "finished_at": "2026-08-15T12:28:22.070578+00:00",
+  "input_sha": "6baf39efa005cf88b3fdc25b59a8000befb2f9a8c9bef276328abe0cc38847c1",
+  "manifest_sha": "4676fa5708520461f68dcbd351a4bc7d30901529c1e3fac6fb72cbffe6662318",
+  "mode": "reject",
+  "notes": "reject finalize: DEC-099; TOPIC=rejected; NOTES status synced; binder+NOTES copied to spec/archive/2026-08/poc-cluster-gbdt/; proposal moved to spec/archive/2026-08/proposal-reject-cluster-gbdt.md; no draft clauses to deprecate; Trunk src never contained this POC. topic-health lifecycle=rejected.",
+  "output_sha": "202a5f94aa373eeba53f2f3e13ece0fe1b6af5155f2075d0586bf06081c2c710",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-close-evidence/v1",
+  "source_generation_sha": "c39f12878ef90cc1bdd6431bc4ac1ff92e342e3b4f492a551b8d91eec3dd8eea",
+  "started_at": "2026-08-15T12:28:22.070578+00:00",
+  "step": "finalize",
+  "task": "close",
+  "topic": "cluster-gbdt"
+}

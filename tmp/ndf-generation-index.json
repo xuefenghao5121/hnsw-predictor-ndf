@@ -1,0 +1,148 @@
+{
+  "files": {
+    ".cursor/skills/ndf-workflow-canvas/acp-delegate.md": {
+      "ino": 4990078,
+      "mtime_ns": 1787130413546624083,
+      "sha256": "2e1791b80d83e241ef23b222c88fb8f69469854900f4670a703dc719ab0d31c5",
+      "size": 5382
+    },
+    ".cursor/skills/ndf-workflow-canvas/actions.md": {
+      "ino": 4990076,
+      "mtime_ns": 1787130334278520037,
+      "sha256": "c7a1cd1941d4d96ca405fc8a68865ead2035c7a1b60726f7fd7b6dc611f12ec3",
+      "size": 14258
+    },
+    ".cursor/skills/ndf-workflow-canvas/layout.md": {
+      "ino": 4990074,
+      "mtime_ns": 1787130360819739208,
+      "sha256": "7078f4860e658a999a0eebf9dbcd2f3e6cf3fbffe6d738ac89d8714d15183e07",
+      "size": 19638
+    },
+    ".cursor/skills/ndf-workflow-canvas/openclaw-delegate.md": {
+      "ino": 4991999,
+      "mtime_ns": 1787061131948418562,
+      "sha256": "b22b4a5bc729688a5d196153cc140246dd5f44b31bafbcc577c5433a86bb70d1",
+      "size": 15341
+    },
+    ".cursor/skills/ndf-workflow-canvas/snapshot-schema.md": {
+      "ino": 4990079,
+      "mtime_ns": 1787075128252407233,
+      "sha256": "9ef4466b06465548af4592eaccd2ca0df55c48e7eda8fd2a86b527df036d7e2b",
+      "size": 19060
+    },
+    "AGENTS.md": {
+      "ino": 4723066,
+      "mtime_ns": 1786986078489411646,
+      "sha256": "609f059dccdd9afc1fa01d50d467b716ac5ab043ffba3ddcb4c265d2c0fa5a9a",
+      "size": 32154
+    },
+    "poc/bfs-cluster/NOTES.md": {
+      "ino": 4859857,
+      "mtime_ns": 1786540639131639851,
+      "sha256": "f95fbbd8a7bcfc9db4e50c95b7dd41e897ee2101fce761433048ef5077b36f50",
+      "size": 1394
+    },
+    "poc/bfs-cluster/ndf/TOPIC.md": {
+      "ino": 4859856,
+      "mtime_ns": 1786540639131716086,
+      "sha256": "83f71ff280eb753ea30c743b2e838113d7afd206d8a77679b36edf317dc85094",
+      "size": 1476
+    },
+    "poc/cluster-gbdt/NOTES.md": {
+      "ino": 4876820,
+      "mtime_ns": 1786796855692698350,
+      "sha256": "515ee52c04a76e205caa459c4391670af93b949405df32ea0bd60cc3eff722cc",
+      "size": 2582
+    },
+    "poc/cluster-gbdt/ndf/PERF_BASELINE.md": {
+      "ino": 4859952,
+      "mtime_ns": 1786697112132244369,
+      "sha256": "dad047c086b66c2aa8bba509ed5d0cfd031a645943b6951b13bf5097a69b72dd",
+      "size": 2791
+    },
+    "poc/cluster-gbdt/ndf/TOPIC.md": {
+      "ino": 4859950,
+      "mtime_ns": 1786796855692517254,
+      "sha256": "8d0a67ed3c00969f74a27b3b084492c84c17641b1843e7246893040e86220b83",
+      "size": 2113
+    },
+    "poc/page-packer/NOTES.md": {
+      "ino": 4859944,
+      "mtime_ns": 1787040155365124128,
+      "sha256": "65f818ed3e672fbf4b33412a1772694be68de70f270e1c9de2128db3938fabe1",
+      "size": 993
+    },
+    "poc/page-packer/ndf/TOPIC.md": {
+      "ino": 4859942,
+      "mtime_ns": 1787040146225068742,
+      "sha256": "dc66dd1aaaded9271f53eab4368567ab1a6aa1570641e60f639e140f66d85feb",
+      "size": 1322
+    },
+    "spec/INDEX.md": {
+      "ino": 4756209,
+      "mtime_ns": 1787040155852127081,
+      "sha256": "f5c735cdf00bf9282c2804b7bb3399080dde52a93e5ab412ed38e4b5cf18016e",
+      "size": 48350
+    },
+    "spec/graph.json": {
+      "ino": 4756211,
+      "mtime_ns": 1787040155855127099,
+      "sha256": "a64cbeb0a3167fe7ddf3b2dd2d367c8458cc5204adb1e2a9740ad5a454804762",
+      "size": 138575
+    },
+    "spec/meta/README.md": {
+      "ino": 4857366,
+      "mtime_ns": 1786986080965550819,
+      "sha256": "c7c56e5c0984a2f4e66eabd83db849c9b423bd3f7ad07c672ef79f3164c02af2",
+      "size": 5102
+    },
+    "spec/meta/process.md": {
+      "ino": 4857482,
+      "mtime_ns": 1786986066263056269,
+      "sha256": "f847e80bef7b7ad42b0871f70e373697928babc27c198aae9dbfe5c33a60f741",
+      "size": 62372
+    },
+    "spec/meta/tools/README.md": {
+      "ino": 4851400,
+      "mtime_ns": 1787045135069415245,
+      "sha256": "8ff2566b7c140b8b77ed6c63d86306c725f2e83b97af4273627cd181917b75ca",
+      "size": 23791
+    },
+    "spec/meta/tools/ndf_context.py": {
+      "ino": 4878369,
+      "mtime_ns": 1787130226082289679,
+      "sha256": "849f3f3be40782a2b9cc7b05a5d7a8aa4fb7c9ec460975c8fcaefcb178371e2f",
+      "size": 73759
+    },
+    "spec/meta/tools/ndf_replay.py": {
+      "ino": 4878406,
+      "mtime_ns": 1787073721201669062,
+      "sha256": "ee48e4790550ef10a2b12bfcbd32ecbe1f84752ec159eaabb5c3a2272fbb8215",
+      "size": 271972
+    },
+    "spec/meta/tools/ndf_workflow_status.py": {
+      "ino": 4878314,
+      "mtime_ns": 1787130185053663787,
+      "sha256": "8fd38a9d552f2d5664a39c079ede0449a1a16a3304a64a48460f38c3711225b9",
+      "size": 355823
+    },
+    "spec/meta/tools/test_ndf_context.py": {
+      "ino": 4878370,
+      "mtime_ns": 1786968017345084124,
+      "sha256": "47ebdc7970b95502da692a074cb81ad2edfd2dd42c675aeb5b205bbc204be17b",
+      "size": 37046
+    },
+    "spec/meta/tools/test_ndf_replay.py": {
+      "ino": 4878407,
+      "mtime_ns": 1787043434022113896,
+      "sha256": "fb0503bbc78df8b0b21f10d0b37105d5266ff33b5eef3d3e10275767bcb7c47f",
+      "size": 85107
+    },
+    "spec/meta/tools/test_ndf_workflow_status.py": {
+      "ino": 4878336,
+      "mtime_ns": 1787130445440663398,
+      "sha256": "b430fd204ccef74d752c7f3cb46c7a3f55d3812e888dd99253365542b7d0cc30",
+      "size": 207395
+    }
+  }
+}

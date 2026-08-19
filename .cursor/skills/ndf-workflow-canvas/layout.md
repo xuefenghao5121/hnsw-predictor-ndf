@@ -68,6 +68,11 @@ Middle: Design / Implementation / Test columns, then explicit gate/control block
 - Implementation
 - Test
 
+Implementation 准备基线工作区（第三闸已过、拷对照代码进 `poc/<topic>/`）是 Implementation 卡 hop，
+不是页底「本轮决策 / 生成下一步」。生成下一步只记录 `selected_decision`（实现 / 继续探索 / 早关）；
+空文本与未核验投影不得派发。基线缺口时禁用生成下一步，并说明先在 Implementation 准备。
+第三闸未过时 Implementation 文案指向 Design 门禁，禁止拷代码。
+
 Bottom:
 
 - Gate status table: `topic_review / design_review / implementation_approval` + SHA state
@@ -86,7 +91,7 @@ Bottom:
   - **Delegate**: POC only when gate + full perf bind + isolation preflight are green
 
 Control repairs (`legacy_gate_audit`, gate SHA, gate draft, binder amend) MUST route
-through `control-pack` + OpenClaw. Isolation/code/Numbers repairs route through
+through `control-pack` + OpenClaw. Isolation/code/Numbers/baseline-workspace repairs route through
 Claude Code `repair-pack`. Generic “Delegate to OpenClaw”, standalone perf/isolation
 buttons, and user-facing prepare-pack buttons are not shown.
 

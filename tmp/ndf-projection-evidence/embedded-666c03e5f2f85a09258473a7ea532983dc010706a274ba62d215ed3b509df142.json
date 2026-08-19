@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "absorbedActionId": true,
+    "payloadSha": true,
+    "snapshotSha": true
+  },
+  "embedded": {
+    "absorbedActionId": "f96fe54b-1eeb-4260-b11c-851bcacff75a",
+    "canonicalPayloadSha": "666c03e5f2f85a09258473a7ea532983dc010706a274ba62d215ed3b509df142",
+    "payloadSha": "666c03e5f2f85a09258473a7ea532983dc010706a274ba62d215ed3b509df142",
+    "snapshotSha": "4a77e45cd77eaaf9c2ff14b63f77554b181bbb0db9cd597c924a5fb1fd585846"
+  },
+  "fresh": {
+    "absorbedActionId": "f96fe54b-1eeb-4260-b11c-851bcacff75a",
+    "payloadSha": "666c03e5f2f85a09258473a7ea532983dc010706a274ba62d215ed3b509df142",
+    "snapshotSha": "4a77e45cd77eaaf9c2ff14b63f77554b181bbb0db9cd597c924a5fb1fd585846"
+  },
+  "schema": "ndf-embedded-projection-evidence/v1",
+  "source_file_sha": "6eb19edc43c3c09926e940ce1a1c2a043eb4e145a41c58aa191f3e1fb0ac4c94",
+  "source_path": "/home/huawei/.cursor/projects/home-huawei-hnsw-predictor-ndf/canvases/ndf-workflow.canvas.tsx",
+  "topic": null
+}

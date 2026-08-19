@@ -1,7 +1,7 @@
 # bfs-cluster — Notes
 
-> status: exploring
-> created: 2026-08-10
+> status: rejected | created: 2026-08-10 | closed: 2026-08-12
+> Rejects: bfs-cluster | DEC-098
 
 ## Background
 

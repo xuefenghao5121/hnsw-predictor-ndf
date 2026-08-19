@@ -447,6 +447,136 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertIn("isolation_finding_missing", payload["blockers"])
             self.assertFalse(payload["static_preflight_passed"])
 
+    def test_readiness_uses_missing_baseline_workspace_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            topic_dir = Path(tmp) / "demo"
+            (topic_dir / "ndf").mkdir(parents=True)
+            gates = {
+                "topic_review": {"state": "valid"},
+                "design_review": {"state": "valid"},
+                "implementation_approval": {"state": "valid"},
+            }
+            perf = {"errors": [], "delta_exists": True, "numbers": "pending"}
+            spaces = workflow.readiness(topic_dir, gates, perf)
+            self.assertIn("missing_baseline_workspace", spaces["implementation"]["gaps"])
+            self.assertNotIn("no_topic_code", spaces["implementation"]["gaps"])
+            self.assertFalse(spaces["implementation"]["ready"])
+
+    def test_baseline_finding_only_when_third_gate_valid(self) -> None:
+        present = workflow.missing_baseline_workspace_finding(
+            "demo",
+            active=True,
+            implementation_approval_state="valid",
+            impl_files=[],
+        )
+        self.assertIsNotNone(present)
+        assert present is not None
+        self.assertEqual(present["kind"], "missing_baseline_workspace")
+        self.assertEqual(present["space"], "Implementation")
+        self.assertEqual(present["repair_owner"], "claude-code")
+        self.assertEqual(present["repair_task"], "poc_prepare_baseline")
+        self.assertEqual(present["allowed_write_root"], "poc/demo/")
+        self.assertIsNone(
+            workflow.missing_baseline_workspace_finding(
+                "demo",
+                active=True,
+                implementation_approval_state="missing",
+                impl_files=[],
+            )
+        )
+        self.assertIsNone(
+            workflow.missing_baseline_workspace_finding(
+                "demo",
+                active=True,
+                implementation_approval_state="valid",
+                impl_files=["poc/demo/search.cpp"],
+            )
+        )
+        self.assertIsNone(
+            workflow.missing_baseline_workspace_finding(
+                "demo",
+                active=False,
+                implementation_approval_state="valid",
+                impl_files=[],
+            )
+        )
+
+    def _prepare_baseline_view(self, *, gate_state: str) -> dict:
+        return {
+            "topic_id": "demo",
+            "lifecycle": "exploring",
+            "gates": {"implementation_approval": {"state": gate_state}},
+            "delegation": {"perf_check_passed": False},
+            "health": {
+                "checks": {"isolation": {"state": "passed"}},
+                "findings": [],
+            },
+        }
+
+    def test_repair_pack_prepare_baseline_requires_third_gate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            poc = Path(tmp)
+            ndf = poc / "demo" / "ndf"
+            ndf.mkdir(parents=True)
+            (ndf / "TOPIC.md").write_text("> topic_id: demo\n", encoding="utf-8")
+            context = {
+                "context_plan": {},
+                "context_verify": {"valid": True},
+                "plan_sha": "a" * 64,
+            }
+            with (
+                patch.object(workflow, "POC", poc),
+                patch.object(
+                    workflow,
+                    "topic_view",
+                    return_value=self._prepare_baseline_view(gate_state="missing"),
+                ),
+                patch.object(workflow, "context_binding", return_value=context),
+                patch.object(workflow, "topic_active_lease", return_value=None),
+            ):
+                payload, code = workflow.repair_pack("demo", "poc_prepare_baseline")
+            self.assertEqual(code, 1)
+            self.assertIn("implementation_gate_not_valid", payload["blockers"])
+            self.assertFalse(payload["static_preflight_passed"])
+            self.assertNotIn("isolation_finding_missing", payload["blockers"])
+
+    def test_repair_pack_prepare_baseline_static_ready_modulo_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            poc = Path(tmp)
+            ndf = poc / "demo" / "ndf"
+            ndf.mkdir(parents=True)
+            (ndf / "TOPIC.md").write_text("> topic_id: demo\n", encoding="utf-8")
+            context = {
+                "context_plan": {},
+                "context_verify": {"valid": True},
+                "plan_sha": "a" * 64,
+            }
+            runtime = {
+                "implementation": {"pipeline_reachable": False},
+                "control": {"reachable": False},
+            }
+            with (
+                patch.object(workflow, "POC", poc),
+                patch.object(
+                    workflow,
+                    "topic_view",
+                    return_value=self._prepare_baseline_view(gate_state="valid"),
+                ),
+                patch.object(workflow, "context_binding", return_value=context),
+                patch.object(workflow, "topic_active_lease", return_value=None),
+                patch.object(workflow, "runtime_status", return_value=runtime),
+            ):
+                payload, code = workflow.repair_pack("demo", "poc_prepare_baseline")
+            self.assertEqual(code, 1)
+            self.assertTrue(payload["static_preflight_passed"])
+            self.assertFalse(payload["safe_to_dispatch"])
+            self.assertIn("runtime_unavailable", payload["blockers"])
+            self.assertEqual(payload["allowed_write_root"], "poc/demo/")
+            self.assertEqual(payload["task"], "poc_prepare_baseline")
+            self.assertIn("poc/demo/", payload["instructions"])
+            self.assertIn("src/", payload["forbidden"])
+            self.assertIn("spec/meta/", payload["forbidden"])
+
     @staticmethod
     def _close_view() -> dict:
         exists = {"exists": True}
@@ -999,6 +1129,88 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertEqual(binder["allowed_write_roots"], ["poc/demo/ndf/"])
             self.assertEqual(proposal["allowed_write_roots"], ["spec/open/", "spec/meta/open/"])
             self.assertNotIn(".openclaw/state.json", proposal["allowed_write_roots"])
+
+    def test_closed_leftover_ids_from_archive_and_dec(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = Path(tmp) / "spec"
+            archive_topic = spec / "archive" / "2026-08" / "poc-zombie" / "ndf" / "TOPIC.md"
+            archive_topic.parent.mkdir(parents=True)
+            archive_topic.write_text("> status: rejected\n", encoding="utf-8")
+            dec = spec / "decisions" / "dec-zombie.md"
+            dec.parent.mkdir(parents=True)
+            dec.write_text("> Rejects: leftover-exploring\n", encoding="utf-8")
+            with patch.object(workflow, "SPEC", spec):
+                ids = workflow.closed_leftover_topic_ids()
+            self.assertIn("zombie", ids)
+            self.assertIn("leftover-exploring", ids)
+
+    def test_exploring_leftover_is_not_active(self) -> None:
+        leftover = {"bfs-cluster"}
+        live = {"topic_id": "bfs-cluster", "lifecycle": "exploring"}
+        hotspot = {"topic_id": "hotspot-optimization", "lifecycle": "exploring"}
+        self.assertFalse(workflow.is_active_topic_view(live, leftover))
+        self.assertTrue(workflow.is_active_topic_view(hotspot, leftover))
+
+    def test_workbench_details_are_empty_without_selected_topic(self) -> None:
+        leftover: set[str] = set()
+        self.assertEqual(workflow.workbench_details(None, leftover), [])
+        zombie = {"topic_id": "page-packer", "lifecycle": "exploring"}
+        self.assertEqual(workflow.workbench_details(zombie, {"page-packer"}), [])
+        hotspot = {
+            "topic_id": "hotspot-optimization",
+            "lifecycle": "exploring",
+            "delegation": {"context_plan": {"nodes": ["too", "many"]}},
+        }
+        details = workflow.workbench_details(hotspot, leftover)
+        self.assertEqual(len(details), 1)
+        self.assertEqual(details[0]["topic_id"], "hotspot-optimization")
+
+    def test_canvas_topic_row_stays_thin_without_detail(self) -> None:
+        item = {
+            "topic_id": "hotspot-optimization",
+            "path": "poc/hotspot-optimization",
+            "lifecycle": "exploring",
+            "hypothesis": "H1",
+            "expected_impact": "QPS",
+            "explore_surface": ["spec/20-behavior/search.md"],
+            "current_evidence": {"evidence_files": 0, "numbers": "pending"},
+            "baseline_status": "n/a",
+            "phase_hint": "await_topic_review",
+            "control_blockers": [],
+            "surface_conflicts": [],
+            "gates": {
+                "topic_review": {"state": "pending", "phrase": "TOPIC已审核"},
+            },
+            "next_human_phrase": "TOPIC已审核",
+        }
+        row = workflow.canvas_topic_row(item)
+        self.assertEqual(row["delegation"], {})
+        self.assertEqual(row["health"], {})
+        self.assertEqual(row["spaces"], {})
+        self.assertNotIn("context_plan", row["delegation"])
+        focused = workflow.canvas_topic_row(
+            item,
+            {
+                "spaces": {"design": {"ready": False, "gaps": []}},
+                "delegation": {
+                    "plan_sha": "abc",
+                    "context_plan": {"ordered_reads": ["TOPIC.md"]},
+                },
+                "health": {"findings": [{"kind": "gate_topic_review_pending"}]},
+                "gates": {
+                    "topic_review": {
+                        "state": "pending",
+                        "approved_content_sha": None,
+                        "sha_aligned": False,
+                    }
+                },
+                "delta": {"exists": True},
+                "traceability": [],
+            },
+        )
+        self.assertEqual(focused["delegation"]["plan_sha"], "abc")
+        self.assertIn("ordered_reads", focused["delegation"]["context_plan"])
+        self.assertTrue(focused["health"]["findings"])
 
 
 if __name__ == "__main__":

@@ -1,0 +1,77 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "task": "ndf_improvement_land",
+  "track": "process",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "af82ebabd61e8c203f235f78a02512e7f37f6d221837349f7efb7ac5be1fa661",
+  "context_plan_sha": "c84995d22941d3138dc09de6e02bddc5db67d50546ccaaa3ae94b087e3a8a1a1",
+  "changed_files": [
+    "spec/meta/process.md",
+    "spec/meta/README.md",
+    "AGENTS.md",
+    "spec/meta/tools/README.md",
+    "spec/meta/tools/ndf_context.py",
+    "spec/meta/tools/ndf_workflow_status.py",
+    "spec/meta/tools/ndf_replay.py",
+    "spec/meta/tools/test_ndf_context.py",
+    "spec/meta/tools/test_ndf_workflow_status.py",
+    "spec/meta/tools/test_ndf_replay.py",
+    ".cursor/skills/ndf-workflow-canvas/SKILL.md",
+    ".cursor/skills/ndf-workflow-canvas/actions.md",
+    ".cursor/skills/ndf-workflow-canvas/layout.md",
+    ".cursor/skills/ndf-workflow-canvas/snapshot-schema.md",
+    ".cursor/skills/ndf-workflow-canvas/openclaw-delegate.md",
+    "spec/meta/open/proposal-meta-ndf-control-closed-loop.md"
+  ],
+  "changed_file_shas": {
+    "spec/meta/process.md": "96fb8ea5e49a95284f804d050d83e93cbe1c51ac59f4375c72c30bf5e6d2c280",
+    "spec/meta/README.md": "e14f4f43655137bad62c57ce938cc30e5d29621ef45b902112be10e6328a8b4b",
+    "AGENTS.md": "0b880d8beeff7cc3692507f8bf75954982aa4c3651fc1905b07e53b63d11b230",
+    "spec/meta/tools/README.md": "ca8bfaf6c97c3930984585fca8d10e91dc1f1f4998e06dd7ab877fcec6f1b5e6",
+    "spec/meta/tools/ndf_context.py": "446149064aaf7c355af72854f45458f7e6bea4ac13fdd850c25b4e5ba6192c2c",
+    "spec/meta/tools/ndf_workflow_status.py": "8ce6344f440844440e41332bc0cc2d8cc37b4c5e295614b52a5fccef9e50f88a",
+    "spec/meta/tools/ndf_replay.py": "ac5958ccc954690494389300d1983a2c8fa90bddc27ad48d7b89b62daa2ae602",
+    "spec/meta/tools/test_ndf_context.py": "47ebdc7970b95502da692a074cb81ad2edfd2dd42c675aeb5b205bbc204be17b",
+    "spec/meta/tools/test_ndf_workflow_status.py": "70eac05292ff42adbf0110a1e2a2997857a496091e70477ab811804c0361b09e",
+    "spec/meta/tools/test_ndf_replay.py": "8b9ae19e16a0fa4857fcd3b2b013739976cee69bb7dc868103c904d6520a06d0",
+    ".cursor/skills/ndf-workflow-canvas/SKILL.md": "cede6240f43a695bc2834031db92635a93f4e097ccd0326e98ef7069d2624168",
+    ".cursor/skills/ndf-workflow-canvas/actions.md": "60f4fcc3382296f4bf3f063c8a899e30c41c8f8d71ba14976cec5bee9e75ea0d",
+    ".cursor/skills/ndf-workflow-canvas/layout.md": "d2c4aae54379269e63a73c0d27aca3d9c9dddecab4ba779185fba6cac18ed8b5",
+    ".cursor/skills/ndf-workflow-canvas/snapshot-schema.md": "cc4bc744be6195009afb38dbffd6e094f7f3438570fb04af5982dd1bc86bde80",
+    ".cursor/skills/ndf-workflow-canvas/openclaw-delegate.md": "e83f7ad73e028c93c72aa3752eeabd235f52ad25560d7f65f7f3e807c6d87445",
+    "spec/meta/open/proposal-meta-ndf-control-closed-loop.md": "b15289c0b54ebce0fa40f29a7952b25c37fb2b3ed4dc5003fc4d855064913358"
+  },
+  "reproduce_commands": [
+    "python3 spec/meta/tools/ndf_graphcheck.py --meta"
+  ],
+  "evidence_paths": [
+    "tmp/meta-014-land/graphcheck.txt"
+  ],
+  "evidence_bundle_sha": "8747a86b5d8406b33e6e5d7da99995a8904ca29fb5820a424c2da0b0e3ed8a6c",
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_graphcheck.py --meta",
+      "result": "passed",
+      "output_sha": "8747a86b5d8406b33e6e5d7da99995a8904ca29fb5820a424c2da0b0e3ed8a6c",
+      "evidence_paths": [
+        "tmp/meta-014-land/graphcheck.txt"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_graphcheck.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_graphcheck.py",
+          "--meta"
+        ],
+        "version_sha": "89bd3794b927ee6035e05383997b5db258f1a27db070605758a8c0950d6eaedc",
+        "exit_code": 0,
+        "output_schema": "ndf-graphcheck/v1"
+      }
+    }
+  ],
+  "result": "success",
+  "run_id": "run-meta-014-confirm-land",
+  "session_id": "session-meta-014-confirm-land"
+}

@@ -1,14 +1,18 @@
 # Topic: page-packer
 
 > ndf_topic: page-packer
-> status: exploring
+> status: rejected
 > created: 2026-08-10
+> closed: 2026-08-18
 > explore_surface: spec/20-behavior/vecblock-layout
 > depends_on_topics: vecblock-cluster-reorder (promoted)
 > baseline_status: current
 > baseline_trunk_sha: 9df8b74
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > reference: BEH-037 (cluster vecblock), DEC-018 (page shuffle)
+> selected_decision: reject
+> rejects_dec: DEC-100
+> archive: spec/archive/2026-08/poc-page-packer/
 
 ## Hypothesis
 

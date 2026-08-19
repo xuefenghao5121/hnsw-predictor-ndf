@@ -1,0 +1,23 @@
+# Perf Baseline: <topic>
+
+<!-- ndf:gate-slice begin=perf_bind -->
+> vs: <bl-trunk-golden-id>
+> config_id: <cfg-id>
+> measure_script: <script>
+> protocol: <protocol>
+
+## Config
+
+Describe or inherit the exact measurement configuration.
+
+## Measure
+
+Describe the executable measurement entry. Do not put observations in this slice.
+<!-- ndf:gate-slice end=perf_bind -->
+
+> trunk_sha: pending
+> status: pending
+
+## Numbers
+
+Pending R0. This mutable section may only be written from verified measurement evidence.

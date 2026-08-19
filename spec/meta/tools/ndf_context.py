@@ -62,6 +62,7 @@ MEASUREMENT_TASKS = frozenset({"poc_measurement", "measurement", "verify", "veri
 SEMANTIC_TASKS = frozenset({"promote", "partial", "semantic_core", "semantic-core"})
 TASK_DEFAULT_SEEDS = {
     "poc_measurement": ("META-007", "META-012", "BEH-025"),
+    "poc_prepare_baseline": ("BEH-018", "BEH-025", "META-012"),
     "measurement": ("META-007", "META-012"),
     "verify": ("META-012",),
     "verification": ("META-012",),
@@ -154,6 +155,7 @@ def _role_task_compatible(role: str, task: str, track: str) -> bool:
                 "implement",
                 "poc_implementation",
                 "poc_measurement",
+                "poc_prepare_baseline",
                 "measurement",
                 "verify",
                 "verification",
@@ -566,7 +568,11 @@ def _privileges(role: str, task: str, track: str, topic: str | None) -> dict[str
             value["forbidden_write_paths"].extend(["src/", "include/", "tests/"])
         elif track in {"promote", "bug", "refactor", "rollback"}:
             value["allowed_write_roots"] = ["src/", "include/", "tests/", "spec/50-verification/"]
-    if task == "poc_measurement" and topic and f"poc/{topic}/" not in value["allowed_write_roots"]:
+    if (
+        task in {"poc_measurement", "poc_prepare_baseline"}
+        and topic
+        and f"poc/{topic}/" not in value["allowed_write_roots"]
+    ):
         value["allowed_write_roots"].append(f"poc/{topic}/")
     if role == "openclaw":
         if task in {"legacy_gate_audit", "gate_sha_audit"}:
@@ -657,7 +663,7 @@ def compile_plan(
         for item in plan["gates"]["receipts"]
         if item.get("status", "").lower() in {"approved", "valid"}
     }
-    if task in {"poc_measurement", "implement", "poc_implementation"} and "implementation_approval" not in approved:
+    if task in {"poc_measurement", "poc_prepare_baseline", "implement", "poc_implementation"} and "implementation_approval" not in approved:
         plan["human_phrase"] = "可以开始实现"
     plan["plan_sha"] = canonical_json_sha(plan)
     return plan
@@ -992,7 +998,7 @@ def role_plan(
         for item in plan["gates"].get("receipts", [])
         if item.get("status", "").lower() in {"approved", "valid"}
     }
-    if task in {"poc_measurement", "implement", "poc_implementation"} and "implementation_approval" not in approved:
+    if task in {"poc_measurement", "poc_prepare_baseline", "implement", "poc_implementation"} and "implementation_approval" not in approved:
         plan["human_phrase"] = "可以开始实现"
     plan["plan_sha"] = canonical_json_sha(plan)
     return plan
@@ -1285,7 +1291,12 @@ def verify_plan(
                     "actual": recorded,
                 }
             )
-    required_gate = plan.get("task") in {"poc_measurement", "implement", "poc_implementation"}
+    required_gate = plan.get("task") in {
+        "poc_measurement",
+        "poc_prepare_baseline",
+        "implement",
+        "poc_implementation",
+    }
     if required_gate:
         implementation = [
             item

@@ -1,0 +1,37 @@
+---
+description: NDF 工作流权威边界 — 本地项目 SoT，Harness 仅输出
+alwaysApply: true
+---
+
+# NDF 工作流权威边界（本地优先）
+
+## 原则
+
+本仓库 `hnsw-predictor-ndf` 是 NDF 工作流**真实迭代与协同优化**的战场。
+规范维护、流程改进、工具链演进，必须以**本地已验证实践**为准，不得本末倒置。
+
+## 权威顺序
+
+| 优先级 | 来源 | 角色 |
+| :--- | :--- | :--- |
+| **1** | `spec/`（`spec/meta/` 流程 + `spec/00–50` 产品） | NDF SoT |
+| **2** | 根目录 `AGENTS.md` | 指挥工作流 |
+| **3** | `spec/meta/tools/`（ndf_index / graphcheck / bindcheck / close） | 本地治理工具 |
+| **4** | `MEMORY.md` | 会话速览（非 SoT，冲突以 spec 为准） |
+| **输出** | `packages/ndf-harness/`、NDF-Harness 远程仓库 | 从本地蒸馏的可移植包，**不是**本项目的输入 |
+
+## 禁止
+
+- 用 Harness 的 `norms/`、`workflow/AGENTS.md`、package 结构或 remote 内容来**指导、纠正、反推**本地 `spec/` 或工作流
+- 因 Harness 与本地不一致而要求改本地 spec（应改 Harness 或标注滞后）
+- 把 Harness 自洽/ exemplar / graphcheck 结果当作本地 graphcheck 失败的修复依据
+
+## 正确流向
+
+```text
+本地真实迭代（poc / promote / 归档 / 工具踩坑）
+  → 验证有效
+  → 可选同步到 packages/ndf-harness 或 NDF-Harness 仓库
+```
+
+本地 NDF 相关工作：先读 `AGENTS.md` + `spec/meta/`，再读 `MEMORY.md`；**不**先读 `.cursor/skills/ndf-harness/`。

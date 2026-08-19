@@ -1,0 +1,13 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "topic": "page-packer",
+  "task": "control_proposal",
+  "track": "poc",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "03ba874f31ce572df8c11b4aa41a8ea126deb81e860f940b39e326aad523c8a2",
+  "context_plan_sha": "aa2f06f69e2a8ff6e76c35a7c410f3b76a02c4b5dc6ad4c1fd832ee7836d9e90",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "0ea9d724-7a93-4ad3-8f87-d722a6fea0eb",
+  "message": "close-reject-proposal: draft/revise spec/open/proposal-reject-page-packer.md; stop at 已确认"
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "request_id": "7c2e8a91-4f3b-4d6a-9e12-b8c4f0a1d2e3",
+  "pipeline": "binder",
+  "topic": "hotspot-optimization",
+  "task": "binder_pipeline",
+  "track": "poc",
+  "episode_id": "ep-binder-withdraw-hotspot-optimization-20260818T182100Z",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "7c2e8a91-4f3b-4d6a-9e12-b8c4f0a1d2e3",
+  "direction": "response",
+  "message": "Hygiene complete. Binder hygiene withdrawal done.\n\nRecheck: PERF_BASELINE / DELTA hypothesis / INTERFACE complete vs DESIGN; binder.recheck no-op; contract slices not rewritten.\n\nWithdrawn: poc/hotspot-optimization/src/, Makefile, build/, ndf/evidence/d1-pq-gather-equiv-20260818.md\n\nChanged: .openclaw/state.json pending_decision=decision_required; COMMITS.md D1 WITHDRAWN; NOTES.md violation+withdrawn.\n\nDid not touch GATES approvals, PERF Numbers, DELTA Rounds, Trunk src/include/tests, or dispatch Claude Code.\n\nNext: human selected_decision=implement on Topics, then Delegate POC to Claude Code.\n",
+  "manifest_sha": "19e12816b28ee3fbc59fa23e06879940a3340a595ce95917b506a5c6ad0050b4",
+  "context_plan_sha": "e3630ea09d333d5afef22a5b5f567ab733853de0d5c5d6de4570c2139a43a680",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb"
+}

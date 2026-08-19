@@ -1,0 +1,23 @@
+{
+  "actor": "composer",
+  "blockers": [],
+  "command": "python3 spec/meta/tools/ndf_graphcheck.py --report tmp/graphcheck-after-close-cluster-gbdt.md",
+  "context_plan_sha": null,
+  "evidence_paths": [
+    "tmp/graphcheck-after-close-cluster-gbdt.md"
+  ],
+  "finished_at": "2026-08-15T12:28:22.070578+00:00",
+  "input_sha": "5fe64c1b17ebc7169b4bd620ffb61d4a03e43f7cdb1befad22b9a2c1fb55599e",
+  "manifest_sha": "4676fa5708520461f68dcbd351a4bc7d30901529c1e3fac6fb72cbffe6662318",
+  "mode": "reject",
+  "notes": "index+graphcheck after reject finalize. hard_errors=0 (baseline 0); warnings=16 unlinked, no new hard errors. DEC-099 indexed. integrate N/A trunk_src_writes=none. cited plan_sha=8a7643efc0327066a6608d210fb124a1459face6648a6ea29fd720d972ad03ce valid=true. openclaw reject plan_sha=92df8098d34787048db31bf471ff81f5bf86cbe054d545526f0d73948f1d30f2 valid=true. context_plan_sha omitted because close-receipt-verify recompiles context_binding(task=reject,track=reject).",
+  "output_sha": "76d95080e8aa16653981667944995d1b7eec8e649bc94719493d1c70f28f57e9",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-close-evidence/v1",
+  "source_generation_sha": "c39f12878ef90cc1bdd6431bc4ac1ff92e342e3b4f492a551b8d91eec3dd8eea",
+  "started_at": "2026-08-15T12:28:22.070578+00:00",
+  "step": "graph",
+  "task": "close",
+  "topic": "cluster-gbdt"
+}

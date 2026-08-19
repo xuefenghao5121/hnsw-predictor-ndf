@@ -1,0 +1,56 @@
+{
+  "schema": "ndf-runtime-lease/v1",
+  "task": "poc_implementation",
+  "topic": "cluster-gbdt",
+  "mode": "poc",
+  "step": "complete",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "source_generation_sha": "4a77e45cd77eaaf9c2ff14b63f77554b181bbb0db9cd597c924a5fb1fd585846",
+  "context_plan_sha": "77a405eadb3db8137189d032638389f4e12abacc759179116c758b6ee75ffdf7",
+  "manifest_sha": "ff94e66296baa169bd7304db0181540ecad7b1d4e93e5110efcf69d17a9639a4",
+  "command": "poc_implementation complete: R1 entropy A1 no incremental signal",
+  "input_sha": "1fd83a8e5ccae13099ee723b39b7366334b57f0976d15cb77bd25f73a29b98e1",
+  "output_sha": "eb92da0c4ae3d6a146955c18da4ffcd806b2fcbcaedb6cc21a03bda25872539e",
+  "evidence_paths": [],
+  "started_at": "2026-08-14T09:11:27.040261+00:00",
+  "finished_at": "2026-08-14T09:26:50.149734+00:00",
+  "result": "released",
+  "blockers": [],
+  "run_id": "run-poc-implementation-cluster-gbdt-20260814T090921Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/cluster-gbdt-poc-20260814T090921Z",
+  "branch": "poc/cluster-gbdt-implementation-20260814T090921Z",
+  "repo_root": "/home/huawei/hnsw-predictor-ndf",
+  "allowed_write_root": "poc/cluster-gbdt/",
+  "pack_sha": "83e16ab47d87a57ca381c43f7f1ff554905d5d6f59afd848c6b3b5b6eac92253",
+  "episode_id": "ep-poc-implementation-cluster-gbdt-20260814T090921Z",
+  "binding_proof": {
+    "schema": "ndf-runtime-worktree-proof/v1",
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/cluster-gbdt-poc-20260814T090921Z",
+    "branch": "poc/cluster-gbdt-implementation-20260814T090921Z",
+    "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+    "observed_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "allowed_write_root": "poc/cluster-gbdt/",
+    "run_id": "run-poc-implementation-cluster-gbdt-20260814T090921Z",
+    "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+    "acquisition_snapshot": {
+      "schema": "ndf-git-mutation-snapshot/v1",
+      "head": "a14339234133cc6c5a2348464954f744c6465efb",
+      "status_porcelain_v2_sha": "c24be91284e62f7aa4a5437b3e258286e653acc2339e3eaa4d525d4a81a44cc0",
+      "paths": [
+        "poc/cluster-gbdt/NOTES.md",
+        "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+        "poc/cluster-gbdt/ndf/TOPIC.md"
+      ],
+      "path_shas": {
+        "poc/cluster-gbdt/NOTES.md": "f4cfafa0ebfda1c190195e81fc8c8170b67423f80d7b7f2315affe83b08307a3",
+        "poc/cluster-gbdt/ndf/PERF_BASELINE.md": "dad047c086b66c2aa8bba509ed5d0cfd031a645943b6951b13bf5097a69b72dd",
+        "poc/cluster-gbdt/ndf/TOPIC.md": "65b352ef02aac95326398d298d57a38cffa5c80b279bfddddb66e7fae2c4ef2a"
+      },
+      "snapshot_sha": "200defd55bd2e029d837f10b0e0b27459cc7e37bec47c5fb9d5efe0f46559882"
+    },
+    "proof_sha": "9cf48f8be82cd320cff9a3c55197d69f5002a4428e49916b2f439f016b741d1d"
+  }
+}
