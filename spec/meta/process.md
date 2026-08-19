@@ -368,8 +368,9 @@ Control 动作 MUST 硬分两套流水线，禁止混称：
 
 顺序：A 为 `TOPIC已审核` → `DESIGN已审核` → `可以开始实现`；
 B 为 TOPIC → DESIGN → PERF_BASELINE → DELTA → INTERFACE → COMMITS（[[BEH-025]]）。
-分步 finding 可保留 `legacy_gate_audit` / `binder_amend` 作为焦点步，但 Canvas MUST
-提供流水线主按钮；整条流水线 SHOULD 只派发一次 Cursor→OpenClaw，分步按钮 MUST
+分步 finding 可保留 `legacy_gate_audit` / `binder_amend` 作为焦点步，但 commander MUST
+在 Topics 页底唯一全主题命令面提供两张独立流水线卡；Design 空间卡只展示 readiness，
+不得承载 gate/binder 派发。整条流水线 SHOULD 只派发一次 Cursor→OpenClaw，分步按钮 MUST
 优先 resume 本流水线 Episode，MUST NOT 默认每次全量重派。A 与 B MUST 使用各自
 Episode（或同 Episode 但事件 MUST 带 `pipeline=gate|binder` 与 step id）；MUST NOT
 混跑成无标签超级派发。B 可挡住 A 的下一闸，投影 MAY 提示依赖，修复动作仍走各自
@@ -385,7 +386,7 @@ Episode（或同 Episode 但事件 MUST 带 `pipeline=gate|binder` 与 step id�
 | `binder` | 当前 facet 对应装订器文件/字段；完整 facet 可 audit + no-op recheck | `approved_by`、`gate.confirmed`、关闭决定 |
 
 1. `gate_pipeline` 遇到下一闸 bundle 缺文件或字段时 MUST 停止并输出
-   `blocked_by_binder`、`next_binder_facet`、`blocked_gate`；Canvas MUST 提供对应
+   `blocked_by_binder`、`next_binder_facet`、`blocked_gate`；commander MUST 在页底提供对应
    binder 面动作。Gate Agent MUST NOT 代写缺失 facet。
 2. `binder_pipeline` 完成一面后 MUST 复检；若 facet 已完整，MAY 记录 no-op
    `binder.audit → binder.recheck`，不得为证明流水线存在而重写内容。

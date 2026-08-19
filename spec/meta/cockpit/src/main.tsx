@@ -34,6 +34,23 @@ function previewText(value: unknown, fallback = ""): string {
   return text.split("\n").slice(0, 12).join("\n");
 }
 
+function pipelineStateLabel(state?: string): string {
+  const labels: Record<string, string> = {
+    not_dispatched: "尚未派发",
+    preparing: "正在准备",
+    requested: "正在准备",
+    sent: "已发送",
+    acknowledged: "OpenClaw 已接收",
+    waiting_human: "等待人口令",
+    running: "执行中",
+    in_progress: "执行中",
+    blocked: "阻塞",
+    failed: "阻塞",
+    succeeded: "已完成",
+  };
+  return labels[state || ""] || state || "尚未派发";
+}
+
 class ErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
   state = { message: null as string | null };
 
@@ -333,12 +350,7 @@ function App() {
                     <div><p className="eyebrow">1 · Read only</p><h3>TOPIC 总览</h3></div>
                     <span className={`status-chip ${focused.lifecycle}`}>{focused.lifecycle}</span>
                   </div>
-                  <p>{focused.topicOverview?.purpose !== "Not explicitly recorded" ? focused.topicOverview?.purpose : focused.hypothesis}</p>
-                  <div className="metadata-grid">
-                    <span><strong>Surface</strong>{focused.topicOverview?.explore_surface?.join(", ") || "—"}</span>
-                    <span><strong>Depends on</strong>{focused.topicOverview?.idea_sources?.depends_on_topics?.join(", ") || "—"}</span>
-                    <span><strong>Proposal sources</strong>{focused.topicOverview?.idea_sources?.proposal_paths?.length || 0}</span>
-                  </div>
+                  <p className="topic-summary">{focused.topicOverview?.summary || focused.topicOverview?.purpose || focused.hypothesis}</p>
                   <ActionButton actionId="open-topic" enabled={enabledOf(snapshot, "open-topic")} onClick={() => run("open-topic")} />
                 </div>
 
@@ -356,13 +368,6 @@ function App() {
                           <p className="muted">{value?.purpose}</p>
                           <p><strong>Gaps</strong> {value?.gaps?.join(", ") || "none"}</p>
                           <p className="muted">{value?.clause_refs?.map((item) => item.id).join(" · ")}</p>
-                          {space === "design" && (
-                            <div className="pills">
-                              <ActionButton actionId="gate-pipeline" enabled={enabledOf(snapshot, "gate-pipeline")} onClick={() => run("gate-pipeline")} />
-                              <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
-                              <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
-                            </div>
-                          )}
                           {space === "implementation" && (
                             <div className="pills">
                               <ActionButton actionId="poc-prepare-baseline" enabled={enabledOf(snapshot, "poc-prepare-baseline")} onClick={() => run("poc-prepare-baseline")} />
@@ -464,6 +469,42 @@ function App() {
                     <div><p className="eyebrow">7 · Sole full-topic command surface</p><h3>本轮决策与实现委派</h3></div>
                     <span className={`status-chip ${focused.decision?.state}`}>{focused.decision?.state}</span>
                   </div>
+                  <div className="command-entry">
+                    <strong>命令入口</strong>
+                    <span>{focused.commandEntry?.nextStepLine || "Review the current NDF state before dispatch."}</span>
+                  </div>
+                  <div className="control-pipeline-grid">
+                    <div className="pipeline-panel">
+                      <div className="section-heading">
+                        <div><p className="eyebrow">OpenClaw Control</p><h4>人工门禁 · 3 闸</h4></div>
+                        <span className={`status-chip ${focused.controlPipelines?.gate?.dispatch?.state}`}>
+                          {pipelineStateLabel(focused.controlPipelines?.gate?.dispatch?.state)}
+                        </span>
+                      </div>
+                      <p className="muted">
+                        Gate only writes GATES.md. Click is not TOPIC已审核 / DESIGN已审核 / 可以开始实现.
+                      </p>
+                      {focused.controlPipelines?.gate?.handoff && (
+                        <p className="danger">
+                          {focused.controlPipelines.gate.handoff.blocked_gate} blocked by binder · next {focused.controlPipelines.gate.handoff.next_binder_label}
+                        </p>
+                      )}
+                      <ActionButton actionId="gate-pipeline" enabled={enabledOf(snapshot, "gate-pipeline")} onClick={() => run("gate-pipeline")} />
+                    </div>
+                    <div className="pipeline-panel">
+                      <div className="section-heading">
+                        <div><p className="eyebrow">OpenClaw Control</p><h4>装订器修订 · 6 面</h4></div>
+                        <span className={`status-chip ${focused.controlPipelines?.binder?.dispatch?.state}`}>
+                          {pipelineStateLabel(focused.controlPipelines?.binder?.dispatch?.state)}
+                        </span>
+                      </div>
+                      <p className="muted">Binder writes only the focused facet and never approves a gate.</p>
+                      <div className="pills">
+                        <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
+                        <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
+                      </div>
+                    </div>
+                  </div>
                   <div className="next-actions">
                     {(focused.health?.next_actions || []).map((action, index) => (
                       <div key={`${action.task}-${index}`}>
@@ -483,6 +524,7 @@ function App() {
                     <p className="danger" key={mode}>{mode} blocked: {reason}</p>
                   ))}
                   <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} placeholder="写下本轮决策；空文本不会派发" />
+                  <p className="eyebrow">Claude Code implementation</p>
                   <div className="pills">
                     <ActionButton
                       actionId="generate-next-step"

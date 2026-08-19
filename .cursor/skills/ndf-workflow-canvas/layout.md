@@ -78,26 +78,26 @@ New Genesis 不在 Product。无 Charter 时默认 tab = NDF Control。
 
 Selector reads `business.topics[]` directory rows. Seven modules render **only**
 `business.focusedTopic`. If `selected !== focusedTopicId`, the workbench area
-shows 「打开工作台」 (`snapshot --update-embedded … --topic <id>`, no
+shows 「打开工作台」 (`snapshot --out … --topic <id>`, no
 `--probe-runtime`) instead of empty `delegation` / `health.findings`. Missing
 focused MUST NOT crash.
 
 Seven modules, top to bottom. Do not restore the old 18-block dump.
 
-1. **TOPIC 总览（只读）** — purpose / `active_hypothesis` / `explore_surface` / idea sources (`depends_on_topics`, proposal paths) / lifecycle. Open TOPIC.md. No evidence counts, no blockers, no decision card.
-2. **三空间可靠性** — Design / Implementation / Test. Each card: ready pill, one-line purpose, gaps, 1–3 NDF clause refs, blocker count, **and that space’s hop buttons only** ([[META-008]]: a space dispatches its own work, not full-topic command). **Decision fields for the page read `business.focusedTopic` workbench**, never the directory row. **Design**: 启动门禁 / 启动装订器 / 同假设装订器修订 (`binder_amend`). **Implementation**: code gap summary + `poc_prepare_baseline` when gap `missing_baseline_workspace` exists; `poc_isolation_repair` when a matching finding exists; pointer only（「本轮决策在页底」）— **no** decision composer here. **Test**: Open DELTA.md; **补测 / 写 DELTA** (R0 对齐金标) only when baseline is ready and gap `numbers_pending` exists (independent of `selected_decision`). No **命令入口** Callout above the grid — that lives on module 7. **Delegate POC / Prepare ACP lease MUST NOT appear on any space card**.
+1. **TOPIC 总览（只读）** — `TOPIC.md` 的 `概述` / `Summary` 简短总结 + lifecycle + Open TOPIC.md。不得堆 explore surface、proposal path、evidence、blocker 或 decision 元数据。
+2. **三空间可靠性** — Design / Implementation / Test. Each card: ready pill, one-line purpose, gaps, 1–3 NDF clause refs and blocker count. **Decision fields for the page read `business.focusedTopic` workbench**, never the directory row. **Design** is status-only; gate/binder dispatch lives in module 7. **Implementation**: code gap summary + `poc_prepare_baseline` when gap `missing_baseline_workspace` exists; `poc_isolation_repair` when a matching finding exists; pointer only（「本轮决策在页底」）— **no** decision composer here. **Test**: Open DELTA.md; **补测 / 写 DELTA** (R0 对齐金标) only when baseline is ready and gap `numbers_pending` exists (independent of `selected_decision`). No **命令入口** Callout above the grid — that lives on module 7. **Delegate POC / Prepare ACP lease MUST NOT appear on any space card**.
 3. **阻塞与修复** — Refresh topic / Diagnose topic + meta/product graphcheck pills. One table of **NDF 依据** only (Clause ID, title, space, kind). Do not repeat three-space blocker prose, evidence walls, or repair buttons (those live on the space cards). Diagnose hop next step routes to the matching **space card** or page-bottom **本轮决策与实现委派**, not back to this table for repair buttons.
 4. **NDF 基础追溯** — collapsed by default. Product graph nodes (`scope != ndf-process`), stable/draft counts, depends-on edges, simplified surface → design → code → verification table. Expand to see tables.
 5. **NDF 工作流 / Meta** — collapsed by default. Process/meta nodes and spec-health state. Label: 流程约束，非产品功能契约.
 6. **机械上下文** — collapsed by default. One-line summary: role, plan SHA, read count, graph nodes/depth. Order is META-012 binder read order, not file-creation order. Expanded: first 5 ordered reads, clause seeds, delegation write/forbid roots. No duplicate baseline numbers.
-7. **本轮决策与实现委派** — last Card is the **only** full-topic command surface: top **命令入口** Callout (`nextStepLine`) + **本轮决策** (offered prefill chips + TextArea + **生成下一步**), then **Claude Code 实现委派** (Delegate POC + Prepare ACP lease) and close-hop recovery. Decision composer MUST NOT live on the Implementation space card. Delegate POC stays **visible and disabled** until `selected_decision` is implement or continue_exploring **and** static/runtime preflight (including graphcheck) is ready.
+7. **本轮决策与实现委派** — last Card is the **only** full-topic command surface: top **命令入口** Callout (`nextStepLine`); then separate **OpenClaw Control pipelines** cards（人工门禁 3 闸 / 装订器 6 面 / 同假设修订，带 dispatch 状态与 handoff）；then **本轮决策** (offered prefill chips + TextArea + **生成下一步**); finally **Claude Code 实现委派** (Delegate POC + Prepare ACP lease) and close-hop recovery. Decision composer and Control pipeline buttons MUST NOT live on a space card. Delegate POC stays **visible and disabled** until `selected_decision` is implement or continue_exploring **and** static/runtime preflight (including graphcheck) is ready.
 
 Control repairs MUST route through two pipelines: **人工门禁（3 闸）** via
 `gate_pipeline` / gate step tasks, and **装订器修订（6 面）** via `binder_pipeline` /
 `binder_amend`. Prefer one Cursor dispatch per pipeline with Episode resume; do not
 flatten both into identical unlabeled buttons or call binder facets 闸.
 Gate owns only `GATES.md`; if a bundle facet is missing, show
-`blocked_by_binder → next_binder_facet` and route to the binder card. Binder owns only
+`blocked_by_binder → next_binder_facet` and route to the page-bottom binder pipeline card. Binder owns only
 the focused facet and may no-op recheck complete files. It never approves gates.
 If projection sets `force_new_episode`, start a **new** Episode (no `--resume`, new
 `request_id`) — stale Episode cannot rebind after manifest/context drift. Gate SHA

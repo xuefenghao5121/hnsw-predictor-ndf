@@ -321,6 +321,20 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("BEGIN HUMAN PRODUCT INTENT", response["prompt"])
         self.assertIn("__NDF_HUMAN_INTENT__", response["prompt"])
 
+    def test_control_pipeline_actions_live_on_bottom_command_surface(self) -> None:
+        registry = actions.registry_by_id()
+        for action_id in ("gate-pipeline", "binder-pipeline", "binder-amend"):
+            self.assertEqual(registry[action_id]["module"], "control-pipelines")
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        design = source.split('space === "design"', 1)
+        if len(design) == 2:
+            design_block = design[1].split('space === "implementation"', 1)[0]
+            self.assertNotIn('actionId="gate-pipeline"', design_block)
+            self.assertNotIn('actionId="binder-pipeline"', design_block)
+        command_block = source.split("OpenClaw Control", 1)[1]
+        self.assertIn('actionId="gate-pipeline"', command_block)
+        self.assertIn('actionId="binder-pipeline"', command_block)
+
 
 if __name__ == "__main__":
     unittest.main()
