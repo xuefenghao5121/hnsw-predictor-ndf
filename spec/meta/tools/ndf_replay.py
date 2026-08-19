@@ -1509,6 +1509,13 @@ def project_canvas_ledger(
     if write_cache:
         store.initialize()
         path = store.root / CANVAS_LEDGER_CACHE_DIR / f"{episode_id}.json"
+        if ledger.get("state") == "invalid" and path.is_file():
+            try:
+                cached = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(cached, dict) and cached.get("state") != "invalid":
+                    return cached
+            except (OSError, json.JSONDecodeError):
+                pass
         store._atomic_write(path, canonical_json_bytes(ledger) + b"\n")
     return ledger
 

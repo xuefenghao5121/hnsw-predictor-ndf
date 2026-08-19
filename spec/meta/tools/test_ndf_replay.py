@@ -1901,6 +1901,47 @@ class ReplayStoreTest(unittest.TestCase):
 
 
 class ReplayProjectionHelpersTest(unittest.TestCase):
+    def test_invalid_ledger_refresh_preserves_valid_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            store = replay.ReplayStore(Path(tmp))
+            store.initialize()
+            cache = (
+                store.root
+                / replay.CANVAS_LEDGER_CACHE_DIR
+                / "ep-preserve.json"
+            )
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(
+                json.dumps(
+                    {
+                        "schema": "ndf-replay-canvas-ledger/v1",
+                        "id": "ep-preserve",
+                        "state": "verified",
+                        "timeline": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch.object(
+                replay,
+                "project_episode_ledger",
+                return_value={
+                    "id": "ep-preserve",
+                    "state": "invalid",
+                    "error": "object decryption failed",
+                },
+            ):
+                ledger = replay.project_canvas_ledger(
+                    store,
+                    "ep-preserve",
+                    write_cache=True,
+                )
+            self.assertEqual(ledger["state"], "verified")
+            self.assertEqual(
+                json.loads(cache.read_text(encoding="utf-8"))["state"],
+                "verified",
+            )
+
     def test_event_space_and_plane(self) -> None:
         self.assertEqual(replay.event_space("gate.confirmed"), "human")
         self.assertEqual(replay.event_space("context.verified"), "ndf")
