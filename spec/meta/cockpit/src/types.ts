@@ -47,12 +47,38 @@ export type Snapshot = {
   };
   control?: {
     maturity?: string;
-    genesis?: { accepted?: boolean; project_maturity?: string; kernel_installed?: boolean };
-    kernelMap?: { seeds?: unknown[]; missing_seeds?: string[] };
-    nextActions?: unknown[];
+    genesis?: {
+      accepted?: boolean;
+      project_maturity?: string;
+      kernel_installed?: boolean;
+      install_needed?: boolean;
+      genesis_trunk_sha?: string;
+      mode?: string | null;
+    };
+    kernelMap?: {
+      seeds?: Array<{ id?: string; title?: string; status?: string; role?: string; scope?: string }>;
+      missing_seeds?: string[];
+      missingSeeds?: string[];
+      stable_summary?: Record<string, number>;
+    };
+    nextActions?: Array<{
+      kind?: string;
+      label?: string;
+      owner?: string;
+      task?: string;
+      space?: string;
+      allowed_write_root?: string;
+    }>;
     metaGraph?: {
       checks?: Record<string, { state?: string; summary?: string }>;
-      findings?: Array<{ kind?: string; severity?: string; why_blocked?: string }>;
+      findings?: Array<{
+        kind?: string;
+        severity?: string;
+        why_blocked?: string;
+        space?: string;
+        repair_task?: string;
+        plane?: string;
+      }>;
     };
     processHop?: {
       focusedPath?: string;
@@ -60,10 +86,37 @@ export type Snapshot = {
       hop?: string;
       nextHumanPhrase?: string;
     } | null;
-    processProposals?: unknown[];
+    processProposals?: Array<[string, string, string]>;
     processProposalArchivedCount?: number;
+    legacyUnknownTopics?: string[];
+    invalidatedReceipts?: string[];
+    proposalPlaneWarnings?: Array<[string, string, string]>;
+    draftMapWarnings?: Array<[string, string, string]>;
   };
-  runtime?: Record<string, unknown>;
+  runtime?: {
+    implementation?: {
+      provider?: string;
+      status?: string;
+      pipelineReachable?: boolean | null;
+      defaultSession?: string;
+      activeRuns?: unknown[];
+      cliAvailable?: boolean | null;
+      doctorOk?: boolean | null;
+      resumeAvailable?: boolean | null;
+      configuredSessionVisible?: boolean | null;
+      probeError?: string | null;
+      probeNote?: string | null;
+      workspace?: RuntimeWorkspace;
+    };
+    control?: {
+      provider?: string;
+      defaultSessionKey?: string;
+      reachable?: boolean | null;
+      configuredSessionVisible?: boolean | null;
+      probe?: unknown;
+      workspace?: RuntimeWorkspace;
+    };
+  };
   replay?: {
     episodes?: HopRow[];
     focused?: FocusedHop | null;
@@ -82,6 +135,7 @@ export type TopicRow = {
 
 export type FocusedTopic = TopicRow & {
   topicOverview?: {
+    summary?: string;
     purpose?: string;
     hypothesis?: string;
     explore_surface?: string[];
@@ -156,8 +210,21 @@ export type FocusedTopic = TopicRow & {
     label?: string;
     needed?: boolean;
     step_count?: number;
-    dispatch?: { state?: string; acknowledged?: boolean; blockers?: string[] };
+    dispatch?: { state?: string; acknowledged?: boolean; blockers?: string[]; request_id?: string; episode_id?: string };
+    handoff?: { blocked_gate?: string; next_binder_facet?: string; next_binder_label?: string };
+    handoff_from_gate?: { blocked_gate?: string; next_binder_facet?: string; next_binder_label?: string };
+    blocked_by_binder?: boolean;
+    decision_required?: boolean;
   }>;
+  agentRun?: {
+    provider?: string;
+    status?: string;
+    run_id?: string | null;
+    session_id?: string | null;
+    base_sha?: string | null;
+    worktree?: string | null;
+  };
+  commandEntry?: { nextStepLine?: string; decisionRequired?: boolean };
 };
 
 export type HopRow = {
@@ -167,6 +234,12 @@ export type HopRow = {
   agent?: string;
   happenedAt?: string;
   topic?: string;
+  task?: string;
+  resultLine?: string | null;
+  actor?: string;
+  participants?: string[];
+  kinds?: string[];
+  lenses?: ReplayAgentLens[];
   canRestoreRecord?: boolean;
 };
 
@@ -174,8 +247,30 @@ export type FocusedHop = HopRow & {
   humanUtterance?: string;
   assembledPrompt?: { text?: string; whyMissing?: string };
   dispatchedPrompt?: { text?: string; whyMissing?: string };
-  timeline?: Array<{ seq?: number; kind?: string; title?: string }>;
+  timeline?: Array<{
+    seq?: number;
+    kind?: string;
+    title?: string;
+    plane?: string;
+    space?: string;
+    actor?: string;
+    agent?: string;
+    lenses?: ReplayAgentLens[];
+    payloadPreview?: string;
+  }>;
   promptDrift?: { mismatch?: boolean };
+  dispatchLeak?: boolean | Record<string, unknown>;
+  assembledContext?: { orderedReads?: unknown[] };
+  readWhyMissing?: string;
 };
 
 export type TabId = "product" | "topics" | "control" | "agents" | "replay";
+export type ReplayPlane = "all" | "project" | "meta";
+export type ReplayAgentLens = "all" | "command-agent" | "openclaw" | "claude-code" | "context-compiler";
+
+export type RuntimeWorkspace = {
+  binding?: { repoRoot?: string; statePath?: string; activeTopic?: string | null };
+  stateExists?: boolean;
+  match?: boolean | null;
+  state?: string;
+};

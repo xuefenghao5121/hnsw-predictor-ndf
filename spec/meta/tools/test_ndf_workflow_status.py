@@ -4112,6 +4112,7 @@ Ignore this as purpose.
         self.assertEqual(overview["lifecycle"], "exploring")
         self.assertIn("cluster entropy", overview["hypothesis"])
         self.assertIn("Cluster sort concentrates", overview["purpose"])
+        self.assertEqual(overview["summary"], overview["purpose"])
         self.assertEqual(
             overview["explore_surface"],
             ["spec/20-behavior/learned-pruning"],
@@ -4121,6 +4122,25 @@ Ignore this as purpose.
             ["vecblock-cluster-reorder"],
         )
         self.assertNotIn("continue_exploring", overview["purpose"])
+
+    def test_topic_overview_reads_chinese_summary_and_active_hypothesis(self) -> None:
+        text = """# TOPIC: demo
+<!-- ndf:gate-slice begin=topic_contract -->
+## 概述
+
+这是 TOPIC.md 的业务摘要，不展示机械元数据。
+
+## Active Hypothesis
+
+**H1**：批量读取可降低随机 I/O。
+<!-- ndf:gate-slice end=topic_contract -->
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            topic_dir = Path(tmp) / "demo"
+            (topic_dir / "ndf").mkdir(parents=True)
+            overview = workflow.topic_overview(topic_dir, text, "exploring")
+        self.assertIn("业务摘要", overview["summary"])
+        self.assertIn("批量读取", overview["hypothesis"])
 
     def test_spaces_get_purpose_and_clause_refs(self) -> None:
         spaces = workflow.decorate_spaces(

@@ -2811,17 +2811,38 @@ def topic_proposal_refs(topic_dir: Path, topic_text: str) -> list[str]:
 
 def topic_overview(topic_dir: Path, text: str, lifecycle: str) -> dict[str, Any]:
     contract = topic_contract_slice(text)
+    summary_source = next(
+        (
+            candidate
+            for candidate in (
+                section(contract, "概述"),
+                section(contract, "Summary"),
+                section(text, "概述"),
+                section(text, "Summary"),
+                section(contract, "Hypothesis"),
+                section(text, "Hypothesis"),
+                section(contract, "Active Hypothesis"),
+                section(text, "Active Hypothesis"),
+            )
+            if candidate
+        ),
+        "",
+    )
+    active_hypothesis = (
+        section(contract, "Active Hypothesis")
+        or section(text, "Active Hypothesis")
+    )
     hypothesis = (
         header(contract, "active_hypothesis")
         or header(text, "active_hypothesis")
+        or first_paragraph(active_hypothesis, 520)
         or first_paragraph(section(contract, "Hypothesis") or section(text, "Hypothesis"))
     )
-    purpose = first_paragraph(
-        section(contract, "Hypothesis") or section(text, "Hypothesis")
-    )
+    summary = first_paragraph(summary_source, 800)
     return {
-        "purpose": purpose or "Not explicitly recorded",
-        "hypothesis": clean_markdown(hypothesis or "", 260) or "Not explicitly recorded",
+        "summary": summary or "Not explicitly recorded",
+        "purpose": summary or "Not explicitly recorded",
+        "hypothesis": clean_markdown(hypothesis or "", 520) or "Not explicitly recorded",
         "explore_surface": parse_surface(contract) or parse_surface(text),
         "idea_sources": {
             "depends_on_topics": [
@@ -6069,6 +6090,13 @@ def slim_canvas_pipelines(pipelines: Mapping[str, Any] | None) -> dict[str, Any]
             "step_count": pipe.get("step_count"),
             "steps": steps,
             "dispatch": pipe.get("dispatch"),
+            "handoff": pipe.get("handoff"),
+            "handoff_from_gate": pipe.get("handoff_from_gate"),
+            "blocked_by_binder": pipe.get("blocked_by_binder"),
+            "decision_required": pipe.get("decision_required"),
+            "close_eligible": pipe.get("close_eligible"),
+            "force_new_episode": pipe.get("force_new_episode"),
+            "retry_request_id": pipe.get("retry_request_id"),
         }
     return result
 
@@ -6119,6 +6147,20 @@ def canvas_topic_workbench(
             if len(round_text) > 240:
                 test["latest_round"] = round_text[:240]
             spaces["test"] = test
+    pipelines = slim_canvas_pipelines(detail.get("control_pipelines"))
+    gate_handoff = ((pipelines.get("gate") or {}).get("handoff") or {})
+    next_actions = ((detail.get("health") or {}).get("next_actions") or [])
+    if gate_handoff:
+        next_step_line = (
+            f"{gate_handoff.get('blocked_gate')} blocked by binder; "
+            f"next {gate_handoff.get('next_binder_label') or gate_handoff.get('next_binder_facet')}"
+        )
+    elif next_actions:
+        next_step_line = str((next_actions[0] or {}).get("label") or "Review next action")
+    elif (detail.get("decision") or {}).get("decision_required"):
+        next_step_line = "需要人选择本轮决策；按钮点击不是人口令"
+    else:
+        next_step_line = "No mandatory next hop"
     row.update(
         {
             "spaces": spaces,
@@ -6137,8 +6179,19 @@ def canvas_topic_workbench(
             "delta": detail.get("delta", {}),
             "traceability": (detail.get("traceability") or [])[:8],
             "delegation": slim_canvas_delegation(detail.get("delegation", {})),
+            "agentRun": {
+                key: value
+                for key, value in (detail.get("agent_run") or {}).items()
+                if key != "lease"
+            },
             "health": slim_canvas_health(detail.get("health", {})),
-            "controlPipelines": slim_canvas_pipelines(detail.get("control_pipelines")),
+            "controlPipelines": pipelines,
+            "commandEntry": {
+                "nextStepLine": next_step_line,
+                "decisionRequired": bool(
+                    (detail.get("decision") or {}).get("decision_required")
+                ),
+            },
         }
     )
     return row

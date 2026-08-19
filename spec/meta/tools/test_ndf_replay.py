@@ -2165,6 +2165,47 @@ class ReplayProjectionHelpersTest(unittest.TestCase):
             )
         )
 
+    def test_command_agent_lens_matches_human_or_cursor_dispatch(self) -> None:
+        self.assertTrue(
+            replay.episode_matches_agent(
+                needle="command-agent",
+                actor="human",
+                kinds=["intent.received"],
+            )
+        )
+        self.assertTrue(
+            replay.episode_matches_agent(
+                needle="command-agent",
+                participants=["cursor-agent"],
+                kinds=["action.dispatched"],
+            )
+        )
+        self.assertFalse(
+            replay.episode_matches_agent(
+                needle="command-agent",
+                actor="openclaw",
+                kinds=["control.response"],
+            )
+        )
+
+    def test_canvas_index_card_preserves_replay_classification(self) -> None:
+        card = replay.as_canvas_index_card(
+            {
+                "id": "ep-1",
+                "title": "demo",
+                "plane": "meta",
+                "agent": "openclaw",
+                "actor": "openclaw",
+                "participants": ["openclaw", "context-compiler"],
+                "kinds": ["manifest.created", "context.compiled"],
+                "lenses": ["openclaw", "context-compiler"],
+                "state": "indexed",
+            }
+        )
+        self.assertEqual(card["plane"], "meta")
+        self.assertEqual(card["lenses"], ["openclaw", "context-compiler"])
+        self.assertIn("context.compiled", card["kinds"])
+
     def test_episode_title(self) -> None:
         self.assertEqual(
             replay.episode_title(

@@ -431,14 +431,42 @@ def episode_matches_agent(
     if not text or text == "all":
         return True
     pool = [agent, actor, *(participants or [])]
+    normalized_pool = {str(item).strip().lower() for item in pool if item}
+    normalized_kinds = {str(item) for item in (kinds or [])}
+    if text in {"command-agent", "commander", "cursor"}:
+        return bool(
+            normalized_pool
+            & {"canvas", "human", "cursor", "commander", "composer", "cursor-agent"}
+        ) or bool({"intent.received", "human.utterance"} & normalized_kinds)
     if any(text in str(item).lower() for item in pool if item):
         return True
     if "context-compiler" in text or text in {"compiler", "context_compiler"}:
         return bool(
             {"context.compiled", "context.verified", "manifest.created"}
-            & {str(item) for item in (kinds or [])}
+            & normalized_kinds
         )
     return False
+
+
+def replay_agent_lenses(
+    *,
+    agent: str | None = None,
+    actor: str | None = None,
+    participants: Iterable[str] | None = None,
+    kinds: Iterable[str] | None = None,
+) -> list[str]:
+    """Canonical commander identity lenses for a hop or timeline event."""
+    return [
+        lens
+        for lens in ("command-agent", "openclaw", "claude-code", "context-compiler")
+        if episode_matches_agent(
+            needle=lens,
+            agent=agent,
+            actor=actor,
+            participants=participants,
+            kinds=kinds,
+        )
+    ]
 
 
 def payload_looks_like_manifest(mapped: Mapping[str, Any]) -> bool:
@@ -895,6 +923,7 @@ def slim_canvas_timeline_event(event: Mapping[str, Any]) -> dict[str, Any]:
         for key in ("orderedReads", "humanUtterance", "changedFiles")
         if preview.get(key)
     }
+    kind = str(event.get("kind") or "")
     return {
         "seq": event.get("seq"),
         "timestamp": event.get("timestamp"),
@@ -906,6 +935,11 @@ def slim_canvas_timeline_event(event: Mapping[str, Any]) -> dict[str, Any]:
         "space": event.get("space"),
         "payloadPreview": payload,
         "preview": slim_preview or None,
+        "lenses": replay_agent_lenses(
+            agent=str(event.get("agent") or "") or None,
+            actor=str(event.get("actor") or "") or None,
+            kinds=[kind] if kind else [],
+        ),
     }
 
 
@@ -927,6 +961,10 @@ def as_canvas_index_card(episode: Mapping[str, Any]) -> dict[str, Any]:
         "resultLine": episode.get("resultLine"),
         "topic": episode.get("topic"),
         "task": episode.get("task"),
+        "actor": episode.get("actor"),
+        "participants": list(episode.get("participants") or []),
+        "kinds": list(episode.get("kinds") or []),
+        "lenses": list(episode.get("lenses") or []),
         "canRestoreRecord": bool(episode.get("canRestoreRecord")),
         "state": episode.get("state") or "indexed",
     }
@@ -1027,6 +1065,12 @@ def project_canvas_index_card(store: "ReplayStore", episode_id: str) -> dict[str
         "track": commit.get("track"),
         "actor": commit.get("actor"),
         "kinds": sorted(kinds_set),
+        "lenses": replay_agent_lenses(
+            agent=str(commit.get("actor") or "") or None,
+            actor=str(commit.get("actor") or "") or None,
+            participants=participants,
+            kinds=kinds_set,
+        ),
         "dispatchLeak": None,
         "promptDrift": None,
         "canRestoreRecord": bool(bundle["chain_valid"] and bundle["head"]),
