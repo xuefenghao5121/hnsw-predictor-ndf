@@ -295,9 +295,11 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `fresh|refresh_in_progress|stale_after_action|unknown`。仅 `fresh` 且 verifier
   `passed + current` 可启用 repair/delegate/close。
   `--format canvas-json` 输出官方 camelCase commander payload（含 `enabledActions`），
-  `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 提供 React+D3 指挥舱与
-  `/snapshot.json`；POST `/api/action` 只接受登记动作。`--update-embedded` 只把
-  launcher（freshness + Open NDF commander）写入 Canvas，完整五页不嵌进 TSX。
+  `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 绑定 `127.0.0.1` 提供 React+D3
+  指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；POST `/api/action`
+  只接受登记动作。`--update-embedded` 只把 launcher（freshness + Open NDF commander）
+  写入 `.canvas.tsx`，完整五页不嵌进 TSX；云端预览读 gzip artifact，须再 Write Canvas
+  才会刷新。
   `--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
   （`claude doctor` + 配置会话 resume 产物）；只用于页头 Refresh snapshot。例行
   `--update-embedded` 不得带探针。Commander Replay 只嵌 hop 目录 + `replay.focused`

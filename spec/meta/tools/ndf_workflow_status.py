@@ -7038,7 +7038,12 @@ def serve_commander(
 
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"
-    sys.stderr.write(f"NDF commander at {url} snapshot={out}\n")
+    sys.stderr.write(
+        f"NDF commander at {url} snapshot={out}\n"
+        "bind=127.0.0.1 (loopback only). A Cloud Agent VM has no TCP ingress "
+        "to the human browser; run --serve on the human's machine, or open the "
+        "Canvas gzip artifact on the agent page.\n"
+    )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

@@ -270,6 +270,12 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertEqual(launcher["schema"], "ndf-workflow-canvas-launcher/v1")
         self.assertIn("open-ndf-commander", launcher["enabledActions"])
         self.assertNotIn("delegate-poc", launcher["enabledActions"])
+        self.assertEqual(
+            set(launcher["projectionFreshness"]),
+            {"state", "snapshot_sha"},
+        )
+        self.assertFalse(launcher["commander"]["cloudIngress"])
+        self.assertEqual(launcher["commander"]["bind"], "127.0.0.1")
 
     def test_cockpit_source_buttons_are_registered(self) -> None:
         if not SRC.is_dir():

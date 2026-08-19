@@ -302,6 +302,8 @@ def canvas_launcher_snapshot(payload: Mapping[str, Any]) -> dict[str, Any]:
             for key, value in evaluate_enabled_actions(payload).items()
             if key in STUB_ACTION_IDS
         }
+    fresh = payload.get("projectionFreshness") or {}
+    now_next = business.get("nowNextBlocked") or {}
     return {
         "schema": "ndf-workflow-canvas-launcher/v1",
         "generatedAt": payload.get("generatedAt"),
@@ -309,18 +311,28 @@ def canvas_launcher_snapshot(payload: Mapping[str, Any]) -> dict[str, Any]:
         "snapshotSha": payload.get("snapshotSha"),
         "payloadSha": payload.get("payloadSha"),
         "absorbedActionId": payload.get("absorbedActionId"),
-        "projectionFreshness": payload.get("projectionFreshness"),
+        "projectionFreshness": {
+            "state": fresh.get("state"),
+            "snapshot_sha": fresh.get("snapshot_sha"),
+        },
         "business": {
             "identity": {
                 "name": identity.get("name"),
                 "goal": identity.get("goal"),
                 "charterExists": identity.get("charterExists"),
             },
-            "nowNextBlocked": business.get("nowNextBlocked"),
+            "nowNextBlocked": {
+                "now": now_next.get("now"),
+                "next": now_next.get("next"),
+                "blocked": now_next.get("blocked"),
+            },
         },
         "enabledActions": stub_enabled,
         "commander": {
             "outPath": "tmp/ndf-canvas-snapshot.json",
+            "bind": "127.0.0.1",
+            "port": 8765,
+            "cloudIngress": False,
             "serveCommand": (
                 "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
                 "--serve --format canvas-json --json"

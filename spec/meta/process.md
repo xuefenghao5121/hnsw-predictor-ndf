@@ -267,6 +267,10 @@ UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未�
 按钮点击 MUST NOT 充当人口令（[[META-010]]）。Composer / `openFile` 仍是可变 hop
 的唯一派发面；commander 的 snapshot hop（Refresh / 打开工作台 / 查这条账）MAY 由
 本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
+`--serve` MUST bind loopback（`127.0.0.1`）。Cloud Agent VM 对人浏览器没有 TCP 入站，
+因此 `http://127.0.0.1:8765/` 不是云端可打开地址；云端人可达投影是 Cursor Canvas
+artifact（`.canvas.bundle.gz`），不是指挥舱 HTTP。`--update-embedded` 只改 `.canvas.tsx`，
+MUST 再经 Canvas 宿主写入才会刷新 gzip 预览。
 
 ```text
 project_maturity | lifecycle | gates
