@@ -81,6 +81,11 @@ main { padding: 16px 20px 48px; display: grid; gap: 16px; }
 .space-card { min-height: 230px; }
 .disclosure > button { width: 100%; text-align: left; border: 0; background: transparent; padding: 0 0 8px; font-weight: 700; }
 .golden-chart { min-height: 220px; }
+.control-kpis { display: flex; flex-wrap: wrap; gap: 8px; }
+.control-kpis span { min-width: 110px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.control-kpis strong { display: block; color: var(--text); font-size: 20px; }
+.genesis-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.genesis-grid span { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
 .muted { color: var(--muted); font-size: 13px; }
 .danger { color: var(--danger); }
 .ok { color: var(--ok); }
@@ -109,6 +114,6 @@ th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line
 .banner { padding: 8px 12px; border-radius: 8px; background: #2a1f1f; color: var(--danger); }
 
 @media (max-width: 900px) {
-  .hero, .grid-2, .grid-3, .topic-selector, .control-pipeline-grid { grid-template-columns: 1fr; }
+  .hero, .grid-2, .grid-3, .topic-selector, .control-pipeline-grid, .genesis-grid { grid-template-columns: 1fr; }
   .metadata-grid { grid-template-columns: 1fr 1fr; }
 }

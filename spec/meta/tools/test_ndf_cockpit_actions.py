@@ -335,6 +335,26 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn('actionId="gate-pipeline"', command_block)
         self.assertIn('actionId="binder-pipeline"', command_block)
 
+    def test_control_ui_renders_operational_sections(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        for label in (
+            "Genesis",
+            "NDF 内核地图",
+            "内核自洽性",
+            "工作流演进",
+            "执行面卫生",
+        ):
+            self.assertIn(label, source)
+        for field in (
+            "kernelMap?.seeds",
+            "metaGraph?.checks",
+            "processProposals",
+            "legacyUnknownTopics",
+            "invalidatedReceipts",
+            "proposalPlaneWarnings",
+        ):
+            self.assertIn(field, source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -76,7 +76,9 @@ export type Snapshot = {
         severity?: string;
         why_blocked?: string;
         space?: string;
+        repair_owner?: string;
         repair_task?: string;
+        allowed_write_root?: string;
         plane?: string;
       }>;
     };

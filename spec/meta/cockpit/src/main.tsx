@@ -87,7 +87,7 @@ function App() {
     foundation: true,
     workflow: true,
     mechanical: true,
-    genesis: false,
+    genesis: true,
   });
   const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -147,6 +147,11 @@ function App() {
   const hops = snapshot?.replay?.episodes || [];
   const focused = snapshot?.business?.focusedTopic;
   const freshness = snapshot?.projectionFreshness?.state || "unknown";
+  const controlChecks = snapshot?.control?.metaGraph?.checks || {};
+  const controlFindings = snapshot?.control?.metaGraph?.findings || [];
+  const controlBlockers = controlFindings.filter((item) => item.severity === "error").length;
+  const controlWarnings = controlFindings.filter((item) => item.severity !== "error").length;
+  const controlPassed = Object.values(controlChecks).filter((item) => item.state === "passed").length;
 
   const defaultTab = useMemo<TabId>(() => {
     if (snapshot?.business?.identity?.charterExists === false) return "control";
@@ -544,36 +549,130 @@ function App() {
         )}
 
         {tab === "control" && (
-          <section className="card">
-            <h2>NDF Control</h2>
-            <div className="card">
+          <section className="page-stack">
+            <div className="hero card">
+              <div>
+                <p className="eyebrow">Meta kernel command plane</p>
+                <h2>NDF Control</h2>
+                <p>流程内核能否安全指挥 Product、Topics 与 Agent Runtime。</p>
+              </div>
+              <div className="control-kpis">
+                <span><strong>{controlBlockers}</strong>阻断</span>
+                <span><strong>{controlWarnings}</strong>告警</span>
+                <span><strong>{controlPassed}</strong>通过</span>
+              </div>
+            </div>
+
+            <div className="card disclosure">
               <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, genesis: !s.genesis }))}>
-                Genesis {snapshot?.control?.genesis?.project_maturity}
+                Genesis · {snapshot?.control?.genesis?.project_maturity} · {snapshot?.control?.genesis?.accepted ? "内核已绑定" : "待安装"}
               </button>
               {!collapsed.genesis && (
-                <ActionButton actionId="new-genesis" enabled={enabledOf(snapshot, "new-genesis")} onClick={() => run("new-genesis")} />
+                <div className="page-stack">
+                  <p>
+                    {snapshot?.control?.genesis?.accepted
+                      ? "内核已绑定；日常指挥走 Product / Topics，不必重跑 Genesis。"
+                      : "把流程内核装进本仓；按 G0→G3 完成人工验收。"}
+                  </p>
+                  <div className="genesis-grid">
+                    <span><strong>G0</strong>契约来源</span>
+                    <span><strong>G1</strong>双轨边界</span>
+                    <span><strong>G2</strong>写入边界</span>
+                    <span><strong>G3</strong>验收口径</span>
+                  </div>
+                  <p className="muted">Binding SHA {snapshot?.control?.genesis?.genesis_trunk_sha || "—"}</p>
+                  <ActionButton actionId="new-genesis" enabled={enabledOf(snapshot, "new-genesis")} onClick={() => run("new-genesis")} />
+                </div>
               )}
             </div>
+
             <div className="card">
-              <h3>NDF 内核地图</h3>
-              <p className="muted">missing {(snapshot?.control?.kernelMap?.missing_seeds || []).join(", ") || "none"}</p>
-              <ActionButton actionId="open-language-md" enabled={enabledOf(snapshot, "open-language-md")} onClick={() => run("open-language-md")} />
-              <ActionButton actionId="open-process-md" enabled={enabledOf(snapshot, "open-process-md")} onClick={() => run("open-process-md")} />
-              <ActionButton actionId="open-meta-readme" enabled={enabledOf(snapshot, "open-meta-readme")} onClick={() => run("open-meta-readme")} />
+              <div className="section-heading">
+                <div><p className="eyebrow">Process profile IR</p><h3>NDF 内核地图</h3></div>
+                <span className={`status-chip ${(snapshot?.control?.kernelMap?.missing_seeds || []).length ? "failed" : "passed"}`}>
+                  种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
+                </span>
+              </div>
+              <table>
+                <thead><tr><th>Clause</th><th>Title</th><th>Status</th><th>Role</th><th>Scope</th></tr></thead>
+                <tbody>
+                  {(snapshot?.control?.kernelMap?.seeds || []).map((seed) => (
+                    <tr key={seed.id}><td>{seed.id}</td><td>{seed.title}</td><td>{seed.status}</td><td>{seed.role}</td><td>{seed.scope}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+              {(snapshot?.control?.kernelMap?.missing_seeds || []).length > 0 && (
+                <p className="danger">Missing: {snapshot?.control?.kernelMap?.missing_seeds?.join(", ")}</p>
+              )}
+              <div className="pills">
+                <ActionButton actionId="open-language-md" enabled={enabledOf(snapshot, "open-language-md")} onClick={() => run("open-language-md")} />
+                <ActionButton actionId="open-process-md" enabled={enabledOf(snapshot, "open-process-md")} onClick={() => run("open-process-md")} />
+                <ActionButton actionId="open-meta-readme" enabled={enabledOf(snapshot, "open-meta-readme")} onClick={() => run("open-meta-readme")} />
+              </div>
             </div>
+
             <div className="card">
-              <h3>内核自洽性</h3>
-              <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
-              <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
-              <ActionButton actionId="repair-kernel" enabled={enabledOf(snapshot, "repair-kernel")} onClick={() => run("repair-kernel")} />
-              <ActionButton actionId="go-product" enabled={enabledOf(snapshot, "go-product")} onClick={() => setTab("product")} />
-              <ActionButton actionId="go-topics" enabled={enabledOf(snapshot, "go-topics")} onClick={() => setTab("topics")} />
+              <div className="section-heading">
+                <div><p className="eyebrow">Plane-routed checks</p><h3>内核自洽性</h3></div>
+                <div className="pills">
+                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
+                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
+                </div>
+              </div>
+              <table>
+                <thead><tr><th>Check / finding</th><th>State</th><th>Why blocked</th><th>Plane / repair</th></tr></thead>
+                <tbody>
+                  {Object.entries(controlChecks).map(([name, check]) => (
+                    <tr key={name}><td>{name}</td><td><span className={`status-chip ${check.state}`}>{check.state}</span></td><td>{check.summary}</td><td>inspection</td></tr>
+                  ))}
+                  {controlFindings.map((finding, index) => (
+                    <tr key={`${finding.kind}-${index}`}>
+                      <td>{finding.kind}</td><td>{finding.severity}</td><td>{finding.why_blocked}</td>
+                      <td>{finding.plane || finding.space || "route by check"} · {finding.repair_task}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="pills">
+                <ActionButton actionId="repair-kernel" enabled={enabledOf(snapshot, "repair-kernel")} onClick={() => run("repair-kernel")} />
+                <ActionButton actionId="go-product" enabled={enabledOf(snapshot, "go-product")} onClick={() => setTab("product")} />
+                <ActionButton actionId="go-topics" enabled={enabledOf(snapshot, "go-topics")} onClick={() => setTab("topics")} />
+              </div>
+              {(snapshot?.control?.nextActions || []).length > 0 && (
+                <div className="next-actions">
+                  {(snapshot?.control?.nextActions || []).map((action, index) => (
+                    <div key={`${action.kind}-${index}`}><strong>{action.label || action.kind}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span></div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="card">
-              <h3>工作流演进</h3>
-              <p>{snapshot?.control?.processHop?.title || "无强制演进"} · {snapshot?.control?.processHop?.hop}</p>
-              <ActionButton actionId="land-confirm" enabled={enabledOf(snapshot, "land-confirm")} onClick={() => run("land-confirm")} />
-              <ActionButton actionId="land-review" enabled={enabledOf(snapshot, "land-review")} onClick={() => run("land-review")} />
+
+            <div className="card command-card">
+              <div className="section-heading">
+                <div><p className="eyebrow">spec/meta only</p><h3>工作流演进</h3></div>
+                <span className={`status-chip ${snapshot?.control?.processHop ? "warning" : "passed"}`}>
+                  {snapshot?.control?.processHop ? snapshot.control.processHop.hop : "无强制演进"}
+                </span>
+              </div>
+              {snapshot?.control?.processHop && (
+                <div className="command-entry">
+                  <strong>{snapshot.control.processHop.title}</strong>
+                  <span>Next human phrase: {snapshot.control.processHop.nextHumanPhrase}</span>
+                </div>
+              )}
+              <div className="pills">
+                <ActionButton actionId="land-confirm" enabled={enabledOf(snapshot, "land-confirm")} onClick={() => run("land-confirm")} />
+                <ActionButton actionId="land-review" enabled={enabledOf(snapshot, "land-review")} onClick={() => run("land-review")} />
+              </div>
+              <table>
+                <thead><tr><th>Process proposal</th><th>Hop / status</th><th>Path</th></tr></thead>
+                <tbody>
+                  {(snapshot?.control?.processProposals || []).map(([title, status, path]) => (
+                    <tr key={path}><td>{title}</td><td>{status}</td><td>{path}</td></tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted">Archived process proposals: {snapshot?.control?.processProposalArchivedCount || 0}</p>
               <label className="muted">描述要改进的 META 工作流</label>
               <textarea value={metaIntent} onChange={(event) => setMetaIntent(event.target.value)} />
               <ActionButton
@@ -582,6 +681,21 @@ function App() {
                 intent={metaIntent}
                 onClick={() => run("submit-process-improvement", { intent: metaIntent })}
               />
+            </div>
+
+            <div className="card">
+              <h3>执行面卫生</h3>
+              <div className="control-kpis">
+                <span><strong>{snapshot?.control?.legacyUnknownTopics?.length || 0}</strong>legacy unknown topics</span>
+                <span><strong>{snapshot?.control?.invalidatedReceipts?.length || 0}</strong>invalidated receipts</span>
+                <span><strong>{snapshot?.control?.proposalPlaneWarnings?.length || 0}</strong>proposal-plane warnings</span>
+              </div>
+              {(snapshot?.control?.proposalPlaneWarnings || []).map(([path, track, message]) => (
+                <div className="risk warning" key={path}><strong>{path}</strong><span>{track} · {message}</span></div>
+              ))}
+              {(snapshot?.control?.draftMapWarnings || []).map(([clause, path, message]) => (
+                <div className="risk info" key={`${clause}-${path}`}><strong>{clause}</strong><span>{path} · {message}</span></div>
+              ))}
             </div>
           </section>
         )}

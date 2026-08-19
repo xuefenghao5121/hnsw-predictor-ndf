@@ -6225,7 +6225,10 @@ def slim_canvas_spec_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
                 "severity": item.get("severity"),
                 "why_blocked": item.get("why_blocked") or item.get("evidence"),
                 "space": item.get("space"),
+                "plane": item.get("plane"),
+                "repair_owner": item.get("repair_owner"),
                 "repair_task": item.get("repair_task"),
+                "allowed_write_root": item.get("allowed_write_root"),
             }
         )
     data["findings"] = findings
