@@ -1,5 +1,12 @@
 import type { Snapshot } from "./types";
 
+declare global {
+  interface Window {
+    __NDF_SNAPSHOT__?: Snapshot;
+    __NDF_STANDALONE__?: boolean;
+  }
+}
+
 export type ActionRequest = {
   id: string;
   intent?: string;
@@ -21,6 +28,9 @@ export type ActionResponse = {
 };
 
 export async function loadSnapshot(): Promise<Snapshot> {
+  if (window.__NDF_SNAPSHOT__) {
+    return window.__NDF_SNAPSHOT__;
+  }
   const response = await fetch("/snapshot.json", { cache: "no-store" });
   if (!response.ok) {
     throw new Error(`snapshot HTTP ${response.status}`);
@@ -33,6 +43,22 @@ export async function loadSnapshot(): Promise<Snapshot> {
 }
 
 export async function dispatchAction(request: ActionRequest): Promise<ActionResponse> {
+  if (window.__NDF_STANDALONE__) {
+    const detail = [
+      `action_id=${request.id}`,
+      request.topic ? `topic=${request.topic}` : "",
+      request.episode ? `episode=${request.episode}` : "",
+      request.intent ? `intent=${request.intent}` : "",
+      "在当前 Cloud Agent 对话执行这个 NDF hop。",
+      "Button click is not a human gate.",
+      "MUST NOT write .openclaw/state.json from Cursor.",
+    ].filter(Boolean);
+    return {
+      id: request.id,
+      dispatch: "composer",
+      prompt: detail.join("\n"),
+    };
+  }
   const response = await fetch("/api/action", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
