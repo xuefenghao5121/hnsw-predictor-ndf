@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useMemo, useState, type ReactElement, type UIEvent } from "react";
+import {
+  Component,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ErrorInfo,
+  type ReactElement,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import { createRoot } from "react-dom/client";
 import { ActionButton } from "./ActionButton";
 import { dispatchAction, loadSnapshot } from "./api";
@@ -18,6 +28,34 @@ const TAB_ACTIONS: Record<TabId, string> = {
 
 function enabledOf(snapshot: Snapshot | null, id: string): EnabledAction | undefined {
   return snapshot?.enabledActions?.[id];
+}
+
+function previewText(value: unknown, fallback = ""): string {
+  const text = typeof value === "string" ? value : fallback;
+  return text.split("\n").slice(0, 12).join("\n");
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
+  state = { message: null as string | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { message: error.message || "render failed" };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("NDF commander render failed", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.message) {
+      return (
+        <div className="banner">
+          页面加载出错：{this.state.message}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function VirtualRows<T>({ items, render }: { items: T[]; render: (item: T, index: number) => ReactElement }) {
@@ -58,19 +96,24 @@ function App() {
   const [tech, setTech] = useState(false);
 
   const refresh = useCallback(async () => {
-    const data = await loadSnapshot();
-    setSnapshot(data);
-    if (data.business?.identity?.charterExists === false) {
-      setTab("control");
+    try {
+      const data = await loadSnapshot();
+      setError(null);
+      setSnapshot(data);
+      if (data.business?.identity?.charterExists === false) {
+        setTab("control");
+      }
+      const focused = data.business?.focusedTopicId;
+      if (focused) setSelectedTopic(focused);
+      const hop = data.replay?.focused?.id;
+      if (hop) setSelectedHop(hop);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     }
-    const focused = data.business?.focusedTopicId;
-    if (focused) setSelectedTopic(focused);
-    const hop = data.replay?.focused?.id;
-    if (hop) setSelectedHop(hop);
   }, []);
 
   useEffect(() => {
-    refresh().catch((err: Error) => setError(err.message));
+    void refresh();
   }, [refresh]);
 
   const run = useCallback(
@@ -79,17 +122,22 @@ function App() {
       if (action.dispatch === "projection_only") {
         return;
       }
-      const result = await dispatchAction({ id, ...extra });
-      if (result.snapshot) {
-        setSnapshot(result.snapshot);
-      }
-      if (result.prompt) {
-        setDialog({
-          title: `${action.label} · Composer (click is not ${action.humanPhrase || "a gate"})`,
-          body: result.prompt,
-        });
-      } else if (result.path) {
-        setDialog({ title: action.label, body: `openFile ${result.path}` });
+      try {
+        const result = await dispatchAction({ id, ...extra });
+        if (result.snapshot) {
+          setSnapshot(result.snapshot);
+          setError(null);
+        }
+        if (result.prompt) {
+          setDialog({
+            title: `${action.label} · Composer (click is not ${action.humanPhrase || "a gate"})`,
+            body: result.prompt,
+          });
+        } else if (result.path) {
+          setDialog({ title: action.label, body: `openFile ${result.path}` });
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
       }
     },
     [],
@@ -144,7 +192,15 @@ function App() {
           </button>
         ))}
       </nav>
-      {error && <div className="banner">{error}</div>}
+      {error && (
+        <div className="banner">
+          页面加载出错：{error}
+          <button type="button" data-ndf-action="refresh-snapshot" onClick={() => void refresh()}>
+            {requireAction("refresh-snapshot").label}
+          </button>
+        </div>
+      )}
+      {!snapshot && !error && <p className="muted">Loading snapshot…</p>}
       <main>
         {tab === "product" && (
           <section className="card">
@@ -383,9 +439,9 @@ function App() {
                 <h3>人话</h3>
                 <p>{snapshot.replay.focused.humanUtterance || "—"}</p>
                 <h3>规范组装 Prompt</h3>
-                <pre>{(snapshot.replay.focused.assembledPrompt?.text || snapshot.replay.focused.assembledPrompt?.whyMissing || "").split("\n").slice(0, 12).join("\n")}</pre>
+                <pre>{previewText(snapshot.replay.focused.assembledPrompt?.text, snapshot.replay.focused.assembledPrompt?.whyMissing)}</pre>
                 <h3>当时实发 Prompt</h3>
-                <pre>{(snapshot.replay.focused.dispatchedPrompt?.text || snapshot.replay.focused.dispatchedPrompt?.whyMissing || "").split("\n").slice(0, 12).join("\n")}</pre>
+                <pre>{previewText(snapshot.replay.focused.dispatchedPrompt?.text, snapshot.replay.focused.dispatchedPrompt?.whyMissing)}</pre>
                 <button type="button" data-ndf-action="expand-tech-details" onClick={() => setTech((value) => !value)}>
                   显示技术细节
                 </button>
@@ -410,4 +466,12 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+const root = document.getElementById("root");
+if (!root) {
+  throw new Error("NDF commander #root missing");
+}
+createRoot(root).render(
+  <ErrorBoundary>
+    <App />
+  </ErrorBoundary>,
+);

@@ -11,6 +11,7 @@ type Props = {
 export function ReplayTimeline({ hops, focusedId, onInspect }: Props) {
   const ref = useRef<SVGSVGElement | null>(null);
   useEffect(() => {
+    if (!ref.current || hops.length === 0) return;
     const svg = d3.select(ref.current);
     svg.selectAll("*").remove();
     const width = ref.current?.clientWidth || 720;

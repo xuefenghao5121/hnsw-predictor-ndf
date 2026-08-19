@@ -25,7 +25,11 @@ export async function loadSnapshot(): Promise<Snapshot> {
   if (!response.ok) {
     throw new Error(`snapshot HTTP ${response.status}`);
   }
-  return (await response.json()) as Snapshot;
+  try {
+    return (await response.json()) as Snapshot;
+  } catch (err) {
+    throw new Error(err instanceof Error ? err.message : "snapshot JSON parse failed");
+  }
 }
 
 export async function dispatchAction(request: ActionRequest): Promise<ActionResponse> {
