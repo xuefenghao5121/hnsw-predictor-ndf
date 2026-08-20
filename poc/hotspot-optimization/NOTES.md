@@ -24,5 +24,8 @@ Cursor 在收到「DESIGN已审核 / 可以开始实现」之后**非法自我�
 ## 状态
 
 - 三道门禁（TOPIC已审核 / DESIGN已审核 / 可以开始实现）**保持有效**，不要求重说。
-- 当前等待人工**本轮决策**（`selected_decision=implement`），之后 Delegate POC 到 Claude Code。
+- **2026-08-20**：Commander `poc-prepare-baseline` 正式 hop 恢复 Trunk 对照拷贝到
+  `poc/hotspot-optimization/src/`（见 `src/BASELINE_COPY.md`）。仅基线拷贝，**无** D1
+  SIMD 改动，**无** PERF Numbers / DELTA 修订。清除 `missing_baseline_workspace`。
+- 下一步仍由人工决策（继续探索 / implement D1 / 测量 R0 等）；D1 实现须经 Delegate POC。
 - PERF Numbers / DELTA Rounds 仍 pending，未写任何观测数字。
