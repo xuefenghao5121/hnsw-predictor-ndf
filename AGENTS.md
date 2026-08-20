@@ -226,6 +226,11 @@ OpenClaw 指挥会话 session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81
 
 Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。改绑时只改本行。
 
+**宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
+`python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，清理残留
+`snapshot --serve` / qemu；MUST NOT 改 `environment=cloud` 绕开。Command Agent
+MUST NOT 后台残留 `--serve`；日常刷新只用 `snapshot --out`（不要默认 `--probe-runtime full`）。
+
 ### Claude Code 实现管道
 
 ACP 长连接会话 ID：`d21779ab-aad3-408c-a717-f871eae0884e`（已常驻）。你只需发送指令；

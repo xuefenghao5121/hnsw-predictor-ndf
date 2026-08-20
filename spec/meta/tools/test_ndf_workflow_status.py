@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -5079,6 +5080,91 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
                     workflow.update_embedded_snapshot(path)
             self.assertIn("exceeds", str(caught.exception))
             self.assertIn("focused_topic", str(caught.exception))
+
+    def test_acquire_serve_lock_rejects_live_holder(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            lock_path = Path(tmp) / "serve.lock"
+            workflow.acquire_serve_lock(8765, path=lock_path)
+            with self.assertRaises(ValueError) as caught:
+                workflow.acquire_serve_lock(8765, path=lock_path)
+            self.assertIn("serve_already_running", str(caught.exception))
+            self.assertTrue(workflow.release_serve_lock(path=lock_path, pid=os.getpid()))
+
+    def test_ensure_host_pid_headroom_fails_when_free_low(self) -> None:
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={
+                "available": True,
+                "current": 34000,
+                "max": 34550,
+                "free": 100,
+                "cgroup": "/sys/fs/cgroup/mock",
+                "error": None,
+            },
+        ):
+            with self.assertRaises(ValueError) as caught:
+                workflow.ensure_host_pid_headroom(min_free=512)
+            self.assertIn(workflow.HOST_PID_EXHAUSTED, str(caught.exception))
+
+    def test_sse_limit_returns_503_when_slots_full(self) -> None:
+        import threading
+        import urllib.error
+        import urllib.request
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "ndf-canvas-snapshot.json"
+            snap.write_text(
+                json.dumps({"schema": "ndf-workflow-canvas-snapshot/v1", "payloadSha": "aaa"}),
+                encoding="utf-8",
+            )
+            dist = Path(tmp) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+            state = {
+                "topic": None,
+                "replay_episode": None,
+                "probe_runtime": False,
+                "out": snap,
+                "event_interval": 0.05,
+                "max_sse": 1,
+                "sse_slots": threading.BoundedSemaphore(1),
+            }
+            handler = workflow.commander_http_handler(dist=dist, state=state)
+            httpd = workflow.BoundedThreadingHTTPServer(("127.0.0.1", 0), handler, max_workers=4)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = httpd.server_address[:2]
+                first = urllib.request.urlopen(f"http://{host}:{port}/api/events", timeout=2)
+                # Keep first SSE open; second must be rejected.
+                try:
+                    urllib.request.urlopen(f"http://{host}:{port}/api/events", timeout=2)
+                    self.fail("expected 503 for second SSE")
+                except urllib.error.HTTPError as exc:
+                    self.assertEqual(exc.code, 503)
+                first.close()
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
+    def test_host_pids_report_schema(self) -> None:
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={
+                "available": True,
+                "current": 100,
+                "max": 1000,
+                "free": 900,
+                "cgroup": "/sys/fs/cgroup/mock",
+                "error": None,
+            },
+        ), patch.object(workflow, "list_host_pid_suspects", return_value=[]):
+            report = workflow.host_pids_report()
+        self.assertEqual(report["schema"], "ndf-host-pids/v1")
+        self.assertTrue(report["headroom_ok"])
 
 
 if __name__ == "__main__":

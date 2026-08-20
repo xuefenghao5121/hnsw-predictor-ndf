@@ -5,7 +5,10 @@ This hop rebuilds the official commander snapshot. UI / serve Refresh does **not
 force `--probe-runtime` (that hung Product write CTAs); pass `--probe-runtime`
 only when the human asked for a deep runtime probe or serve was started with it.
 
-On a machine running `snapshot --serve` at `http://127.0.0.1:8765`, writing
+Command Agent MUST NOT start or leave `snapshot --serve` running. Prefer `--out`
+only. On Agent Shell `EAGAIN`, run `host-pids` first; do not switch to cloud.
+
+On a machine **already** running `snapshot --serve` at `http://127.0.0.1:8765`, writing
 `tmp/ndf-canvas-snapshot.json` auto-reloads the live page. Do not curl
 `localhost:8081`. htmlpreview is static.
 

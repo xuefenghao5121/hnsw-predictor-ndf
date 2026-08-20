@@ -11,14 +11,18 @@ from __future__ import annotations
 
 import argparse
 import ast
+import atexit
 import hashlib
 import json
 import os
 import re
+import select
 import shlex
 import shutil
+import socket
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -64,6 +68,11 @@ CONTROL_DISPATCH_LOG = ROOT / "tmp" / "ndf-control-dispatch.jsonl"
 LEASE_LOG = ROOT / "tmp" / "ndf-workflow-leases.jsonl"
 CLOSE_EVIDENCE_DIR = ROOT / "tmp" / "ndf-close-evidence"
 PROJECTION_EVIDENCE_DIR = ROOT / "tmp" / "ndf-projection-evidence"
+SERVE_LOCK_PATH = ROOT / "tmp" / "ndf-commander-serve.lock"
+HOST_PID_MIN_FREE = 512
+SERVE_MAX_WORKERS = 16
+SERVE_MAX_SSE = 2
+HOST_PID_EXHAUSTED = "host_pid_exhausted"
 
 GATE_COLUMNS = (
     "gate",
@@ -2272,6 +2281,7 @@ def action_begin(
     episode_id: str | None = None,
     catalog_action_id: str | None = None,
 ) -> dict[str, Any]:
+    ensure_host_pid_headroom()
     if episode_id and ndf_replay.ReplayStore(ROOT).read_ref(
         f"episodes/{episode_id}/HEAD"
     ) is None:
@@ -7546,6 +7556,308 @@ def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = Non
     return target
 
 
+def read_cgroup_pids(pid: int | None = None) -> dict[str, Any]:
+    """Read cgroup v2 pids.current/max for *pid* (default: self). Threads count."""
+    target = int(pid or os.getpid())
+    cgroup_file = Path(f"/proc/{target}/cgroup")
+    result: dict[str, Any] = {
+        "pid": target,
+        "cgroup": None,
+        "current": None,
+        "max": None,
+        "free": None,
+        "available": False,
+        "error": None,
+    }
+    try:
+        text = cgroup_file.read_text(encoding="utf-8")
+    except OSError as exc:
+        result["error"] = f"cgroup_unreadable:{exc}"
+        return result
+    rel = None
+    for line in text.splitlines():
+        # v2: "0::/user.slice/..."
+        if line.startswith("0::"):
+            rel = line.split("::", 1)[1].strip()
+            break
+        if ":pids:" in line:
+            rel = line.split(":pids:", 1)[1].strip()
+            break
+    if not rel:
+        result["error"] = "cgroup_path_missing"
+        return result
+    base = Path("/sys/fs/cgroup") / rel.lstrip("/")
+    result["cgroup"] = str(base)
+    try:
+        current = int((base / "pids.current").read_text(encoding="utf-8").strip())
+        max_raw = (base / "pids.max").read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        result["error"] = f"pids_unreadable:{exc}"
+        return result
+    result["current"] = current
+    if max_raw == "max":
+        result["max"] = None
+        result["free"] = None
+        result["available"] = True
+        result["error"] = None
+        return result
+    try:
+        maximum = int(max_raw)
+    except ValueError:
+        result["error"] = f"pids_max_invalid:{max_raw}"
+        return result
+    result["max"] = maximum
+    result["free"] = max(0, maximum - current)
+    result["available"] = True
+    return result
+
+
+def _proc_cmdline(pid: int) -> str:
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return ""
+    return raw.replace(b"\x00", b" ").decode("utf-8", errors="replace").strip()
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def list_host_pid_suspects() -> list[dict[str, Any]]:
+    """Scan /proc for local NDF serve / workflow / qemu without spawning pgrep."""
+    suspects: list[dict[str, Any]] = []
+    proc_root = Path("/proc")
+    try:
+        entries = list(proc_root.iterdir())
+    except OSError:
+        return suspects
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        cmdline = _proc_cmdline(pid)
+        if not cmdline:
+            continue
+        # Cursor agent shells embed prior argv in a policy wrapper; skip those.
+        if "cursorsandbox" in cmdline or "snap=$(command cat" in cmdline:
+            continue
+        tokens = cmdline.split()
+        kind = None
+        if any(tok.endswith("ndf_workflow_status.py") for tok in tokens):
+            kind = "ndf_workflow_status"
+            if "--serve" in tokens:
+                kind = "ndf_workflow_serve"
+        elif any("qemu-system" in tok for tok in tokens):
+            kind = "qemu-system"
+        elif any(tok.endswith("ndf_replay.py") for tok in tokens) and any(
+            tok in {"guest-run", "guest-probe", "guest-image"} or tok.startswith("guest-")
+            for tok in tokens
+        ):
+            kind = "ndf_replay_guest"
+        if kind is None:
+            continue
+        suspects.append(
+            {
+                "pid": pid,
+                "kind": kind,
+                "cmdline": cmdline[:240],
+            }
+        )
+    suspects.sort(key=lambda row: (row["kind"], row["pid"]))
+    return suspects
+
+
+def read_serve_lock(path: Path | None = None) -> dict[str, Any] | None:
+    lock_path = path or SERVE_LOCK_PATH
+    if not lock_path.is_file():
+        return None
+    try:
+        data = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def serve_lock_holder_alive(lock: Mapping[str, Any] | None) -> bool:
+    if not lock:
+        return False
+    try:
+        pid = int(lock.get("pid") or 0)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0 or not _pid_alive(pid):
+        return False
+    # Same process that wrote the lock still holds it (tests / re-entry).
+    if pid == os.getpid():
+        return True
+    cmdline = _proc_cmdline(pid)
+    return "ndf_workflow_status.py" in cmdline and "--serve" in cmdline
+
+
+def acquire_serve_lock(port: int, path: Path | None = None) -> dict[str, Any]:
+    """Claim singleton --serve. Raises ValueError if another live serve holds the lock."""
+    lock_path = path or SERVE_LOCK_PATH
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = read_serve_lock(lock_path)
+    if serve_lock_holder_alive(existing):
+        url = f"http://127.0.0.1:{int(existing.get('port') or port)}/"
+        raise ValueError(
+            f"serve_already_running: pid={existing.get('pid')} url={url} "
+            f"lock={lock_path}"
+        )
+    payload = {
+        "schema": "ndf-commander-serve-lock/v1",
+        "pid": os.getpid(),
+        "port": int(port),
+        "repo_root": str(ROOT),
+        "started_at": now_iso(),
+    }
+    lock_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
+def release_serve_lock(path: Path | None = None, *, pid: int | None = None) -> bool:
+    lock_path = path or SERVE_LOCK_PATH
+    lock = read_serve_lock(lock_path)
+    if not lock:
+        return False
+    holder = int(lock.get("pid") or 0)
+    if pid is not None and holder != int(pid):
+        return False
+    if holder and holder != os.getpid() and serve_lock_holder_alive(lock):
+        return False
+    try:
+        lock_path.unlink(missing_ok=True)
+    except OSError:
+        return False
+    return True
+
+
+def kill_stale_serve(*, path: Path | None = None, force_pid: int | None = None) -> dict[str, Any]:
+    """Kill only this repo's stale/live --serve holders explicitly requested."""
+    lock_path = path or SERVE_LOCK_PATH
+    killed: list[dict[str, Any]] = []
+    lock = read_serve_lock(lock_path)
+    targets: list[int] = []
+    if force_pid:
+        targets.append(int(force_pid))
+    elif lock and lock.get("pid"):
+        try:
+            targets.append(int(lock["pid"]))
+        except (TypeError, ValueError):
+            pass
+    for pid in targets:
+        cmdline = _proc_cmdline(pid)
+        if "ndf_workflow_status.py" not in cmdline:
+            continue
+        if str(ROOT) not in cmdline and "ndf_workflow_status.py" not in cmdline:
+            continue
+        if not _pid_alive(pid):
+            continue
+        try:
+            os.kill(pid, 15)
+            killed.append({"pid": pid, "signal": 15, "cmdline": cmdline[:240]})
+        except OSError as exc:
+            killed.append({"pid": pid, "error": str(exc)})
+    release_serve_lock(lock_path, pid=None)
+    # Clear lock even if holder already dead.
+    try:
+        lock_path.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return {"killed": killed, "lock_cleared": True}
+
+
+def ensure_host_pid_headroom(min_free: int = HOST_PID_MIN_FREE) -> dict[str, Any]:
+    """Fail closed when cgroup free PIDs/threads are below *min_free*."""
+    stats = read_cgroup_pids()
+    if not stats.get("available"):
+        # Non-Linux / missing cgroup: do not block; report only.
+        return {"ok": True, "skipped": True, "stats": stats}
+    free = stats.get("free")
+    if free is None:
+        return {"ok": True, "skipped": True, "stats": stats}
+    if int(free) < int(min_free):
+        raise ValueError(
+            f"{HOST_PID_EXHAUSTED}: free={free} < min_free={min_free} "
+            f"cgroup={stats.get('cgroup')} current={stats.get('current')} "
+            f"max={stats.get('max')}; run host-pids and stop leftover "
+            f"snapshot --serve / qemu before retrying"
+        )
+    return {"ok": True, "skipped": False, "stats": stats}
+
+
+def host_pids_report(*, kill_stale: bool = False) -> dict[str, Any]:
+    stats = read_cgroup_pids()
+    suspects = list_host_pid_suspects()
+    lock = read_serve_lock()
+    killed = kill_stale_serve() if kill_stale else None
+    free = stats.get("free")
+    return {
+        "schema": "ndf-host-pids/v1",
+        "generated_at": now_iso(),
+        "cgroup": stats,
+        "min_free": HOST_PID_MIN_FREE,
+        "headroom_ok": (
+            free is None or (stats.get("available") and int(free) >= HOST_PID_MIN_FREE)
+        ),
+        "serve_lock": lock,
+        "serve_lock_alive": serve_lock_holder_alive(lock),
+        "suspects": suspects,
+        "kill_stale": killed,
+        "advice": (
+            "free PIDs/threads under Chromium TasksMax; stop leftover "
+            "`snapshot --serve` and qemu guests; do not raise TasksMax as the fix; "
+            "do not switch to cloud agents"
+            if free is not None and int(free) < HOST_PID_MIN_FREE
+            else "headroom ok or unlimited"
+        ),
+    }
+
+
+class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    """ThreadingHTTPServer with daemon threads and a hard worker cap."""
+
+    daemon_threads = True
+
+    def __init__(self, server_address, RequestHandlerClass, *, max_workers: int = SERVE_MAX_WORKERS):
+        self._worker_slots = threading.BoundedSemaphore(int(max_workers))
+        super().__init__(server_address, RequestHandlerClass)
+
+    def process_request(self, request, client_address):  # noqa: ANN001
+        self._worker_slots.acquire()
+        try:
+            t = threading.Thread(
+                target=self.process_request_thread,
+                args=(request, client_address),
+            )
+            t.daemon = True
+            t.start()
+        except Exception:
+            self._worker_slots.release()
+            raise
+
+    def process_request_thread(self, request, client_address):  # noqa: ANN001
+        try:
+            self.finish_request(request, client_address)
+        except Exception:
+            self.handle_error(request, client_address)
+        finally:
+            try:
+                self.shutdown_request(request)
+            finally:
+                self._worker_slots.release()
+
+
 def load_served_snapshot(path: Path) -> dict[str, Any]:
     """Read the on-disk commander snapshot. Does not rebuild or probe."""
     return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -7588,26 +7900,47 @@ def commander_http_handler(
             return data if isinstance(data, dict) else {}
 
         def _stream_snapshot_events(self) -> None:
-            self.send_response(200)
-            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Connection", "keep-alive")
-            self.send_header("X-Accel-Buffering", "no")
-            self.end_headers()
-            last_sha: str | None = None
-            interval = float(state.get("event_interval") or 0.5)
-            while True:
-                try:
-                    payload = load_served_snapshot(state["out"])
-                    sha = served_payload_sha(payload)
-                    if sha != last_sha:
-                        last_sha = sha
-                        data = json.dumps({"payloadSha": sha}, ensure_ascii=False)
-                        self.wfile.write(f"event: snapshot\ndata: {data}\n\n".encode("utf-8"))
-                        self.wfile.flush()
-                    time.sleep(interval)
-                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError, OSError):
-                    break
+            sse_slots: threading.BoundedSemaphore = state.setdefault(
+                "sse_slots",
+                threading.BoundedSemaphore(int(state.get("max_sse") or SERVE_MAX_SSE)),
+            )
+            if not sse_slots.acquire(blocking=False):
+                self.send_error(503, "sse_limit_exceeded")
+                return
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                self.end_headers()
+                last_sha: str | None = None
+                interval = float(state.get("event_interval") or 0.5)
+                conn = self.connection
+                while True:
+                    try:
+                        readable, _, _ = select.select([conn], [], [], interval)
+                        if readable:
+                            peeked = conn.recv(1, socket.MSG_PEEK)
+                            if not peeked:
+                                break
+                        payload = load_served_snapshot(state["out"])
+                        sha = served_payload_sha(payload)
+                        if sha != last_sha:
+                            last_sha = sha
+                            data = json.dumps({"payloadSha": sha}, ensure_ascii=False)
+                            self.wfile.write(f"event: snapshot\ndata: {data}\n\n".encode("utf-8"))
+                            self.wfile.flush()
+                    except (
+                        BrokenPipeError,
+                        ConnectionResetError,
+                        ConnectionAbortedError,
+                        TimeoutError,
+                        OSError,
+                    ):
+                        break
+            finally:
+                sse_slots.release()
 
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
@@ -7763,6 +8096,9 @@ def serve_commander(
     event_interval: float = 0.5,
 ) -> dict[str, Any]:
     """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
+    ensure_host_pid_headroom()
+    lock = acquire_serve_lock(port)
+    atexit.register(release_serve_lock, pid=os.getpid())
     payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
     write_commander_snapshot(payload, out)
     dist = META / "cockpit" / "dist"
@@ -7772,20 +8108,31 @@ def serve_commander(
         "probe_runtime": probe_runtime,
         "out": out,
         "event_interval": event_interval,
+        "max_sse": SERVE_MAX_SSE,
+        "sse_slots": threading.BoundedSemaphore(SERVE_MAX_SSE),
     }
     Handler = commander_http_handler(dist=dist, state=state)
 
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    httpd = BoundedThreadingHTTPServer(
+        ("127.0.0.1", port),
+        Handler,
+        max_workers=SERVE_MAX_WORKERS,
+    )
     url = f"http://127.0.0.1:{port}/"
     sys.stderr.write(
         f"NDF commander at {url} snapshot={out}\n"
-        "bind=127.0.0.1 (loopback only). GET /api/refresh reads the snapshot file; "
+        f"bind=127.0.0.1 lock={SERVE_LOCK_PATH} pid={lock.get('pid')} "
+        f"workers<={SERVE_MAX_WORKERS} sse<={SERVE_MAX_SSE}\n"
+        "GET /api/refresh reads the snapshot file; "
         "GET /api/events pushes payloadSha. Open this URL on the machine that ran --serve.\n"
     )
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        pass
+    finally:
         httpd.server_close()
+        release_serve_lock(pid=os.getpid())
     return {"url": url, "outPath": rel(out)}
 
 
@@ -10233,6 +10580,17 @@ def main() -> int:
     )
     snapshot_parser.add_argument("--port", type=int, default=8765)
 
+    host_pids_parser = sub.add_parser(
+        "host-pids",
+        help="Report cgroup PID/thread headroom and local NDF serve/qemu suspects",
+    )
+    host_pids_parser.add_argument("--json", action="store_true")
+    host_pids_parser.add_argument(
+        "--kill-stale-serve",
+        action="store_true",
+        help="Explicitly SIGTERM this repo's lock-held --serve and clear the lock",
+    )
+
     topic_health_parser = sub.add_parser("topic-health")
     topic_health_parser.add_argument("--topic", required=True)
     topic_health_parser.add_argument("--json", action="store_true")
@@ -10562,6 +10920,7 @@ def main() -> int:
                         out_path,
                     )
             if args.serve:
+                ensure_host_pid_headroom()
                 serve_commander(
                     topic=args.topic,
                     probe_runtime=args.probe_runtime,
@@ -10572,6 +10931,10 @@ def main() -> int:
                 return 0
             emit(projected)
             return 0
+        if args.command == "host-pids":
+            report = host_pids_report(kill_stale=args.kill_stale_serve)
+            emit(report)
+            return 0 if report.get("headroom_ok") else 1
         if args.command == "topic-health":
             payload, code = topic_health(args.topic)
             emit(payload)

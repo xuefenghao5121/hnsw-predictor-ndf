@@ -194,6 +194,7 @@ python3 spec/meta/tools/ndf_workflow_status.py snapshot --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
   --format canvas-json --out tmp/ndf-canvas-snapshot.json --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic <topic>
+python3 spec/meta/tools/ndf_workflow_status.py host-pids --json
 python3 spec/meta/tools/ndf_workflow_status.py snapshot \
   --format canvas-json --json
 python3 spec/meta/tools/ndf_replay.py canvas-index --json
@@ -296,7 +297,9 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `passed + current` 可启用 repair/delegate/close。
   `--format canvas-json` 输出官方 camelCase commander payload（含 `enabledActions`），
   `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 绑定 `127.0.0.1` 提供 React+D3
-  指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；POST `/api/action`
+  指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；MUST 单例（lock）、
+  有界线程/SSE；空闲 cgroup PID 不足时 fail-closed。`host-pids` 诊断；
+  `--kill-stale-serve` 显式清理。POST `/api/action`
   只接受登记动作。Cloud Agent 用 `build_standalone.py` 生成
   `docs/ndf-commander.html` 自包含 React+D3 投影；运行时不依赖 GitHub/CDN，可直接
   从磁盘打开或由本地/内网静态服务器托管。Canvas 不在现行 UI 链路；

@@ -268,11 +268,16 @@ UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未�
 按钮点击 MUST NOT 充当人口令（[[META-010]]）。Composer / `openFile` 仍是可变 hop
 的唯一派发面；commander 的 snapshot hop（Refresh / 打开工作台 / 查这条账）MAY 由
 本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
-`--serve` MUST bind loopback（`127.0.0.1`）。Cloud Agent VM 对人浏览器没有 TCP 入站，
+`--serve` MUST bind loopback（`127.0.0.1`）。`--serve` MUST 单例（lock + 拒绝第二份）；
+HTTP/SSE 线程 MUST 有界并可断线退出。本进程 cgroup 空闲 PID/线程不足时，`--serve` 与
+`action-begin` MUST fail-closed（`host_pid_exhausted`）；诊断入口 `host-pids`。
+Command Agent MUST NOT 后台残留 `--serve`；日常刷新只写 `--out`。Cloud Agent VM 对人浏览器没有 TCP 入站，
 因此 `http://127.0.0.1:8765/` 不是云端可打开地址。Cloud Agent MUST 生成
 `docs/ndf-commander.html` 自包含投影；MAY 从磁盘直接打开、由本地/内网静态服务器
 托管，或从可达 HTTPS 页面打开。工作台使用 MUST NOT 依赖 GitHub、CDN 或外网；
 命令继续回到同一 Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
+发现 Agent Shell `EAGAIN` / fork 失败时 MUST 先跑 `host-pids` 并清理残留 serve/qemu，
+MUST NOT 改 `environment=cloud` 绕开本机宿主卫生。
 
 Snapshot MUST 投影生成该指挥面的 Git remote URL、remote 名与命名分支。所有
 Composer / snapshot Prompt MUST 以 `BEGIN NDF GIT INPUT` / `END NDF GIT INPUT`
