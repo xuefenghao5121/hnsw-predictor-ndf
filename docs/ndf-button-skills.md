@@ -7,15 +7,17 @@ Enablement stays snapshot-derived. Command files are atoms under
 Index: [`.cursor/skills/ndf-workflow-canvas/actions.md`](../.cursor/skills/ndf-workflow-canvas/actions.md).
 
 Copied prompts start with:
-
-```text
-/ndf-poc-baseline
-skill=.cursor/skills/ndf-workflow-canvas/workflows/poc-baseline.md
-tool=python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_prepare_baseline
+```
+/ndf-…
+skill=…
+tool=…
 ```
 
-then the existing NDF GIT INPUT block. There is no `Follow actions.md` fallback.
-Human phrases remain META-010 (`已确认` / `TOPIC已审核` / `可以开始实现`), not 同意/ok.
+then `catalog_action_id=<id>`, `BEGIN NDF GIT INPUT`, and a concrete wrap including
+`action-commit --catalog-action-id <id> --prompt-file tmp/ndf-action-prompt-<id>.md`.
+Commander buttons only **copy** the Prompt (not auto-dispatch). After the human pastes
+into an Agent, a project `stop` hook may idempotently re-run `action-commit` + snapshot
+if the Agent omitted them.
 
 **Live commander** is local `snapshot --serve` at `http://127.0.0.1:8765/`. After the Agent writes `tmp/ndf-canvas-snapshot.json`, that page auto-reloads (`GET /api/events` / `GET /api/refresh`). Do not `curl localhost:8081`. htmlpreview / `docs/ndf-commander.html` is a static backup: rebuild the HTML, then refresh the browser.
 

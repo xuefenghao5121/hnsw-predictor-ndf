@@ -862,6 +862,8 @@ def list_button_actions(store: "ReplayStore") -> list[dict[str, Any]]:
                 "replayDiffStat": data.get("replayDiffStat") or data.get("replay_diff_stat"),
                 "originalDiffStat": data.get("originalDiffStat")
                 or data.get("original_diff_stat"),
+                "workflowActionId": data.get("workflowActionId")
+                or data.get("workflow_action_id"),
                 "canReplay": True,
                 "state": "button_action",
             }

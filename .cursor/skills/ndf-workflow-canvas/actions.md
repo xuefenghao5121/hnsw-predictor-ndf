@@ -13,12 +13,19 @@ remains the SoT.
 Any mutating hop MUST wrap:
 
 ```text
-action-begin → operation → action-finish(success|failed, blockers)
+action-begin → operation → action-commit → action-finish
 → snapshot --out tmp/ndf-canvas-snapshot.json
 ```
 
-Copied prompts start with `/ndf-…`, `skill=…`, `tool=…`, then NDF GIT INPUT.
-There is no `Follow actions.md` fallback.
+`action-commit` stages registry `mayWrite`, commits `ndf-action: <catalog_action_id>`
+when dirty (skip if clean), and records Replay A→B. A project `stop` hook may
+re-run the same commit idempotently if the Agent omitted it.
+
+Copied prompts start with `/ndf-…`, `skill=…`, `tool=…`, then
+`catalog_action_id=<id>`, NDF GIT INPUT, and the concrete wrap including
+`action-commit`. There is no `Follow actions.md` fallback. Buttons only copy
+the Prompt; humans paste into an Agent. A project `stop` hook may idempotently
+re-run `action-commit` + snapshot.
 
 Human phrases stay META-010: **已确认** / **TOPIC已审核** / **可以开始实现**
 (and **已审核** / **IDEA已审核** where catalogued). Not 同意 / ok.

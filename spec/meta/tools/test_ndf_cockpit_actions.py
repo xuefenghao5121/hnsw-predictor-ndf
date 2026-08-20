@@ -970,6 +970,8 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertNotIn("filteredTimeline", source)
         self.assertNotIn("ReplayTimeline", source)
         self.assertNotIn('value="meta"', source)
+        self.assertIn("复制委派 Prompt · 不自动执行", source)
+        self.assertIn("本按钮只打开文件，不派 Agent", source)
 
     def test_agents_page_does_not_navigate_to_replay(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
@@ -993,6 +995,147 @@ class ActionRegistryTest(unittest.TestCase):
         # D3 hop timeline is no longer on the Replay main path.
         path = SRC / "charts" / "ReplayTimeline.tsx"
         self.assertTrue(path.is_file() or not path.exists())
+
+    def test_composer_prompts_bind_catalog_action_id_and_action_commit(self) -> None:
+        payload = _payload()
+        for action in actions.registry_actions():
+            if action.get("dispatch") != "composer":
+                continue
+            aid = action["id"]
+            prompt = actions.composer_prompt(
+                aid,
+                payload,
+                intent="test intent",
+                topic="hotspot-optimization",
+                episode_id="ba-demo",
+            )
+            self.assertIn(f"catalog_action_id={aid}", prompt, aid)
+            self.assertIn(f"--catalog-action-id {aid}", prompt, aid)
+            self.assertIn("action-commit", prompt, aid)
+            self.assertIn(actions.action_prompt_relpath(aid), prompt, aid)
+            if action.get("tool"):
+                # Unique tool line appears in header via dispatch_prompt_header.
+                self.assertIn(f"tool={action['tool']}", prompt, aid)
+
+    def test_shared_skill_prompts_differ_by_unique_cli(self) -> None:
+        payload = _payload(
+            control={
+                "processHop": {
+                    "focusedPath": "spec/meta/open/proposal-meta-x.md",
+                }
+            }
+        )
+        design = actions.composer_prompt("design-prepare", payload, topic="hotspot-optimization")
+        binder = actions.composer_prompt("binder-pipeline", payload, topic="hotspot-optimization")
+        amend = actions.composer_prompt("binder-amend", payload, topic="hotspot-optimization")
+        self.assertIn("--focus-binder-facet design", design)
+        self.assertIn("--task binder_pipeline", binder)
+        self.assertNotIn("--focus-binder-facet design", binder)
+        self.assertIn("--task binder_amend", amend)
+
+        delegate = actions.composer_prompt("delegate-poc", payload, topic="hotspot-optimization")
+        lease = actions.composer_prompt("prepare-acp-lease", payload, topic="hotspot-optimization")
+        self.assertIn(" pack --topic ", delegate)
+        self.assertIn("lease-record", lease)
+
+        next_step = actions.composer_prompt(
+            "generate-next-step", payload, intent="promote", topic="hotspot-optimization"
+        )
+        close_hop = actions.composer_prompt("next-close-hop", payload, topic="hotspot-optimization")
+        self.assertIn("BEGIN HUMAN POC DECISION", next_step)
+        self.assertIn("close-plan", close_hop)
+        self.assertIn("from selected_decision only", close_hop)
+
+        repair = actions.composer_prompt("repair-kernel", payload)
+        improve = actions.composer_prompt(
+            "submit-process-improvement", payload, intent="tighten META"
+        )
+        self.assertIn("--origin health_finding", repair)
+        self.assertIn("--origin human_intent", improve)
+
+        topic = actions.composer_prompt("diagnose-topic", payload, topic="hotspot-optimization")
+        control = actions.composer_prompt("run-ndf-control-check", payload)
+        self.assertIn("topic-health", topic)
+        self.assertIn("spec-health", control)
+        self.assertNotIn("topic-health", control)
+
+        land_c = actions.composer_prompt("land-confirm", payload)
+        land_r = actions.composer_prompt("land-review", payload)
+        self.assertIn("proposal_path=spec/meta/open/proposal-meta-x.md", land_c)
+        self.assertIn("proposal_path=spec/meta/open/proposal-meta-x.md", land_r)
+        self.assertIn("已确认", land_c)
+        self.assertIn("已审核", land_r)
+
+    def test_persist_action_prompt_and_begin_catalog_id(self) -> None:
+        from unittest import mock
+
+        prompt = actions.composer_prompt("align-golden", _payload())
+        path = actions.persist_action_prompt("align-golden", prompt)
+        self.assertTrue(path.is_file())
+        self.assertEqual(path.read_text(encoding="utf-8"), prompt if prompt.endswith("\n") else prompt + "\n")
+        with mock.patch.object(workflow, "git_head", return_value="abc123deadbeef"):
+            with mock.patch.object(workflow, "source_generation_sha", return_value="gensha"):
+                with mock.patch.object(workflow, "append_action_receipt"):
+                    begin = workflow.action_begin(
+                        "align-golden",
+                        None,
+                        "wf-align-test-1",
+                        catalog_action_id="align-golden",
+                    )
+        self.assertEqual(begin["catalog_action_id"], "align-golden")
+        self.assertEqual(begin["status"], "started")
+        self.assertEqual(begin["action_id"], "wf-align-test-1")
+        self.assertEqual(begin["repo_head_before"], "abc123deadbeef")
+
+        fake_receipts = [begin]
+        store = workflow.ndf_replay.ReplayStore(workflow.ROOT)
+        written_path = None
+
+        def fake_write(_store, record):
+            nonlocal written_path
+            written_path = store.root / "button-actions" / f"{record['id']}.json"
+            written_path.parent.mkdir(parents=True, exist_ok=True)
+            written_path.write_text("{}", encoding="utf-8")
+            return written_path
+
+        with mock.patch.object(workflow, "read_action_receipts", return_value=fake_receipts):
+            with mock.patch.object(workflow, "git_head", return_value="abc123deadbeef"):
+                with mock.patch.object(workflow.subprocess, "run") as run_mock:
+                    run_mock.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+                    with mock.patch.object(
+                        workflow.ndf_replay, "list_button_actions", return_value=[]
+                    ):
+                        with mock.patch.object(
+                            workflow.ndf_replay, "write_button_action", side_effect=fake_write
+                        ):
+                            first = workflow.action_commit(
+                                begin["action_id"],
+                                catalog_action_id="align-golden",
+                                prompt=prompt,
+                            )
+        self.assertEqual(first.get("skip_reason"), "clean_worktree")
+        self.assertEqual(first.get("catalog_action_id"), "align-golden")
+        recorded = [
+            {
+                "id": first["button_action_id"],
+                "workflowActionId": begin["action_id"],
+                "baselineSha": "abc123deadbeef",
+                "resultSha": "abc123deadbeef",
+            }
+        ]
+        with mock.patch.object(workflow, "read_action_receipts", return_value=fake_receipts):
+            with mock.patch.object(
+                workflow.ndf_replay, "list_button_actions", return_value=recorded
+            ):
+                second = workflow.action_commit(
+                    begin["action_id"],
+                    catalog_action_id="align-golden",
+                    prompt=prompt,
+                )
+        self.assertEqual(second.get("skip_reason"), "already_recorded")
+        self.assertFalse(second.get("committed"))
+        if written_path and written_path.is_file():
+            written_path.unlink()
 
 
 if __name__ == "__main__":

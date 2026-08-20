@@ -1,7 +1,9 @@
 # Binder pipeline workflow
 
-Orchestrates `/ndf-binder-pipeline`. Catalog ids: `binder-pipeline`, `binder-amend`.
-Six facets stay six facets.
+Orchestrates `/ndf-binder-pipeline`. Catalog ids: `design-prepare`,
+`binder-pipeline`, `binder-amend`. Six facets stay six facets.
+`design-prepare` uses `--focus-binder-facet design`; distinguish by
+`catalog_action_id` in the copied Prompt.
 
 ## Command
 

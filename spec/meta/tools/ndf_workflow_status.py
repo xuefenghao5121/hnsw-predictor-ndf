@@ -2226,22 +2226,32 @@ def action_begin(
     topic: str | None,
     action_id: str | None,
     episode_id: str | None = None,
+    catalog_action_id: str | None = None,
 ) -> dict[str, Any]:
     if episode_id and ndf_replay.ReplayStore(ROOT).read_ref(
         f"episodes/{episode_id}/HEAD"
     ) is None:
         raise ValueError(f"unknown replay episode: {episode_id}")
+    catalog_id = (catalog_action_id or "").strip() or None
+    if catalog_id and catalog_id not in ndf_actions.registry_by_id():
+        raise ValueError(f"unknown catalog_action_id: {catalog_id}")
     identifier = action_id or str(uuid.uuid4())
     started_at = now_iso()
     repo_head = git_head()
     generation = source_generation_sha()
     input_sha = canonical_json_sha(
-        {"action_id": identifier, "operation": operation, "topic": topic}
+        {
+            "action_id": identifier,
+            "operation": operation,
+            "topic": topic,
+            "catalog_action_id": catalog_id,
+        }
     )
     receipt = {
         "schema": "ndf-workflow-action/v2",
         "task": operation,
         "action_id": identifier,
+        "catalog_action_id": catalog_id,
         "topic": topic,
         "mode": "process",
         "step": "begin",
@@ -2396,18 +2406,9 @@ def action_commit(
     """Commit mayWrite changes before snapshot refresh; record button-action A→B.
 
     Empty tree → skip commit but still record baseline=result=HEAD when a start
-    receipt exists. Does not amend or push.
+    receipt exists. Does not amend or push. Idempotent for the same workflow
+    action_id: if a button-action already exists, return skip without rewriting.
     """
-    catalog_id = catalog_action_id or action_id
-    # Prefer catalog id when action_id is a UUID from action-begin.
-    registry = ndf_actions.registry_by_id()
-    action = registry.get(catalog_id) or registry.get(action_id)
-    if action is None:
-        # action-begin uses UUID; operation may match registry operation.
-        for item in registry.values():
-            if item.get("id") == catalog_id:
-                action = item
-                break
     receipts = read_action_receipts()
     start = next(
         (
@@ -2417,8 +2418,31 @@ def action_commit(
         ),
         None,
     )
+    catalog_id = (
+        (catalog_action_id or "").strip()
+        or str((start or {}).get("catalog_action_id") or "").strip()
+        or action_id
+    )
+    # Prefer catalog id when action_id is a UUID from action-begin.
+    registry = ndf_actions.registry_by_id()
+    action = registry.get(catalog_id) or registry.get(action_id)
+    if action is None:
+        for item in registry.values():
+            if item.get("id") == catalog_id:
+                action = item
+                break
     if start is None:
-        # Fall back: latest started for catalog operation.
+        # Fall back: latest started for this catalog_action_id, then operation.
+        start = next(
+            (
+                receipt
+                for receipt in reversed(receipts)
+                if receipt.get("status") == "started"
+                and receipt.get("catalog_action_id") == catalog_id
+            ),
+            None,
+        )
+    if start is None:
         start = next(
             (
                 receipt
@@ -2431,9 +2455,39 @@ def action_commit(
             ),
             None,
         )
+    workflow_id = str((start or {}).get("action_id") or action_id)
+    store = ndf_replay.ReplayStore(ROOT)
+    existing = next(
+        (
+            item
+            for item in ndf_replay.list_button_actions(store)
+            if str(item.get("workflowActionId") or "") == workflow_id
+        ),
+        None,
+    )
+    if existing:
+        return {
+            "schema": "ndf-action-commit/v1",
+            "action_id": workflow_id,
+            "catalog_action_id": catalog_id,
+            "baseline_sha": existing.get("baselineSha"),
+            "result_sha": existing.get("resultSha"),
+            "committed": False,
+            "skip_reason": "already_recorded",
+            "button_action_id": existing.get("id"),
+            "button_action_path": None,
+            "staged_files": [],
+        }
+
     baseline = str((start or {}).get("repo_head_before") or git_head() or "").strip()
     if not baseline:
         raise ValueError("action-commit requires a resolvable baseline HEAD")
+
+    prompt_text = prompt
+    if prompt_text is None:
+        prompt_path = ROOT / ndf_actions.action_prompt_relpath(str(catalog_id))
+        if prompt_path.is_file():
+            prompt_text = prompt_path.read_text(encoding="utf-8")
 
     pathspecs = _may_write_pathspecs(action)
     # Stage allowed paths; never stage .openclaw/state.json.
@@ -2497,7 +2551,6 @@ def action_commit(
     )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     record_id = f"ba-{catalog_key}-{stamp}"
-    store = ndf_replay.ReplayStore(ROOT)
     record = {
         "id": record_id,
         "actionId": catalog_key,
@@ -2506,19 +2559,19 @@ def action_commit(
         "happenedAt": now_iso(),
         "baselineSha": baseline,
         "resultSha": result_sha,
-        "prompt": prompt or "",
+        "prompt": prompt_text or "",
         "topic": (start or {}).get("topic"),
         "committed": committed,
         "skipReason": skip_reason,
         "originalDiffStat": (diff.stdout or "").strip() or None,
         "replayStatus": "pending",
         "stagedFiles": staged,
-        "workflowActionId": action_id,
+        "workflowActionId": workflow_id,
     }
     path = ndf_replay.write_button_action(store, record)
     return {
         "schema": "ndf-action-commit/v1",
-        "action_id": action_id,
+        "action_id": workflow_id,
         "catalog_action_id": catalog_key,
         "baseline_sha": baseline,
         "result_sha": result_sha,
@@ -7435,6 +7488,7 @@ def commander_http_handler(
                         remote_url=str(body.get("remoteUrl") or body.get("remote_url") or "") or None,
                         branch=str(body.get("branch") or "") or None,
                     )
+                    prompt_path = ndf_actions.persist_action_prompt(action_id, prompt)
                     self._send_json(
                         {
                             "id": action_id,
@@ -7442,6 +7496,7 @@ def commander_http_handler(
                             "enabled": evaluated["enabled"],
                             "reason": evaluated["reason"],
                             "prompt": prompt,
+                            "promptPath": str(prompt_path.relative_to(ROOT)),
                             "humanPhrase": catalog.get("humanPhrase"),
                         }
                     )
@@ -9978,6 +10033,10 @@ def main() -> int:
     action_begin_parser.add_argument("--operation", required=True)
     action_begin_parser.add_argument("--topic")
     action_begin_parser.add_argument("--action-id")
+    action_begin_parser.add_argument(
+        "--catalog-action-id",
+        help="Closed catalog action id (required for reliable Replay / stop hook)",
+    )
     action_begin_parser.add_argument("--episode")
     action_begin_parser.add_argument("--json", action="store_true")
 
@@ -10296,7 +10355,15 @@ def main() -> int:
             emit(payload)
             return code
         if args.command == "action-begin":
-            emit(action_begin(args.operation, args.topic, args.action_id, args.episode))
+            emit(
+                action_begin(
+                    args.operation,
+                    args.topic,
+                    args.action_id,
+                    args.episode,
+                    catalog_action_id=args.catalog_action_id,
+                )
+            )
             return 0
         if args.command == "action-finish":
             emit(action_finish(args.action_id, args.result, args.blocker, args.episode))

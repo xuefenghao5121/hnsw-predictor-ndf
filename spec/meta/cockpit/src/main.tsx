@@ -86,7 +86,12 @@ function App() {
     kernelMap: false,
     controlHealth: false,
   });
-  const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
+  const [dialog, setDialog] = useState<{
+    title: string;
+    body: string;
+    hint?: string;
+    kind?: "composer" | "openFile";
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [remoteName, setRemoteName] = useState("origin");
@@ -183,12 +188,20 @@ function App() {
         if (result.prompt) {
           setCopied(false);
           setDialog({
-            title: `${action.label} · ${remoteName}/${remoteBranch || "unspecified-branch"}`,
+            title: `复制委派 Prompt · 不自动执行 · ${action.label} · ${remoteName}/${remoteBranch || "unspecified-branch"}`,
+            hint:
+              "粘贴到 Agent 后执行。结束时 stop hook 只补 action-commit + snapshot（已提交则 skip）。按钮本身不派工。",
             body: result.prompt,
+            kind: "composer",
           });
         } else if (result.path) {
           setCopied(false);
-          setDialog({ title: action.label, body: `openFile ${result.path}` });
+          setDialog({
+            title: `本按钮只打开文件，不派 Agent · ${action.label}`,
+            hint: "在编辑器中打开下列路径；不生成 Composer 委派 Prompt。",
+            body: result.path,
+            kind: "openFile",
+          });
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -1058,17 +1071,20 @@ function App() {
         <div className="modal" role="dialog">
           <div className="card">
             <h3>{dialog.title}</h3>
+            {dialog.hint && <p className="muted">{dialog.hint}</p>}
             <pre>{dialog.body}</pre>
             <div className="pills">
-              <button
-                type="button"
-                data-ndf-action="copy-prompt"
-                onClick={() => {
-                  void navigator.clipboard.writeText(dialog.body).then(() => setCopied(true));
-                }}
-              >
-                {copied ? "已复制" : "复制 Prompt"}
-              </button>
+              {dialog.kind !== "openFile" && (
+                <button
+                  type="button"
+                  data-ndf-action="copy-prompt"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(dialog.body).then(() => setCopied(true));
+                  }}
+                >
+                  {copied ? "已复制" : "复制 Prompt"}
+                </button>
+              )}
               <button type="button" data-ndf-action="collapse-section" onClick={() => setDialog(null)}>Dismiss</button>
             </div>
           </div>
