@@ -8,9 +8,9 @@
     },
     ".cursor/skills/ndf-workflow-canvas/actions.md": {
       "ino": 4990076,
-      "mtime_ns": 1787130334278520037,
-      "sha256": "c7a1cd1941d4d96ca405fc8a68865ead2035c7a1b60726f7fd7b6dc611f12ec3",
-      "size": 14258
+      "mtime_ns": 1787222209321581536,
+      "sha256": "e5ab2a50d18183cf9ab8f140ad5efa9615cbdeca95d3c00a45180920dfe53d86",
+      "size": 5380
     },
     ".cursor/skills/ndf-workflow-canvas/layout.md": {
       "ino": 4990074,
@@ -29,6 +29,12 @@
       "mtime_ns": 1787075128252407233,
       "sha256": "9ef4466b06465548af4592eaccd2ca0df55c48e7eda8fd2a86b527df036d7e2b",
       "size": 19060
+    },
+    ".cursor/skills/ndf-workflow-canvas/workflows/snapshot-refresh.md": {
+      "ino": 5132951,
+      "mtime_ns": 1787214516723057864,
+      "sha256": "fb8cafc2be29b6148be31ce11078bdda558439ba91f526d517c93f6e17e294e0",
+      "size": 1129
     },
     "AGENTS.md": {
       "ino": 4723066,
@@ -96,17 +102,47 @@
       "sha256": "c7c56e5c0984a2f4e66eabd83db849c9b423bd3f7ad07c672ef79f3164c02af2",
       "size": 5102
     },
+    "spec/meta/cockpit/action-registry.json": {
+      "ino": 4856834,
+      "mtime_ns": 1787222042712176993,
+      "sha256": "eb04981fa19f40cb594cdf66de02254505fe86f333a92c86d465e2348c63cdd7",
+      "size": 29451
+    },
+    "spec/meta/cockpit/src/ActionButton.tsx": {
+      "ino": 4856855,
+      "mtime_ns": 1787214319900910960,
+      "sha256": "7191d1594439cc4cfe9fbe3aaee0a1844b0248d4e3b13caf74fb173f3ea53be1",
+      "size": 1235
+    },
+    "spec/meta/cockpit/src/main.tsx": {
+      "ino": 4856867,
+      "mtime_ns": 1787222018005840858,
+      "sha256": "364da299253e50129ee78f3191fab098b821d1bd491d3e677aa3ec43c9c1e9ed",
+      "size": 55970
+    },
+    "spec/meta/open/proposal-meta-simple-command-replay.md": {
+      "ino": 4857063,
+      "mtime_ns": 1787222247683733571,
+      "sha256": "2b3cea9011000dc683cc76331eaa9a9fe9aa13a5b1cd1db38daed953abfda4f5",
+      "size": 3459
+    },
     "spec/meta/process.md": {
-      "ino": 4857482,
-      "mtime_ns": 1786986066263056269,
-      "sha256": "f847e80bef7b7ad42b0871f70e373697928babc27c198aae9dbfe5c33a60f741",
-      "size": 62372
+      "ino": 4856878,
+      "mtime_ns": 1787222004851842703,
+      "sha256": "3459ab78c83e9a4a1ca372915cd4cf52f88927d69b41d03d492e0843c18160a4",
+      "size": 66444
     },
     "spec/meta/tools/README.md": {
       "ino": 4851400,
       "mtime_ns": 1787045135069415245,
       "sha256": "8ff2566b7c140b8b77ed6c63d86306c725f2e83b97af4273627cd181917b75ca",
       "size": 23791
+    },
+    "spec/meta/tools/ndf_actions.py": {
+      "ino": 4856888,
+      "mtime_ns": 1787217400900330132,
+      "sha256": "590d32660ba533be38505fa9adc9c30bb732e678bc9abc05287aaa7f2d28d101",
+      "size": 31820
     },
     "spec/meta/tools/ndf_context.py": {
       "ino": 4878369,
@@ -115,16 +151,22 @@
       "size": 73759
     },
     "spec/meta/tools/ndf_replay.py": {
-      "ino": 4878406,
-      "mtime_ns": 1787073721201669062,
-      "sha256": "ee48e4790550ef10a2b12bfcbd32ecbe1f84752ec159eaabb5c3a2272fbb8215",
-      "size": 271972
+      "ino": 4856891,
+      "mtime_ns": 1787222150129474479,
+      "sha256": "f4010966de6e8b8ee48717680d74cafc284f2b9199eb783fa75bd1f7687f5e18",
+      "size": 285582
     },
     "spec/meta/tools/ndf_workflow_status.py": {
-      "ino": 4878314,
-      "mtime_ns": 1787130185053663787,
-      "sha256": "8fd38a9d552f2d5664a39c079ede0449a1a16a3304a64a48460f38c3711225b9",
-      "size": 355823
+      "ino": 4856895,
+      "mtime_ns": 1787217432561846014,
+      "sha256": "6dadaff954d37bfcd2eada4be9cb4ffddfe3f36d717117455247a796da51b4cd",
+      "size": 384866
+    },
+    "spec/meta/tools/test_ndf_cockpit_actions.py": {
+      "ino": 4856896,
+      "mtime_ns": 1787222195337308638,
+      "sha256": "c178234c8a25dea6d4d68930639260bb67b36e578c5650ea5c5c38e528f41da0",
+      "size": 45189
     },
     "spec/meta/tools/test_ndf_context.py": {
       "ino": 4878370,
@@ -133,16 +175,16 @@
       "size": 37046
     },
     "spec/meta/tools/test_ndf_replay.py": {
-      "ino": 4878407,
-      "mtime_ns": 1787043434022113896,
-      "sha256": "fb0503bbc78df8b0b21f10d0b37105d5266ff33b5eef3d3e10275767bcb7c47f",
-      "size": 85107
+      "ino": 4856940,
+      "mtime_ns": 1787222235624742835,
+      "sha256": "0cded30d5cc9944bc09523327b239bd958bcb39c8ccb05c3404e1969dc531c75",
+      "size": 91320
     },
     "spec/meta/tools/test_ndf_workflow_status.py": {
-      "ino": 4878336,
-      "mtime_ns": 1787130445440663398,
-      "sha256": "b430fd204ccef74d752c7f3cb46c7a3f55d3812e888dd99253365542b7d0cc30",
-      "size": 207395
+      "ino": 4856976,
+      "mtime_ns": 1787214387461950554,
+      "sha256": "ecec2b998b77636358176f0621f55c2ccb0fd417393abae2f63137097d86769f",
+      "size": 214596
     }
   }
 }

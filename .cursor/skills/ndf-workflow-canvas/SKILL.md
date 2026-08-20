@@ -52,8 +52,8 @@ python3 build_standalone.py
 
 Open `docs/ndf-commander.html`. The built page is self-contained and MUST NOT
 require GitHub/CDN/network access at runtime. `--topic` selects the unique fat
-Topics page. Do not pass `--probe-runtime` on routine refresh; header Refresh
-snapshot is the only probe.
+Topics page. Do not pass `--probe-runtime` on routine refresh; serve Refresh
+honors catalog / `--probe-runtime` only and does not force a probe.
 Over 120KB compact commander JSON MUST fail and name the overflowing bucket.
 Unchanged evidence (Merkle layer hit) MUST reuse persisted spec-health / Replay index
 and MUST NOT re-run `ndf_graphcheck`. Commander workbench uses a shallow graph preview or

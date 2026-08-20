@@ -92,11 +92,12 @@ function App() {
     workflow: true,
     mechanical: true,
     genesis: true,
-    kernelMap: true,
-    controlHealth: true,
+    kernelMap: false,
+    controlHealth: false,
   });
   const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [tech, setTech] = useState(false);
   const [remoteName, setRemoteName] = useState("origin");
   const [remoteUrl, setRemoteUrl] = useState("");
@@ -176,6 +177,7 @@ function App() {
       if (action.dispatch === "projection_only") {
         return;
       }
+      setBusyAction(id);
       try {
         const result = await dispatchAction({
           id,
@@ -200,6 +202,8 @@ function App() {
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusyAction(null);
       }
     },
     [remoteBranch, remoteName, remoteUrl],
@@ -366,7 +370,13 @@ function App() {
           <div className="banner">Write CTAs are fail-closed until projection freshness is fresh.</div>
         )}
         <div className="pills">
-          <ActionButton actionId="refresh-snapshot" enabled={enabledOf(snapshot, "refresh-snapshot")} onClick={() => run("refresh-snapshot")} className="primary" />
+          <ActionButton
+            actionId="refresh-snapshot"
+            enabled={enabledOf(snapshot, "refresh-snapshot")}
+            busy={busyAction === "refresh-snapshot"}
+            onClick={() => run("refresh-snapshot")}
+            className="primary"
+          />
         </div>
         <p className="muted">
           Now {snapshot?.business?.nowNextBlocked?.now || "—"} · Next {snapshot?.business?.nowNextBlocked?.next || "—"} · Blocked {snapshot?.business?.nowNextBlocked?.blocked ?? 0}
@@ -571,6 +581,11 @@ function App() {
                             </div>
                           ))}
                           <p className="muted">{value?.clause_refs?.map((item) => item.id).join(" · ")}</p>
+                          {space === "design" && (
+                            <div className="pills">
+                              <ActionButton actionId="design-prepare" enabled={enabledOf(snapshot, "design-prepare")} onClick={() => run("design-prepare")} />
+                            </div>
+                          )}
                           {space === "implementation" && (
                             <div className="pills">
                               <ActionButton actionId="poc-prepare-baseline" enabled={enabledOf(snapshot, "poc-prepare-baseline")} onClick={() => run("poc-prepare-baseline")} />
@@ -813,9 +828,15 @@ function App() {
             </div>
 
             <div className="card disclosure">
-              <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, kernelMap: !s.kernelMap }))}>
-                NDF 内核地图 · 种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
-              </button>
+              <div className="section-heading">
+                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, kernelMap: !s.kernelMap }))}>
+                  NDF 内核地图 · 种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
+                </button>
+                <div className="pills">
+                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
+                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
+                </div>
+              </div>
               {!collapsed.kernelMap && (
                 <div>
                   <p className="eyebrow">Process profile IR</p>
@@ -840,18 +861,18 @@ function App() {
             </div>
 
             <div className="card disclosure">
-              <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, controlHealth: !s.controlHealth }))}>
-                内核自洽性 · 阻断 {controlBlockers} · 告警 {controlWarnings} · 通过 {controlPassed}
-              </button>
+              <div className="section-heading">
+                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, controlHealth: !s.controlHealth }))}>
+                  内核自洽性 · 阻断 {controlBlockers} · 告警 {controlWarnings} · 通过 {controlPassed}
+                </button>
+                <div className="pills">
+                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
+                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
+                </div>
+              </div>
               {!collapsed.controlHealth && (
                 <div>
-                  <div className="section-heading">
-                    <p className="eyebrow">Plane-routed checks</p>
-                    <div className="pills">
-                      <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
-                      <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
-                    </div>
-                  </div>
+                  <p className="eyebrow">Plane-routed checks</p>
                   <table>
                     <thead><tr><th>Check / finding</th><th>State</th><th>Why blocked</th><th>Plane / repair</th></tr></thead>
                     <tbody>
@@ -955,14 +976,6 @@ function App() {
                     <span><strong>Boundary</strong>{agent.boundaries}</span>
                     <span><strong>Current note</strong>{agent.note}</span>
                   </div>
-                  <ActionButton
-                    actionId="replay-agent-filter"
-                    enabled={enabledOf(snapshot, "replay-agent-filter")}
-                    onClick={() => {
-                      setReplayAgentFilter(agent.id);
-                      setTab("replay");
-                    }}
-                  />
                 </div>
               ))}
             </div>
@@ -1055,16 +1068,14 @@ function App() {
                           {selectedTimelineStep !== null && (
                             <pre className="muted">{JSON.stringify(filteredTimeline.find((item) => item.seq === selectedTimelineStep), null, 2)}</pre>
                           )}
+                          <p className="muted">
+                            Command Replay 执行与验证走 CLI：
+                            {" "}
+                            <code>python3 spec/meta/tools/ndf_replay.py command-replay --episode &lt;id&gt;</code>
+                            。本页只查看，不宣称已回放。
+                          </p>
                         </div>
                       )}
-                      <div className="pills">
-                        <ActionButton actionId="guest-replay-hop" enabled={enabledOf(snapshot, "guest-replay-hop")} onClick={() => run("guest-replay-hop", { episode: selectedHop })} />
-                        <ActionButton
-                          actionId="guest-replay-prefix"
-                          enabled={enabledOf(snapshot, "guest-replay-prefix")}
-                          onClick={() => run("guest-replay-prefix", { episode: selectedHop, timelineStep: selectedTimelineStep ?? undefined })}
-                        />
-                      </div>
                     </div>
                   </>
                 )}

@@ -118,9 +118,59 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertTrue(enabled["poc-prepare-baseline"]["enabled"])
         self.assertTrue(enabled["poc-measurement"]["enabled"])
 
+    def test_refresh_snapshot_does_not_default_probe_runtime(self) -> None:
+        catalog = actions.registry_by_id()["refresh-snapshot"]
+        self.assertFalse(catalog.get("probeRuntime"))
+
+    def test_absorbing_fresh_enables_product_and_process_writes(self) -> None:
+        payload = _payload(
+            absorbedActionId="action-1",
+            evidenceGeneration="b" * 64,
+            snapshotSha="b" * 64,
+            projectionFreshness={
+                "state": "stale_after_action",
+                "latest_action": {
+                    "action_id": "action-1",
+                    "status": "finished",
+                    "result": "success",
+                    "evidence_generation": "c" * 64,
+                },
+            },
+            business={
+                "identity": {
+                    "name": "DiskHNSW",
+                    "goal": "g",
+                    "charterExists": True,
+                    "charterPath": "spec/00-charter/charter.md",
+                },
+                "performance": {"goldenHeadStatus": "docs_only_ahead"},
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {
+                    "id": "hotspot-optimization",
+                    "decision": {"selected": None},
+                    "spaces": {
+                        "implementation": {"gaps": []},
+                        "test": {"gaps": []},
+                    },
+                    "health": {"findings": []},
+                    "delegation": {
+                        "static_preflight_passed": False,
+                        "runtime_dispatch_ready": False,
+                    },
+                },
+                "topics": [{"id": "hotspot-optimization"}],
+            },
+        )
+        workflow.mark_canvas_fresh_if_absorbing(payload)
+        self.assertEqual(payload["projectionFreshness"]["state"], "fresh")
+        enabled = actions.evaluate_enabled_actions(payload)
+        self.assertTrue(enabled["new-proposal"]["enabled"])
+        self.assertTrue(enabled["submit-process-improvement"]["enabled"])
+
     def test_space_repairs_explain_how_to_fill_gaps(self) -> None:
         spaces = workflow.attach_space_repairs(
             {
+                "design": {"ready": False, "gaps": ["DESIGN.md"]},
                 "implementation": {"ready": False, "gaps": ["missing_baseline_workspace"]},
                 "test": {"ready": False, "gaps": ["numbers_pending"]},
             },
@@ -146,6 +196,9 @@ class ActionRegistryTest(unittest.TestCase):
             },
             topic_id="hotspot-optimization",
         )
+        design = spaces["design"]["repairs"][0]
+        self.assertEqual(design["actionId"], "design-prepare")
+        self.assertIn("准备设计文档", design["fix"])
         impl = spaces["implementation"]["repairs"][0]
         self.assertEqual(impl["actionId"], "poc-prepare-baseline")
         self.assertIn("基线准备", impl["fix"])
@@ -541,6 +594,151 @@ class ActionRegistryTest(unittest.TestCase):
                 httpd.shutdown()
                 httpd.server_close()
 
+    def test_post_refresh_snapshot_does_not_force_probe(self) -> None:
+        import json
+        import tempfile
+        import threading
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from pathlib import Path
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "ndf-canvas-snapshot.json"
+            initial = _payload(
+                absorbedActionId="action-1",
+                payloadSha="before",
+                projectionFreshness={
+                    "state": "stale_after_action",
+                    "latest_action": {
+                        "action_id": "action-1",
+                        "status": "finished",
+                        "result": "success",
+                        "evidence_generation": "old",
+                    },
+                },
+                business={
+                    "identity": {
+                        "name": "DiskHNSW",
+                        "goal": "g",
+                        "charterExists": True,
+                        "charterPath": "spec/00-charter/charter.md",
+                    },
+                    "performance": {"goldenHeadStatus": "docs_only_ahead"},
+                    "focusedTopicId": "hotspot-optimization",
+                    "focusedTopic": {
+                        "id": "hotspot-optimization",
+                        "decision": {"selected": None},
+                        "spaces": {
+                            "implementation": {"gaps": []},
+                            "test": {"gaps": []},
+                        },
+                        "health": {"findings": []},
+                        "delegation": {
+                            "static_preflight_passed": False,
+                            "runtime_dispatch_ready": False,
+                        },
+                    },
+                    "topics": [{"id": "hotspot-optimization"}],
+                },
+            )
+            initial["enabledActions"] = actions.evaluate_enabled_actions(initial)
+            snap.write_text(json.dumps(initial), encoding="utf-8")
+            dist = Path(tmp) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+            state = {
+                "topic": None,
+                "replay_episode": None,
+                "probe_runtime": False,
+                "out": snap,
+                "event_interval": 0.05,
+            }
+            probe_seen: list[bool] = []
+
+            def fake_snapshot(topic, probe_runtime, replay_episode=None):
+                probe_seen.append(bool(probe_runtime))
+                return {"topic": topic, "probe": probe_runtime}
+
+            def fake_canvas_snapshot(_raw):
+                rebuilt = _payload(
+                    absorbedActionId="action-1",
+                    evidenceGeneration="new-gen",
+                    snapshotSha="new-gen",
+                    payloadSha="after-refresh",
+                    projectionFreshness={
+                        "state": "stale_after_action",
+                        "latest_action": {
+                            "action_id": "action-1",
+                            "status": "finished",
+                            "result": "success",
+                            "evidence_generation": "old",
+                        },
+                    },
+                    business={
+                        "identity": {
+                            "name": "DiskHNSW",
+                            "goal": "g",
+                            "charterExists": True,
+                            "charterPath": "spec/00-charter/charter.md",
+                        },
+                        "performance": {"goldenHeadStatus": "docs_only_ahead"},
+                        "focusedTopicId": "hotspot-optimization",
+                        "focusedTopic": {
+                            "id": "hotspot-optimization",
+                            "decision": {"selected": None},
+                            "spaces": {
+                                "implementation": {"gaps": []},
+                                "test": {"gaps": []},
+                            },
+                            "health": {"findings": []},
+                            "delegation": {
+                                "static_preflight_passed": False,
+                                "runtime_dispatch_ready": False,
+                            },
+                        },
+                        "topics": [{"id": "hotspot-optimization"}],
+                    },
+                )
+                workflow.mark_canvas_fresh_if_absorbing(rebuilt)
+                rebuilt["enabledActions"] = actions.evaluate_enabled_actions(rebuilt)
+                return rebuilt
+
+            handler = workflow.commander_http_handler(dist=dist, state=state)
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = httpd.server_address[:2]
+                with (
+                    patch.object(workflow, "snapshot", side_effect=fake_snapshot),
+                    patch.object(
+                        workflow, "canvas_snapshot", side_effect=fake_canvas_snapshot
+                    ),
+                    patch.object(workflow, "write_commander_snapshot"),
+                ):
+                    req = urllib.request.Request(
+                        f"http://{host}:{port}/api/action",
+                        data=json.dumps({"id": "refresh-snapshot"}).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        body = json.loads(resp.read().decode("utf-8"))
+                self.assertEqual(probe_seen, [False])
+                self.assertEqual(
+                    body["snapshot"]["projectionFreshness"]["state"], "fresh"
+                )
+                self.assertTrue(body["snapshot"]["enabledActions"]["new-proposal"]["enabled"])
+                self.assertTrue(
+                    body["snapshot"]["enabledActions"]["submit-process-improvement"][
+                        "enabled"
+                    ]
+                )
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
     def test_sse_pushes_payload_sha_when_snapshot_file_changes(self) -> None:
         import json
         import tempfile
@@ -615,15 +813,120 @@ class ActionRegistryTest(unittest.TestCase):
         registry = actions.registry_by_id()
         for action_id in ("gate-pipeline", "binder-pipeline", "binder-amend"):
             self.assertEqual(registry[action_id]["module"], "control-pipelines")
+        design_action = registry["design-prepare"]
+        self.assertEqual(design_action["module"], "space-design")
+        self.assertEqual(design_action["failClosed"], "hide")
+        self.assertIn("designDocsMissing", design_action["enableWhen"])
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
         design = source.split('space === "design"', 1)
-        if len(design) == 2:
-            design_block = design[1].split('space === "implementation"', 1)[0]
-            self.assertNotIn('actionId="gate-pipeline"', design_block)
-            self.assertNotIn('actionId="binder-pipeline"', design_block)
+        self.assertEqual(len(design), 2)
+        design_block = design[1].split('space === "implementation"', 1)[0]
+        self.assertIn('actionId="design-prepare"', design_block)
+        self.assertNotIn('actionId="gate-pipeline"', design_block)
+        self.assertNotIn('actionId="binder-pipeline"', design_block)
+        self.assertNotIn('actionId="binder-amend"', design_block)
         command_block = source.split("OpenClaw Control", 1)[1]
         self.assertIn('actionId="gate-pipeline"', command_block)
         self.assertIn('actionId="binder-pipeline"', command_block)
+
+    def test_design_prepare_enablement_and_prompt(self) -> None:
+        missing = _payload(
+            business={
+                "identity": {
+                    "name": "DiskHNSW",
+                    "goal": "g",
+                    "charterExists": True,
+                    "charterPath": "spec/00-charter/charter.md",
+                },
+                "performance": {"goldenHeadStatus": "aligned"},
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {
+                    "id": "hotspot-optimization",
+                    "decision": {"selected": None},
+                    "spaces": {
+                        "design": {"ready": False, "gaps": ["DESIGN.md"]},
+                        "implementation": {"gaps": []},
+                        "test": {"gaps": []},
+                    },
+                    "health": {"findings": []},
+                    "delegation": {
+                        "static_preflight_passed": False,
+                        "runtime_dispatch_ready": False,
+                    },
+                },
+                "topics": [{"id": "hotspot-optimization"}],
+            }
+        )
+        enabled = actions.evaluate_enabled_actions(missing)
+        self.assertTrue(enabled["design-prepare"]["enabled"])
+        prompt = actions.composer_prompt("design-prepare", missing)
+        self.assertIn("--focus-binder-facet design", prompt)
+        self.assertIn("MUST NOT write GATES.md approved_by", prompt)
+
+        gate_only = _payload(
+            business={
+                "identity": {
+                    "name": "DiskHNSW",
+                    "goal": "g",
+                    "charterExists": True,
+                    "charterPath": "spec/00-charter/charter.md",
+                },
+                "performance": {"goldenHeadStatus": "aligned"},
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {
+                    "id": "hotspot-optimization",
+                    "decision": {"selected": None},
+                    "spaces": {
+                        "design": {
+                            "ready": False,
+                            "gaps": ["gate:topic_review:pending"],
+                        },
+                        "implementation": {"gaps": []},
+                        "test": {"gaps": []},
+                    },
+                    "health": {"findings": []},
+                    "delegation": {
+                        "static_preflight_passed": False,
+                        "runtime_dispatch_ready": False,
+                    },
+                },
+                "topics": [{"id": "hotspot-optimization"}],
+            }
+        )
+        gate_enabled = actions.evaluate_enabled_actions(gate_only)
+        self.assertFalse(gate_enabled["design-prepare"]["enabled"])
+        self.assertEqual(gate_enabled["design-prepare"]["failClosed"], "hide")
+        self.assertEqual(gate_enabled["design-prepare"]["reason"], "designDocsMissing")
+
+        ready = _payload(
+            business={
+                "identity": {
+                    "name": "DiskHNSW",
+                    "goal": "g",
+                    "charterExists": True,
+                    "charterPath": "spec/00-charter/charter.md",
+                },
+                "performance": {"goldenHeadStatus": "aligned"},
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {
+                    "id": "hotspot-optimization",
+                    "decision": {"selected": None},
+                    "spaces": {
+                        "design": {"ready": True, "gaps": []},
+                        "implementation": {"gaps": []},
+                        "test": {"gaps": []},
+                    },
+                    "health": {"findings": []},
+                    "delegation": {
+                        "static_preflight_passed": False,
+                        "runtime_dispatch_ready": False,
+                    },
+                },
+                "topics": [{"id": "hotspot-optimization"}],
+            }
+        )
+        ready_enabled = actions.evaluate_enabled_actions(ready)
+        self.assertFalse(ready_enabled["design-prepare"]["enabled"])
 
     def test_control_ui_renders_operational_sections(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
@@ -644,10 +947,12 @@ class ActionRegistryTest(unittest.TestCase):
             "proposalPlaneWarnings",
         ):
             self.assertIn(field, source)
-        self.assertIn("kernelMap: true", source)
-        self.assertIn("controlHealth: true", source)
+        self.assertIn("kernelMap: false", source)
+        self.assertIn("controlHealth: false", source)
         self.assertIn("!collapsed.kernelMap", source)
         self.assertIn("!collapsed.controlHealth", source)
+        self.assertGreaterEqual(source.count('actionId="run-ndf-control-check"'), 2)
+        self.assertGreaterEqual(source.count('actionId="diagnose-advisor"'), 2)
 
     def test_standalone_builder_declares_offline_delivery(self) -> None:
         source = (COCKPIT / "build_standalone.py").read_text(encoding="utf-8")
@@ -669,6 +974,19 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn('value="meta"', source)
         self.assertIn("filteredHops", source)
         self.assertIn("filteredTimeline", source)
+
+    def test_agents_page_does_not_navigate_to_replay(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        agents = source.split('tab === "agents"', 1)[1].split('tab === "replay"', 1)[0]
+        self.assertNotIn('setTab("replay")', agents)
+        self.assertNotIn('actionId="replay-agent-filter"', agents)
+        replay = source.split('tab === "replay"', 1)[1]
+        self.assertIn('actionId="inspect-ledger"', replay)
+        self.assertNotIn('actionId="guest-replay-hop"', replay)
+        self.assertNotIn('actionId="guest-replay-prefix"', replay)
+        registry = actions.registry_by_id()
+        self.assertEqual(registry["guest-replay-hop"]["failClosed"], "hide")
+        self.assertEqual(registry["guest-replay-prefix"]["failClosed"], "hide")
 
     def test_replay_timeline_colors_actual_planes(self) -> None:
         source = (SRC / "charts" / "ReplayTimeline.tsx").read_text(encoding="utf-8")

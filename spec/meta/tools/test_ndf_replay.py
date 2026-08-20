@@ -567,6 +567,66 @@ class ReplayStoreTest(unittest.TestCase):
         self.assertFalse((self.root / "NDF_ISOLATE_PROOF").exists())
         self.assertTrue(Path(result["proof_path"]).is_file())
 
+    def test_command_replay_requires_repo_head(self) -> None:
+        tree = self.store.put_tree({"marker": self.store.put_blob({"ok": True})})
+        commit = self.store.put_commit(
+            tree,
+            actor="tool",
+            topic=None,
+            task="binder_amend",
+            track="process",
+            repo_head=None,
+            manifest_sha=None,
+            context_plan_sha=None,
+            message="no head",
+        )
+        self.store.update_ref("episodes/ep-no-head/HEAD", commit)
+        with self.assertRaisesRegex(ValueError, "repo_head"):
+            self.store.project_command_slice("ep-no-head")
+
+    def test_command_replay_creates_replay_branch_worktree(self) -> None:
+        self._episode_with_plan("ep-cmd-replay")
+        result = self.store.command_replay(
+            "ep-cmd-replay",
+            keep_worktree=True,
+            compare_ref=self.head,
+        )
+        self.assertEqual(result["schema"], "ndf-command-replay/v1")
+        self.assertTrue(result["replay_branch"].startswith("replay/ep-cmd-replay/"))
+        self.assertEqual(result["repo_head"], self.head)
+        self.assertEqual(result["command"]["task"], "binder_amend")
+        self.assertTrue(result["command"]["name"])
+        worktree = self.root / result["worktree"]
+        self.assertTrue(worktree.is_dir())
+        # cleanup
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(worktree)],
+            cwd=self.root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        subprocess.run(
+            ["git", "branch", "-D", result["replay_branch"]],
+            cwd=self.root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+    def test_command_replay_report_writes_tmp_json(self) -> None:
+        self._episode_with_plan("ep-cmd-report")
+        report = self.store.command_replay_report(
+            "ep-cmd-report",
+            keep_worktree=False,
+            compare_ref=self.head,
+        )
+        self.assertIn("report_path", report)
+        path = self.root / report["report_path"]
+        self.assertTrue(path.is_file())
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        self.assertTrue(payload["replay_branch"].startswith("replay/ep-cmd-report/"))
+
     def test_guest_run_vm_blocks_without_hypervisor(self) -> None:
         _, _, commit = self._episode_with_plan("ep-guest-block")
         with patch.object(

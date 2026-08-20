@@ -234,6 +234,22 @@ SPACE_PURPOSE = {
     "test": "PERF 绑定、DELTA 轮次与 Numbers：用证据判断假设是否成立。",
 }
 SPACE_GAP_FIX = {
+    "DESIGN.md": (
+        "点击「OpenClaw: 准备设计文档」。按 TOPIC / proposal 写或补 DESIGN.md；"
+        "不得代写门禁审批。"
+    ),
+    "INTERFACE.md": (
+        "点击「OpenClaw: 准备设计文档」。装订器按序补 INTERFACE；不得改 src/。"
+    ),
+    "missing_design": (
+        "点击「OpenClaw: 准备设计文档」。按 proposal 准备 DESIGN.md。"
+    ),
+    "missing_interface": (
+        "点击「OpenClaw: 准备设计文档」。按 DESIGN 契约补 INTERFACE.md。"
+    ),
+    "missing_topic": (
+        "点击「OpenClaw: 准备设计文档」。先补 TOPIC 契约面，再写 DESIGN。"
+    ),
     "missing_baseline_workspace": (
         "点击「基线准备」。Claude Code 把 INTERFACE 对照切片和 Trunk 对照代码拷贝进 "
         "poc/<topic>/，形成可 R0 测量的基线。MUST NOT 改 src/。"
@@ -262,6 +278,7 @@ REPAIR_TASK_ACTION_IDS = {
     "gate_pipeline": "gate-pipeline",
     "binder_pipeline": "binder-pipeline",
     "binder_amend": "binder-amend",
+    "design_prepare": "design-prepare",
 }
 SPACE_CLAUSE_REFS = {
     "design": [
@@ -2899,16 +2916,41 @@ def attach_space_repairs(
                 task = "poc_prepare_baseline"
             if not task and kind in MEASUREMENT_FINDING_KINDS | {"missing_delta"}:
                 task = "poc_measurement"
+            if not task and kind in {
+                "DESIGN.md",
+                "INTERFACE.md",
+                "missing_design",
+                "missing_interface",
+                "missing_topic",
+            }:
+                task = "binder_pipeline"
             label = (
                 action.get("label")
                 or CONTROL_TASK_LABELS.get(task)
                 or (f"修复 {kind}" if kind else "修复缺口")
             )
+            if kind in {
+                "DESIGN.md",
+                "INTERFACE.md",
+                "missing_design",
+                "missing_interface",
+                "missing_topic",
+            }:
+                label = "OpenClaw: 准备设计文档"
             write_root = (
                 action.get("allowed_write_root")
                 or finding.get("allowed_write_root")
                 or (f"poc/{topic_id}/" if topic_id else None)
             )
+            action_id = REPAIR_TASK_ACTION_IDS.get(task)
+            if kind in {
+                "DESIGN.md",
+                "INTERFACE.md",
+                "missing_design",
+                "missing_interface",
+                "missing_topic",
+            }:
+                action_id = "design-prepare"
             repairs.append(
                 {
                     "kind": kind,
@@ -2916,7 +2958,7 @@ def attach_space_repairs(
                     or finding_why_blocked(kind, space_title.get(str(key), str(key))),
                     "fix": SPACE_GAP_FIX.get(kind)
                     or f"使用命令入口「{label}」按 NDF 修复 {kind}。",
-                    "actionId": REPAIR_TASK_ACTION_IDS.get(task),
+                    "actionId": action_id,
                     "label": label,
                     "owner": action.get("owner") or finding.get("repair_owner"),
                     "writeRoot": write_root,
@@ -6778,6 +6820,10 @@ def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
     refresh would otherwise bake ``stale_after_action`` into the Canvas and keep
     Product write buttons disabled. This snapshot's ``absorbedActionId`` is the
     proof of absorption.
+
+    Serve rebuilds always mint a new ``evidenceGeneration`` / ``snapshotSha``, so
+    a generation match against the prior action receipt is not required: a newer
+    snapshot that absorbs the latest finished success is current, not stale.
     """
     freshness = payload.get("projectionFreshness")
     if not isinstance(freshness, dict):
@@ -6790,12 +6836,6 @@ def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
     if latest.get("status") != "finished" or latest.get("result") != "success":
         return
     if latest.get("action_id") != payload.get("absorbedActionId"):
-        return
-    generation = payload.get("evidenceGeneration") or payload.get("snapshotSha")
-    action_generation = latest.get("evidence_generation") or latest.get(
-        "source_generation_sha"
-    )
-    if generation and action_generation and generation != action_generation:
         return
     freshness["state"] = "fresh"
     freshness["absorbed_by_this_snapshot"] = True
@@ -7289,11 +7329,11 @@ def commander_http_handler(
                     state["topic"] = ctx["topicId"]
                 if action_id == "inspect-ledger" and ctx.get("episodeId"):
                     state["replay_episode"] = ctx["episodeId"]
+                # Honor catalog probeRuntime and serve --probe-runtime only.
+                # Do not force probe on refresh-snapshot (that hangs the UI).
                 probe = bool(catalog.get("probeRuntime")) or (
                     action_id == "refresh-snapshot" and bool(state["probe_runtime"])
                 )
-                if action_id == "refresh-snapshot":
-                    probe = True
                 payload = canvas_snapshot(
                     snapshot(
                         state["topic"],

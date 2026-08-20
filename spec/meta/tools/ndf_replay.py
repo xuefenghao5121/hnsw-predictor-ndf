@@ -6567,6 +6567,215 @@ class ReplayStore:
             "errors": sorted(set(errors)),
         }
 
+    def project_command_slice(self, episode_id: str) -> dict[str, Any]:
+        """Minimal Command Replay projection: repo_head + recorded command/task."""
+        head = self.read_ref(f"episodes/{episode_id}/HEAD")
+        if head is None:
+            raise ValueError(f"unknown episode: {episode_id}")
+        commit = self.get_object(head, "commit")["data"]
+        repo_head = str(commit.get("repo_head") or "").strip() or None
+        if not repo_head:
+            raise ValueError("command-replay requires commit.repo_head")
+        task = str(commit.get("task") or "").strip() or None
+        command_name: str | None = None
+        tool: str | None = None
+        for _branch, events in self.read_all_events(episode_id).items():
+            for event in events:
+                kind = str(event.get("kind") or "")
+                if kind not in {
+                    "action.begin",
+                    "control.dispatch",
+                    "openclaw.request",
+                    "dispatch.preflight",
+                }:
+                    continue
+                payload_sha = event.get("payload_sha")
+                if not payload_sha:
+                    continue
+                try:
+                    blob = self.get_object(str(payload_sha))["data"]
+                except ValueError:
+                    continue
+                value = blob.get("value") if isinstance(blob, Mapping) else None
+                if isinstance(value, str):
+                    try:
+                        value = json.loads(value)
+                    except json.JSONDecodeError:
+                        value = None
+                data = value if isinstance(value, Mapping) else blob
+                if not isinstance(data, Mapping):
+                    continue
+                for key in ("command", "name", "operation", "task"):
+                    text = data.get(key)
+                    if isinstance(text, str) and text.strip():
+                        if key in {"command", "name", "operation"} and not command_name:
+                            command_name = text.strip()
+                        if key == "task" and not task:
+                            task = text.strip()
+                tool_val = data.get("tool")
+                if isinstance(tool_val, str) and tool_val.strip() and not tool:
+                    tool = tool_val.strip()
+        if not command_name and task:
+            command_name = f"task:{task}"
+        if not command_name:
+            raise ValueError("command-replay requires a recorded command or task")
+        return {
+            "schema": "ndf-command-replay-slice/v1",
+            "episode_id": episode_id,
+            "commit_sha": head,
+            "repo_head": repo_head,
+            "command": {
+                "name": command_name,
+                "task": task,
+                "tool": tool,
+            },
+            "topic": commit.get("topic"),
+            "track": commit.get("track"),
+        }
+
+    def command_replay(
+        self,
+        episode_id: str,
+        *,
+        keep_worktree: bool = True,
+        compare_ref: str | None = None,
+    ) -> dict[str, Any]:
+        """Create an isolated worktree at recorded repo_head for Command Replay.
+
+        Does not invoke models. Prints/returns the recorded command and a git diff
+        from the snapshot head to compare_ref (default: current live HEAD).
+        """
+        slice_info = self.project_command_slice(episode_id)
+        repo_head = str(slice_info["repo_head"])
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        # Branch names cannot contain some chars; keep episode id + stamp.
+        safe_ep = re.sub(r"[^A-Za-z0-9._-]+", "-", episode_id).strip("-")
+        branch = f"replay/{safe_ep}/{stamp}"
+        sandbox_root = self.repo_root / "tmp" / "ndf-command-replay"
+        sandbox_root.mkdir(parents=True, exist_ok=True)
+        worktree = sandbox_root / f"{safe_ep}-{stamp}"
+        live_head = self._git_head(self.repo_root)
+        compare = (compare_ref or live_head or "").strip()
+        try:
+            subprocess.run(
+                [
+                    "git",
+                    "worktree",
+                    "add",
+                    "-b",
+                    branch,
+                    str(worktree),
+                    repo_head,
+                ],
+                cwd=self.repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise ValueError(
+                "command-replay worktree failed: "
+                + ((exc.stderr or exc.stdout or "").strip() or str(exc))
+            ) from exc
+        diff_text = ""
+        identical_files: list[str] = []
+        diff_files: list[str] = []
+        if compare:
+            name_status = subprocess.run(
+                ["git", "diff", "--name-status", f"{repo_head}...{compare}"],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            for line in (name_status.stdout or "").splitlines():
+                parts = line.split("\t", 1)
+                if len(parts) != 2:
+                    continue
+                status, path = parts[0], parts[1]
+                if status == " ":
+                    identical_files.append(path)
+                else:
+                    diff_files.append(path)
+            diff_run = subprocess.run(
+                ["git", "diff", "--stat", f"{repo_head}...{compare}"],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            diff_text = (diff_run.stdout or "").strip()
+        result = {
+            "schema": "ndf-command-replay/v1",
+            "episode_id": episode_id,
+            "replay_branch": branch,
+            "worktree": str(worktree.relative_to(self.repo_root))
+            if _inside(worktree.resolve(), self.repo_root.resolve())
+            else str(worktree),
+            "repo_head": repo_head,
+            "compare_ref": compare or None,
+            "command": slice_info["command"],
+            "note": (
+                "Worktree checked out at recorded repo_head. "
+                "Re-run the recorded command inside the worktree; "
+                "this CLI does not claim 已回放."
+            ),
+            "comparison_summary": {
+                "diff_files": diff_files,
+                "identical_hint": identical_files,
+                "diff_stat": diff_text,
+            },
+            "keep_worktree": keep_worktree,
+        }
+        if not keep_worktree:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            subprocess.run(
+                ["git", "branch", "-D", branch],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            result["worktree"] = None
+            result["replay_branch_deleted"] = True
+        return result
+
+    def command_replay_report(
+        self,
+        episode_id: str,
+        *,
+        out: Path | None = None,
+        keep_worktree: bool = True,
+        compare_ref: str | None = None,
+    ) -> dict[str, Any]:
+        result = self.command_replay(
+            episode_id,
+            keep_worktree=keep_worktree,
+            compare_ref=compare_ref,
+        )
+        target = out or (
+            self.repo_root / "tmp" / f"ndf-command-replay-{episode_id}.json"
+        )
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return {**result, "report_path": str(target.relative_to(self.repo_root))
+                if _inside(target.resolve(), self.repo_root.resolve())
+                else str(target)}
+
 
 def _load_json(path: str | None) -> dict[str, Any]:
     if not path or path == "-":
@@ -6674,6 +6883,28 @@ def main(argv: list[str] | None = None) -> int:
     isolate.add_argument("--episode", required=True)
     isolate.add_argument("--keep-worktree", action="store_true")
     isolate.add_argument("--write-proof")
+    cmd_replay = sub.add_parser(
+        "command-replay",
+        help="Isolated worktree at recorded repo_head for simple Command Replay",
+    )
+    cmd_replay.add_argument("--episode", required=True)
+    cmd_replay.add_argument(
+        "--compare-ref",
+        help="git ref to diff against (default: current HEAD)",
+    )
+    cmd_replay.add_argument(
+        "--discard-worktree",
+        action="store_true",
+        help="Remove worktree/branch after printing the report",
+    )
+    cmd_replay_report = sub.add_parser(
+        "command-replay-report",
+        help="Write tmp/ndf-command-replay-<episode>.json",
+    )
+    cmd_replay_report.add_argument("--episode", required=True)
+    cmd_replay_report.add_argument("--out")
+    cmd_replay_report.add_argument("--compare-ref")
+    cmd_replay_report.add_argument("--discard-worktree", action="store_true")
     guest = sub.add_parser("guest-run")
     guest.add_argument("--commit", required=True)
     guest.add_argument("--episode", required=True)
@@ -6850,6 +7081,19 @@ def main(argv: list[str] | None = None) -> int:
                 episode_id=args.episode,
                 keep_worktree=args.keep_worktree,
                 write_proof=Path(args.write_proof) if args.write_proof else None,
+            )
+        elif args.command == "command-replay":
+            result = store.command_replay(
+                args.episode,
+                keep_worktree=not args.discard_worktree,
+                compare_ref=args.compare_ref,
+            )
+        elif args.command == "command-replay-report":
+            result = store.command_replay_report(
+                args.episode,
+                out=Path(args.out) if args.out else None,
+                keep_worktree=not args.discard_worktree,
+                compare_ref=args.compare_ref,
             )
         elif args.command == "guest-image":
             dest = Path(args.dest) if args.dest else Path(args.root) / DEFAULT_VM_IMAGE_REL

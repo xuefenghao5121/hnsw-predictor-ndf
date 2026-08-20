@@ -719,10 +719,15 @@ redaction map，不得修改原对象。
 
 Cursor / Canvas / replay 工具 MUST NOT 修改 `.openclaw/state.json`。自动捕获必须通过
 显式 Episode 参数启用；平台只提供 completion 时 MUST 标 `completion_only`，不得用事后
-summary 冒充完整事件流。Canvas Replay 仍是派生投影，MUST 分开呈现 R0/R1/R2/R3；
-R2 MUST 显示沙盒、网络、写根、副作用与成本确认。Canvas 主路径「已回放」MUST 遵循
-[[META-015]]（Lvm guest-proof）；提示词 / 同机 worktree / 仅 `bwrap` 观测 MUST NOT
-标为已回放。
+summary 冒充完整事件流。
+
+Commander Replay 页 MUST **只查看**（Episode 列表、查这条账、人话 / 规范 Prompt /
+实发 Prompt）；MUST NOT 用页面按钮声称「已回放」。执行与验证 MUST 走 CLI
+（`command-replay` / 可选 `guest-run`）。Agents 页 MUST NOT 跳转 Replay，MUST NOT
+提供按身份导航进回放的入口。R0/R1/R2/R3 等级合同仍适用审计与沙盒工具，但不是
+Commander 主交互。Canvas 若仅生成 Composer 指令，MUST 标为 instructions，不得显示为
+Replay 已执行。主路径「已回放」若宣称沙盒证明 MUST 遵循 [[META-015]]；提示词 /
+同机 worktree / 仅 `bwrap` 观测 MUST NOT 标为已回放。
 
 ### Historical audit 与 current readiness
 
@@ -815,8 +820,9 @@ snapshot 吸收，并使用 [[META-011]] 定义的状态语义。
 5. Canvas MUST 展示 evidence-specific R2 profile 与实际 manifest/context/gate/
    verification 摘要；diff MUST 分开 manifest、context、events、observations、results
    与 verification。R0/R1 若只能经 Composer 生成指令，MUST 标为 instructions，
-   不得显示为 Replay 已执行。Canvas hop/prefix 回放 MUST 只启动宿主 `guest-run`
-   launcher（[[META-015]]），不得在现仓 cwd 执行 reconstruct 回放体。
+   不得显示为 Replay 已执行。Commander Replay MUST NOT 以 hop/prefix guest-replay
+   按钮作为主入口；日常 Command Replay 走 CLI `command-replay`。可选沙盒证明仍经
+   宿主 `guest-run` launcher（[[META-015]]），不得在现仓 cwd 执行 reconstruct 回放体。
 
 ## 回放沙箱与执行器边界 {#META-015}
 <!-- ndf: kind=req level=must layer=L1 status=stable since=0.9.17 source=deduced scope=ndf-process -->
@@ -842,17 +848,21 @@ snapshot 吸收，并使用 [[META-011]] 定义的状态语义。
 |------|--------|------------------|
 | Lsoft | 提示词 / Control 信封 | 否，只是 instructions |
 | Lns | 同机 worktree / `bwrap` | 否（降级观测） |
-| Lvm | guest 虚拟机 + guest 内执行器 | 是，Canvas 主路径 |
+| Lvm | guest 虚拟机 + guest 内执行器 | 是，可选沙盒证明（非 Commander 日常主路径） |
 
 Hypervisor 是实现 adapter，条款 MUST NOT 写死专名。无可用 Lvm 后端时 MUST fail
 closed，MUST NOT 退回宿主对话代理在现仓执行回放体。
 
-宿主（Canvas / `guest-run`）只准：按 recorded `repo_head` 做只读快照、启动 guest、
+宿主（CLI `guest-run`）只准：按 recorded `repo_head` 做只读快照、启动 guest、
 传入 episode/commit 与只读 replay store 拷贝、等待回执、销毁 guest、展示 JSON。
 宿主 MUST NOT 把可写委派的组装 prompt 当作回放体在现仓执行。「写回当前工作区」是
 可选危险第二步，默认关闭，不在 guest 合同内。
 
-R2 执行 adapter MUST 为 `bwrap` 或 `vm`。Canvas 主路径以 `vm`（Lvm）为准；`bwrap`
+日常 Command Replay（隔离 git worktree 上重跑记录 Command 再 Diff）MUST NOT 要求
+KVM；`guest-run` 是可选 Lvm 证明，**不是** Commander 日常回放主路径。Commander
+MUST NOT 以 guest-replay 按钮作为主入口。
+
+R2 执行 adapter MUST 为 `bwrap` 或 `vm`。可选沙盒证明以 `vm`（Lvm）为准；`bwrap`
 仅作降级观测，不得冒充「已回放」。
 
 ## Process Proposal 生命周期与回执 {#META-014}

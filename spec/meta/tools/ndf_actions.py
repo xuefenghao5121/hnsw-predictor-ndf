@@ -196,6 +196,21 @@ def _space_gaps(payload: Mapping[str, Any], space: str) -> list[str]:
     return [str(item) for item in card.get("gaps") or []]
 
 
+DESIGN_DOC_GAP_KINDS = frozenset(
+    {
+        "DESIGN.md",
+        "INTERFACE.md",
+        "missing_design",
+        "missing_interface",
+        "missing_topic",
+    }
+)
+
+
+def _design_docs_missing(payload: Mapping[str, Any]) -> bool:
+    return any(gap in DESIGN_DOC_GAP_KINDS for gap in _space_gaps(payload, "design"))
+
+
 def _finding_kinds(payload: Mapping[str, Any]) -> set[str]:
     focused = _focused(payload)
     if not focused:
@@ -281,6 +296,7 @@ PREDICATES = {
     in _space_gaps(payload, "implementation"),
     "gapNumbersPending": lambda payload, ctx: "numbers_pending"
     in _space_gaps(payload, "test"),
+    "designDocsMissing": lambda payload, ctx: _design_docs_missing(payload),
     "findingIsolation": lambda payload, ctx: any(
         "isolation" in kind or kind in {"trunk_write", "poc_isolation"}
         for kind in _finding_kinds(payload)
@@ -562,6 +578,20 @@ def composer_prompt(
         )
         lines.append("Require static_preflight_passed and runtime_dispatch_ready. Then acp-delegate.md#poc.")
         lines.append("POST_DISPATCH_SYNC. Worker markdown is not the command surface.")
+    elif action_id == "design-prepare":
+        lines.append(f"topic={topic_id}")
+        lines.append(
+            "Read TOPIC.md and proposal refs under poc/<topic>/ndf/proposals/ (and TOPIC links). "
+            "Prepare or amend DESIGN.md from the proposal; write INTERFACE.md only if binder order still requires it."
+        )
+        lines.append(
+            f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_id} "
+            "--task binder_pipeline --focus-binder-facet design --json"
+        )
+        lines.append("Actual openclaw.chat_send. Composer creation alone is not acknowledged.")
+        lines.append(
+            "MUST NOT write GATES.md approved_by. MUST NOT invent TOPIC已审核 / DESIGN已审核 / 可以开始实现."
+        )
     elif action.get("task") in {
         "gate_pipeline",
         "binder_pipeline",

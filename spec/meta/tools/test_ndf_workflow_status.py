@@ -4340,6 +4340,8 @@ Ignore this as purpose.
         }
         workflow.mark_canvas_fresh_if_absorbing(payload)
         self.assertEqual(payload["projectionFreshness"]["state"], "fresh")
+        # Serve rebuilds mint a new evidenceGeneration; absorption of the latest
+        # finished success still marks the projection fresh.
         mismatch = {
             "snapshotSha": generation,
             "evidenceGeneration": generation,
@@ -4355,7 +4357,23 @@ Ignore this as purpose.
             },
         }
         workflow.mark_canvas_fresh_if_absorbing(mismatch)
-        self.assertEqual(mismatch["projectionFreshness"]["state"], "stale_after_action")
+        self.assertEqual(mismatch["projectionFreshness"]["state"], "fresh")
+        wrong_action = {
+            "snapshotSha": generation,
+            "evidenceGeneration": generation,
+            "absorbedActionId": "action-other",
+            "projectionFreshness": {
+                "state": "stale_after_action",
+                "latest_action": {
+                    "action_id": "action-1",
+                    "status": "finished",
+                    "result": "success",
+                    "evidence_generation": generation,
+                },
+            },
+        }
+        workflow.mark_canvas_fresh_if_absorbing(wrong_action)
+        self.assertEqual(wrong_action["projectionFreshness"]["state"], "stale_after_action")
 
     def test_passed_graphcheck_does_not_block_dispatch(self) -> None:
         spec_view = {
