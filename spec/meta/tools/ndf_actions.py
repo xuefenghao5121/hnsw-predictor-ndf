@@ -449,6 +449,16 @@ def canvas_launcher_snapshot(payload: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def dispatch_prompt_header(action: Mapping[str, Any]) -> list[str]:
+    """Slash command + skill path + unique CLI. No actions.md fallback."""
+    command = action.get("command")
+    skill = action.get("skill")
+    tool = action.get("tool")
+    if not command or not skill or not tool:
+        raise ValueError(f"{action.get('id')} missing command/skill/tool mapping")
+    return [str(command), f"skill={skill}", f"tool={tool}"]
+
+
 def composer_prompt(
     action_id: str,
     payload: Mapping[str, Any],
@@ -477,6 +487,7 @@ def composer_prompt(
         else "Button click is not a human gate."
     )
     lines = [
+        *dispatch_prompt_header(action),
         *_git_execution_contract(
             payload,
             remote=remote,
@@ -490,6 +501,7 @@ def composer_prompt(
         f"label={action.get('label')}",
         f"operation={action.get('operation')}",
         f"clauses={', '.join(action.get('clauseRefs') or [])}",
+        f"Follow {action.get('skill')} and {action.get('command')}.",
         click_rule,
         "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
@@ -533,6 +545,11 @@ def composer_prompt(
         lines.append("END HUMAN POC DECISION")
         lines.append("Map text to selected_decision. Empty MUST NOT default to continue_exploring.")
         lines.append("Do not delegate implementation from this hop.")
+        lines.append(
+            "If selected_decision is reject|promote|partial, run "
+            f"python3 spec/meta/tools/ndf_close.py plan --topic {topic_id} --mode <mode> "
+            "(not silent promote). Else do not run ndf_close."
+        )
     elif action_id == "delegate-poc":
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_id} "
@@ -567,8 +584,55 @@ def composer_prompt(
             f"--episode {hop_id} --commit <sha>"
         )
         lines.append("Proof ndf-replay-guest-proof/v1 adapter=vm. MUST NOT host-mount live repo_root.")
+    elif action_id == "prepare-acp-lease":
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py pack "
+            f"--topic {topic_id} --episode <id> --json"
+        )
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py lease-record "
+            "--file tmp/lease.json --episode <id> --json"
+        )
+        lines.append("context-verify + full handshake + lease-record. Do not start implementation.")
+        lines.append("Follow .cursor/skills/ndf-workflow-canvas/acp-delegate.md runtime lease.")
+    elif action_id == "next-close-hop":
+        lines.append(f"topic={topic_id}")
+        lines.append(
+            "python3 spec/meta/tools/ndf_close.py plan "
+            f"--topic {topic_id} --mode <promote|partial|reject>"
+        )
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py close-plan "
+            f"--topic {topic_id} --mode <mode> --json"
+        )
+        lines.append("Not silent promote. Follow close-console.md. Wait for exact phrase 已审核.")
+    elif action_id == "new-genesis":
+        lines.append("python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json")
+        lines.append("Draft spec/open/proposal-project-genesis.md track=bootstrap.")
+        lines.append("Stop at IDEA已审核. Follow .cursor/skills/ndf-workflow-canvas/genesis.md.")
+    elif action_id == "run-ndf-control-check":
+        lines.append("python3 spec/meta/tools/ndf_workflow_status.py spec-health --json")
+        lines.append("Render plane-routed findings. Do not repair. Do not treat product/binder failures as process proposals.")
+    elif action_id == "diagnose-topic":
+        lines.append("python3 spec/meta/tools/ndf_workflow_status.py spec-health --json")
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py topic-health "
+            f"--topic {topic_id} --json"
+        )
+        lines.append("Do not repair. Route findings to space cards or page-bottom decision.")
+    elif action_id == "diagnose-advisor":
+        lines.append("python3 spec/meta/tools/ndf_workflow_status.py spec-health --json")
+        lines.append("python3 spec/meta/tools/ndf_advise.py plan --surface graph --low-hanging-fruit")
+        lines.append("Read-only. Never apply. Never copy product clauses or POC binder fields into spec/meta/.")
+    elif action_id == "repair-kernel":
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
+            "--task ndf_improvement_proposal --origin health_finding "
+            "--episode <id> --json"
+        )
+        lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Actual openclaw.chat_send.")
     else:
-        lines.append(f"Follow .cursor/skills/ndf-workflow-canvas/actions.md for {action.get('label')}.")
+        raise ValueError(f"composer action has no prompt body: {action_id}")
     if action.get("mustNotWrite"):
         lines.append("MUST NOT write: " + ", ".join(action["mustNotWrite"]))
     return "\n".join(lines) + "\n"
@@ -627,6 +691,7 @@ def standalone_action_template(
             raise ValueError(f"snapshot action has no static command: {action_id}")
         prompt = "\n".join(
             [
+                *dispatch_prompt_header(action),
                 *_git_execution_contract(payload, placeholders=True),
                 "0. EXECUTE now. Do not explain this template.",
                 "This task is an NDF commander snapshot dispatch from the closed action catalog.",
@@ -634,6 +699,7 @@ def standalone_action_template(
                 f"label={action.get('label')}",
                 f"operation={action.get('operation')}",
                 f"clauses={', '.join(action.get('clauseRefs') or [])}",
+                f"Follow {action.get('skill')} and {action.get('command')}.",
                 "Button click is not a human gate.",
                 (
                     "python3 spec/meta/tools/ndf_workflow_status.py action-begin "

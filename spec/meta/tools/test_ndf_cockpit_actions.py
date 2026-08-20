@@ -372,8 +372,55 @@ class ActionRegistryTest(unittest.TestCase):
             if action["dispatch"] in {"composer", "snapshot"}:
                 self.assertIn(f"action_id={action['id']}", response["prompt"])
                 self.assertNotIn("在当前 Cloud Agent 对话执行这个 NDF hop", response["prompt"])
+                self.assertTrue(
+                    response["prompt"].startswith(action["command"] + "\n"),
+                    action["id"],
+                )
+                self.assertIn(f"skill={action['skill']}", response["prompt"])
+                self.assertIn(f"tool={action['tool']}", response["prompt"])
+                self.assertNotIn(
+                    "Follow .cursor/skills/ndf-workflow-canvas/actions.md",
+                    response["prompt"],
+                )
             if action["dispatch"] == "openFile":
                 self.assertTrue(response["path"])
+
+    def test_composer_snapshot_actions_map_to_existing_command_and_skill(self) -> None:
+        repo = TOOLS.parents[2]
+        mapped = 0
+        for action in actions.registry_actions():
+            if action["dispatch"] in {"projection_only", "openFile"}:
+                self.assertNotIn("command", action)
+                self.assertNotIn("skill", action)
+                self.assertNotIn("tool", action)
+                continue
+            self.assertEqual(action["dispatch"] in {"composer", "snapshot"}, True)
+            command = action["command"]
+            self.assertTrue(command.startswith("/ndf-"), action["id"])
+            skill_path = repo / action["skill"]
+            self.assertTrue(skill_path.is_file(), action["skill"])
+            command_file = repo / ".cursor" / "commands" / f"{command[1:]}.md"
+            self.assertTrue(command_file.is_file(), str(command_file))
+            self.assertIn(command, command_file.read_text(encoding="utf-8"))
+            self.assertTrue(action["tool"].startswith("python3 spec/meta/tools/"))
+            mapped += 1
+        self.assertGreaterEqual(mapped, 20)
+
+    def test_composer_prompt_cites_slash_command_skill_and_cli(self) -> None:
+        prompt = actions.composer_prompt("poc-prepare-baseline", _payload())
+        self.assertTrue(prompt.startswith("/ndf-poc-baseline\n"))
+        self.assertIn(
+            "skill=.cursor/skills/ndf-workflow-canvas/workflows/poc-baseline.md",
+            prompt,
+        )
+        self.assertIn(
+            "tool=python3 spec/meta/tools/ndf_workflow_status.py repair-pack "
+            "--task poc_prepare_baseline",
+            prompt,
+        )
+        self.assertIn("BEGIN NDF GIT INPUT", prompt)
+        git_at = prompt.index("BEGIN NDF GIT INPUT")
+        self.assertLess(prompt.index("/ndf-poc-baseline"), git_at)
 
     def test_standalone_intent_template_preserves_human_slot(self) -> None:
         response = actions.standalone_action_template("new-proposal", _payload())

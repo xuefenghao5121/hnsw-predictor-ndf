@@ -1,0 +1,33 @@
+# Binder pipeline workflow
+
+Orchestrates `/ndf-binder-pipeline`. Catalog ids: `binder-pipeline`, `binder-amend`.
+Six facets stay six facets.
+
+## Command
+
+`/ndf-binder-pipeline`
+
+## Unique CLI
+
+```bash
+python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic <topic> --task binder_pipeline --json
+python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic <topic> --task binder_amend --json
+```
+
+Use the catalog `tool=` line for this dispatch.
+
+## Delegate
+
+OpenClaw via [openclaw-delegate.md](../openclaw-delegate.md) pipeline B (面).
+Facets: TOPIC → DESIGN → PERF_BASELINE → DELTA → INTERFACE → COMMITS.
+`binder_amend` is same-hypothesis facet tweak only (`--focus-binder-facet`).
+
+## Sequence
+
+1. GIT INPUT checkout of `remote_branch`.
+2. Prefer `--resume` when binder Episode is active.
+3. control-pack; actual `openclaw.chat_send`.
+4. Amend only the focused facet; complete facets are recheck no-ops.
+5. MUST NOT write gate approvals, PERF Numbers, DELTA Rounds, or evidence.
+6. Hypothesis change is `new_poc` via `/ndf-proposal-generate`, not amend.
+7. `topic-health` + snapshot refresh.

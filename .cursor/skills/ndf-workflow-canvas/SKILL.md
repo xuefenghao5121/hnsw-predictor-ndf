@@ -110,8 +110,11 @@ evidence, never approval. Historical binders without receipts display `legacy_un
 
 ## Actions
 
-Canvas actions open files or start a Composer chat with a self-contained command/prompt.
-They never approve a gate or run shell directly. Use [actions.md](actions.md).
+Commander buttons copy a self-contained prompt that starts with a slash
+Command, a workflow Skill path, and the unique `spec/meta/tools` CLI.
+They never approve a gate or run shell directly. Index:
+[actions.md](actions.md). Atoms: `.cursor/commands/ndf-*.md`. Orchestration:
+[workflows/](workflows/).
 
 **Control vs Implementation routing:**
 
@@ -204,7 +207,8 @@ Reject uses DEC/deprecated/archive and does not enter promote integration.
 
 - [layout.md](layout.md)
 - [genesis.md](genesis.md)
-- [actions.md](actions.md)
+- [actions.md](actions.md) — id → command → skill → tool index
+- [workflows/](workflows/) — Skill orchestration modules
 - [close-console.md](close-console.md)
 - [snapshot-schema.md](snapshot-schema.md)
 - [acp-delegate.md](acp-delegate.md)

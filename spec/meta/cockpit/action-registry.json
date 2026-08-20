@@ -53,7 +53,10 @@
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-canvas-snapshot.json", "tmp/ndf-workflow-actions.jsonl"],
       "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
-      "probeRuntime": true
+      "probeRuntime": true,
+      "command": "/ndf-snapshot-refresh",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/snapshot-refresh.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --probe-runtime --json"
     },
     {
       "id": "tab-product",
@@ -248,7 +251,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["baselines/", "golden-baseline.md"],
-      "mustNotWrite": [".openclaw/state.json"]
+      "mustNotWrite": [".openclaw/state.json"],
+      "command": "/ndf-golden-align",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/golden-align.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py action-begin --operation align-golden"
     },
     {
       "id": "new-proposal",
@@ -264,7 +270,10 @@
       "requiresIntent": true,
       "failClosed": "disable",
       "mayWrite": ["spec/open/", "tmp/ndf-product-intent-*.md"],
-      "mustNotWrite": ["spec/meta/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/meta/", "poc/", ".openclaw/state.json"],
+      "command": "/ndf-proposal-generate",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/proposal-generate.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task control_proposal"
     },
     {
       "id": "open-workbench",
@@ -280,7 +289,10 @@
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
       "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
-      "probeRuntime": false
+      "probeRuntime": false,
+      "command": "/ndf-workbench-open",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/workbench-open.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json"
     },
     {
       "id": "open-topic",
@@ -311,7 +323,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/ndf/GATES.md"],
-      "mustNotWrite": ["spec/meta/", "src/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/meta/", "src/", ".openclaw/state.json"],
+      "command": "/ndf-gate-pipeline",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/gate-pipeline.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task gate_pipeline"
     },
     {
       "id": "binder-pipeline",
@@ -327,7 +342,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/ndf/"],
-      "mustNotWrite": ["src/", "spec/meta/", "GATES.md approved_by"]
+      "mustNotWrite": ["src/", "spec/meta/", "GATES.md approved_by"],
+      "command": "/ndf-binder-pipeline",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/binder-pipeline.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_pipeline"
     },
     {
       "id": "binder-amend",
@@ -343,7 +361,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/ndf/"],
-      "mustNotWrite": ["src/", "approved_by", "selected_decision as new_poc"]
+      "mustNotWrite": ["src/", "approved_by", "selected_decision as new_poc"],
+      "command": "/ndf-binder-pipeline",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/binder-pipeline.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_amend"
     },
     {
       "id": "poc-prepare-baseline",
@@ -359,7 +380,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "spec/meta/", ".openclaw/state.json"]
+      "mustNotWrite": ["src/", "spec/meta/", ".openclaw/state.json"],
+      "command": "/ndf-poc-baseline",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-baseline.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_prepare_baseline"
     },
     {
       "id": "poc-isolation-repair",
@@ -375,7 +399,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "git history"]
+      "mustNotWrite": ["src/", "git history"],
+      "command": "/ndf-poc-isolation",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-isolation.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_isolation_repair"
     },
     {
       "id": "open-delta",
@@ -406,7 +433,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/ndf/DELTA.md", "poc/*/ndf/PERF_BASELINE.md"],
-      "mustNotWrite": ["spec/meta/", "src/"]
+      "mustNotWrite": ["spec/meta/", "src/"],
+      "command": "/ndf-poc-measure",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-measure.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_measurement"
     },
     {
       "id": "refresh-topic",
@@ -422,7 +452,10 @@
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
       "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
-      "probeRuntime": false
+      "probeRuntime": false,
+      "command": "/ndf-topic-refresh",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/topic-refresh.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json"
     },
     {
       "id": "diagnose-topic",
@@ -437,7 +470,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-workflow-health/"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "command": "/ndf-diagnose-health",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-health.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py topic-health"
     },
     {
       "id": "generate-next-step",
@@ -452,7 +488,10 @@
       "requiresIntent": true,
       "failClosed": "disable",
       "mayWrite": ["poc/*/ndf/TOPIC.md"],
-      "mustNotWrite": [".openclaw/state.json"]
+      "mustNotWrite": [".openclaw/state.json"],
+      "command": "/ndf-close-hop",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/close-hop.md",
+      "tool": "python3 spec/meta/tools/ndf_close.py plan"
     },
     {
       "id": "delegate-poc",
@@ -468,7 +507,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "spec/meta/", "spec/00-50"]
+      "mustNotWrite": ["src/", "spec/meta/", "spec/00-50"],
+      "command": "/ndf-poc-delegate",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-delegate.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack"
     },
     {
       "id": "prepare-acp-lease",
@@ -483,7 +525,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-workflow-leases.jsonl"],
-      "mustNotWrite": ["poc/ code", "src/"]
+      "mustNotWrite": ["poc/ code", "src/"],
+      "command": "/ndf-poc-delegate",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-delegate.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py lease-record"
     },
     {
       "id": "next-close-hop",
@@ -498,7 +543,10 @@
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": ["spec/", "poc/*/ndf/"],
-      "mustNotWrite": [".openclaw/state.json as SoT"]
+      "mustNotWrite": [".openclaw/state.json as SoT"],
+      "command": "/ndf-close-hop",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/close-hop.md",
+      "tool": "python3 spec/meta/tools/ndf_close.py plan"
     },
     {
       "id": "new-genesis",
@@ -513,7 +561,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["spec/open/proposal-project-genesis.md"],
-      "mustNotWrite": ["spec/meta/ stable", "poc/"]
+      "mustNotWrite": ["spec/meta/ stable", "poc/"],
+      "command": "/ndf-genesis",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/genesis.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json"
     },
     {
       "id": "open-language-md",
@@ -573,7 +624,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-workflow-health/spec.json"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "command": "/ndf-diagnose-health",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-health.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py spec-health --json"
     },
     {
       "id": "diagnose-advisor",
@@ -588,7 +642,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "command": "/ndf-diagnose-drift",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-drift.md",
+      "tool": "python3 spec/meta/tools/ndf_advise.py plan"
     },
     {
       "id": "repair-kernel",
@@ -604,7 +661,10 @@
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": ["spec/meta/open/"],
-      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/"]
+      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/"],
+      "command": "/ndf-process-improve",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-improve.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal"
     },
     {
       "id": "go-product",
@@ -650,7 +710,10 @@
       "requiresIntent": true,
       "failClosed": "disable",
       "mayWrite": ["spec/meta/open/", "tmp/ndf-process-intent-*.md"],
-      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/", ".openclaw/state.json"],
+      "command": "/ndf-process-improve",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-improve.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal"
     },
     {
       "id": "land-confirm",
@@ -666,7 +729,10 @@
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": ["spec/meta/"],
-      "mustNotWrite": [".openclaw/state.json"]
+      "mustNotWrite": [".openclaw/state.json"],
+      "command": "/ndf-process-land",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-land.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land"
     },
     {
       "id": "land-review",
@@ -682,7 +748,10 @@
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": ["spec/meta/open/ review receipt"],
-      "mustNotWrite": ["spec/meta/ stable without 已确认"]
+      "mustNotWrite": ["spec/meta/ stable without 已确认"],
+      "command": "/ndf-process-land",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-land.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land"
     },
     {
       "id": "replay-agent-filter",
@@ -713,7 +782,10 @@
       "failClosed": "disable",
       "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
       "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
-      "probeRuntime": false
+      "probeRuntime": false,
+      "command": "/ndf-episode-inspect",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/episode-inspect.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --replay-episode"
     },
     {
       "id": "guest-replay-hop",
@@ -728,7 +800,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/ guest-proof"],
-      "mustNotWrite": ["live repo_root host-mount", "src/"]
+      "mustNotWrite": ["live repo_root host-mount", "src/"],
+      "command": "/ndf-guest-replay",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/guest-replay.md",
+      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm"
     },
     {
       "id": "guest-replay-prefix",
@@ -743,7 +818,10 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": ["tmp/ guest-proof"],
-      "mustNotWrite": ["live repo_root host-mount", "src/"]
+      "mustNotWrite": ["live repo_root host-mount", "src/"],
+      "command": "/ndf-guest-replay",
+      "skill": ".cursor/skills/ndf-workflow-canvas/workflows/guest-replay.md",
+      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm"
     }
   ]
 }
