@@ -18,12 +18,13 @@ export function ActionButton({ actionId, enabled, intent, title, className, onCl
   if (enabled?.failClosed === "hide" && !snapshotEnabled) {
     return null;
   }
+  const blocked = !can ? enabled?.reason || (action.requiresIntent && !intentOk ? "needs_intent" : "disabled") : null;
   return (
     <button
       type="button"
       data-ndf-action={actionId}
       className={className}
-      title={title || action.clauseRefs.join(" ")}
+      title={blocked ? `${action.label} · ${blocked}` : title || action.clauseRefs.join(" ")}
       disabled={!can}
       onClick={onClick}
     >

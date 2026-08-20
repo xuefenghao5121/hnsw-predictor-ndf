@@ -79,6 +79,28 @@ main { padding: 16px 20px 48px; display: grid; gap: 16px; }
 .topic-summary { max-width: 920px; font-size: 15px; line-height: 1.65; }
 .topic-selector { display: grid; grid-template-columns: 1fr minmax(260px, .6fr) auto; align-items: center; gap: 12px; }
 .space-card { min-height: 230px; }
+.gap-recipe {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.gap-recipe .fix-line { color: var(--accent); }
+.pipeline-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+  display: grid;
+  gap: 6px;
+}
+.pipeline-checklist li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+}
 .disclosure > button { width: 100%; text-align: left; border: 0; background: transparent; padding: 0 0 8px; font-weight: 700; }
 .golden-chart { min-height: 220px; }
 .control-kpis { display: flex; flex-wrap: wrap; gap: 8px; }

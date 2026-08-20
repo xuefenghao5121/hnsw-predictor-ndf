@@ -284,6 +284,13 @@ MAY 按隔离门禁使用独立 branch/worktree，但该 worker 执行面不得�
 Command Agent 的目标分支。驾驶舱 MUST 提供可编辑的远程仓库/远程分支输入，
 复制 Prompt 时使用当前输入值，而不是只依赖生成 snapshot 时的本地 HEAD。
 
+Topics 空间卡 MUST 把每个 gap 写成 why + how + 命令入口，不得只显示 gap id。
+`missing_baseline_workspace` MUST 指向 `poc-prepare-baseline`；`numbers_pending`
+MUST 指向 `poc-measurement`。这些 Composer 修复按钮，以及页底门禁/装订器流水线按钮，
+MUST 在对应 gap 或流水线卡片上保持可见可点以复制 Prompt；投影 stale 只禁止把状态
+画成 ready / closed，MUST NOT 因此隐藏修复入口。Delegate / land / 人口令落地仍须
+fresh 与既有门禁。
+
 ```text
 project_maturity | lifecycle | gates
 spaces.design/implementation/test | agent_run | health

@@ -232,6 +232,36 @@ SPACE_PURPOSE = {
     "implementation": "第三闸后先落 INTERFACE 切片与 Trunk 拷贝，形成可测基线，不碰 Trunk。",
     "test": "PERF 绑定、DELTA 轮次与 Numbers：用证据判断假设是否成立。",
 }
+SPACE_GAP_FIX = {
+    "missing_baseline_workspace": (
+        "点击「基线准备」。Claude Code 把 INTERFACE 对照切片和 Trunk 对照代码拷贝进 "
+        "poc/<topic>/，形成可 R0 测量的基线。MUST NOT 改 src/。"
+    ),
+    "no_topic_code": (
+        "点击「基线准备」。先在 poc/<topic>/ 建立对照代码工作区，再测。"
+    ),
+    "numbers_pending": (
+        "点击「补测 / 写 DELTA」。Claude Code 跑测量并把 Numbers 写入 DELTA.md / "
+        "PERF_BASELINE。这是测量 hop，不是装订器修订。"
+    ),
+    "empty_numbers": (
+        "点击「补测 / 写 DELTA」。空 Numbers 不能判断假设，必须先测量。"
+    ),
+    "missing_delta": (
+        "点击「补测 / 写 DELTA」。先补 DELTA 轮次记录，再对照基线。"
+    ),
+    "unverified_measurement_claim": (
+        "点击「补测 / 写 DELTA」。补齐 Claude Code 测量回执后再把 Numbers 算数。"
+    ),
+}
+REPAIR_TASK_ACTION_IDS = {
+    "poc_prepare_baseline": "poc-prepare-baseline",
+    "poc_measurement": "poc-measurement",
+    "poc_isolation_repair": "poc-isolation-repair",
+    "gate_pipeline": "gate-pipeline",
+    "binder_pipeline": "binder-pipeline",
+    "binder_amend": "binder-amend",
+}
 SPACE_CLAUSE_REFS = {
     "design": [
         {"id": "BEH-025", "title": "POC 主题装订纪律"},
@@ -2829,6 +2859,72 @@ def decorate_spaces(spaces: dict[str, Any]) -> dict[str, Any]:
         target["purpose"] = purpose
         target["clause_refs"] = [dict(item) for item in SPACE_CLAUSE_REFS[key]]
     return spaces
+
+
+def attach_space_repairs(
+    spaces: Mapping[str, Any] | None,
+    health: Mapping[str, Any] | None,
+    *,
+    topic_id: str | None = None,
+) -> dict[str, Any]:
+    """Attach why/how/command recipes so space cards are not gap-id-only."""
+    result: dict[str, Any] = {}
+    findings = [
+        item for item in (health or {}).get("findings") or [] if isinstance(item, Mapping)
+    ]
+    actions = [
+        item
+        for item in (health or {}).get("next_actions") or []
+        if isinstance(item, Mapping)
+    ]
+    finding_by_kind = {str(item.get("kind")): item for item in findings if item.get("kind")}
+    action_by_kind = {str(item.get("kind")): item for item in actions if item.get("kind")}
+    space_title = {
+        "design": "Design",
+        "implementation": "Implementation",
+        "test": "Test",
+    }
+    for key, card in (spaces or {}).items():
+        if not isinstance(card, Mapping):
+            continue
+        target = dict(card)
+        repairs: list[dict[str, Any]] = []
+        for gap in target.get("gaps") or []:
+            kind = str(gap)
+            finding = finding_by_kind.get(kind) or {}
+            action = action_by_kind.get(kind) or {}
+            task = str(action.get("task") or finding.get("repair_task") or "")
+            if not task and kind in {"missing_baseline_workspace", "no_topic_code"}:
+                task = "poc_prepare_baseline"
+            if not task and kind in MEASUREMENT_FINDING_KINDS | {"missing_delta"}:
+                task = "poc_measurement"
+            label = (
+                action.get("label")
+                or CONTROL_TASK_LABELS.get(task)
+                or (f"修复 {kind}" if kind else "修复缺口")
+            )
+            write_root = (
+                action.get("allowed_write_root")
+                or finding.get("allowed_write_root")
+                or (f"poc/{topic_id}/" if topic_id else None)
+            )
+            repairs.append(
+                {
+                    "kind": kind,
+                    "why": finding.get("why_blocked")
+                    or finding_why_blocked(kind, space_title.get(str(key), str(key))),
+                    "fix": SPACE_GAP_FIX.get(kind)
+                    or f"使用命令入口「{label}」按 NDF 修复 {kind}。",
+                    "actionId": REPAIR_TASK_ACTION_IDS.get(task),
+                    "label": label,
+                    "owner": action.get("owner") or finding.get("repair_owner"),
+                    "writeRoot": write_root,
+                    "task": task or None,
+                }
+            )
+        target["repairs"] = repairs
+        result[str(key)] = target
+    return result
 
 
 def topic_contract_slice(text: str) -> str:
@@ -6206,7 +6302,38 @@ def canvas_topic_workbench(
             if len(round_text) > 240:
                 test["latest_round"] = round_text[:240]
             spaces["test"] = test
+        spaces = attach_space_repairs(
+            spaces,
+            detail.get("health"),
+            topic_id=str(item.get("topic_id") or row.get("id") or ""),
+        )
     pipelines = slim_canvas_pipelines(detail.get("control_pipelines"))
+    gate_pipe = dict(pipelines.get("gate") or {})
+    if gate_pipe:
+        gate_pipe["checklist"] = [
+            {
+                "id": name,
+                "phrase": GATE_PHRASES[name],
+                "state": ((detail.get("gates") or {}).get(name) or {}).get("state"),
+            }
+            for name in GATE_ORDER
+        ]
+        pipelines["gate"] = gate_pipe
+    binder_pipe = dict(pipelines.get("binder") or {})
+    if binder_pipe:
+        binder = detail.get("binder") or {}
+        binder_pipe["checklist"] = [
+            {
+                "id": facet,
+                "label": BINDER_FACET_LABELS[facet],
+                "file": BINDER_FACET_FILES[facet],
+                "exists": bool(
+                    (binder.get(BINDER_FACET_FILES[facet]) or {}).get("exists")
+                ),
+            }
+            for facet in BINDER_FACET_ORDER
+        ]
+        pipelines["binder"] = binder_pipe
     gate_handoff = ((pipelines.get("gate") or {}).get("handoff") or {})
     next_actions = ((detail.get("health") or {}).get("next_actions") or [])
     if gate_handoff:
@@ -6260,7 +6387,6 @@ def slim_canvas_spec_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
     data = dict(health or {})
     data.pop("raw_checks", None)
     data.pop("layers", None)
-    data.pop("next_actions", None)
     data.pop("proposal_plane_warnings", None)
     data.pop("draft_map_warnings", None)
     checks = {}

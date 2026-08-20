@@ -163,6 +163,16 @@ export type FocusedTopic = TopicRow & {
     latest_round?: string;
     latest_verdict?: string;
     delta_path?: string;
+    repairs?: Array<{
+      kind?: string;
+      why?: string;
+      fix?: string;
+      actionId?: string | null;
+      label?: string;
+      owner?: string;
+      writeRoot?: string;
+      task?: string | null;
+    }>;
   }>;
   decision?: {
     selected?: string | null;
@@ -228,6 +238,14 @@ export type FocusedTopic = TopicRow & {
     handoff_from_gate?: { blocked_gate?: string; next_binder_facet?: string; next_binder_label?: string };
     blocked_by_binder?: boolean;
     decision_required?: boolean;
+    checklist?: Array<{
+      id?: string;
+      phrase?: string;
+      state?: string;
+      label?: string;
+      file?: string;
+      exists?: boolean;
+    }>;
   }>;
   agentRun?: {
     provider?: string;

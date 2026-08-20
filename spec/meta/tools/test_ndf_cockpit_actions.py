@@ -65,8 +65,8 @@ def _payload(**overrides: object) -> dict:
                 "id": "hotspot-optimization",
                 "decision": {"selected": None},
                 "spaces": {
-                    "implementation": {"gaps": []},
-                    "test": {"gaps": []},
+                    "implementation": {"gaps": ["missing_baseline_workspace"]},
+                    "test": {"gaps": ["numbers_pending"]},
                 },
                 "health": {"findings": []},
                 "delegation": {
@@ -113,6 +113,46 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertFalse(enabled["delegate-poc"]["enabled"])
         self.assertFalse(enabled["submit-process-improvement"]["enabled"])
         self.assertTrue(enabled["refresh-snapshot"]["enabled"])
+        self.assertTrue(enabled["gate-pipeline"]["enabled"])
+        self.assertTrue(enabled["binder-pipeline"]["enabled"])
+        self.assertTrue(enabled["poc-prepare-baseline"]["enabled"])
+        self.assertTrue(enabled["poc-measurement"]["enabled"])
+
+    def test_space_repairs_explain_how_to_fill_gaps(self) -> None:
+        spaces = workflow.attach_space_repairs(
+            {
+                "implementation": {"ready": False, "gaps": ["missing_baseline_workspace"]},
+                "test": {"ready": False, "gaps": ["numbers_pending"]},
+            },
+            {
+                "findings": [
+                    {
+                        "kind": "missing_baseline_workspace",
+                        "why_blocked": "缺少 Implementation 基线工作区",
+                        "repair_owner": "claude-code",
+                        "repair_task": "poc_prepare_baseline",
+                        "allowed_write_root": "poc/hotspot-optimization/",
+                    }
+                ],
+                "next_actions": [
+                    {
+                        "kind": "numbers_pending",
+                        "task": "poc_measurement",
+                        "label": "补测 / 写 DELTA",
+                        "owner": "claude-code",
+                        "allowed_write_root": "poc/hotspot-optimization/",
+                    }
+                ],
+            },
+            topic_id="hotspot-optimization",
+        )
+        impl = spaces["implementation"]["repairs"][0]
+        self.assertEqual(impl["actionId"], "poc-prepare-baseline")
+        self.assertIn("基线准备", impl["fix"])
+        self.assertIn("缺少 Implementation 基线工作区", impl["why"])
+        test = spaces["test"]["repairs"][0]
+        self.assertEqual(test["actionId"], "poc-measurement")
+        self.assertIn("补测 / 写 DELTA", test["fix"])
 
     def test_empty_intent_does_not_clear_requires_intent(self) -> None:
         enabled = actions.evaluate_enabled_actions(_payload())
@@ -397,6 +437,18 @@ class ActionRegistryTest(unittest.TestCase):
         api = (SRC / "api.ts").read_text(encoding="utf-8")
         self.assertIn("__NDF_REMOTE_URL__", api)
         self.assertIn("__NDF_BRANCH__", api)
+
+    def test_space_cards_and_pipelines_expose_repair_commands(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        self.assertIn("gap-recipe", source)
+        self.assertIn("pipeline-checklist", source)
+        self.assertIn('actionId="poc-prepare-baseline"', source)
+        self.assertIn('actionId="poc-measurement"', source)
+        registry = actions.registry_by_id()
+        self.assertEqual(registry["poc-prepare-baseline"]["failClosed"], "disable")
+        self.assertEqual(registry["poc-measurement"]["failClosed"], "disable")
+        self.assertNotIn("fresh", registry["gate-pipeline"]["enableWhen"])
+        self.assertNotIn("fresh", registry["poc-measurement"]["enableWhen"])
 
     def test_control_pipeline_actions_live_on_bottom_command_surface(self) -> None:
         registry = actions.registry_by_id()

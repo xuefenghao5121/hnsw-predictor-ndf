@@ -509,6 +509,7 @@ function App() {
                   <div className="grid-3">
                     {(["design", "implementation", "test"] as const).map((space) => {
                       const value = focused.spaces?.[space];
+                      const repairs = value?.repairs || [];
                       return (
                         <div className="card space-card" key={space}>
                           <div className="section-heading">
@@ -516,7 +517,16 @@ function App() {
                             <span className={`status-chip ${value?.ready ? "ready" : "blocked"}`}>{value?.ready ? "ready" : "blocked"}</span>
                           </div>
                           <p className="muted">{value?.purpose}</p>
-                          <p><strong>Gaps</strong> {value?.gaps?.join(", ") || "none"}</p>
+                          {repairs.length === 0 ? (
+                            <p><strong>Gaps</strong> none</p>
+                          ) : repairs.map((repair) => (
+                            <div className="gap-recipe" key={repair.kind}>
+                              <p><strong>{repair.kind}</strong></p>
+                              <p>{repair.why}</p>
+                              <p className="fix-line">{repair.fix}</p>
+                              <p className="muted">{repair.owner} · {repair.writeRoot}</p>
+                            </div>
+                          ))}
                           <p className="muted">{value?.clause_refs?.map((item) => item.id).join(" · ")}</p>
                           {space === "implementation" && (
                             <div className="pills">
@@ -634,6 +644,19 @@ function App() {
                       <p className="muted">
                         Gate only writes GATES.md. Click is not TOPIC已审核 / DESIGN已审核 / 可以开始实现.
                       </p>
+                      <ol className="pipeline-checklist">
+                        {(focused.controlPipelines?.gate?.checklist || []).map((item) => (
+                          <li key={item.id}>
+                            <strong>{item.phrase}</strong>
+                            <span className={`status-chip ${item.state}`}>{item.state || "unknown"}</span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="muted">
+                        {focused.controlPipelines?.gate?.needed
+                          ? "有闸缺口：点击生成门禁流水线 Prompt。"
+                          : "三闸当前有效。点击仍可复检并生成指挥 Prompt。"}
+                      </p>
                       {focused.controlPipelines?.gate?.handoff && (
                         <p className="danger">
                           {focused.controlPipelines.gate.handoff.blocked_gate} blocked by binder · next {focused.controlPipelines.gate.handoff.next_binder_label}
@@ -649,6 +672,21 @@ function App() {
                         </span>
                       </div>
                       <p className="muted">Binder writes only the focused facet and never approves a gate.</p>
+                      <ol className="pipeline-checklist">
+                        {(focused.controlPipelines?.binder?.checklist || []).map((item) => (
+                          <li key={item.id}>
+                            <strong>{item.label}</strong>
+                            <span className={`status-chip ${item.exists ? "ready" : "blocked"}`}>
+                              {item.exists ? "present" : "missing"}
+                            </span>
+                          </li>
+                        ))}
+                      </ol>
+                      <p className="muted">
+                        {focused.controlPipelines?.binder?.needed
+                          ? "有装订器缺口：点击生成装订器流水线 Prompt。"
+                          : "六面当前无缺口。点击仍可复检 / 做同假设修订。"}
+                      </p>
                       <div className="pills">
                         <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
                         <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
