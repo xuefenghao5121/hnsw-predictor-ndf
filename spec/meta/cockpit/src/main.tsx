@@ -849,19 +849,19 @@ function App() {
                   <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} placeholder="写下本轮决策；空文本不会派发" />
                   <p className="eyebrow">Claude Code implementation</p>
                   <div className="section-heading" style={{ marginBottom: "0.5rem" }}>
-                    <span className={`status-chip ${focused.agent_run?.dispatch_state || focused.agent_run?.status || "not_dispatched"}`}>
-                      {pipelineStateLabel(focused.agent_run?.dispatch_state || focused.delegation?.dispatch_state)}
+                    <span className={`status-chip ${focused.agentRun?.status || "not_dispatched"}`}>
+                      {pipelineStateLabel(focused.agentRun?.status)}
                     </span>
                     <span className="muted">
-                      {focused.agent_run?.delegate_to || focused.delegation?.delegate_to || "claude-code-acp"}
+                      {focused.agentRun?.provider || "claude-code-acp"}
                     </span>
                   </div>
-                  {(focused.agent_run?.result_summary || focused.delegation?.result_summary) && (
-                    <p className="muted">{focused.agent_run?.result_summary || focused.delegation?.result_summary}</p>
+                  {focused.agentRun?.run_id && (
+                    <p className="muted">run {focused.agentRun.run_id}</p>
                   )}
-                  {(focused.agent_run?.dispatch_blockers_from_send || []).length > 0 && (
+                  {(focused.delegation?.dispatch_blockers || []).length > 0 && (
                     <p className="danger">
-                      {(focused.agent_run?.dispatch_blockers_from_send || []).join(", ")}
+                      {(focused.delegation?.dispatch_blockers || []).join(", ")}
                     </p>
                   )}
                   <div className="pills">

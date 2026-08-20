@@ -81,6 +81,16 @@ export function watchLiveSnapshot(onPayloadSha: (sha: string) => void): () => vo
         .catch(() => undefined);
     }, 2000);
   };
+  const stopSource = () => {
+    if (!source) {
+      return;
+    }
+    // Close before nulling so the browser cannot schedule EventSource auto-reconnect
+    // (which would pile half-open /api/events workers on a saturated server).
+    source.onerror = null;
+    source.close();
+    source = null;
+  };
   try {
     source = new EventSource("/api/events");
     source.addEventListener("snapshot", (event) => {
@@ -94,16 +104,16 @@ export function watchLiveSnapshot(onPayloadSha: (sha: string) => void): () => vo
       }
     });
     source.onerror = () => {
-      source?.close();
-      source = null;
+      stopSource();
       startPoll();
     };
   } catch {
+    stopSource();
     startPoll();
   }
   return () => {
     stopped = true;
-    source?.close();
+    stopSource();
     if (pollTimer !== undefined) {
       window.clearInterval(pollTimer);
     }

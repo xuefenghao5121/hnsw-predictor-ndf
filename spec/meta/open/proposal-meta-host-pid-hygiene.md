@@ -10,6 +10,8 @@
 > depends-on: META-011
 > 范围: `--serve` 单例 / 线程与 SSE 上限 / cgroup pids 预检 / Agent 不残留 serve
 > land-targets: spec/meta/process.md, spec/meta/tools/ndf_workflow_status.py, AGENTS.md, .cursor/skills/ndf-workflow-canvas/*
+> amend-2026-08-20: flock 原子锁；worker 满则拒连不堵 accept；SSE 最长 900s + TCP keepalive；客户端 EventSource 出错立即 close 改 poll
+
 
 ## 1. 背景
 

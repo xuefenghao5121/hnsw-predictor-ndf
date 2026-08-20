@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import ast
 import atexit
+import fcntl
 import hashlib
 import json
 import os
@@ -72,7 +73,11 @@ SERVE_LOCK_PATH = ROOT / "tmp" / "ndf-commander-serve.lock"
 HOST_PID_MIN_FREE = 512
 SERVE_MAX_WORKERS = 16
 SERVE_MAX_SSE = 2
+# Cap long-lived SSE so half-open browsers cannot pin workers forever.
+SERVE_SSE_MAX_SECONDS = 900
 HOST_PID_EXHAUSTED = "host_pid_exhausted"
+# Held open for the lifetime of --serve so flock stays exclusive across processes.
+_SERVE_LOCK_FD: int | None = None
 
 GATE_COLUMNS = (
     "gate",
@@ -7703,17 +7708,47 @@ def serve_lock_holder_alive(lock: Mapping[str, Any] | None) -> bool:
     return "ndf_workflow_status.py" in cmdline and "--serve" in cmdline
 
 
+def _serve_already_running_error(existing: Mapping[str, Any] | None, port: int, lock_path: Path) -> ValueError:
+    holder = existing or {}
+    url = f"http://127.0.0.1:{int(holder.get('port') or port)}/"
+    return ValueError(
+        f"serve_already_running: pid={holder.get('pid')} url={url} "
+        f"lock={lock_path}"
+    )
+
+
 def acquire_serve_lock(port: int, path: Path | None = None) -> dict[str, Any]:
-    """Claim singleton --serve. Raises ValueError if another live serve holds the lock."""
+    """Claim singleton --serve. Raises ValueError if another live serve holds the lock.
+
+    Uses non-blocking ``fcntl.flock`` so two processes cannot both win a TOCTOU race
+    on the lock file. The FD is kept open until ``release_serve_lock``.
+    """
+    global _SERVE_LOCK_FD
     lock_path = path or SERVE_LOCK_PATH
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     existing = read_serve_lock(lock_path)
     if serve_lock_holder_alive(existing):
-        url = f"http://127.0.0.1:{int(existing.get('port') or port)}/"
-        raise ValueError(
-            f"serve_already_running: pid={existing.get('pid')} url={url} "
-            f"lock={lock_path}"
-        )
+        raise _serve_already_running_error(existing, port, lock_path)
+
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise _serve_already_running_error(read_serve_lock(lock_path), port, lock_path) from None
+    except Exception:
+        os.close(fd)
+        raise
+
+    # Same-process re-entry: flock is per-process on Linux, so re-check metadata.
+    if _SERVE_LOCK_FD is not None and _SERVE_LOCK_FD != fd:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
+        raise _serve_already_running_error(read_serve_lock(lock_path), port, lock_path)
+
     payload = {
         "schema": "ndf-commander-serve-lock/v1",
         "pid": os.getpid(),
@@ -7721,20 +7756,44 @@ def acquire_serve_lock(port: int, path: Path | None = None) -> dict[str, Any]:
         "repo_root": str(ROOT),
         "started_at": now_iso(),
     }
-    lock_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    raw = (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    try:
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.write(fd, raw)
+        os.fsync(fd)
+    except Exception:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(fd)
+        raise
+    _SERVE_LOCK_FD = fd
     return payload
 
 
 def release_serve_lock(path: Path | None = None, *, pid: int | None = None) -> bool:
+    global _SERVE_LOCK_FD
     lock_path = path or SERVE_LOCK_PATH
     lock = read_serve_lock(lock_path)
-    if not lock:
+    if not lock and _SERVE_LOCK_FD is None:
         return False
-    holder = int(lock.get("pid") or 0)
-    if pid is not None and holder != int(pid):
+    holder = int((lock or {}).get("pid") or 0)
+    if pid is not None and holder and holder != int(pid):
         return False
     if holder and holder != os.getpid() and serve_lock_holder_alive(lock):
         return False
+    if _SERVE_LOCK_FD is not None:
+        try:
+            fcntl.flock(_SERVE_LOCK_FD, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.close(_SERVE_LOCK_FD)
+        except OSError:
+            pass
+        _SERVE_LOCK_FD = None
     try:
         lock_path.unlink(missing_ok=True)
     except OSError:
@@ -7834,7 +7893,18 @@ class BoundedThreadingHTTPServer(ThreadingHTTPServer):
         super().__init__(server_address, RequestHandlerClass)
 
     def process_request(self, request, client_address):  # noqa: ANN001
-        self._worker_slots.acquire()
+        # Non-blocking: never stall the accept loop when workers are saturated
+        # (e.g. max SSE sessions held open). Prefer refuse over unbounded wait.
+        if not self._worker_slots.acquire(blocking=False):
+            try:
+                request.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                request.close()
+            except OSError:
+                pass
+            return
         try:
             t = threading.Thread(
                 target=self.process_request_thread,
@@ -7856,6 +7926,20 @@ class BoundedThreadingHTTPServer(ThreadingHTTPServer):
                 self.shutdown_request(request)
             finally:
                 self._worker_slots.release()
+
+
+def _enable_tcp_keepalive(conn: socket.socket) -> None:
+    """Fail soft: keepalive helps detect dead SSE clients without relying on MSG_PEEK alone."""
+    try:
+        conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        if hasattr(socket, "TCP_KEEPIDLE"):
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+        if hasattr(socket, "TCP_KEEPINTVL"):
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+        if hasattr(socket, "TCP_KEEPCNT"):
+            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+    except OSError:
+        pass
 
 
 def load_served_snapshot(path: Path) -> dict[str, Any]:
@@ -7916,8 +8000,11 @@ def commander_http_handler(
                 self.end_headers()
                 last_sha: str | None = None
                 interval = float(state.get("event_interval") or 0.5)
+                max_seconds = float(state.get("sse_max_seconds") or SERVE_SSE_MAX_SECONDS)
+                deadline = time.monotonic() + max(0.05, max_seconds)
                 conn = self.connection
-                while True:
+                _enable_tcp_keepalive(conn)
+                while time.monotonic() < deadline:
                     try:
                         readable, _, _ = select.select([conn], [], [], interval)
                         if readable:
@@ -8109,6 +8196,7 @@ def serve_commander(
         "out": out,
         "event_interval": event_interval,
         "max_sse": SERVE_MAX_SSE,
+        "sse_max_seconds": SERVE_SSE_MAX_SECONDS,
         "sse_slots": threading.BoundedSemaphore(SERVE_MAX_SSE),
     }
     Handler = commander_http_handler(dist=dist, state=state)
@@ -8122,7 +8210,8 @@ def serve_commander(
     sys.stderr.write(
         f"NDF commander at {url} snapshot={out}\n"
         f"bind=127.0.0.1 lock={SERVE_LOCK_PATH} pid={lock.get('pid')} "
-        f"workers<={SERVE_MAX_WORKERS} sse<={SERVE_MAX_SSE}\n"
+        f"workers<={SERVE_MAX_WORKERS} sse<={SERVE_MAX_SSE} "
+        f"sse_max_s={SERVE_SSE_MAX_SECONDS}\n"
         "GET /api/refresh reads the snapshot file; "
         "GET /api/events pushes payloadSha. Open this URL on the machine that ran --serve.\n"
     )

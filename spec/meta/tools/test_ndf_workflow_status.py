@@ -5090,6 +5090,81 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
             self.assertIn("serve_already_running", str(caught.exception))
             self.assertTrue(workflow.release_serve_lock(path=lock_path, pid=os.getpid()))
 
+    def test_bounded_server_refuses_when_workers_saturated(self) -> None:
+        import socket
+        import threading
+        import time
+        from http.server import BaseHTTPRequestHandler
+
+        class SlowHandler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # noqa: N802
+                time.sleep(0.4)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+            def log_message(self, format: str, *args) -> None:  # noqa: ANN001
+                return
+
+        httpd = workflow.BoundedThreadingHTTPServer(("127.0.0.1", 0), SlowHandler, max_workers=1)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            host, port = httpd.server_address[:2]
+            first = socket.create_connection((host, port), timeout=2)
+            first.sendall(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+            time.sleep(0.05)
+            second = socket.create_connection((host, port), timeout=2)
+            second.settimeout(0.5)
+            # Saturated worker: server closes without an HTTP response.
+            data = second.recv(64)
+            self.assertEqual(data, b"")
+            second.close()
+            first.close()
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    def test_sse_max_seconds_releases_slot(self) -> None:
+        import threading
+        import time
+        import urllib.request
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "ndf-canvas-snapshot.json"
+            snap.write_text(
+                json.dumps({"schema": "ndf-workflow-canvas-snapshot/v1", "payloadSha": "aaa"}),
+                encoding="utf-8",
+            )
+            dist = Path(tmp) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+            state = {
+                "topic": None,
+                "replay_episode": None,
+                "probe_runtime": False,
+                "out": snap,
+                "event_interval": 0.05,
+                "max_sse": 1,
+                "sse_max_seconds": 0.2,
+                "sse_slots": threading.BoundedSemaphore(1),
+            }
+            handler = workflow.commander_http_handler(dist=dist, state=state)
+            httpd = workflow.BoundedThreadingHTTPServer(("127.0.0.1", 0), handler, max_workers=4)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = httpd.server_address[:2]
+                first = urllib.request.urlopen(f"http://{host}:{port}/api/events", timeout=2)
+                # Wait past sse_max_seconds so the slot is released.
+                time.sleep(0.45)
+                second = urllib.request.urlopen(f"http://{host}:{port}/api/events", timeout=2)
+                second.close()
+                first.close()
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
     def test_ensure_host_pid_headroom_fails_when_free_low(self) -> None:
         with patch.object(
             workflow,
