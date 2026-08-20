@@ -31,19 +31,81 @@ export type ActionResponse = {
   error?: string;
 };
 
+export function isStandaloneCommander(): boolean {
+  return window.__NDF_STANDALONE__ === true;
+}
+
 export async function loadSnapshot(): Promise<Snapshot> {
-  if (window.__NDF_SNAPSHOT__) {
+  if (isStandaloneCommander() && window.__NDF_SNAPSHOT__) {
     return window.__NDF_SNAPSHOT__;
   }
-  const response = await fetch("/snapshot.json", { cache: "no-store" });
+  const response = await fetch("/api/refresh", { cache: "no-store" });
   if (!response.ok) {
-    throw new Error(`snapshot HTTP ${response.status}`);
+    const fallback = await fetch("/snapshot.json", { cache: "no-store" });
+    if (!fallback.ok) {
+      throw new Error(`snapshot HTTP ${response.status}`);
+    }
+    try {
+      return (await fallback.json()) as Snapshot;
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : "snapshot JSON parse failed");
+    }
   }
   try {
     return (await response.json()) as Snapshot;
   } catch (err) {
     throw new Error(err instanceof Error ? err.message : "snapshot JSON parse failed");
   }
+}
+
+export function watchLiveSnapshot(onPayloadSha: (sha: string) => void): () => void {
+  if (isStandaloneCommander()) {
+    return () => {};
+  }
+  let stopped = false;
+  let source: EventSource | null = null;
+  let pollTimer: number | undefined;
+  const startPoll = () => {
+    if (stopped || pollTimer !== undefined) {
+      return;
+    }
+    pollTimer = window.setInterval(() => {
+      void loadSnapshot()
+        .then((data) => {
+          if (!stopped && data.payloadSha) {
+            onPayloadSha(data.payloadSha);
+          }
+        })
+        .catch(() => undefined);
+    }, 2000);
+  };
+  try {
+    source = new EventSource("/api/events");
+    source.addEventListener("snapshot", (event) => {
+      try {
+        const parsed = JSON.parse((event as MessageEvent).data) as { payloadSha?: string };
+        if (!stopped && parsed.payloadSha) {
+          onPayloadSha(parsed.payloadSha);
+        }
+      } catch {
+        /* ignore malformed SSE payloads */
+      }
+    });
+    source.onerror = () => {
+      source?.close();
+      source = null;
+      startPoll();
+    };
+  } catch {
+    startPoll();
+  }
+  return () => {
+    stopped = true;
+    source?.close();
+    if (pollTimer !== undefined) {
+      window.clearInterval(pollTimer);
+    }
+  };
 }
 
 function gitInputs(request: ActionRequest): {

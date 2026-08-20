@@ -31,4 +31,6 @@ python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-sna
 ## Notes
 
 Orchestration: `.cursor/skills/ndf-workflow-canvas/workflows/snapshot-refresh.md`.
-This round does not add WebSocket auto-refresh.
+On a machine running `snapshot --serve` at `http://127.0.0.1:8765`, writing
+`tmp/ndf-canvas-snapshot.json` auto-reloads the live page. Do not curl
+`localhost:8081`. htmlpreview is static.

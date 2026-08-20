@@ -27,6 +27,6 @@ Ordered: TOPIC已审核 → DESIGN已审核 → 可以开始实现.
 5. Each gate: draft `GATES.md` pending rows; MUST NOT set `approved_by`. Wait for the exact human phrase.
 6. Missing binder facet → `blocked_by_binder` + `next_binder_facet`; hand off to `/ndf-binder-pipeline`. Gate MUST NOT create binder files.
 7. All three valid → `decision_required`, not automatic close.
-8. `topic-health` + snapshot refresh. This round does not WebSocket-push.
+8. `topic-health` + snapshot `--out tmp/ndf-canvas-snapshot.json`. Local `--serve` at `http://127.0.0.1:8765` auto-reloads that file.
 
 Button click is not approval.

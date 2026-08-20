@@ -30,28 +30,37 @@ Do not create, refresh, or link a Cursor Canvas. Every control is an id in
 
 ## Open or refresh
 
-1. Rebuild the commander payload:
+Live panel (this machine):
 
-   ```bash
-   python3 spec/meta/tools/ndf_workflow_status.py snapshot \
-     --out tmp/ndf-canvas-snapshot.json --topic <focused-topic-id> --json
-   cd spec/meta/cockpit
-   npm run build
-   python3 build_standalone.py
-   ```
+```bash
+python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --json
+```
 
-2. Open `docs/ndf-commander.html` directly, serve it from `docs/` on localhost
-   or an intranet host, or use an HTTPS static host. The built page is
-   self-contained and MUST NOT require GitHub/CDN/network access at runtime.
-   `--topic` selects the unique fat Topics page. Do not pass `--probe-runtime`
-   on routine refresh; header Refresh snapshot is the only probe.
-   Over 120KB compact commander JSON MUST fail and name the overflowing bucket.
-   Unchanged evidence (Merkle layer hit) MUST reuse persisted spec-health / Replay index
-   and MUST NOT re-run `ndf_graphcheck`. Commander workbench uses a shallow graph preview or
-   a cached verified plan; full ACP `create_manifest` stays on pack/repair-pack.
-3. Keep the layout defined in [layout.md](layout.md).
-4. Omit empty sections. Label snapshot time and repository SHA.
-5. After proposal, gate, binder, baseline, or close changes, refresh the snapshot.
+Open `http://127.0.0.1:8765/`. `--topic` is optional. After hops write
+`tmp/ndf-canvas-snapshot.json`, the page auto-reloads. Do not curl
+`localhost:8081`. htmlpreview is static.
+
+Standalone HTML (Cloud Agent / no local serve):
+
+```bash
+python3 spec/meta/tools/ndf_workflow_status.py snapshot \
+  --out tmp/ndf-canvas-snapshot.json --json
+cd spec/meta/cockpit
+npm run build
+python3 build_standalone.py
+```
+
+Open `docs/ndf-commander.html`. The built page is self-contained and MUST NOT
+require GitHub/CDN/network access at runtime. `--topic` selects the unique fat
+Topics page. Do not pass `--probe-runtime` on routine refresh; header Refresh
+snapshot is the only probe.
+Over 120KB compact commander JSON MUST fail and name the overflowing bucket.
+Unchanged evidence (Merkle layer hit) MUST reuse persisted spec-health / Replay index
+and MUST NOT re-run `ndf_graphcheck`. Commander workbench uses a shallow graph preview or
+a cached verified plan; full ACP `create_manifest` stays on pack/repair-pack.
+Keep the layout defined in [layout.md](layout.md).
+Omit empty sections. Label snapshot time and repository SHA.
+After proposal, gate, binder, baseline, or close changes, refresh the snapshot.
 
 Commander actions that may change local evidence MUST use bound action/agent receipts.
 The header MUST show payload SHA, absorbed action and latest operation/result/blockers/time.

@@ -1,7 +1,11 @@
 # Snapshot refresh workflow
 
 Orchestrates `/ndf-snapshot-refresh`. Catalog id: `refresh-snapshot`.
-This round does not add WebSocket auto-refresh.
+This hop rebuilds the official commander snapshot with `--probe-runtime`.
+
+On a machine running `snapshot --serve` at `http://127.0.0.1:8765`, writing
+`tmp/ndf-canvas-snapshot.json` auto-reloads the live page. Do not curl
+`localhost:8081`. htmlpreview is static.
 
 ## Command
 

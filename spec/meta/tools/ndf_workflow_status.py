@@ -18,6 +18,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -7126,28 +7127,26 @@ def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = Non
     return target
 
 
-def serve_commander(
+def load_served_snapshot(path: Path) -> dict[str, Any]:
+    """Read the on-disk commander snapshot. Does not rebuild or probe."""
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def served_payload_sha(payload: Mapping[str, Any]) -> str:
+    return str(payload.get("payloadSha") or "")
+
+
+def commander_http_handler(
     *,
-    topic: str | None,
-    probe_runtime: bool,
-    replay_episode: str | None,
-    out: Path,
-    port: int,
-) -> dict[str, Any]:
-    """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
-    payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
-    write_commander_snapshot(payload, out)
-    dist = META / "cockpit" / "dist"
-    state = {
-        "topic": topic,
-        "replay_episode": replay_episode,
-        "probe_runtime": probe_runtime,
-        "out": out,
-    }
+    dist: Path,
+    state: dict[str, Any],
+) -> type[SimpleHTTPRequestHandler]:
+    """HTTP handler for --serve. GET /api/refresh reads disk; POST rebuilds."""
+    root = str(dist if dist.is_dir() else META / "cockpit")
 
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=str(dist if dist.is_dir() else META / "cockpit"), **kwargs)
+            super().__init__(*args, directory=root, **kwargs)
 
         def log_message(self, format: str, *args: Any) -> None:
             sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
@@ -7169,16 +7168,40 @@ def serve_commander(
             data = json.loads(raw.decode("utf-8"))
             return data if isinstance(data, dict) else {}
 
+        def _stream_snapshot_events(self) -> None:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+            last_sha: str | None = None
+            interval = float(state.get("event_interval") or 0.5)
+            while True:
+                try:
+                    payload = load_served_snapshot(state["out"])
+                    sha = served_payload_sha(payload)
+                    if sha != last_sha:
+                        last_sha = sha
+                        data = json.dumps({"payloadSha": sha}, ensure_ascii=False)
+                        self.wfile.write(f"event: snapshot\ndata: {data}\n\n".encode("utf-8"))
+                        self.wfile.flush()
+                    time.sleep(interval)
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError, OSError):
+                    break
+
         def do_GET(self) -> None:  # noqa: N802
             parsed = urlparse(self.path)
-            if parsed.path in {"/snapshot.json", "/api/snapshot"}:
-                current = json.loads(state["out"].read_text(encoding="utf-8"))
-                self._send_json(current)
+            if parsed.path in {"/snapshot.json", "/api/snapshot", "/api/refresh"}:
+                self._send_json(load_served_snapshot(state["out"]))
+                return
+            if parsed.path == "/api/events":
+                self._stream_snapshot_events()
                 return
             if parsed.path == "/api/registry":
                 self._send_json(ndf_actions.load_registry())
                 return
-            if parsed.path in {"/", "/index.html"} and not dist.is_dir():
+            if parsed.path in {"/", "/index.html"} and not Path(root).joinpath("index.html").is_file():
                 body = (
                     "<!doctype html><meta charset=utf-8><title>NDF commander</title>"
                     "<p>Build the cockpit: <code>cd spec/meta/cockpit && npm install && npm run build</code></p>"
@@ -7203,7 +7226,7 @@ def serve_commander(
                 if catalog is None:
                     self._send_json({"error": "unregistered_action", "id": action_id}, 400)
                     return
-                current = json.loads(state["out"].read_text(encoding="utf-8"))
+                current = load_served_snapshot(state["out"])
                 ctx: dict[str, Any] = {}
                 if body.get("topic") or state["topic"]:
                     ctx["topicId"] = body.get("topic") or state["topic"]
@@ -7291,13 +7314,37 @@ def serve_commander(
                 return
             self.send_error(404)
 
+    return Handler
+
+
+def serve_commander(
+    *,
+    topic: str | None,
+    probe_runtime: bool,
+    replay_episode: str | None,
+    out: Path,
+    port: int,
+    event_interval: float = 0.5,
+) -> dict[str, Any]:
+    """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
+    payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
+    write_commander_snapshot(payload, out)
+    dist = META / "cockpit" / "dist"
+    state = {
+        "topic": topic,
+        "replay_episode": replay_episode,
+        "probe_runtime": probe_runtime,
+        "out": out,
+        "event_interval": event_interval,
+    }
+    Handler = commander_http_handler(dist=dist, state=state)
+
     httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}/"
     sys.stderr.write(
         f"NDF commander at {url} snapshot={out}\n"
-        "bind=127.0.0.1 (loopback only). A Cloud Agent VM has no TCP ingress "
-        "to the human browser; run --serve on the human's machine, or open the "
-        "Canvas gzip artifact on the agent page.\n"
+        "bind=127.0.0.1 (loopback only). GET /api/refresh reads the snapshot file; "
+        "GET /api/events pushes payloadSha. Open this URL on the machine that ran --serve.\n"
     )
     try:
         httpd.serve_forever()

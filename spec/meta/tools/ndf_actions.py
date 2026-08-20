@@ -504,6 +504,11 @@ def composer_prompt(
         f"Follow {action.get('skill')} and {action.get('command')}.",
         click_rule,
         "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
+        (
+            "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
+            "that page auto-reloads the written snapshot. Do not curl localhost:8081. "
+            "htmlpreview or docs/ndf-commander.html is static: rebuild HTML then refresh the browser."
+        ),
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
     ]
     if action_id == "new-proposal":
@@ -706,6 +711,10 @@ def standalone_action_template(
                     f"--operation {action.get('operation')} --topic {topic} --json"
                 ),
                 command,
+                (
+                    "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
+                    "that page auto-reloads tmp/ndf-canvas-snapshot.json. Do not curl localhost:8081."
+                ),
                 "python3 spec/meta/cockpit/build_standalone.py",
                 "Record action-finish success|failed after the operation.",
                 "MUST NOT write .openclaw/state.json from Cursor.",

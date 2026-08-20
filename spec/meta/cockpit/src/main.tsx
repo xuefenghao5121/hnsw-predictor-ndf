@@ -3,13 +3,14 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ErrorInfo,
   type ReactNode,
 } from "react";
 import { createRoot } from "react-dom/client";
 import { ActionButton } from "./ActionButton";
-import { dispatchAction, loadSnapshot } from "./api";
+import { dispatchAction, isStandaloneCommander, loadSnapshot, watchLiveSnapshot } from "./api";
 import { GoldenPerformance } from "./charts/GoldenPerformance";
 import { ReplayTimeline } from "./charts/ReplayTimeline";
 import { TopicOverview } from "./charts/TopicOverview";
@@ -100,30 +101,71 @@ function App() {
   const [remoteName, setRemoteName] = useState("origin");
   const [remoteUrl, setRemoteUrl] = useState("");
   const [remoteBranch, setRemoteBranch] = useState("");
+  const live = !isStandaloneCommander();
+  const snapshotRef = useRef<Snapshot | null>(null);
+  const gitRef = useRef({ remoteName, remoteUrl, remoteBranch });
+  snapshotRef.current = snapshot;
+  gitRef.current = { remoteName, remoteUrl, remoteBranch };
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await loadSnapshot();
-      setError(null);
-      setSnapshot(data);
+  const applySnapshot = useCallback((data: Snapshot, mode: "full" | "live") => {
+    const previous = snapshotRef.current;
+    if (mode === "live" && previous?.payloadSha && previous.payloadSha === data.payloadSha) {
+      return;
+    }
+    setError(null);
+    setSnapshot(data);
+    if (mode === "full") {
       setRemoteName(data.git?.remote || data.repoRemote || "origin");
       setRemoteUrl(data.git?.remoteUrl || data.repoRemoteUrl || "");
       setRemoteBranch(data.git?.branch || data.repoBranch || "");
-      if (data.business?.identity?.charterExists === false) {
-        setTab("control");
+    } else {
+      const draft = gitRef.current;
+      const prevRemote = previous?.git?.remote || previous?.repoRemote || "origin";
+      const prevUrl = previous?.git?.remoteUrl || previous?.repoRemoteUrl || "";
+      const prevBranch = previous?.git?.branch || previous?.repoBranch || "";
+      if (draft.remoteName === prevRemote) {
+        setRemoteName(data.git?.remote || data.repoRemote || draft.remoteName);
       }
-      const focused = data.business?.focusedTopicId;
-      if (focused) setSelectedTopic(focused);
-      const hop = data.replay?.focused?.id;
-      if (hop) setSelectedHop(hop);
+      if (draft.remoteUrl === prevUrl) {
+        setRemoteUrl(data.git?.remoteUrl || data.repoRemoteUrl || "");
+      }
+      if (draft.remoteBranch === prevBranch) {
+        setRemoteBranch(data.git?.branch || data.repoBranch || "");
+      }
+    }
+    if (data.business?.identity?.charterExists === false) {
+      setTab("control");
+    }
+    const focused = data.business?.focusedTopicId;
+    if (focused) setSelectedTopic(focused);
+    const hop = data.replay?.focused?.id;
+    if (hop) setSelectedHop(hop);
+  }, []);
+
+  const refresh = useCallback(async (mode: "full" | "live" = "full") => {
+    try {
+      const data = await loadSnapshot();
+      applySnapshot(data, mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
-  }, []);
+  }, [applySnapshot]);
 
   useEffect(() => {
-    void refresh();
+    void refresh("full");
   }, [refresh]);
+
+  useEffect(() => {
+    if (!live) {
+      return undefined;
+    }
+    return watchLiveSnapshot((sha) => {
+      if (snapshotRef.current?.payloadSha === sha) {
+        return;
+      }
+      void refresh("live");
+    });
+  }, [live, refresh]);
 
   const run = useCallback(
     async (
@@ -285,6 +327,7 @@ function App() {
           <span>{snapshot?.generatedAt}</span>
           <span>payload {snapshot?.payloadSha?.slice(0, 12)}</span>
           <span className={freshness === "fresh" ? "ok" : "danger"}>{freshness}</span>
+          <span className={live ? "ok" : "muted"}>{live ? "自动刷新已开" : "静态页，无自动刷新"}</span>
         </div>
         <div className="git-inputs">
           <label>

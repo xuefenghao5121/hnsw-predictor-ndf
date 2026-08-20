@@ -17,9 +17,7 @@ tool=python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_prepa
 then the existing NDF GIT INPUT block. There is no `Follow actions.md` fallback.
 Human phrases remain META-010 (`已确认` / `TOPIC已审核` / `可以开始实现`), not 同意/ok.
 
-This round does **not** add WebSocket auto-refresh. After the local Agent runs,
-rebuild `tmp/ndf-canvas-snapshot.json` and `docs/ndf-commander.html` (or Refresh
-on a machine-local `--serve`).
+**Live commander** is local `snapshot --serve` at `http://127.0.0.1:8765/`. After the Agent writes `tmp/ndf-canvas-snapshot.json`, that page auto-reloads (`GET /api/events` / `GET /api/refresh`). Do not `curl localhost:8081`. htmlpreview / `docs/ndf-commander.html` is a static backup: rebuild the HTML, then refresh the browser.
 
 Do not treat [`packages/ndf-harness/`](../packages/ndf-harness/) as local process truth.
 

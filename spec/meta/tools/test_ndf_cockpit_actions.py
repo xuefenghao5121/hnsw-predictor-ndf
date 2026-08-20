@@ -481,9 +481,123 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("远程仓库", source)
         self.assertIn("远程分支", source)
         self.assertIn("BEGIN NDF GIT INPUT", source)
+        self.assertIn("自动刷新已开", source)
+        self.assertIn("watchLiveSnapshot", source)
+        self.assertIn("isStandaloneCommander", source)
         api = (SRC / "api.ts").read_text(encoding="utf-8")
         self.assertIn("__NDF_REMOTE_URL__", api)
         self.assertIn("__NDF_BRANCH__", api)
+        self.assertIn('EventSource("/api/events")', api)
+        self.assertIn("isStandaloneCommander", api)
+
+    def test_composer_prompt_cites_local_serve_auto_reload(self) -> None:
+        prompt = actions.composer_prompt("poc-prepare-baseline", _payload())
+        self.assertIn("http://127.0.0.1:8765", prompt)
+        self.assertIn("Do not curl localhost:8081", prompt)
+        snap = actions.standalone_action_template("refresh-snapshot", _payload())["prompt"]
+        self.assertIn("http://127.0.0.1:8765", snap)
+
+    def test_get_refresh_reads_disk_snapshot_without_rebuild(self) -> None:
+        import json
+        import tempfile
+        import threading
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "ndf-canvas-snapshot.json"
+            snap.write_text(
+                json.dumps({"schema": "ndf-workflow-canvas-snapshot/v1", "payloadSha": "aaa"}),
+                encoding="utf-8",
+            )
+            dist = Path(tmp) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+            state = {
+                "topic": None,
+                "replay_episode": None,
+                "probe_runtime": False,
+                "out": snap,
+                "event_interval": 0.05,
+            }
+            handler = workflow.commander_http_handler(dist=dist, state=state)
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = httpd.server_address[:2]
+                with urllib.request.urlopen(f"http://{host}:{port}/api/refresh", timeout=2) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                self.assertEqual(payload["payloadSha"], "aaa")
+                snap.write_text(
+                    json.dumps({"schema": "ndf-workflow-canvas-snapshot/v1", "payloadSha": "bbb-live"}),
+                    encoding="utf-8",
+                )
+                with urllib.request.urlopen(f"http://{host}:{port}/snapshot.json", timeout=2) as resp:
+                    payload = json.loads(resp.read().decode("utf-8"))
+                self.assertEqual(payload["payloadSha"], "bbb-live")
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
+
+    def test_sse_pushes_payload_sha_when_snapshot_file_changes(self) -> None:
+        import json
+        import tempfile
+        import threading
+        import time
+        import urllib.request
+        from http.server import ThreadingHTTPServer
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as tmp:
+            snap = Path(tmp) / "ndf-canvas-snapshot.json"
+            snap.write_text(
+                json.dumps({"schema": "ndf-workflow-canvas-snapshot/v1", "payloadSha": "sha-one"}),
+                encoding="utf-8",
+            )
+            dist = Path(tmp) / "dist"
+            dist.mkdir()
+            (dist / "index.html").write_text("<html></html>", encoding="utf-8")
+            state = {
+                "topic": None,
+                "replay_episode": None,
+                "probe_runtime": False,
+                "out": snap,
+                "event_interval": 0.05,
+            }
+            handler = workflow.commander_http_handler(dist=dist, state=state)
+            httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+            thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+            thread.start()
+            try:
+                host, port = httpd.server_address[:2]
+                conn = urllib.request.urlopen(f"http://{host}:{port}/api/events", timeout=5)
+                shas: list[str] = []
+                deadline = time.time() + 4
+                while time.time() < deadline and len(shas) < 2:
+                    line = conn.readline()
+                    if not line:
+                        break
+                    text = line.decode("utf-8").strip()
+                    if text.startswith("data: "):
+                        shas.append(json.loads(text[6:])["payloadSha"])
+                        if len(shas) == 1:
+                            snap.write_text(
+                                json.dumps(
+                                    {
+                                        "schema": "ndf-workflow-canvas-snapshot/v1",
+                                        "payloadSha": "sha-two",
+                                    }
+                                ),
+                                encoding="utf-8",
+                            )
+                conn.close()
+                self.assertIn("sha-one", shas)
+                self.assertIn("sha-two", shas)
+            finally:
+                httpd.shutdown()
+                httpd.server_close()
 
     def test_space_cards_and_pipelines_expose_repair_commands(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")

@@ -6,10 +6,14 @@ snapshot `enabledActions` (see [[META-011]]).
 
 ```bash
 cd spec/meta/cockpit && npm install && npm run build
-python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --topic hotspot-optimization
+python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --json
 ```
 
 Open `http://127.0.0.1:8765/` on the machine that ran `--serve` (loopback only).
+`--topic` is optional (Topics workbench focus only). After a local Agent writes
+`tmp/ndf-canvas-snapshot.json`, this live page auto-reloads. htmlpreview is a
+static backup and does not auto-refresh.
+
 A Cloud Agent VM has no TCP ingress, so that URL is not reachable from the
 human browser. On a Cloud Agent run:
 
