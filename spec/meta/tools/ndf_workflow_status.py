@@ -5360,6 +5360,60 @@ def claude_acp_resume_path(
     return home / ".claude" / "projects" / slug / f"{session_id}.jsonl"
 
 
+def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
+    """Light Claude ACP probe: CLI + configured session + resume artifact only.
+
+    Skips ``claude doctor`` / ``agents`` so operational unblock does not hang
+    on fork-starved hosts. Full pipeline reachability still requires
+    :func:`probe_claude_acp`.
+    """
+    probed_at = now_iso()
+    session_id = configured_acp_session_id()
+    executable = shutil.which("claude")
+    if not executable:
+        return {
+            "reachable": False,
+            "error": "claude_cli_missing",
+            "cli_available": False,
+            "default_session": session_id,
+            "doctor_ok": None,
+            "resume_available": False,
+            "sessions": [],
+            "configured_session_visible": None,
+            "probe_mode": "light",
+            "probed_at": probed_at,
+        }
+    if not session_id:
+        return {
+            "reachable": False,
+            "error": "acp_session_unconfigured",
+            "cli_available": True,
+            "default_session": None,
+            "doctor_ok": None,
+            "resume_available": False,
+            "sessions": [],
+            "configured_session_visible": None,
+            "probe_mode": "light",
+            "probed_at": probed_at,
+        }
+    resume_path = claude_acp_resume_path(session_id)
+    resume_available = resume_path.is_file() and resume_path.stat().st_size > 0
+    error = None if resume_available else "acp_session_resume_missing"
+    return {
+        "reachable": resume_available,
+        "error": error,
+        "cli_available": True,
+        "default_session": session_id,
+        "doctor_ok": None,
+        "resume_available": resume_available,
+        "resume_path": str(resume_path),
+        "sessions": [],
+        "configured_session_visible": None,
+        "probe_mode": "light",
+        "probed_at": probed_at,
+    }
+
+
 def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
     """Probe whether Claude Code ACP can accept a start handshake.
 
@@ -5531,12 +5585,27 @@ def probe_openclaw() -> dict[str, Any]:
     }
 
 
-def runtime_status(probe: bool = False) -> dict[str, Any]:
+def runtime_status(probe: bool | str = False) -> dict[str, Any]:
+    """Return control/implementation runtime view.
+
+    ``probe`` may be False (no probe), True / ``\"full\"`` (doctor+resume),
+    or ``\"light\"`` (CLI+resume+openclaw health; skips doctor).
+    """
     agents_text = read_text(ROOT / "AGENTS.md")
     session_id = configured_acp_session_id(agents_text)
     openclaw_match = OPENCLAW_SESSION_RE.search(agents_text)
-    openclaw_probe = probe_openclaw() if probe else None
-    acp_probe = probe_claude_acp(refresh=True) if probe else _ACP_PROBE
+    mode = "off"
+    if probe is True or probe == "full":
+        mode = "full"
+    elif probe == "light":
+        mode = "light"
+    openclaw_probe = probe_openclaw() if mode != "off" else None
+    if mode == "full":
+        acp_probe = probe_claude_acp(refresh=True)
+    elif mode == "light":
+        acp_probe = probe_claude_acp_light(refresh=True)
+    else:
+        acp_probe = _ACP_PROBE
     configured_key = openclaw_match.group(1) if openclaw_match else "agent:main:main"
     recent_keys = {
         item.get("key")
@@ -5551,6 +5620,9 @@ def runtime_status(probe: bool = False) -> dict[str, Any]:
         impl_status = "idle"
     else:
         impl_status = "unavailable"
+    doctor_ok = None
+    if acp_probe is not None and acp_probe.get("doctor_ok") is not None:
+        doctor_ok = bool(acp_probe.get("doctor_ok"))
     return {
         "implementation": {
             "provider": "claude-code-acp",
@@ -5564,7 +5636,7 @@ def runtime_status(probe: bool = False) -> dict[str, Any]:
                 if acp_probe is not None
                 else bool(shutil.which("claude"))
             ),
-            "doctor_ok": None if acp_probe is None else bool(acp_probe.get("doctor_ok")),
+            "doctor_ok": doctor_ok,
             "resume_available": (
                 None if acp_probe is None else bool(acp_probe.get("resume_available"))
             ),
@@ -5572,10 +5644,13 @@ def runtime_status(probe: bool = False) -> dict[str, Any]:
                 None if acp_probe is None else acp_probe.get("configured_session_visible")
             ),
             "probe_error": None if acp_probe is None else acp_probe.get("error"),
+            "probe_mode": mode if mode != "off" else None,
             "probe": acp_probe,
             "probe_note": (
                 "Claude CLI presence is not ACP pipeline/run evidence; "
                 "doctor + configured session resume artifact required"
+                if mode != "light"
+                else "light probe: CLI + resume only; doctor skipped"
             ),
             "workspace": project_workspace_view(),
         },
@@ -5583,7 +5658,9 @@ def runtime_status(probe: bool = False) -> dict[str, Any]:
             "provider": "openclaw",
             "default_session_key": configured_key,
             "reachable": openclaw_probe.get("reachable") if openclaw_probe else None,
-            "configured_session_visible": configured_key in recent_keys if probe else None,
+            "configured_session_visible": (
+                configured_key in recent_keys if mode != "off" else None
+            ),
             "state_source": "gateway",
             "probe": openclaw_probe,
             "workspace": project_workspace_view(),
@@ -6200,11 +6277,13 @@ def replay_summary(
 
 def snapshot(
     topic: str | None,
-    probe_runtime: bool = False,
+    probe_runtime: bool | str = False,
     replay_episode: str | None = None,
 ) -> dict[str, Any]:
-    if probe_runtime:
+    if probe_runtime is True or probe_runtime == "full":
         probe_claude_acp(refresh=True)
+    elif probe_runtime == "light":
+        probe_claude_acp_light(refresh=True)
     layers = generation_layers()
     generation_sha = layers["root"]
     ensure_spec_health(generation_sha)
@@ -9998,9 +10077,13 @@ def main() -> int:
     )
     snapshot_parser.add_argument(
         "--probe-runtime",
-        action="store_true",
+        nargs="?",
+        const="full",
+        default=False,
+        choices=("light", "full"),
         help=(
-            "Probe OpenClaw health and Claude ACP (doctor + session resume). "
+            "Probe OpenClaw health and Claude ACP. "
+            "Omit value or pass 'full' for doctor+resume; pass 'light' to skip doctor. "
             "Claude CLI presence alone is not pipeline evidence."
         ),
     )
