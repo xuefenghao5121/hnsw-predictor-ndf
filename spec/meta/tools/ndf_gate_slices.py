@@ -384,18 +384,22 @@ def gate_bundle_specs(
         for slice_id in CORE_SLICES
     }
     proposal_slices: list[dict[str, Any]] = []
+    proposal_errors: list[dict[str, Any]] = []
     for item in proposal_records:
         record = item["slices"].get("proposal_contract")
         if record:
             proposal_slices.append(record)
-        else:
-            global_errors.append(
+        elif item.get("has_markers"):
+            # File has gate-slice markers but no proposal_contract — real defect.
+            proposal_errors.append(
                 {
                     "kind": "missing_gate_slice",
                     "path": item["path"],
                     "slice_id": "proposal_contract",
                 }
             )
+        # else: marker-less binder pointer stub (e.g. "Canonical text: spec/open/…").
+        # Skip silently so it cannot null expected_content_sha for all gates.
 
     specs: dict[str, dict[str, Any]] = {}
     for gate, required_ids in GATE_SLICE_IDS.items():
@@ -411,7 +415,11 @@ def gate_bundle_specs(
             for slice_id in required_ids
             if not core_by_id[slice_id]
         ]
+        # Proposal-contract errors belong only to topic_review (the gate that
+        # includes proposal slices). Do not poison design/impl expected SHAs.
         errors = [*global_errors, *missing]
+        if gate == "topic_review":
+            errors = [*errors, *proposal_errors]
         public_records = [
             {
                 key: value
