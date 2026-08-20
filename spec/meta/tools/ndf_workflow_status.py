@@ -2369,6 +2369,167 @@ def action_finish(
     return receipt
 
 
+def _may_write_pathspecs(action: Mapping[str, Any] | None) -> list[str]:
+    """Best-effort pathspecs from registry mayWrite; fall back to common roots."""
+    defaults = ["tmp", "spec", "poc", "docs", ".cursor", "golden-baseline.md"]
+    if not action:
+        return defaults
+    specs: list[str] = []
+    for item in action.get("mayWrite") or []:
+        text = str(item).strip()
+        if not text:
+            continue
+        # Prefer leading path-like tokens ("tmp/…", "spec/meta/open/", "poc/…").
+        token = text.split()[0].rstrip("/")
+        if "/" in token or token in {"tmp", "spec", "poc", "docs", ".cursor"}:
+            specs.append(token)
+    return specs or defaults
+
+
+def action_commit(
+    action_id: str,
+    *,
+    catalog_action_id: str | None = None,
+    prompt: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any]:
+    """Commit mayWrite changes before snapshot refresh; record button-action A→B.
+
+    Empty tree → skip commit but still record baseline=result=HEAD when a start
+    receipt exists. Does not amend or push.
+    """
+    catalog_id = catalog_action_id or action_id
+    # Prefer catalog id when action_id is a UUID from action-begin.
+    registry = ndf_actions.registry_by_id()
+    action = registry.get(catalog_id) or registry.get(action_id)
+    if action is None:
+        # action-begin uses UUID; operation may match registry operation.
+        for item in registry.values():
+            if item.get("id") == catalog_id:
+                action = item
+                break
+    receipts = read_action_receipts()
+    start = next(
+        (
+            receipt
+            for receipt in reversed(receipts)
+            if receipt.get("action_id") == action_id and receipt.get("status") == "started"
+        ),
+        None,
+    )
+    if start is None:
+        # Fall back: latest started for catalog operation.
+        start = next(
+            (
+                receipt
+                for receipt in reversed(receipts)
+                if receipt.get("status") == "started"
+                and (
+                    receipt.get("operation") == (action or {}).get("operation")
+                    or receipt.get("command") == (action or {}).get("operation")
+                )
+            ),
+            None,
+        )
+    baseline = str((start or {}).get("repo_head_before") or git_head() or "").strip()
+    if not baseline:
+        raise ValueError("action-commit requires a resolvable baseline HEAD")
+
+    pathspecs = _may_write_pathspecs(action)
+    # Stage allowed paths; never stage .openclaw/state.json.
+    add_cmd = ["git", "add", "--"] + pathspecs
+    subprocess.run(
+        add_cmd,
+        cwd=ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    # Unstage forbidden.
+    subprocess.run(
+        ["git", "reset", "-q", "--", ".openclaw/state.json"],
+        cwd=ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    status = subprocess.run(
+        ["git", "diff", "--cached", "--name-only"],
+        cwd=ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    staged = [line for line in (status.stdout or "").splitlines() if line.strip()]
+    catalog_key = str((action or {}).get("id") or catalog_id or action_id)
+    committed = False
+    skip_reason = None
+    if staged:
+        msg = f"ndf-action: {catalog_key}"
+        commit = subprocess.run(
+            ["git", "commit", "-m", msg],
+            cwd=ROOT,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        if commit.returncode != 0:
+            raise ValueError(
+                "action-commit failed: "
+                + ((commit.stderr or commit.stdout or "").strip() or "git commit error")
+            )
+        committed = True
+    else:
+        skip_reason = "clean_worktree"
+
+    result_sha = git_head() or baseline
+    diff = subprocess.run(
+        ["git", "diff", "--stat", f"{baseline}...{result_sha}"],
+        cwd=ROOT,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    record_id = f"ba-{catalog_key}-{stamp}"
+    store = ndf_replay.ReplayStore(ROOT)
+    record = {
+        "id": record_id,
+        "actionId": catalog_key,
+        "label": label or (action or {}).get("label") or catalog_key,
+        "title": f"{label or (action or {}).get('label') or catalog_key} · {baseline[:12]}→{result_sha[:12]}",
+        "happenedAt": now_iso(),
+        "baselineSha": baseline,
+        "resultSha": result_sha,
+        "prompt": prompt or "",
+        "topic": (start or {}).get("topic"),
+        "committed": committed,
+        "skipReason": skip_reason,
+        "originalDiffStat": (diff.stdout or "").strip() or None,
+        "replayStatus": "pending",
+        "stagedFiles": staged,
+        "workflowActionId": action_id,
+    }
+    path = ndf_replay.write_button_action(store, record)
+    return {
+        "schema": "ndf-action-commit/v1",
+        "action_id": action_id,
+        "catalog_action_id": catalog_key,
+        "baseline_sha": baseline,
+        "result_sha": result_sha,
+        "committed": committed,
+        "skip_reason": skip_reason,
+        "button_action_id": record_id,
+        "button_action_path": str(path.relative_to(ROOT)),
+        "staged_files": staged,
+    }
+
+
 def bundle_sha(paths: list[Path]) -> str | None:
     existing = sorted({p.resolve() for p in paths if p.is_file()}, key=str)
     if not existing:
@@ -5978,36 +6139,10 @@ def replay_summary(
     focused_id: str | None = None,
     active_topic: str | None = None,
 ) -> dict[str, Any]:
-    """Canvas counter: slim hop directory + one focused ledger from .ndf/replay."""
+    """Commander Replay: button actions with git A/B only; archived canvas hops omitted."""
+    del active_topic  # topic lens retired from Replay main path
     store = ndf_replay.ReplayStore(ROOT)
-    if not store.root.is_dir():
-        return {
-            "schema": "ndf-replay-summary/v1",
-            "state": "not_initialized",
-            "storeRoot": ".ndf/replay",
-            "fsck": None,
-            "episodes": [],
-            "focused": None,
-        }
-    index = ndf_replay.project_canvas_index(store, write_cache=True)
-    chosen = ndf_replay.pick_canvas_focused_id(
-        index["episodes"],
-        focused_id,
-        active_topic or persisted_active_topic(),
-    )
-    focused = (
-        ndf_replay.project_canvas_ledger(store, chosen, write_cache=True)
-        if chosen
-        else None
-    )
-    return {
-        "schema": "ndf-replay-summary/v1",
-        "state": "indexed",
-        "storeRoot": ".ndf/replay",
-        "fsck": None,
-        "episodes": index["episodes"],
-        "focused": focused,
-    }
+    return ndf_replay.project_button_replay_summary(store, focused_id=focused_id)
 
 
 def snapshot(
@@ -9857,6 +9992,19 @@ def main() -> int:
     action_finish_parser.add_argument("--episode")
     action_finish_parser.add_argument("--json", action="store_true")
 
+    action_commit_parser = sub.add_parser(
+        "action-commit",
+        help="Commit mayWrite changes and record button-action A→B before snapshot",
+    )
+    action_commit_parser.add_argument("--action-id", required=True)
+    action_commit_parser.add_argument(
+        "--catalog-action-id",
+        help="Registry action id (when --action-id is a UUID from action-begin)",
+    )
+    action_commit_parser.add_argument("--prompt-file")
+    action_commit_parser.add_argument("--label")
+    action_commit_parser.add_argument("--json", action="store_true")
+
     pack_parser = sub.add_parser("pack")
     pack_parser.add_argument("--topic", required=True)
     pack_parser.add_argument("--episode")
@@ -10152,6 +10300,19 @@ def main() -> int:
             return 0
         if args.command == "action-finish":
             emit(action_finish(args.action_id, args.result, args.blocker, args.episode))
+            return 0
+        if args.command == "action-commit":
+            prompt_text = None
+            if args.prompt_file:
+                prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
+            emit(
+                action_commit(
+                    args.action_id,
+                    catalog_action_id=args.catalog_action_id,
+                    prompt=prompt_text,
+                    label=args.label,
+                )
+            )
             return 0
         if args.command == "pack":
             payload, code = pack_topic(args.topic, args.episode)

@@ -345,6 +345,11 @@ PREDICATES = {
     "canRestoreRecord": lambda payload, ctx: bool(
         ((payload.get("replay") or {}).get("focused") or {}).get("canRestoreRecord")
     ),
+    "buttonActionFocused": lambda payload, ctx: bool(
+        ((payload.get("replay") or {}).get("focused") or {}).get("baselineSha")
+        and ((payload.get("replay") or {}).get("focused") or {}).get("resultSha")
+        and ((payload.get("replay") or {}).get("focused") or {}).get("actionId")
+    ),
     "timelineStepSelected": lambda payload, ctx: (
         ctx.get("timelineStep") is not None
         if "timelineStep" in ctx
@@ -519,7 +524,12 @@ def composer_prompt(
         f"clauses={', '.join(action.get('clauseRefs') or [])}",
         f"Follow {action.get('skill')} and {action.get('command')}.",
         click_rule,
-        "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
+        "Wrap mutating work: action-begin → operation → action-commit --action-id <id> --catalog-action-id <catalog_id> → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
+        (
+            "action-commit stages registry mayWrite paths, commits with message "
+            "`ndf-action: <catalog_id>` when dirty (skip if clean), and records "
+            "button-action baselineSha→resultSha under .ndf/replay/button-actions/."
+        ),
         (
             "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
             "that page auto-reloads the written snapshot. Do not curl localhost:8081. "
@@ -527,6 +537,47 @@ def composer_prompt(
         ),
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
     ]
+    if action_id == "command-replay-run":
+        focused = (payload.get("replay") or {}).get("focused") or {}
+        ba = focused.get("id") or episode_id or "<button-action-id>"
+        baseline = focused.get("baselineSha") or "<baselineSha>"
+        lines.append(f"button_action_id={ba}")
+        lines.append(f"baseline_sha={baseline}")
+        lines.append(
+            "Create an isolated worktree at baseline A (no later commits on that branch):"
+        )
+        lines.append(
+            f"python3 spec/meta/tools/ndf_replay.py command-replay --button-action {ba} "
+            f"--baseline {baseline}"
+        )
+        lines.append(
+            "MUST NOT checkout the user's current working branch. Work only inside the new worktree."
+        )
+        lines.append(
+            "Inside the worktree, re-run the original button skill Prompt recorded on this action "
+            "(see focused.prompt). Then record git HEAD/status/diff vs A."
+        )
+        lines.append(
+            "This page button is instructions only — MUST NOT claim 已回放."
+        )
+    elif action_id == "command-replay-compare":
+        focused = (payload.get("replay") or {}).get("focused") or {}
+        ba = focused.get("id") or episode_id or "<button-action-id>"
+        result = focused.get("resultSha") or "<resultSha>"
+        baseline = focused.get("baselineSha") or "<baselineSha>"
+        lines.append(f"button_action_id={ba}")
+        lines.append(f"result_sha={result}")
+        lines.append(
+            "Open a detached worktree at the original next SHA B for comparison (do not re-run the skill):"
+        )
+        lines.append(
+            f"python3 spec/meta/tools/ndf_replay.py command-replay --button-action {ba} "
+            f"--compare-sha {result} --baseline {baseline} --compare-only"
+        )
+        lines.append("Show git show --stat B and git diff A B. MUST NOT claim 已回放.")
+    elif action_id == "new-proposal":
+        # keep existing branches below — new-proposal was previously first elif
+        pass
     if action_id == "new-proposal":
         lines.append("Write the exact human product intent below to tmp/ndf-product-intent-<action_id>.md")
         lines.append("BEGIN HUMAN PRODUCT INTENT")
@@ -666,6 +717,8 @@ def composer_prompt(
             "--episode <id> --json"
         )
         lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Actual openclaw.chat_send.")
+    elif action_id in {"command-replay-run", "command-replay-compare"}:
+        pass
     else:
         raise ValueError(f"composer action has no prompt body: {action_id}")
     if action.get("mustNotWrite"):

@@ -131,9 +131,11 @@ export type Snapshot = {
     };
   };
   replay?: {
+    mode?: string;
     episodes?: HopRow[];
     focused?: FocusedHop | null;
     omittedCount?: number;
+    archivedNote?: string;
   };
 };
 
@@ -272,6 +274,16 @@ export type HopRow = {
   kinds?: string[];
   lenses?: ReplayAgentLens[];
   canRestoreRecord?: boolean;
+  actionId?: string;
+  label?: string;
+  baselineSha?: string;
+  resultSha?: string;
+  prompt?: string;
+  canReplay?: boolean;
+  replayStatus?: string;
+  replayHead?: string;
+  replayDiffStat?: string;
+  originalDiffStat?: string;
 };
 
 export type FocusedHop = HopRow & {
@@ -285,7 +297,6 @@ export type FocusedHop = HopRow & {
     plane?: string;
     space?: string;
     actor?: string;
-    agent?: string;
     lenses?: ReplayAgentLens[];
     payloadPreview?: string;
   }>;
@@ -293,6 +304,20 @@ export type FocusedHop = HopRow & {
   dispatchLeak?: boolean | Record<string, unknown>;
   assembledContext?: { orderedReads?: unknown[] };
   readWhyMissing?: string;
+  originalShowStat?: string;
+  left?: {
+    role?: string;
+    baselineSha?: string;
+    status?: string;
+    head?: string;
+    diffStat?: string;
+  };
+  right?: {
+    role?: string;
+    resultSha?: string;
+    showStat?: string;
+    diffStat?: string;
+  };
 };
 
 export type TabId = "product" | "topics" | "control" | "agents" | "replay";

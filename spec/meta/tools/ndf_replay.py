@@ -806,6 +806,7 @@ def prompt_drift_view(
 
 CANVAS_INDEX_CACHE = "canvas-index.json"
 CANVAS_LEDGER_CACHE_DIR = "canvas-ledger"
+BUTTON_ACTIONS_DIR = "button-actions"
 CANVAS_SNAPSHOT_BYTE_LIMIT = 120 * 1024
 CANVAS_TIMELINE_PREVIEW_LIMIT = 160
 CANVAS_BUCKET_LIMITS = {
@@ -817,6 +818,163 @@ CANVAS_BUCKET_LIMITS = {
     "other": 20 * 1024,
 }
 CANVAS_REPLAY_DIRECTORY_LIMIT = CANVAS_BUCKET_LIMITS["replay_directory"]
+
+
+def button_actions_root(store: "ReplayStore") -> Path:
+    return store.root / BUTTON_ACTIONS_DIR
+
+
+def list_button_actions(store: "ReplayStore") -> list[dict[str, Any]]:
+    """Active button-action cards (A/B git slice). Old canvas ledger is archived."""
+    root = button_actions_root(store)
+    if not root.is_dir():
+        return []
+    items: list[dict[str, Any]] = []
+    for path in sorted(root.glob("*.json"), reverse=True):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        baseline = str(data.get("baselineSha") or data.get("baseline_sha") or "").strip()
+        result = str(data.get("resultSha") or data.get("result_sha") or "").strip()
+        action_id = str(data.get("actionId") or data.get("action_id") or "").strip()
+        if not baseline or not result or not action_id:
+            continue
+        item_id = str(data.get("id") or path.stem)
+        items.append(
+            {
+                "id": item_id,
+                "title": data.get("title")
+                or f"{data.get('label') or action_id} · {baseline[:12]}→{result[:12]}",
+                "actionId": action_id,
+                "label": data.get("label") or action_id,
+                "happenedAt": data.get("happenedAt") or data.get("happened_at"),
+                "baselineSha": baseline,
+                "resultSha": result,
+                "prompt": data.get("prompt") or "",
+                "topic": data.get("topic"),
+                "committed": bool(data.get("committed", True)),
+                "skipReason": data.get("skipReason") or data.get("skip_reason"),
+                "replayStatus": data.get("replayStatus") or data.get("replay_status") or "pending",
+                "replayHead": data.get("replayHead") or data.get("replay_head"),
+                "replayDiffStat": data.get("replayDiffStat") or data.get("replay_diff_stat"),
+                "originalDiffStat": data.get("originalDiffStat")
+                or data.get("original_diff_stat"),
+                "canReplay": True,
+                "state": "button_action",
+            }
+        )
+    items.sort(key=lambda item: str(item.get("happenedAt") or ""), reverse=True)
+    return items
+
+
+def write_button_action(store: "ReplayStore", record: Mapping[str, Any]) -> Path:
+    store.initialize()
+    root = button_actions_root(store)
+    root.mkdir(parents=True, exist_ok=True)
+    item_id = str(record.get("id") or "").strip()
+    if not item_id:
+        raise ValueError("button action requires id")
+    path = root / f"{item_id}.json"
+    payload = {
+        "schema": "ndf-button-action/v1",
+        **dict(record),
+    }
+    store._atomic_write(path, canonical_json_bytes(payload) + b"\n")
+    return path
+
+
+def project_button_action_focused(
+    store: "ReplayStore",
+    action_id: str | None,
+) -> dict[str, Any] | None:
+    actions = list_button_actions(store)
+    if not actions:
+        return None
+    chosen = None
+    if action_id:
+        chosen = next((item for item in actions if item["id"] == action_id), None)
+    if chosen is None:
+        chosen = actions[0]
+    baseline = chosen["baselineSha"]
+    result = chosen["resultSha"]
+    original_stat = chosen.get("originalDiffStat")
+    if not original_stat:
+        diff = subprocess.run(
+            ["git", "diff", "--stat", f"{baseline}...{result}"],
+            cwd=store.repo_root,
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        original_stat = (diff.stdout or "").strip() or None
+        chosen = {**chosen, "originalDiffStat": original_stat}
+    show = subprocess.run(
+        ["git", "show", "--stat", "--oneline", "--no-patch", result],
+        cwd=store.repo_root,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    return {
+        **chosen,
+        "schema": "ndf-button-action-focused/v1",
+        "originalShowStat": (show.stdout or "").strip() or None,
+        "left": {
+            "role": "replay",
+            "baselineSha": baseline,
+            "status": chosen.get("replayStatus") or "pending",
+            "head": chosen.get("replayHead"),
+            "diffStat": chosen.get("replayDiffStat"),
+        },
+        "right": {
+            "role": "original",
+            "resultSha": result,
+            "showStat": (show.stdout or "").strip() or None,
+            "diffStat": original_stat,
+        },
+    }
+
+
+def project_button_replay_summary(
+    store: "ReplayStore",
+    *,
+    focused_id: str | None = None,
+) -> dict[str, Any]:
+    """Commander Replay projection: button actions only (archived canvas hops omitted)."""
+    if not store.root.is_dir():
+        return {
+            "schema": "ndf-replay-summary/v1",
+            "state": "not_initialized",
+            "storeRoot": ".ndf/replay",
+            "mode": "button_actions",
+            "fsck": None,
+            "episodes": [],
+            "focused": None,
+            "archivedNote": (
+                "Legacy canvas-ledger and episode hops live under "
+                ".ndf/replay/archive/ and are not projected."
+            ),
+        }
+    episodes = list_button_actions(store)
+    focused = project_button_action_focused(store, focused_id)
+    return {
+        "schema": "ndf-replay-summary/v1",
+        "state": "indexed" if episodes or button_actions_root(store).is_dir() else "empty",
+        "storeRoot": ".ndf/replay",
+        "mode": "button_actions",
+        "fsck": None,
+        "episodes": episodes,
+        "focused": focused,
+        "archivedNote": (
+            "Legacy canvas-ledger and episode hops live under "
+            ".ndf/replay/archive/ and are not projected."
+        ),
+    }
 
 
 def list_episode_ids(store: "ReplayStore") -> list[str]:
@@ -1566,23 +1724,41 @@ def trim_canvas_replay_directory(
 def project_canvas_replay(
     replay: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Counter stock: slim directory + at most one focused ledger page."""
+    """Commander Replay: button-action directory; archive note; no legacy ledger slim."""
     data = dict(replay or {})
-    focused = data.get("focused")
-    if isinstance(focused, Mapping):
-        data["focused"] = slim_canvas_ledger(focused)
-    elif not focused:
-        data["focused"] = None
-    episodes, omitted = trim_canvas_replay_directory(
-        [item for item in data.get("episodes") or [] if isinstance(item, Mapping)]
-    )
-    data["episodes"] = episodes
-    if omitted:
-        data["omittedCount"] = omitted
-    else:
+    if data.get("mode") == "button_actions" or (
+        isinstance(data.get("focused"), Mapping)
+        and data["focused"].get("schema") == "ndf-button-action-focused/v1"
+    ):
+        episodes = [
+            item
+            for item in data.get("episodes") or []
+            if isinstance(item, Mapping)
+            and item.get("baselineSha")
+            and item.get("resultSha")
+            and item.get("actionId")
+        ]
+        data["episodes"] = episodes
+        data["mode"] = "button_actions"
+        data["storeRoot"] = data.get("storeRoot") or ".ndf/replay"
+        if not data.get("archivedNote"):
+            data["archivedNote"] = (
+                "Legacy canvas-ledger and episode hops live under "
+                ".ndf/replay/archive/ and are not projected."
+            )
         data.pop("omittedCount", None)
-    data.pop("canvasOmittedEpisodes", None)
+        data.pop("canvasOmittedEpisodes", None)
+        return data
+    # Legacy path: drop archived-style hops from projection (empty directory).
+    data["episodes"] = []
+    data["focused"] = None
+    data["mode"] = "button_actions"
     data["storeRoot"] = data.get("storeRoot") or ".ndf/replay"
+    data["archivedNote"] = (
+        "Legacy canvas-ledger and episode hops live under "
+        ".ndf/replay/archive/ and are not projected."
+    )
+    data.pop("omittedCount", None)
     return data
 
 
@@ -6633,12 +6809,132 @@ class ReplayStore:
             "track": commit.get("track"),
         }
 
+    def command_replay_button(
+        self,
+        button_action_id: str,
+        *,
+        baseline: str | None = None,
+        compare_sha: str | None = None,
+        compare_only: bool = False,
+        keep_worktree: bool = True,
+    ) -> dict[str, Any]:
+        """Worktree at button-action baseline A (or detach at B when compare_only)."""
+        path = button_actions_root(self) / f"{button_action_id}.json"
+        if not path.is_file():
+            raise ValueError(f"unknown button action: {button_action_id}")
+        button = json.loads(path.read_text(encoding="utf-8"))
+        repo_head = str(
+            baseline or button.get("baselineSha") or button.get("baseline_sha") or ""
+        ).strip()
+        compare = str(
+            compare_sha
+            or button.get("resultSha")
+            or button.get("result_sha")
+            or ""
+        ).strip()
+        if not repo_head:
+            raise ValueError("button-action missing baselineSha")
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        safe_ep = re.sub(r"[^A-Za-z0-9._-]+", "-", button_action_id).strip("-")
+        branch = f"replay/{safe_ep}/{stamp}"
+        sandbox_root = self.repo_root / "tmp" / "ndf-command-replay"
+        sandbox_root.mkdir(parents=True, exist_ok=True)
+        worktree = sandbox_root / f"{safe_ep}-{stamp}"
+        checkout_ref = compare if compare_only and compare else repo_head
+        if compare_only:
+            if not compare:
+                raise ValueError("compare-only requires resultSha / --compare-sha")
+            argv = ["git", "worktree", "add", "--detach", str(worktree), checkout_ref]
+        else:
+            argv = [
+                "git",
+                "worktree",
+                "add",
+                "-b",
+                branch,
+                str(worktree),
+                repo_head,
+            ]
+        try:
+            subprocess.run(
+                argv,
+                cwd=self.repo_root,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            raise ValueError(
+                "command-replay worktree failed: "
+                + ((exc.stderr or exc.stdout or "").strip() or str(exc))
+            ) from exc
+        diff_text = ""
+        if compare:
+            diff_run = subprocess.run(
+                ["git", "diff", "--stat", f"{repo_head}...{compare}"],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            diff_text = (diff_run.stdout or "").strip()
+        result = {
+            "schema": "ndf-command-replay/v1",
+            "button_action_id": button_action_id,
+            "replay_branch": None if compare_only else branch,
+            "worktree": str(worktree.relative_to(self.repo_root))
+            if _inside(worktree.resolve(), self.repo_root.resolve())
+            else str(worktree),
+            "repo_head": repo_head,
+            "compare_ref": compare or None,
+            "compare_only": compare_only,
+            "command": {
+                "name": button.get("actionId") or button.get("action_id"),
+                "task": "button_action",
+                "prompt": button.get("prompt") or "",
+            },
+            "note": (
+                "Detached worktree at result SHA B for comparison only."
+                if compare_only
+                else (
+                    "Worktree at baseline A. Re-run recorded button Prompt inside "
+                    "the worktree; this CLI does not claim 已回放."
+                )
+            ),
+            "comparison_summary": {"diff_stat": diff_text},
+            "keep_worktree": keep_worktree,
+        }
+        if not keep_worktree:
+            subprocess.run(
+                ["git", "worktree", "remove", "--force", str(worktree)],
+                cwd=self.repo_root,
+                check=False,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            if not compare_only:
+                subprocess.run(
+                    ["git", "branch", "-D", branch],
+                    cwd=self.repo_root,
+                    check=False,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+            result["worktree"] = None
+            result["replay_branch"] = None
+        return result
+
     def command_replay(
         self,
         episode_id: str,
         *,
         keep_worktree: bool = True,
         compare_ref: str | None = None,
+        baseline: str | None = None,
     ) -> dict[str, Any]:
         """Create an isolated worktree at recorded repo_head for Command Replay.
 
@@ -6646,7 +6942,7 @@ class ReplayStore:
         from the snapshot head to compare_ref (default: current live HEAD).
         """
         slice_info = self.project_command_slice(episode_id)
-        repo_head = str(slice_info["repo_head"])
+        repo_head = str(baseline or slice_info["repo_head"])
         stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         # Branch names cannot contain some chars; keep episode id + stamp.
         safe_ep = re.sub(r"[^A-Za-z0-9._-]+", "-", episode_id).strip("-")
@@ -6753,19 +7049,37 @@ class ReplayStore:
 
     def command_replay_report(
         self,
-        episode_id: str,
+        episode_id: str | None = None,
         *,
+        button_action_id: str | None = None,
         out: Path | None = None,
         keep_worktree: bool = True,
         compare_ref: str | None = None,
+        baseline: str | None = None,
+        compare_sha: str | None = None,
+        compare_only: bool = False,
     ) -> dict[str, Any]:
-        result = self.command_replay(
-            episode_id,
-            keep_worktree=keep_worktree,
-            compare_ref=compare_ref,
-        )
+        if button_action_id:
+            result = self.command_replay_button(
+                button_action_id,
+                baseline=baseline,
+                compare_sha=compare_sha or compare_ref,
+                compare_only=compare_only,
+                keep_worktree=keep_worktree,
+            )
+            label = button_action_id
+        else:
+            if not episode_id:
+                raise ValueError("command-replay-report requires --episode or --button-action")
+            result = self.command_replay(
+                episode_id,
+                keep_worktree=keep_worktree,
+                compare_ref=compare_ref or compare_sha,
+                baseline=baseline,
+            )
+            label = episode_id
         target = out or (
-            self.repo_root / "tmp" / f"ndf-command-replay-{episode_id}.json"
+            self.repo_root / "tmp" / f"ndf-command-replay-{label}.json"
         )
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(
@@ -6885,12 +7199,20 @@ def main(argv: list[str] | None = None) -> int:
     isolate.add_argument("--write-proof")
     cmd_replay = sub.add_parser(
         "command-replay",
-        help="Isolated worktree at recorded repo_head for simple Command Replay",
+        help="Isolated worktree at recorded repo_head / button-action baseline",
     )
-    cmd_replay.add_argument("--episode", required=True)
+    cmd_replay.add_argument("--episode")
+    cmd_replay.add_argument("--button-action")
+    cmd_replay.add_argument("--baseline", help="git baseline A (override)")
+    cmd_replay.add_argument("--compare-sha", help="original next SHA B")
+    cmd_replay.add_argument(
+        "--compare-only",
+        action="store_true",
+        help="Detach worktree at B for comparison; do not create replay branch",
+    )
     cmd_replay.add_argument(
         "--compare-ref",
-        help="git ref to diff against (default: current HEAD)",
+        help="git ref to diff against (default: current HEAD or resultSha)",
     )
     cmd_replay.add_argument(
         "--discard-worktree",
@@ -6901,9 +7223,13 @@ def main(argv: list[str] | None = None) -> int:
         "command-replay-report",
         help="Write tmp/ndf-command-replay-<episode>.json",
     )
-    cmd_replay_report.add_argument("--episode", required=True)
+    cmd_replay_report.add_argument("--episode")
+    cmd_replay_report.add_argument("--button-action")
     cmd_replay_report.add_argument("--out")
     cmd_replay_report.add_argument("--compare-ref")
+    cmd_replay_report.add_argument("--baseline")
+    cmd_replay_report.add_argument("--compare-sha")
+    cmd_replay_report.add_argument("--compare-only", action="store_true")
     cmd_replay_report.add_argument("--discard-worktree", action="store_true")
     guest = sub.add_parser("guest-run")
     guest.add_argument("--commit", required=True)
@@ -7083,17 +7409,33 @@ def main(argv: list[str] | None = None) -> int:
                 write_proof=Path(args.write_proof) if args.write_proof else None,
             )
         elif args.command == "command-replay":
-            result = store.command_replay(
-                args.episode,
-                keep_worktree=not args.discard_worktree,
-                compare_ref=args.compare_ref,
-            )
+            if args.button_action:
+                result = store.command_replay_button(
+                    args.button_action,
+                    baseline=args.baseline,
+                    compare_sha=args.compare_sha or args.compare_ref,
+                    compare_only=bool(args.compare_only),
+                    keep_worktree=not args.discard_worktree,
+                )
+            else:
+                if not args.episode:
+                    raise ValueError("command-replay requires --episode or --button-action")
+                result = store.command_replay(
+                    args.episode,
+                    keep_worktree=not args.discard_worktree,
+                    compare_ref=args.compare_ref or args.compare_sha,
+                    baseline=args.baseline,
+                )
         elif args.command == "command-replay-report":
             result = store.command_replay_report(
                 args.episode,
+                button_action_id=args.button_action,
                 out=Path(args.out) if args.out else None,
                 keep_worktree=not args.discard_worktree,
                 compare_ref=args.compare_ref,
+                baseline=args.baseline,
+                compare_sha=args.compare_sha,
+                compare_only=bool(getattr(args, "compare_only", False)),
             )
         elif args.command == "guest-image":
             dest = Path(args.dest) if args.dest else Path(args.root) / DEFAULT_VM_IMAGE_REL

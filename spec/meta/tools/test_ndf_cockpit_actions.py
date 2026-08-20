@@ -412,7 +412,8 @@ class ActionRegistryTest(unittest.TestCase):
         unknown = used - registry_ids
         self.assertFalse(unknown, f"UI references unregistered actions: {sorted(unknown)}")
         self.assertIn("open-workbench", used)
-        self.assertIn("inspect-ledger", used)
+        self.assertIn("command-replay-run", used)
+        self.assertIn("command-replay-compare", used)
 
     def test_standalone_templates_cover_every_non_projection_action(self) -> None:
         payload = _payload()
@@ -959,21 +960,16 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn('"selfContained": True', source)
         self.assertIn('"runtimeNetworkRequired": False', source)
 
-    def test_agents_and_replay_use_real_runtime_lenses(self) -> None:
+    def test_agents_and_replay_use_button_action_layout(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
         self.assertIn('name: "Command Agent"', source)
         self.assertNotIn('name === "Canvas"', source)
-        for lens in (
-            "command-agent",
-            "openclaw",
-            "claude-code",
-            "context-compiler",
-        ):
-            self.assertIn(f'value="{lens}"', source)
-        self.assertIn('value="project"', source)
-        self.assertIn('value="meta"', source)
-        self.assertIn("filteredHops", source)
-        self.assertIn("filteredTimeline", source)
+        self.assertIn("command-replay-run", source)
+        self.assertIn("command-replay-compare", source)
+        self.assertIn("replay-compare-grid", source)
+        self.assertNotIn("filteredTimeline", source)
+        self.assertNotIn("ReplayTimeline", source)
+        self.assertNotIn('value="meta"', source)
 
     def test_agents_page_does_not_navigate_to_replay(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
@@ -981,17 +977,22 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertNotIn('setTab("replay")', agents)
         self.assertNotIn('actionId="replay-agent-filter"', agents)
         replay = source.split('tab === "replay"', 1)[1]
-        self.assertIn('actionId="inspect-ledger"', replay)
+        self.assertIn('actionId="command-replay-run"', replay)
+        self.assertIn('actionId="command-replay-compare"', replay)
+        self.assertNotIn('actionId="inspect-ledger"', replay)
         self.assertNotIn('actionId="guest-replay-hop"', replay)
         self.assertNotIn('actionId="guest-replay-prefix"', replay)
         registry = actions.registry_by_id()
         self.assertEqual(registry["guest-replay-hop"]["failClosed"], "hide")
         self.assertEqual(registry["guest-replay-prefix"]["failClosed"], "hide")
+        self.assertEqual(registry["inspect-ledger"]["failClosed"], "hide")
+        self.assertIn("command-replay-run", registry)
+        self.assertIn("command-replay-compare", registry)
 
-    def test_replay_timeline_colors_actual_planes(self) -> None:
-        source = (SRC / "charts" / "ReplayTimeline.tsx").read_text(encoding="utf-8")
-        self.assertIn('.domain(["meta", "project"])', source)
-        self.assertNotIn('.domain(["control", "business"', source)
+    def test_replay_timeline_file_optional(self) -> None:
+        # D3 hop timeline is no longer on the Replay main path.
+        path = SRC / "charts" / "ReplayTimeline.tsx"
+        self.assertTrue(path.is_file() or not path.exists())
 
 
 if __name__ == "__main__":

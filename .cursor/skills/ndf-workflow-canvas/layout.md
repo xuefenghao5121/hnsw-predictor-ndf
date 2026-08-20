@@ -150,71 +150,29 @@ Do not put a second timeline on Agents. Runtime probe notes come from header
 
 ## Replay
 
-Replay is the **ledger**, not a restore console. It answers:
+Replay answers: **did this Commander button action reproduce from git baseline A?**
 
-> 人说了什么，代理按 NDF 从文档组装并下达了什么 Prompt。
-
-Three panes on the critical path:
-
-1. **Human speech** — Command Agent 口令 / 门禁短语 / 改进意图
-2. **Normative assembled Prompt** — reconstructed from recorded Manifest + Context Plan (ordered reads, seeds, write roots). Missing Plan → `assembledPrompt.whyMissing`; never fake a Prompt from graphNodes
-3. **Actual dispatched Prompt** — OpenClaw `ndf-agent-message/v1` message or ACP handshake summary. Missing request → `dispatchedPrompt.whyMissing`
-
-Mismatch (`promptDrift.mismatch` or `dispatchLeak`) is a warning/danger on the hop card. SHA walls stay behind 「显示技术细节」.
-
-Landing flow:
+Main path (no plane/agent filters, no 人话/规范/实发 Prompt, no 查这条账):
 
 ```text
-1. Pick hop class: NDF workflow (`meta`) | Product project (`project`) | all
-2. Pick one hop from the disk directory (Episode = one explicit dispatch). Non-empty lists MUST keep exactly one hop selected; ignore empty/deselect. Filter keeps the hop if still listed, else the first remaining hop.
-3. If selected !== focused.id: 「查这条账」 (canvas-ledger + snapshot --replay-episode). Do not show fake Prompt text.
-4. Loaded: 人话 / 规范组装 Prompt / 当时实发 Prompt. Prompt default first 12 lines; ordered reads >8 show 5 first.
-5. Timeline collapsed; selecting a step shows prefix state through that step
-6. Jobs (after the ledger): Guest VM 回放这次 hop | Guest VM 回放到上一步
+1. Pick one button action (requires baselineSha A + resultSha B from action-commit)
+2. Left: 「执行回放」 → Composer Prompt opens worktree at A and re-runs the recorded button Prompt
+3. Left lower: replay git status (pending until human runs the Prompt)
+4. Right: 「打开主线对照」 → detach/show at B; git show / git diff A B
+5. Empty directory: 「尚无带 git A/B 的按钮动作」; legacy ledger is archived
 ```
 
-**Restore contract (Commander main path):**
+| Action | Meaning |
+| :--- | :--- |
+| 执行回放 | Instructions: `command-replay --button-action` at A; MUST NOT claim 已回放 |
+| 打开主线对照 | Instructions: compare-only at B; MUST NOT claim 已回放 |
 
-| Action | Meaning | Enabled when |
-| :--- | :--- | :--- |
-| Guest VM 回放这次 hop | Exactly `guest-run --adapter vm`. Only guest-proof `valid=true` counts | `canRestoreRecord` |
-| Guest VM 回放到上一步 | Same guest-run; report prefix only | `canRestoreRecord` + selected step |
+Legacy canvas-ledger / Episode hops live under `.ndf/replay/archive/` (CLI archaeology only).
+Guest VM / R0–R3 remain CLI optional ([[META-015]] / [[META-013]]), not Commander main path.
+Agents MUST NOT jump to Replay.
 
-Do **not** put workspace write-back on Commander Replay. CLI `audit --strict` + restore may remain; it is not a Replay tab action.
-Do **not** put R0/R1/R2/R3 on the Replay main path. R3 (counterfactual fork) MUST NOT appear here — it is not replay. CLI may still expose levels under META-013.
-
-Ordered reads MUST come from the Context Plan (`context.compiled`), not from Manifest alone. Projection fields: `assembledPrompt`, `dispatchedPrompt`, `promptDrift`, `assembledContext.orderedReads`, `readWhyMissing`, `canRestoreRecord`.
-
-Entering Replay from Agents MUST change the page, not just a banner. Identity is a **lens on the same ledger**: hop list and timeline filter; the three Prompt panes stay.
-
-| 身份 | hop 列表 | 主栏 | 时间线 |
-| :--- | :--- | :--- | :--- |
-| Command Agent | 人话 / `intent.received` / actor=canvas\|human\|cursor | 人话 + 两份 Prompt | 只留人话/指挥步骤 |
-| Context compiler | `manifest.created` / `context.compiled` | 人话 + 两份 Prompt | 只留装订步骤 |
-| OpenClaw | request/response / dispatch / binder / gate | 人话 + 两份 Prompt | 只留控制步骤 |
-| Claude Code | ACP / lease / filesystem | 人话 + 两份 Prompt | 只留实现步骤 |
-
-Same hop may appear under more than one lens; the timeline still differs.
-No hops for that lens → empty state, never fall back to the global first hop.
-
-Do not present plane × Agent × event-space as three independent catalogs on the
-main path. Event space is a tag on a timeline step, not a hop-class picker.
-
-Broken object chain → warning. Dispatch leak → danger. Prompt drift → warning. Live drift alone MUST NOT disable replay.
-
-Do **not** show compare-episode UI, six-facet diff buttons, or `replay-diff` Composer
-actions. `ReplayStore.diff()` may remain CLI-only.
-
-Show alternate recorded chains only when branch count > 1 (title: 同 hop 另有已记录链),
-without calling them R3. Gate evidence and changed files appear under 结果, omitted when empty.
-
-Composer buttons open instructions only; they never imply Canvas already executed restore.
-SHA / HEAD / manifestSha stay behind 「显示技术细节」.
-
-Projection fields (optional on older snapshots): `title`, `plane`, `agent`,
-`humanUtterance`, `assembledContext`, `assembledPrompt`, `dispatchedPrompt`,
-`promptDrift`, `readWhyMissing`, `canRestoreRecord`, `dispatchLeak`, timeline `title` /
-`space` / `payloadPreview`.
+Projection fields: `actionId`, `baselineSha`, `resultSha`, `prompt`, `left`, `right`,
+`originalDiffStat`, `archivedNote`.
 
 ## Close hops (on Topics)
 

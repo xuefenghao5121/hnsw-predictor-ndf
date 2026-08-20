@@ -8,15 +8,15 @@
     },
     ".cursor/skills/ndf-workflow-canvas/actions.md": {
       "ino": 4990076,
-      "mtime_ns": 1787222209321581536,
-      "sha256": "e5ab2a50d18183cf9ab8f140ad5efa9615cbdeca95d3c00a45180920dfe53d86",
-      "size": 5380
+      "mtime_ns": 1787224311206433404,
+      "sha256": "340b8868bff653da28960c9a51bcc5bd192f7f2437f45a666fada06eb15a395d",
+      "size": 5870
     },
     ".cursor/skills/ndf-workflow-canvas/layout.md": {
       "ino": 4990074,
-      "mtime_ns": 1787130360819739208,
-      "sha256": "7078f4860e658a999a0eebf9dbcd2f3e6cf3fbffe6d738ac89d8714d15183e07",
-      "size": 19638
+      "mtime_ns": 1787224333960236855,
+      "sha256": "6058a3c251a2fbe86a958558d325b5f9da4b515c4e2884b91421cc2db59522f7",
+      "size": 17435
     },
     ".cursor/skills/ndf-workflow-canvas/openclaw-delegate.md": {
       "ino": 4991999,
@@ -30,11 +30,23 @@
       "sha256": "9ef4466b06465548af4592eaccd2ca0df55c48e7eda8fd2a86b527df036d7e2b",
       "size": 19060
     },
+    ".cursor/skills/ndf-workflow-canvas/workflows/command-replay-compare.md": {
+      "ino": 5136968,
+      "mtime_ns": 1787224089424714450,
+      "sha256": "7e3c672cd91269ab81ca73b2c6f7ffa09a2996b6b7ef3e37e6fc55107a18cbff",
+      "size": 695
+    },
+    ".cursor/skills/ndf-workflow-canvas/workflows/command-replay-run.md": {
+      "ino": 5136967,
+      "mtime_ns": 1787224088059667680,
+      "sha256": "a8758b4c37fb72e140b0a5998c9d6a411848f5cf014bb2f0d035259e33d30329",
+      "size": 883
+    },
     ".cursor/skills/ndf-workflow-canvas/workflows/snapshot-refresh.md": {
       "ino": 5132951,
-      "mtime_ns": 1787214516723057864,
-      "sha256": "fb8cafc2be29b6148be31ce11078bdda558439ba91f526d517c93f6e17e294e0",
-      "size": 1129
+      "mtime_ns": 1787224311207357185,
+      "sha256": "882aafea0f3079730cbfd071418feb379eb9d5504d47178d922c72ed9d503ad6",
+      "size": 1281
     },
     "AGENTS.md": {
       "ino": 4723066,
@@ -104,9 +116,9 @@
     },
     "spec/meta/cockpit/action-registry.json": {
       "ino": 4856834,
-      "mtime_ns": 1787222042712176993,
-      "sha256": "eb04981fa19f40cb594cdf66de02254505fe86f333a92c86d465e2348c63cdd7",
-      "size": 29451
+      "mtime_ns": 1787224086072514357,
+      "sha256": "4dcceace1bcdf3d2b75f789747c8560d933b7c609b48c090883825c2deb5c712",
+      "size": 30861
     },
     "spec/meta/cockpit/src/ActionButton.tsx": {
       "ino": 4856855,
@@ -116,9 +128,27 @@
     },
     "spec/meta/cockpit/src/main.tsx": {
       "ino": 4856867,
-      "mtime_ns": 1787222018005840858,
-      "sha256": "364da299253e50129ee78f3191fab098b821d1bd491d3e677aa3ec43c9c1e9ed",
-      "size": 55970
+      "mtime_ns": 1787224463674285424,
+      "sha256": "f81f3b0509cfac827080e374a996ce3eeea7beb56bc3940ef0be8ba037be94e9",
+      "size": 53387
+    },
+    "spec/meta/cockpit/src/styles.css": {
+      "ino": 4856868,
+      "mtime_ns": 1787224261679359482,
+      "sha256": "f3108d7ea26b39b030ba6cd2f9dccd1b15c64e17c5b63328410873d239f64873",
+      "size": 7745
+    },
+    "spec/meta/cockpit/src/types.ts": {
+      "ino": 4856869,
+      "mtime_ns": 1787224204649985133,
+      "sha256": "a269d67f9f3d311abcacb9edcc73c5453191c2b7008d1c09fc8031faabf43399",
+      "size": 9193
+    },
+    "spec/meta/open/proposal-meta-button-command-replay.md": {
+      "ino": 4857057,
+      "mtime_ns": 1787224533892365505,
+      "sha256": "2a5a16e803df8f46a2d375d049adea9c1f07e092b4e9b41c96e9797d82794bd7",
+      "size": 1838
     },
     "spec/meta/open/proposal-meta-simple-command-replay.md": {
       "ino": 4857063,
@@ -128,9 +158,9 @@
     },
     "spec/meta/process.md": {
       "ino": 4856878,
-      "mtime_ns": 1787222004851842703,
-      "sha256": "3459ab78c83e9a4a1ca372915cd4cf52f88927d69b41d03d492e0843c18160a4",
-      "size": 66444
+      "mtime_ns": 1787223797057987325,
+      "sha256": "4c8650c6ad1519bbe7b1c632938006318d5a2906d3688648a0446ea274420bf1",
+      "size": 66956
     },
     "spec/meta/tools/README.md": {
       "ino": 4851400,
@@ -140,9 +170,9 @@
     },
     "spec/meta/tools/ndf_actions.py": {
       "ino": 4856888,
-      "mtime_ns": 1787217400900330132,
-      "sha256": "590d32660ba533be38505fa9adc9c30bb732e678bc9abc05287aaa7f2d28d101",
-      "size": 31820
+      "mtime_ns": 1787224099208685294,
+      "sha256": "1fff08fff3c8888a9248023deb58430031f07160136b3eddc8e19b04ac858838",
+      "size": 34590
     },
     "spec/meta/tools/ndf_context.py": {
       "ino": 4878369,
@@ -152,21 +182,21 @@
     },
     "spec/meta/tools/ndf_replay.py": {
       "ino": 4856891,
-      "mtime_ns": 1787222150129474479,
-      "sha256": "f4010966de6e8b8ee48717680d74cafc284f2b9199eb783fa75bd1f7687f5e18",
-      "size": 285582
+      "mtime_ns": 1787224185249022069,
+      "sha256": "02ae822121dc45da22b8797b0d18d361391c886637bdcf93a14148ab9152dc56",
+      "size": 299061
     },
     "spec/meta/tools/ndf_workflow_status.py": {
       "ino": 4856895,
-      "mtime_ns": 1787217432561846014,
-      "sha256": "6dadaff954d37bfcd2eada4be9cb4ffddfe3f36d717117455247a796da51b4cd",
-      "size": 384866
+      "mtime_ns": 1787223967817592163,
+      "sha256": "5366128d67307010e3579d9e403200434e05b511fe4caee0864bf5c409ba1339",
+      "size": 390767
     },
     "spec/meta/tools/test_ndf_cockpit_actions.py": {
       "ino": 4856896,
-      "mtime_ns": 1787222195337308638,
-      "sha256": "c178234c8a25dea6d4d68930639260bb67b36e578c5650ea5c5c38e528f41da0",
-      "size": 45189
+      "mtime_ns": 1787224524386832649,
+      "sha256": "436362b169339ef721d614ce334ba01fac54be94f435eff049fdf40330395ce8",
+      "size": 45450
     },
     "spec/meta/tools/test_ndf_context.py": {
       "ino": 4878370,
@@ -176,9 +206,9 @@
     },
     "spec/meta/tools/test_ndf_replay.py": {
       "ino": 4856940,
-      "mtime_ns": 1787222235624742835,
-      "sha256": "0cded30d5cc9944bc09523327b239bd958bcb39c8ccb05c3404e1969dc531c75",
-      "size": 91320
+      "mtime_ns": 1787224499112117544,
+      "sha256": "374045c4e75a87e3378f4183d560940cc89d71c4cf97bcb240f6214bcc1cc560",
+      "size": 92497
     },
     "spec/meta/tools/test_ndf_workflow_status.py": {
       "ino": 4856976,

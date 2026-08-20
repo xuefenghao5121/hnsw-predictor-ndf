@@ -721,13 +721,18 @@ Cursor / Canvas / replay 工具 MUST NOT 修改 `.openclaw/state.json`。自动�
 显式 Episode 参数启用；平台只提供 completion 时 MUST 标 `completion_only`，不得用事后
 summary 冒充完整事件流。
 
-Commander Replay 页 MUST **只查看**（Episode 列表、查这条账、人话 / 规范 Prompt /
-实发 Prompt）；MUST NOT 用页面按钮声称「已回放」。执行与验证 MUST 走 CLI
-（`command-replay` / 可选 `guest-run`）。Agents 页 MUST NOT 跳转 Replay，MUST NOT
-提供按身份导航进回放的入口。R0/R1/R2/R3 等级合同仍适用审计与沙盒工具，但不是
-Commander 主交互。Canvas 若仅生成 Composer 指令，MUST 标为 instructions，不得显示为
-Replay 已执行。主路径「已回放」若宣称沙盒证明 MUST 遵循 [[META-015]]；提示词 /
-同机 worktree / 仅 `bwrap` 观测 MUST NOT 标为已回放。
+Commander Replay 页 MUST 只展示**按钮动作**回放（catalog `action_id` + git 基线 A +
+自动 commit 后的下一 SHA B），以及左右对照：左列从 A 开隔离 worktree/分支重跑原按钮
+Prompt 并记录 HEAD；右列对照主线 B（`git show` / `git diff A B`），不重跑 skill。
+MUST NOT 用页面按钮声称「已回放」；`执行回放` / `打开对照` MUST 标为 Composer
+instructions。日常机械步骤走 CLI `command-replay`（可选 `guest-run`，[[META-015]]）。
+旧 Canvas 账本（`canvas-ledger`、人话 / 规范 / 实发 Prompt 三栏、plane×agent hop、
+「查这条账」）MUST 归档且 MUST NOT 再投影到 Commander；CLI 考古不叫 Replay 主路径。
+按钮 skill 在刷新可视化面板前 MUST 按 registry `mayWrite` 自动 `git commit`（提交说明
+`ndf-action: <action_id>`；工作区干净可跳过），以便 A→B 可复现。Agents 页 MUST NOT
+跳转 Replay。R0/R1/R2/R3 等级合同仍适用审计与沙盒工具，但不是 Commander 主交互。
+主路径「已回放」若宣称沙盒证明 MUST 遵循 [[META-015]]；提示词 / 同机 worktree /
+仅 `bwrap` 观测 MUST NOT 标为已回放。
 
 ### Historical audit 与 current readiness
 

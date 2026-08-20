@@ -1959,6 +1959,34 @@ class ReplayStoreTest(unittest.TestCase):
         chosen = replay.pick_canvas_focused_id(index["episodes"], "ep-canvas-b", None)
         self.assertEqual(chosen, "ep-canvas-b")
 
+    def test_button_action_projection_and_replay(self) -> None:
+        record = {
+            "id": "ba-demo-1",
+            "actionId": "design-prepare",
+            "label": "准备设计文档",
+            "happenedAt": "2026-08-20T12:00:00Z",
+            "baselineSha": self.head,
+            "resultSha": self.head,
+            "prompt": "/ndf-design-prepare\n",
+            "committed": False,
+            "skipReason": "clean_worktree",
+            "replayStatus": "pending",
+        }
+        replay.write_button_action(self.store, record)
+        cards = replay.list_button_actions(self.store)
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0]["baselineSha"], self.head)
+        summary = replay.project_button_replay_summary(self.store, focused_id="ba-demo-1")
+        self.assertEqual(summary["mode"], "button_actions")
+        self.assertEqual(summary["focused"]["id"], "ba-demo-1")
+        result = self.store.command_replay_button(
+            "ba-demo-1",
+            compare_only=True,
+            keep_worktree=False,
+        )
+        self.assertTrue(result["compare_only"])
+        self.assertEqual(result["repo_head"], self.head)
+
 
 class ReplayProjectionHelpersTest(unittest.TestCase):
     def test_invalid_ledger_refresh_preserves_valid_cache(self) -> None:

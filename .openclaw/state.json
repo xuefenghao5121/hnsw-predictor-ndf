@@ -7,6 +7,6 @@
   "pending_decision": "null",
   "validation_status": "n/a",
   "perf_status": "n/a",
-  "last_activity": "2026-08-20T13:47:00+03:00",
-  "notes": "process closed: proposal-meta-simple-command-replay — Command Replay view/CLI; Agents decoupled; META-013/015 landed"
+  "last_activity": "2026-08-20T14:20:00+03:00",
+  "notes": "process closed: proposal-meta-button-command-replay — button-action left/right Replay; canvas ledger archived"
 }

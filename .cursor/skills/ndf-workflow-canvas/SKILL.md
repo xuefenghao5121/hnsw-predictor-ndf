@@ -78,18 +78,13 @@ Only `fresh` permits repair, delegation or close; `refresh_in_progress`,
   map (meta seeds only), plane-routed spec-health, process proposals and hygiene.
   With no exploring/blocked POC, binder_health is not_applicable (Trunk); do not
   refresh closed binders.
-- **Agents** holds named agent identity cards (OpenClaw / Claude Code / Canvas /
-  context-compiler). Each card opens Replay as that identity's lens (hops + hero +
-  timeline), not a shared dump with a different title.
-- **Replay** holds Episode history as a ledger in `.ndf/replay`. Canvas is the counter:
-  directory + the currently opened hop. A non-empty hop list keeps exactly one hop
-  selected (filter keeps it or falls to the first). Unfocused hops show 「查这条账」 (`canvas-ledger`
-  then `snapshot --update-embedded --replay-episode`). Loaded hops keep 人话 / 规范 Prompt /
-  实发 Prompt. Direct tab = hop panes; Agent jump = identity lens on the same ledger. Main
-  actions after the ledger: Guest VM 回放这次 hop / Guest VM 回放到上一步. No Canvas
-  write-back. Hop/prefix Composer prompts are host launchers for `guest-run --adapter vm`
-  only; they MUST NOT re-dispatch the recorded assembled context onto the live checkout.
-  No R3. No compare UI.
+- **Agents** holds named agent identity cards (OpenClaw / Claude Code / Command Agent /
+  context-compiler). Agents MUST NOT navigate into Replay.
+- **Replay** is button-action replay only (catalog `action_id` + git baseline A + next SHA B).
+  Old canvas-ledger / Episode hops are archived under `.ndf/replay/archive/` and MUST NOT
+  appear on this page. Layout: one action picker + left (执行回放 from A) / right (主线对照 at B).
+  Page buttons are Composer instructions only — MUST NOT claim 已回放. Mutating skills wrap
+  `action-begin → operation → action-commit → action-finish → snapshot`.
 - NDF Control/Runtime blockers MAY surface as badges on Product, but never as product KPIs.
 - If no Charter exists, default tab is NDF Control → Genesis; follow [genesis.md](genesis.md).
 

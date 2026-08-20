@@ -32,3 +32,6 @@ python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-sna
 3. Unchanged Merkle layers MUST NOT re-run graphcheck.
 4. `python3 spec/meta/cockpit/build_standalone.py`
 5. MUST NOT write `spec/` or `poc/`.
+
+Mutating button skills MUST run `action-commit` **before** this refresh so Replay
+records baselineSha→resultSha under `.ndf/replay/button-actions/`.
