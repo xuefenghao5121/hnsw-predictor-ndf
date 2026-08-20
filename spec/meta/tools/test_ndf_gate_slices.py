@@ -233,6 +233,60 @@ class GateSliceTest(unittest.TestCase):
                 after["implementation_approval"]["expected_content_sha"],
             )
 
+    def test_binder_pointer_stub_does_not_null_expected_sha(self) -> None:
+        """Marker-less proposals/ stub must not poison gate expected_content_sha.
+
+        Hotspot-style binders keep a pointer under ndf/proposals/ plus the
+        canonical body under spec/open/. Treating the stub as missing_gate_slice
+        previously set expected=null for every gate and failed context-verify
+        even when GATES receipts already matched live review-slice SHAs.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            topic = self._topic(root)
+            ndf = topic / "ndf"
+            proposals = ndf / "proposals"
+            proposals.mkdir()
+            (proposals / "proposal-demo.md").write_text(
+                "# Stub → product proposal\n\n"
+                "Canonical text: `spec/open/proposal-demo.md`\n",
+                encoding="utf-8",
+            )
+            open_dir = root / "spec" / "open"
+            open_dir.mkdir(parents=True)
+            open_proposal = open_dir / "proposal-demo.md"
+            open_proposal.write_text(
+                "<!-- ndf:gate-slice begin=proposal_contract -->\n"
+                "proposal body\n"
+                "<!-- ndf:gate-slice end=proposal_contract -->\n",
+                encoding="utf-8",
+            )
+            with_stub = slices.gate_bundle_specs(
+                topic,
+                root=root,
+                proposal_paths=[proposals / "proposal-demo.md", open_proposal],
+            )
+            only_open = slices.gate_bundle_specs(
+                topic, root=root, proposal_paths=[open_proposal]
+            )
+            for gate in (
+                "topic_review",
+                "design_review",
+                "implementation_approval",
+            ):
+                self.assertIsNotNone(with_stub[gate]["expected_content_sha"], gate)
+                self.assertEqual(
+                    with_stub[gate]["expected_content_sha"],
+                    only_open[gate]["expected_content_sha"],
+                    gate,
+                )
+                stub_errors = [
+                    err
+                    for err in with_stub[gate]["errors"]
+                    if err.get("path", "").endswith("proposals/proposal-demo.md")
+                ]
+                self.assertEqual(stub_errors, [], gate)
+
     def test_nested_markers_fail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "TOPIC.md"
