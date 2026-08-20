@@ -2089,11 +2089,17 @@ class WorkflowHealthTest(unittest.TestCase):
                         {"run_id": "r-active"},
                     ),
                 ),
+                patch.object(
+                    workflow,
+                    "workspace_truth_view",
+                    return_value={"workspace_bound": True, "state": "bound"},
+                ),
             ):
                 payload, code = workflow.pack_topic("demo")
             self.assertEqual(code, 1)
             self.assertIn("topic_active_lease", payload["blockers"])
             self.assertNotIn("runtime_unavailable", payload["blockers"])
+            self.assertNotIn("workspace_unbound", payload["blockers"])
             self.assertTrue(payload["safe_to_delegate"])
             self.assertFalse(payload["safe_to_dispatch"])
 
@@ -2170,6 +2176,11 @@ class WorkflowHealthTest(unittest.TestCase):
                     "implementation_dispatch_runtime",
                     return_value=({"pipeline_reachable": False}, False, None),
                 ),
+                patch.object(
+                    workflow,
+                    "workspace_truth_view",
+                    return_value={"workspace_bound": True, "state": "bound"},
+                ),
             ):
                 payload, code = workflow.repair_pack("demo", "poc_measurement")
             self.assertTrue(payload["static_preflight_passed"], payload["blockers"])
@@ -2221,6 +2232,11 @@ class WorkflowHealthTest(unittest.TestCase):
                 ),
                 patch.object(
                     workflow,
+                    "workspace_truth_view",
+                    return_value={"workspace_bound": True, "state": "bound"},
+                ),
+                patch.object(
+                    workflow,
                     "bind_pack_to_episode",
                     side_effect=lambda payload, episode_id=None: payload,
                 ),
@@ -2231,6 +2247,7 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertTrue(payload["safe_to_dispatch"])
             self.assertTrue(payload["runtime_dispatch_ready"])
             self.assertNotIn("runtime_unavailable", payload["blockers"])
+            self.assertNotIn("workspace_unbound", payload["blockers"])
 
     def test_probe_claude_acp_does_not_treat_cli_alone_as_reachable(self) -> None:
         workflow._ACP_PROBE = None
@@ -2296,7 +2313,23 @@ class WorkflowHealthTest(unittest.TestCase):
         with patch.object(workflow, "active_runtime_leases", return_value=[]):
             status = workflow.runtime_status(False)["implementation"]
         self.assertEqual(status["status"], "not_probed")
+        self.assertEqual(status["probe_state"], "not_probed")
         self.assertFalse(status["pipeline_reachable"])
+
+    def test_not_probed_does_not_emit_runtime_unavailable_blocker(self) -> None:
+        """Projection invariant: unprobed ≠ unavailable."""
+        for status, reachable, expect_blocker in (
+            ("not_probed", False, False),
+            ("unavailable", False, True),
+            ("idle", True, False),
+        ):
+            runtime_probed = status != "not_probed"
+            blocker = (
+                "runtime_unavailable"
+                if runtime_probed and not reachable
+                else None
+            )
+            self.assertEqual(blocker is not None, expect_blocker, status)
 
     def test_probe_claude_acp_light_uses_resume_without_doctor(self) -> None:
         workflow._ACP_LIGHT_PROBE = None

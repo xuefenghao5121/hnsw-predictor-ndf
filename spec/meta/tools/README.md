@@ -307,9 +307,12 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `--probe-runtime` 只读探测 OpenClaw `health --json` **和** Claude ACP
   （`claude doctor` + 配置会话 resume 产物）；只用于页头 Refresh snapshot。例行
   `--update-embedded` 不得带探针。Commander Replay 只嵌 hop 目录 + `replay.focused`
-  一页，账本真值在 `.ndf/replay`。Claude CLI 存在不等于
-  ACP pipeline/run 可用。`pack` / `repair-pack` / `genesis-pack` 生成时 MUST 探测 ACP，
-  并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时）分开。
+  一页，账本真值在 `.ndf/replay`。  Claude CLI 存在不等于
+  ACP pipeline/run 可用。默认 snapshot 不探测时投影为 `not_probed`，MUST NOT 冒充
+  `runtime_unavailable`。`pack` / `repair-pack` / `genesis-pack` 生成时 MUST 探测 ACP，
+  并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时+workspace 绑定）分开。
+  `dispatch-send`：CLI/agent exit 0 只是 transport acknowledgement；MUST 解析唯一
+  `ndf-agent-completion/v1`，失败/缺失回执 fail-closed，不得 `action-finish success`。
 - `action-begin` / `action-finish`：append-only 本地 action receipt。终态含 repo SHA、
   snapshot SHA、result 与 blockers，并使用统一 receipt 字段和哈希链；断链使投影
   freshness=`unknown`。embedded snapshot verify 另写 payload/absorbed-action receipt。

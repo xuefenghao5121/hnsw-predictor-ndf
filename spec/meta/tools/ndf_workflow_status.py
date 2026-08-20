@@ -3988,6 +3988,9 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     )
     lease = topic_active_lease(topic_id)
     runtime = runtime_status(False)["implementation"]
+    # Default snapshot does not probe ACP. not_probed MUST NOT look like
+    # runtime_unavailable (transport plane unprobed ≠ pipeline down).
+    runtime_probed = str(runtime.get("status") or "") != "not_probed"
     runtime_dispatch_ready = bool(runtime["pipeline_reachable"] and not lease)
     safe_to_dispatch = static_preflight_passed and runtime_dispatch_ready
     dispatch_blockers = [
@@ -4008,7 +4011,11 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             None if isolation_passed else "isolation_check_failed",
             *graph_blockers,
             None if context_valid else "context_verify_failed",
-            "runtime_unavailable" if not runtime["pipeline_reachable"] else None,
+            (
+                "runtime_unavailable"
+                if runtime_probed and not runtime["pipeline_reachable"]
+                else None
+            ),
             "topic_active_lease" if lease else None,
         )
         if reason
@@ -5692,21 +5699,23 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
     reachable = bool(acp_probe and acp_probe.get("reachable"))
     if leases:
         impl_status = "active"
+        probe_state = "reachable"
     elif not probed and mode is None:
         impl_status = "not_probed"
+        probe_state = "not_probed"
     elif reachable:
         impl_status = "idle"
+        probe_state = "reachable"
     else:
         impl_status = "unavailable"
-    doctor_ok = None
-    if acp_probe is not None and acp_probe.get("doctor_ok") is not None:
-        doctor_ok = bool(acp_probe.get("doctor_ok"))
+        probe_state = "unavailable"
     return {
         "implementation": {
             "provider": "claude-code-acp",
             "status": impl_status,
+            # Three-state probe surface: not_probed | unavailable | reachable.
+            "probe_state": probe_state,
             "pipeline_reachable": reachable if probed else False,
-            "probe_mode": (acp_probe or {}).get("mode") if probed else None,
             "active_runs": leases,
             "default_session": (acp_probe or {}).get("default_session") or session_id,
             "state_source": "pipeline",
@@ -5723,7 +5732,11 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
                 None if acp_probe is None else acp_probe.get("configured_session_visible")
             ),
             "probe_error": None if acp_probe is None else acp_probe.get("error"),
-            "probe_mode": mode if mode != "off" else None,
+            "probe_mode": (
+                (acp_probe or {}).get("mode")
+                if probed
+                else (mode if mode not in {None, "off"} else None)
+            ),
             "probe": acp_probe,
             "probe_note": (
                 None
@@ -8386,15 +8399,19 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
     approval = view["gates"]["implementation_approval"]
     static_ready = view["delegation"]["static_preflight_passed"]
     runtime, runtime_ready, lease = implementation_dispatch_runtime(topic)
+    truth = workspace_truth_view(topic)
+    workspace_bound = bool(truth.get("workspace_bound"))
     safe_to_delegate = static_ready
-    safe_to_dispatch = static_ready and runtime_ready
+    safe_to_dispatch = static_ready and runtime_ready and workspace_bound
     static_blockers = [
         reason
         for reason in (view["delegation"].get("dispatch_blockers") or [])
-        if reason not in {"runtime_unavailable", "topic_active_lease"}
+        if reason
+        not in {"runtime_unavailable", "topic_active_lease", "runtime_not_probed"}
     ]
     blockers = [
         *([] if static_ready else static_blockers),
+        *(["workspace_unbound"] if not workspace_bound else []),
         *(["runtime_unavailable"] if not runtime["pipeline_reachable"] else []),
         *(["topic_active_lease"] if lease else []),
     ]
@@ -8518,6 +8535,10 @@ def repair_pack(
         blockers.append("runtime_unavailable")
     if lease:
         blockers.append("topic_active_lease")
+    truth = workspace_truth_view(topic)
+    if not truth.get("workspace_bound"):
+        blockers.append("workspace_unbound")
+    runtime_ready = runtime_ready and bool(truth.get("workspace_bound"))
     payload = {
         "schema": "ndf-implementation-repair-pack/v2",
         "compatibility": {"legacy_schema": "ndf-implementation-repair-pack/v1"},
@@ -8528,7 +8549,7 @@ def repair_pack(
         "provider": "claude-code-acp",
         "base_sha": git_head(),
         "workspace": workspace_binding(topic),
-        "workspace_truth": workspace_truth_view(topic),
+        "workspace_truth": truth,
         "allowed_write_root": f"poc/{topic}/",
         "forbidden": [
             "src/",

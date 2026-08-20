@@ -16,7 +16,6 @@ import os
 import shutil
 import subprocess
 import time
-import uuid
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -47,6 +46,12 @@ def _pack_sha(pack: Mapping[str, Any]) -> str:
 
 def _safe_to_send(pack: Mapping[str, Any]) -> tuple[bool, list[str]]:
     blockers = [str(item) for item in (pack.get("blockers") or []) if str(item).strip()]
+    preflight_blockers = _pack_preflight_blockers(pack)
+    for item in preflight_blockers:
+        if item not in blockers:
+            blockers.append(item)
+    if preflight_blockers:
+        return False, blockers
     if pack.get("safe_to_dispatch") is True:
         return True, blockers
     # Control packs may expose safe_to_delegate + runtime separately.
@@ -57,6 +62,144 @@ def _safe_to_send(pack: Mapping[str, Any]) -> tuple[bool, list[str]]:
     ):
         return True, blockers
     return False, blockers or ["not_safe_to_dispatch"]
+
+
+def _pack_preflight_blockers(pack: Mapping[str, Any]) -> list[str]:
+    """Verify pack-side fields that MUST exist before transport (not Worker-minted)."""
+    blockers: list[str] = []
+    truth = pack.get("workspace_truth")
+    if isinstance(truth, Mapping) and truth.get("workspace_bound") is False:
+        blockers.append("workspace_unbound")
+    workspace = pack.get("workspace") if isinstance(pack.get("workspace"), Mapping) else {}
+    if not str(pack.get("base_sha") or "").strip():
+        blockers.append("missing_handshake:base_sha")
+    if not str(workspace.get("repo_root") or "").strip():
+        blockers.append("missing_handshake:repo_root")
+    write_root = pack.get("allowed_write_root") or pack.get("allowed_write_roots")
+    if isinstance(write_root, list):
+        write_root = write_root[0] if write_root else ""
+    if not str(write_root or "").strip():
+        blockers.append("missing_handshake:allowed_write_root")
+    return blockers
+
+
+def extract_agent_completion(text: str | None) -> tuple[dict[str, Any] | None, list[str]]:
+    """Extract exactly one ndf-agent-completion/v1 object from worker stdout.
+
+    Returns (completion_or_None, parse_blockers). Missing / ambiguous / invalid
+    schemas fail closed — transport acknowledgement alone is not task success.
+    """
+    raw = text or ""
+    candidates: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    def _consider(blob: str) -> None:
+        try:
+            value = json.loads(blob)
+        except json.JSONDecodeError:
+            return
+        if isinstance(value, dict) and value.get("schema") == "ndf-agent-completion/v1":
+            candidates.append(value)
+
+    # Fenced ```json ... ``` blocks first.
+    fence = "```"
+    parts = raw.split(fence)
+    for idx in range(1, len(parts), 2):
+        body = parts[idx]
+        if body.lstrip().startswith("json"):
+            body = body.lstrip()[4:]
+        _consider(body.strip())
+
+    # Whole stdout / last balanced object fallback when no fence hit.
+    if not candidates:
+        try:
+            value = json.loads(raw.strip())
+            if isinstance(value, dict) and value.get("schema") == "ndf-agent-completion/v1":
+                candidates.append(value)
+        except json.JSONDecodeError:
+            end = raw.rfind("}")
+            if end >= 0:
+                depth = 0
+                start = None
+                for idx in range(end, -1, -1):
+                    ch = raw[idx]
+                    if ch == "}":
+                        depth += 1
+                    elif ch == "{":
+                        depth -= 1
+                        if depth == 0:
+                            start = idx
+                            break
+                if start is not None:
+                    _consider(raw[start : end + 1])
+
+    if not candidates:
+        return None, ["missing_agent_completion"]
+    if len(candidates) > 1:
+        # Prefer the last occurrence (final worker judgment).
+        completion = candidates[-1]
+        errors.append("multiple_agent_completions")
+    else:
+        completion = candidates[0]
+    result = str(completion.get("result") or completion.get("status") or "").lower()
+    if result not in {"success", "succeeded", "failed", "cancelled", "blocked"}:
+        errors.append("invalid_agent_completion_result")
+    return completion, errors
+
+
+def _task_outcome_from_transport(
+    send_result: Mapping[str, Any],
+    *,
+    lease_only: bool,
+) -> tuple[str, list[str], str, dict[str, Any] | None]:
+    """Map transport + optional completion receipt → task result.
+
+    Returns (result, blockers, summary, completion_or_None).
+    result is succeeded|failed|delivery_unknown.
+    """
+    transport_ok = bool(send_result.get("transport_ok") or send_result.get("ok"))
+    text = send_result.get("response_text")
+    if not transport_ok:
+        err = str(send_result.get("error") or send_result.get("state") or "transport_failed")
+        return "failed", [err], err, None
+    if lease_only:
+        return (
+            "succeeded",
+            [],
+            str(text or "lease_only_no_implementation_start")[:240],
+            None,
+        )
+    completion, parse_errors = extract_agent_completion(
+        text if isinstance(text, str) else None
+    )
+    if completion is None:
+        blockers = parse_errors or ["missing_agent_completion"]
+        return (
+            "failed",
+            blockers,
+            "transport_acknowledged but no ndf-agent-completion/v1",
+            None,
+        )
+    result_raw = str(completion.get("result") or completion.get("status") or "").lower()
+    worker_blockers = [
+        str(item) for item in (completion.get("blockers") or []) if str(item).strip()
+    ]
+    summary = str(
+        completion.get("summary")
+        or completion.get("result_summary")
+        or (text or "")[:240]
+    )
+    if result_raw in {"success", "succeeded"} and not worker_blockers and not parse_errors:
+        return "succeeded", [], summary[:800], completion
+    blockers = list(worker_blockers)
+    for item in parse_errors:
+        if item not in blockers:
+            blockers.append(item)
+    if result_raw not in {"success", "succeeded"} and "agent_completion_failed" not in blockers:
+        blockers.insert(0, "agent_completion_failed")
+    if not blockers:
+        blockers = ["agent_completion_failed"]
+    return "failed", blockers, summary[:800], completion
 
 
 def _already_sent(pack_sha: str, request_id: str | None) -> dict[str, Any] | None:
@@ -159,6 +302,7 @@ def _send_openclaw(
     if proc.returncode != 0:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "failed",
             "error": "openclaw_nonzero_exit",
             "exit_code": proc.returncode,
@@ -166,7 +310,8 @@ def _send_openclaw(
         }
     return {
         "ok": True,
-        "state": "succeeded",
+        "transport_ok": True,
+        "state": "transport_acknowledged",
         "exit_code": 0,
         "response_text": text[-8000:],
     }
@@ -179,25 +324,29 @@ def _send_acp(
     timeout_sec: int,
     lease_only: bool,
 ) -> dict[str, Any]:
-    """Resume the configured Claude Code ACP session with the pack."""
+    """Resume the configured Claude Code ACP session with the pack.
+
+    Exit 0 means transport acknowledgement only. Task success requires a
+    validated ``ndf-agent-completion/v1`` (see ``dispatch_send``).
+    """
     import ndf_workflow_status as workflow
 
     session_id = workflow.configured_acp_session_id()
     if not session_id:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "failed",
             "error": "acp_session_unconfigured",
             "response_text": None,
         }
     if lease_only:
         # Lease prepare: do not start implementation; record a dry handshake stub.
-        run_id = f"lease-{uuid.uuid4().hex[:12]}"
         return {
             "ok": True,
+            "transport_ok": True,
             "state": "succeeded",
             "lease_only": True,
-            "run_id": run_id,
             "session_id": session_id,
             "response_text": "lease_only_no_implementation_start",
         }
@@ -218,6 +367,7 @@ def _send_acp(
     else:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "delivery_unknown",
             "error": "claude_cli_missing",
             "response_text": None,
@@ -236,6 +386,7 @@ def _send_acp(
     except subprocess.TimeoutExpired as exc:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "delivery_unknown",
             "error": "acp_timeout",
             "detail": str(exc),
@@ -244,6 +395,7 @@ def _send_acp(
     except OSError as exc:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "delivery_unknown",
             "error": "acp_spawn_failed",
             "detail": str(exc),
@@ -253,15 +405,17 @@ def _send_acp(
     if proc.returncode != 0:
         return {
             "ok": False,
+            "transport_ok": False,
             "state": "failed",
             "error": "acp_nonzero_exit",
             "exit_code": proc.returncode,
+            "session_id": session_id,
             "response_text": text[-8000:],
         }
     return {
         "ok": True,
-        "state": "succeeded",
-        "run_id": f"acp-{uuid.uuid4().hex[:12]}",
+        "transport_ok": True,
+        "state": "transport_acknowledged",
         "session_id": session_id,
         "exit_code": 0,
         "response_text": text[-8000:],
@@ -275,13 +429,19 @@ def _closeout(
     result: str,
     blockers: list[str],
     result_summary: str,
+    agent_completion: Mapping[str, Any] | None = None,
+    pack: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """completion-record (best effort) → action-commit → snapshot."""
+    """Persist dispatch receipt → action-commit → snapshot.
+
+    Task success MUST NOT be inferred from transport alone. When a Worker
+    ``ndf-agent-completion/v1`` is present it is written beside the thin
+    dispatch receipt; ``action-finish`` uses the validated task ``result``.
+    """
     import ndf_actions
     import ndf_workflow_status as workflow
 
     steps: dict[str, Any] = {}
-    # Completion file for workers that returned text.
     completion_path = ROOT / "tmp" / "ndf-dispatch-completion.json"
     completion = {
         "schema": "ndf-dispatch-completion/v1",
@@ -289,7 +449,57 @@ def _closeout(
         "blockers": blockers,
         "result_summary": result_summary,
         "finished_at": workflow.now_iso(),
+        "transport_only": agent_completion is None and result != "succeeded",
     }
+    if agent_completion is not None:
+        completion["agent_completion"] = dict(agent_completion)
+        agent_path = ROOT / "tmp" / "ndf-agent-completion.json"
+        agent_path.write_text(
+            json.dumps(dict(agent_completion), ensure_ascii=False, indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
+        steps["agent_completion_path"] = "tmp/ndf-agent-completion.json"
+        # Best-effort Episode bind when replay episode + role are known.
+        episode_id = None
+        if isinstance(pack, Mapping):
+            episode_id = (
+                pack.get("episode_id")
+                or (pack.get("replay") or {}).get("episode_id")
+            )
+        if episode_id and result == "succeeded":
+            try:
+                verify, verify_code = workflow.record_agent_completion(
+                    agent_path,
+                    episode_id=str(episode_id),
+                    role="claude-code"
+                    if str((pack or {}).get("provider") or "").startswith("claude")
+                    else "openclaw",
+                    coverage="completion_only",
+                )
+                steps["completion_record"] = {
+                    "exit_code": verify_code,
+                    "valid": bool(verify.get("valid")),
+                    "errors": verify.get("errors") or [],
+                }
+                if verify_code != 0 or not verify.get("valid"):
+                    # Fail closed: do not keep a false succeeded closeout.
+                    result = "failed"
+                    for err in verify.get("errors") or ["completion_record_failed"]:
+                        if str(err) not in blockers:
+                            blockers.append(str(err))
+                    completion["result"] = result
+                    completion["blockers"] = blockers
+            except Exception as exc:  # noqa: BLE001 — closeout must not crash dispatch
+                steps["completion_record"] = {
+                    "exit_code": 1,
+                    "valid": False,
+                    "errors": [f"completion_record_exception:{type(exc).__name__}"],
+                }
+                result = "failed"
+                blockers.append(f"completion_record_exception:{type(exc).__name__}")
+                completion["result"] = result
+                completion["blockers"] = blockers
     completion_path.write_text(
         json.dumps(completion, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -323,17 +533,21 @@ def _closeout(
             "stdout": (commit.stdout or "")[-4000:],
             "stderr": (commit.stderr or "")[-2000:],
         }
+        finish_result = "success" if result == "succeeded" else "failed"
+        finish_cmd = [
+            "python3",
+            "spec/meta/tools/ndf_workflow_status.py",
+            "action-finish",
+            "--action-id",
+            action_id,
+            "--result",
+            finish_result,
+            "--json",
+        ]
+        for blocker in blockers:
+            finish_cmd.extend(["--blocker", str(blocker)[:200]])
         finish = subprocess.run(
-            [
-                "python3",
-                "spec/meta/tools/ndf_workflow_status.py",
-                "action-finish",
-                "--action-id",
-                action_id,
-                "--result",
-                "success" if result == "succeeded" else "failed",
-                "--json",
-            ],
+            finish_cmd,
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -363,6 +577,7 @@ def _closeout(
         "exit_code": snap.returncode,
         "stdout": (snap.stdout or "")[-2000:],
     }
+    steps["final_result"] = result
     return steps
 
 
@@ -386,7 +601,7 @@ def dispatch_send(
 
     prior = _already_sent(pack_sha, request_id)
     if prior and prior.get("state") in {"succeeded", "failed", "blocked"}:
-        return {**prior, "schema": "ndf-dispatch-send/v1"}, 0
+        return {**prior, "schema": "ndf-dispatch-send/v1"}, 0 if prior.get("state") == "succeeded" else 1
 
     ok_to_send, blockers = _safe_to_send(pack)
     if not ok_to_send and not lease_only:
@@ -409,6 +624,7 @@ def dispatch_send(
             result="failed",
             blockers=blockers,
             result_summary=payload["result_summary"],
+            pack=pack,
         )
         payload["closeout"] = close
         _write_last(payload)
@@ -455,38 +671,58 @@ def dispatch_send(
     else:
         send_result = {
             "ok": False,
+            "transport_ok": False,
             "state": "failed",
             "error": f"unknown_provider:{provider}",
             "response_text": None,
         }
 
-    final_state = str(send_result.get("state") or ("succeeded" if send_result.get("ok") else "failed"))
-    summary = (
-        (send_result.get("response_text") or "")[:240]
-        if send_result.get("ok")
-        else str(send_result.get("error") or final_state)
+    task_result, final_blockers, summary, agent_completion = _task_outcome_from_transport(
+        send_result, lease_only=lease_only
     )
-    final_blockers = [] if send_result.get("ok") else [str(send_result.get("error") or final_state)]
+    # Prefer Worker-minted run_id; never invent one for a failed/missing receipt.
+    run_id = None
+    if isinstance(agent_completion, Mapping):
+        run_id = agent_completion.get("run_id")
+    if run_id is None and lease_only:
+        run_id = send_result.get("run_id")
     payload = {
         **sent_receipt,
-        "state": final_state,
-        "dispatch_state": final_state,
-        "result_summary": summary or final_state,
+        "state": task_result,
+        "dispatch_state": task_result,
+        "result_summary": summary or task_result,
         "blockers": final_blockers,
+        "transport_ok": bool(send_result.get("transport_ok") or send_result.get("ok")),
         "send": {k: v for k, v in send_result.items() if k != "response_text"},
         "response_excerpt": (send_result.get("response_text") or "")[:2000],
+        "agent_completion": agent_completion,
         "finished_at": time.time(),
     }
+    if run_id:
+        payload["run_id"] = run_id
+    if send_result.get("session_id"):
+        payload["session_id"] = send_result.get("session_id")
     # Closeout order is fixed: completion → action-commit → snapshot.
     payload["closeout"] = _closeout(
         catalog_action_id=catalog_action_id,
         action_id=action_id,
-        result="succeeded" if send_result.get("ok") else "failed",
+        result=task_result,
         blockers=final_blockers,
         result_summary=payload["result_summary"],
+        agent_completion=agent_completion,
+        pack=pack,
     )
+    # completion_record may have downgraded success → failed inside _closeout.
+    close_final = (payload["closeout"] or {}).get("final_result")
+    if close_final in {"succeeded", "failed"} and close_final != task_result:
+        payload["state"] = close_final
+        payload["dispatch_state"] = close_final
+        payload["blockers"] = list(
+            (payload["closeout"].get("completion") or {}).get("blockers") or final_blockers
+        )
+        task_result = close_final
     _write_last(payload)
-    code = 0 if send_result.get("ok") else 1
+    code = 0 if task_result == "succeeded" else 1
     return payload, code
 
 

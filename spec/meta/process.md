@@ -279,6 +279,15 @@ Command Agent MUST NOT 后台残留 `--serve`；日常刷新只写 `--out`。Clo
 发现 Agent Shell `EAGAIN` / fork 失败时 MUST 先跑 `host-pids` 并清理残留 serve/qemu，
 MUST NOT 改 `environment=cloud` 绕开本机宿主卫生。
 
+实现/Control 派发结果 MUST 区分三层，不得互相冒充：
+（1）**runtime 投影**默认 snapshot 为 `not_probed`，MUST NOT 生成虚假
+`runtime_unavailable`；仅 live probe 后的 `unavailable` 才是运行时 blocker；
+（2）**transport acknowledgement**（CLI/agent exit 0）只表示消息已送达；
+（3）**validated completion** 必须解析唯一的 `ndf-agent-completion/v1` 且
+`result=success`（并经 `completion-record` 绑 Episode 时）才可投影 succeeded。
+`workspace_truth.workspace_bound=false` 时 pack MUST NOT `safe_to_dispatch`。
+OpenClaw gateway 健康与 Claude ACP 可达正交，MUST NOT 用其一清另一侧 blocker。
+
 Snapshot MUST 投影生成该指挥面的 Git remote URL、remote 名与命名分支。所有
 Composer / snapshot Prompt MUST 以 `BEGIN NDF GIT INPUT` / `END NDF GIT INPUT`
 块作为执行输入，写入 `remote`、`remote_url`、`remote_branch` 与 `upstream_ref`。

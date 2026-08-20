@@ -230,6 +230,8 @@ Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，清理残留
 `snapshot --serve` / qemu；MUST NOT 改 `environment=cloud` 绕开。Command Agent
 MUST NOT 后台残留 `--serve`；日常刷新只用 `snapshot --out`（不要默认 `--probe-runtime full`）。
+派发结果（[[META-011]]）：CLI/OpenClaw 可达 ≠ 任务成功；`dispatch-send` 的 transport
+acknowledgement 不得冒充 validated `ndf-agent-completion/v1` success。
 
 ### Claude Code 实现管道
 
