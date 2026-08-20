@@ -13,6 +13,16 @@ export type Snapshot = {
   generatedAt?: string;
   repoHead?: string;
   repoBranch?: string;
+  repoRemote?: string;
+  repoRemoteUrl?: string;
+  repoUpstream?: string;
+  git?: {
+    remote?: string;
+    remoteUrl?: string;
+    branch?: string;
+    upstreamRef?: string;
+    head?: string;
+  };
   snapshotSha?: string;
   payloadSha?: string;
   absorbedActionId?: string | null;

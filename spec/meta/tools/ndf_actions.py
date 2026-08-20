@@ -77,30 +77,109 @@ def _focused(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return topic if isinstance(topic, Mapping) else None
 
 
-def _git_execution_contract(payload: Mapping[str, Any]) -> list[str]:
-    branch = str(payload.get("repoBranch") or payload.get("repo_branch") or "").strip()
-    head = str(payload.get("repoHead") or payload.get("repo_head") or "").strip()
-    if not branch:
-        branch = "<unresolved-target-branch>"
+def _git_field(payload: Mapping[str, Any], *keys: str, default: str = "") -> str:
+    git = payload.get("git") if isinstance(payload.get("git"), Mapping) else {}
+    for key in keys:
+        value = payload.get(key)
+        if value:
+            return str(value).strip()
+        if isinstance(git, Mapping) and git.get(key):
+            return str(git.get(key)).strip()
+    return default
+
+
+def _git_execution_values(
+    payload: Mapping[str, Any],
+    *,
+    remote: str | None = None,
+    remote_url: str | None = None,
+    branch: str | None = None,
+    placeholders: bool = False,
+) -> dict[str, str]:
+    if placeholders:
+        return {
+            "remote": "__NDF_REMOTE__",
+            "remote_url": "__NDF_REMOTE_URL__",
+            "branch": "__NDF_BRANCH__",
+            "upstream_ref": "__NDF_UPSTREAM_REF__",
+            "head": _git_field(payload, "repoHead", "repo_head", "head", default="<unknown>")
+            or "<unknown>",
+        }
+    remote_name = (remote or _git_field(payload, "repoRemote", "repo_remote", "remote", default="origin") or "origin")
+    url = (
+        remote_url
+        or _git_field(
+            payload,
+            "repoRemoteUrl",
+            "repo_remote_url",
+            "remoteUrl",
+            default="<unresolved-remote-url>",
+        )
+        or "<unresolved-remote-url>"
+    )
+    branch_name = (
+        branch
+        or _git_field(
+            payload,
+            "repoBranch",
+            "repo_branch",
+            "branch",
+            default="<unresolved-target-branch>",
+        )
+        or "<unresolved-target-branch>"
+    )
+    upstream = _git_field(payload, "repoUpstream", "repo_upstream", "upstreamRef")
+    if branch or remote or not upstream:
+        unresolved = branch_name.startswith("<") or remote_name.startswith("<")
+        upstream = "<unresolved-upstream-ref>" if unresolved else f"{remote_name}/{branch_name}"
+    return {
+        "remote": remote_name,
+        "remote_url": url,
+        "branch": branch_name,
+        "upstream_ref": upstream,
+        "head": _git_field(payload, "repoHead", "repo_head", "head", default="<unknown>") or "<unknown>",
+    }
+
+
+def _git_execution_contract(
+    payload: Mapping[str, Any],
+    *,
+    remote: str | None = None,
+    remote_url: str | None = None,
+    branch: str | None = None,
+    placeholders: bool = False,
+) -> list[str]:
+    values = _git_execution_values(
+        payload,
+        remote=remote,
+        remote_url=remote_url,
+        branch=branch,
+        placeholders=placeholders,
+    )
     return [
-        "Git execution contract (mandatory):",
-        "target_remote=origin",
-        f"target_branch={branch}",
-        f"snapshot_repo_head={head or '<unknown>'}",
+        "BEGIN NDF GIT INPUT",
+        f"remote={values['remote']}",
+        f"remote_url={values['remote_url']}",
+        f"remote_branch={values['branch']}",
+        f"upstream_ref={values['upstream_ref']}",
+        f"snapshot_repo_head={values['head']}",
+        "END NDF GIT INPUT",
+        "The NDF GIT INPUT block is mandatory execution input from the commander.",
+        "Use exactly that remote_url and remote_branch. This is the branch the human specified.",
         (
-            "Keep the Command Agent workspace on exactly target_branch. Do not create, rename, "
+            "Keep the Command Agent workspace on exactly remote_branch. Do not create, rename, "
             "or switch to a replacement feature branch."
         ),
         (
             "An NDF runtime-lease worker MAY use its required isolated branch/worktree, but that "
             "worker branch MUST NOT replace the Command Agent target branch."
         ),
+        "Required first commands before any other git mutation:",
+        f"git fetch {values['remote']} {values['branch']}",
+        f"git checkout {values['branch']}",
+        f"git pull --ff-only {values['remote']} {values['branch']}",
         (
-            "Before mutation, fetch target_remote/target_branch, switch to the same-named local "
-            "tracking branch if needed, and pull --ff-only."
-        ),
-        (
-            "If the target branch is missing, checkout is unsafe, or fast-forward fails, stop and "
+            "If the remote branch is missing, checkout is unsafe, or fast-forward fails, stop and "
             "report the blocker; never substitute a newly named branch."
         ),
     ]
@@ -377,6 +456,10 @@ def composer_prompt(
     intent: str = "",
     topic: str | None = None,
     episode_id: str | None = None,
+    remote: str | None = None,
+    remote_url: str | None = None,
+    branch: str | None = None,
+    placeholders: bool = False,
 ) -> str:
     action = registry_by_id().get(action_id)
     if action is None:
@@ -394,13 +477,19 @@ def composer_prompt(
         else "Button click is not a human gate."
     )
     lines = [
+        *_git_execution_contract(
+            payload,
+            remote=remote,
+            remote_url=remote_url,
+            branch=branch,
+            placeholders=placeholders,
+        ),
         "0. EXECUTE now. Do not explain this template or stop after newComposerChat.",
         "This Composer task is an NDF commander dispatch from the closed action catalog.",
         f"action_id={action_id}",
         f"label={action.get('label')}",
         f"operation={action.get('operation')}",
         f"clauses={', '.join(action.get('clauseRefs') or [])}",
-        *_git_execution_contract(payload),
         click_rule,
         "Wrap mutating work: action-begin → operation → action-finish → snapshot --out tmp/ndf-canvas-snapshot.json",
         "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
@@ -504,6 +593,7 @@ def standalone_action_template(
                 intent="__NDF_HUMAN_INTENT__",
                 topic="__NDF_TOPIC__",
                 episode_id="__NDF_EPISODE__",
+                placeholders=True,
             ),
         }
     if dispatch == "openFile":
@@ -537,13 +627,13 @@ def standalone_action_template(
             raise ValueError(f"snapshot action has no static command: {action_id}")
         prompt = "\n".join(
             [
+                *_git_execution_contract(payload, placeholders=True),
                 "0. EXECUTE now. Do not explain this template.",
                 "This task is an NDF commander snapshot dispatch from the closed action catalog.",
                 f"action_id={action_id}",
                 f"label={action.get('label')}",
                 f"operation={action.get('operation')}",
                 f"clauses={', '.join(action.get('clauseRefs') or [])}",
-                *_git_execution_contract(payload),
                 "Button click is not a human gate.",
                 (
                     "python3 spec/meta/tools/ndf_workflow_status.py action-begin "

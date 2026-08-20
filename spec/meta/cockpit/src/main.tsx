@@ -97,12 +97,18 @@ function App() {
   const [dialog, setDialog] = useState<{ title: string; body: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [tech, setTech] = useState(false);
+  const [remoteName, setRemoteName] = useState("origin");
+  const [remoteUrl, setRemoteUrl] = useState("");
+  const [remoteBranch, setRemoteBranch] = useState("");
 
   const refresh = useCallback(async () => {
     try {
       const data = await loadSnapshot();
       setError(null);
       setSnapshot(data);
+      setRemoteName(data.git?.remote || data.repoRemote || "origin");
+      setRemoteUrl(data.git?.remoteUrl || data.repoRemoteUrl || "");
+      setRemoteBranch(data.git?.branch || data.repoBranch || "");
       if (data.business?.identity?.charterExists === false) {
         setTab("control");
       }
@@ -129,7 +135,13 @@ function App() {
         return;
       }
       try {
-        const result = await dispatchAction({ id, ...extra });
+        const result = await dispatchAction({
+          id,
+          remote: remoteName,
+          remoteUrl,
+          branch: remoteBranch,
+          ...extra,
+        });
         if (result.snapshot) {
           setSnapshot(result.snapshot);
           setError(null);
@@ -137,7 +149,7 @@ function App() {
         if (result.prompt) {
           setCopied(false);
           setDialog({
-            title: `${action.label} · Composer (click is not ${action.humanPhrase || "a gate"})`,
+            title: `${action.label} · ${remoteName}/${remoteBranch || "unspecified-branch"}`,
             body: result.prompt,
           });
         } else if (result.path) {
@@ -148,7 +160,7 @@ function App() {
         setError(err instanceof Error ? err.message : String(err));
       }
     },
-    [],
+    [remoteBranch, remoteName, remoteUrl],
   );
 
   const topics = snapshot?.business?.topics || [];
@@ -274,6 +286,39 @@ function App() {
           <span>payload {snapshot?.payloadSha?.slice(0, 12)}</span>
           <span className={freshness === "fresh" ? "ok" : "danger"}>{freshness}</span>
         </div>
+        <div className="git-inputs">
+          <label>
+            远程仓库
+            <input
+              value={remoteUrl}
+              onChange={(event) => setRemoteUrl(event.target.value)}
+              placeholder="https://github.com/org/repo.git"
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            远程名
+            <input
+              value={remoteName}
+              onChange={(event) => setRemoteName(event.target.value)}
+              placeholder="origin"
+              spellCheck={false}
+            />
+          </label>
+          <label>
+            远程分支
+            <input
+              value={remoteBranch}
+              onChange={(event) => setRemoteBranch(event.target.value)}
+              placeholder="cursor/existing-branch"
+              spellCheck={false}
+            />
+          </label>
+        </div>
+        <p className="muted">
+          复制 Prompt 时会把上面的远程仓库和分支作为 `BEGIN NDF GIT INPUT` 输入块写入。
+          本地 Agent 必须 checkout 该已有远程分支，不得另建替代 feature branch。
+        </p>
         {freshness !== "fresh" && (
           <div className="banner">Write CTAs are fail-closed until projection freshness is fresh.</div>
         )}

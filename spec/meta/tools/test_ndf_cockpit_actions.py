@@ -41,6 +41,16 @@ def _payload(**overrides: object) -> dict:
         "schema": "ndf-workflow-canvas-snapshot/v1",
         "repoBranch": "cursor/ndf-meta-integrate-pev95-063a",
         "repoHead": "abc123",
+        "repoRemote": "origin",
+        "repoRemoteUrl": "https://github.com/example/hnsw-predictor-ndf.git",
+        "repoUpstream": "origin/cursor/ndf-meta-integrate-pev95-063a",
+        "git": {
+            "remote": "origin",
+            "remoteUrl": "https://github.com/example/hnsw-predictor-ndf.git",
+            "branch": "cursor/ndf-meta-integrate-pev95-063a",
+            "upstreamRef": "origin/cursor/ndf-meta-integrate-pev95-063a",
+            "head": "abc123",
+        },
         "projectionFreshness": {"state": "fresh"},
         "business": {
             "identity": {
@@ -158,6 +168,9 @@ class ActionRegistryTest(unittest.TestCase):
                 "generated_at": "2026-08-15T00:00:00Z",
                 "repo_head": "abc",
                 "repo_branch": "cursor/existing-target",
+                "repo_remote": "origin",
+                "repo_remote_url": "https://github.com/example/hnsw-predictor-ndf.git",
+                "repo_upstream": "origin/cursor/existing-target",
                 "snapshot_sha": "def",
                 "evidence_generation": "def",
                 "embedded_projection": {"status": "unknown", "verified_path": None},
@@ -268,6 +281,8 @@ class ActionRegistryTest(unittest.TestCase):
         )
         self.assertIn("enabledActions", canvas)
         self.assertEqual(canvas["repoBranch"], "cursor/existing-target")
+        self.assertEqual(canvas["repoRemoteUrl"], "https://github.com/example/hnsw-predictor-ndf.git")
+        self.assertEqual(canvas["git"]["upstreamRef"], "origin/cursor/existing-target")
         self.assertIn("refresh-snapshot", canvas["enabledActions"])
         self.assertFalse(canvas["enabledActions"]["new-proposal"]["enabled"])
         launcher = actions.canvas_launcher_snapshot(canvas)
@@ -325,19 +340,63 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("BEGIN HUMAN PRODUCT INTENT", response["prompt"])
         self.assertIn("__NDF_HUMAN_INTENT__", response["prompt"])
 
-    def test_composer_and_snapshot_prompts_pin_existing_target_branch(self) -> None:
-        payload = _payload()
+    def test_composer_prompt_emits_remote_branch_input_block(self) -> None:
+        prompt = actions.composer_prompt("new-proposal", _payload(), intent="ship")
+        self.assertIn("BEGIN NDF GIT INPUT", prompt)
+        self.assertIn("remote_url=https://github.com/example/hnsw-predictor-ndf.git", prompt)
+        self.assertIn("remote_branch=cursor/ndf-meta-integrate-pev95-063a", prompt)
+        self.assertIn("upstream_ref=origin/cursor/ndf-meta-integrate-pev95-063a", prompt)
+        self.assertIn("END NDF GIT INPUT", prompt)
+        self.assertIn("git fetch origin cursor/ndf-meta-integrate-pev95-063a", prompt)
+        self.assertIn("git checkout cursor/ndf-meta-integrate-pev95-063a", prompt)
+        self.assertIn("git pull --ff-only origin cursor/ndf-meta-integrate-pev95-063a", prompt)
+
+    def test_composer_prompt_uses_request_remote_branch_override(self) -> None:
+        prompt = actions.composer_prompt(
+            "new-proposal",
+            _payload(),
+            intent="ship",
+            remote="origin",
+            remote_url="https://github.com/acme/repo.git",
+            branch="cursor/human-specified-branch",
+        )
+        self.assertIn("remote_url=https://github.com/acme/repo.git", prompt)
+        self.assertIn("remote_branch=cursor/human-specified-branch", prompt)
+        self.assertIn("upstream_ref=origin/cursor/human-specified-branch", prompt)
+        self.assertIn("git checkout cursor/human-specified-branch", prompt)
+
+    def test_standalone_git_input_uses_placeholders(self) -> None:
         for action_id in ("new-proposal", "refresh-snapshot"):
-            response = actions.standalone_action_template(action_id, payload)
-            prompt = response["prompt"]
-            self.assertIn(
-                "target_branch=cursor/ndf-meta-integrate-pev95-063a",
-                prompt,
-            )
+            prompt = actions.standalone_action_template(action_id, _payload())["prompt"]
+            self.assertIn("BEGIN NDF GIT INPUT", prompt)
+            self.assertIn("remote=__NDF_REMOTE__", prompt)
+            self.assertIn("remote_url=__NDF_REMOTE_URL__", prompt)
+            self.assertIn("remote_branch=__NDF_BRANCH__", prompt)
+            self.assertIn("upstream_ref=__NDF_UPSTREAM_REF__", prompt)
+            self.assertIn("git fetch __NDF_REMOTE__ __NDF_BRANCH__", prompt)
             self.assertIn("Do not create, rename, or switch to a replacement feature branch.", prompt)
-            self.assertIn("NDF runtime-lease worker MAY use its required isolated branch/worktree", prompt)
-            self.assertIn("pull --ff-only", prompt)
-            self.assertIn("never substitute a newly named branch", prompt)
+
+    def test_sanitize_git_remote_url_strips_credentials(self) -> None:
+        self.assertEqual(
+            workflow.sanitize_git_remote_url(
+                "https://x-access-token:ghs_secret@github.com/org/repo.git"
+            ),
+            "https://github.com/org/repo.git",
+        )
+        self.assertEqual(
+            workflow.sanitize_git_remote_url("git@github.com:org/repo.git"),
+            "git@github.com:org/repo.git",
+        )
+
+    def test_header_exposes_editable_remote_branch_inputs(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        self.assertIn('className="git-inputs"', source)
+        self.assertIn("远程仓库", source)
+        self.assertIn("远程分支", source)
+        self.assertIn("BEGIN NDF GIT INPUT", source)
+        api = (SRC / "api.ts").read_text(encoding="utf-8")
+        self.assertIn("__NDF_REMOTE_URL__", api)
+        self.assertIn("__NDF_BRANCH__", api)
 
     def test_control_pipeline_actions_live_on_bottom_command_surface(self) -> None:
         registry = actions.registry_by_id()

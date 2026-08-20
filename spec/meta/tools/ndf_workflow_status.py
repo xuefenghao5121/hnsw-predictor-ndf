@@ -23,7 +23,7 @@ from datetime import datetime, timezone
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterable, Mapping
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = ROOT / "spec"
@@ -1273,6 +1273,55 @@ def git_head() -> str | None:
 def git_branch() -> str | None:
     code, output = git("branch", "--show-current")
     return output if code == 0 and output else None
+
+
+def git_remote_name() -> str:
+    code, output = git("remote")
+    remotes = [line.strip() for line in output.splitlines() if line.strip()]
+    if "origin" in remotes:
+        return "origin"
+    return remotes[0] if remotes else "origin"
+
+
+def sanitize_git_remote_url(url: str) -> str:
+    value = (url or "").strip()
+    if not value or value.startswith("git@"):
+        return value
+    parsed = urlparse(value)
+    if parsed.scheme in {"http", "https"} and parsed.hostname:
+        netloc = parsed.hostname
+        if parsed.port:
+            netloc = f"{netloc}:{parsed.port}"
+        return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
+    return value
+
+
+def git_remote_url(name: str | None = None) -> str | None:
+    remote = name or git_remote_name()
+    code, output = git("remote", "get-url", remote)
+    if code != 0 or not output:
+        return None
+    return sanitize_git_remote_url(output)
+
+
+def git_upstream_ref() -> str | None:
+    code, output = git("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}")
+    return output if code == 0 and output else None
+
+
+def git_execution_binding() -> dict[str, str | None]:
+    remote = git_remote_name()
+    branch = git_branch()
+    upstream = git_upstream_ref()
+    if not upstream and remote and branch:
+        upstream = f"{remote}/{branch}"
+    return {
+        "remote": remote,
+        "remote_url": git_remote_url(remote),
+        "branch": branch,
+        "upstream": upstream,
+        "head": git_head(),
+    }
 
 
 TRUNK_GOLDEN_PATHS = ("src", "include", "tests")
@@ -5899,11 +5948,15 @@ def snapshot(
             for name, check in ((spec_health_view or {}).get("checks") or {}).items()
         }
         detail["workflow_meta"] = meta
+    git_binding = git_execution_binding()
     payload = {
         "schema": "ndf-workflow-snapshot/v2",
         "generated_at": now_iso(),
-        "repo_head": git_head(),
-        "repo_branch": git_branch(),
+        "repo_head": git_binding["head"],
+        "repo_branch": git_binding["branch"],
+        "repo_remote": git_binding["remote"],
+        "repo_remote_url": git_binding["remote_url"],
+        "repo_upstream": git_binding["upstream"],
         "snapshot_sha": generation_sha,
         "evidence_generation": generation_sha,
         "generation_layers": {
@@ -5916,7 +5969,7 @@ def snapshot(
             "verified_path": None,
         },
         "payload_binding": {
-            "repo_head": git_head(),
+            "repo_head": git_binding["head"],
             "source_generation_sha": generation_sha,
         },
         "projection_freshness": projection_freshness(generation_sha),
@@ -6380,6 +6433,16 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
         "generatedAt": payload["generated_at"],
         "repoHead": (payload["repo_head"] or "")[:12],
         "repoBranch": payload.get("repo_branch"),
+        "repoRemote": payload.get("repo_remote") or "origin",
+        "repoRemoteUrl": payload.get("repo_remote_url"),
+        "repoUpstream": payload.get("repo_upstream"),
+        "git": {
+            "remote": payload.get("repo_remote") or "origin",
+            "remoteUrl": payload.get("repo_remote_url"),
+            "branch": payload.get("repo_branch"),
+            "upstreamRef": payload.get("repo_upstream"),
+            "head": (payload["repo_head"] or "")[:12],
+        },
         "snapshotSha": payload["snapshot_sha"],
         "evidenceGeneration": payload.get("evidence_generation"),
         "embeddedProjection": payload.get("embedded_projection"),
@@ -7044,6 +7107,9 @@ def serve_commander(
                         intent=intent,
                         topic=ctx.get("topicId"),
                         episode_id=ctx.get("episodeId"),
+                        remote=str(body.get("remote") or "") or None,
+                        remote_url=str(body.get("remoteUrl") or body.get("remote_url") or "") or None,
+                        branch=str(body.get("branch") or "") or None,
                     )
                     self._send_json(
                         {

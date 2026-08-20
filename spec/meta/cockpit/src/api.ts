@@ -14,6 +14,9 @@ export type ActionRequest = {
   topic?: string;
   episode?: string;
   timelineStep?: number;
+  remote?: string;
+  remoteUrl?: string;
+  branch?: string;
 };
 
 export type ActionResponse = {
@@ -43,6 +46,36 @@ export async function loadSnapshot(): Promise<Snapshot> {
   }
 }
 
+function gitInputs(request: ActionRequest): {
+  remote: string;
+  remoteUrl: string;
+  branch: string;
+  upstream: string;
+} {
+  const snapshot = window.__NDF_SNAPSHOT__;
+  const remote =
+    request.remote?.trim() ||
+    snapshot?.git?.remote ||
+    snapshot?.repoRemote ||
+    "origin";
+  const remoteUrl =
+    request.remoteUrl?.trim() ||
+    snapshot?.git?.remoteUrl ||
+    snapshot?.repoRemoteUrl ||
+    "<unresolved-remote-url>";
+  const branch =
+    request.branch?.trim() ||
+    snapshot?.git?.branch ||
+    snapshot?.repoBranch ||
+    "<unresolved-target-branch>";
+  return {
+    remote,
+    remoteUrl,
+    branch,
+    upstream: `${remote}/${branch}`,
+  };
+}
+
 export async function dispatchAction(request: ActionRequest): Promise<ActionResponse> {
   if (window.__NDF_STANDALONE__) {
     const template = window.__NDF_ACTION_RESPONSES__?.[request.id];
@@ -57,11 +90,16 @@ export async function dispatchAction(request: ActionRequest): Promise<ActionResp
       request.episode ||
       window.__NDF_SNAPSHOT__?.replay?.focused?.id ||
       "<episode>";
+    const git = gitInputs(request);
     const replace = (value?: string | null) =>
       value
         ?.replaceAll("__NDF_HUMAN_INTENT__", request.intent?.trim() || "<human intent required>")
         .replaceAll("__NDF_TOPIC__", topic)
-        .replaceAll("__NDF_EPISODE__", episode);
+        .replaceAll("__NDF_EPISODE__", episode)
+        .replaceAll("__NDF_REMOTE__", git.remote)
+        .replaceAll("__NDF_REMOTE_URL__", git.remoteUrl)
+        .replaceAll("__NDF_BRANCH__", git.branch)
+        .replaceAll("__NDF_UPSTREAM_REF__", git.upstream);
     return {
       ...template,
       prompt: replace(template.prompt),
