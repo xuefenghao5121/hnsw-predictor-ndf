@@ -20,6 +20,50 @@ SNAPSHOT_OUT = TOOLS.parents[2] / "tmp" / "ndf-canvas-snapshot.json"
 WRITE_DISPATCH = frozenset({"composer", "snapshot"})
 LEGACY_EMBED_ACTION_IDS = frozenset({"refresh-snapshot"})
 
+# Pack CLI → afterShellExecution hook → OpenClaw / Claude Code ACP.
+DELEGATE_OPENCLAW = frozenset(
+    {
+        "new-proposal",
+        "gate-pipeline",
+        "binder-pipeline",
+        "binder-amend",
+        "design-prepare",
+        "repair-kernel",
+        "submit-process-improvement",
+        "land-confirm",
+        "land-review",
+        "new-genesis",
+    }
+)
+DELEGATE_ACP = frozenset(
+    {
+        "poc-prepare-baseline",
+        "poc-isolation-repair",
+        "poc-measurement",
+        "delegate-poc",
+        "prepare-acp-lease",
+    }
+)
+PACK_DELEGATE_ACTIONS = DELEGATE_OPENCLAW | DELEGATE_ACP
+
+
+def delegate_target_for_action(action_id: str) -> str:
+    """Return openclaw | claude-code-acp | none for a catalog action."""
+    if action_id in DELEGATE_OPENCLAW:
+        return "openclaw"
+    if action_id in DELEGATE_ACP:
+        return "claude-code-acp"
+    return "none"
+
+
+def delegate_hint_zh(action_id: str) -> str:
+    target = delegate_target_for_action(action_id)
+    if target == "openclaw":
+        return "将委派 OpenClaw"
+    if target == "claude-code-acp":
+        return "将委派 Claude Code ACP"
+    return "本按钮不自动委派工作者"
+
 
 @lru_cache(maxsize=1)
 def load_registry() -> dict[str, Any]:
@@ -477,7 +521,26 @@ def dispatch_prompt_header(action: Mapping[str, Any]) -> list[str]:
     tool = action.get("tool")
     if not command or not skill or not tool:
         raise ValueError(f"{action.get('id')} missing command/skill/tool mapping")
-    return [str(command), f"skill={skill}", f"tool={tool}"]
+    action_id = str(action.get("id") or "")
+    target = delegate_target_for_action(action_id)
+    lines = [str(command), f"skill={skill}", f"tool={tool}", f"delegate_to={target}"]
+    if action_id in PACK_DELEGATE_ACTIONS:
+        lines.extend(
+            [
+                "delegate_hook=afterShellExecution",
+                (
+                    "Command Agent MUST NOT perform the worker write. "
+                    "This chat only runs the unique tool= pack CLI."
+                ),
+                (
+                    "If the pack JSON is not safe_to_dispatch, stop. "
+                    "Do not copy files. Do not invent chat_send."
+                ),
+            ]
+        )
+    else:
+        lines.append("delegate_hook=none")
+    return lines
 
 
 def action_prompt_relpath(catalog_action_id: str) -> str:
@@ -529,6 +592,7 @@ def composer_prompt(
     )
     may_write = [str(item) for item in (action.get("mayWrite") or []) if str(item).strip()]
     must_not = [str(item) for item in (action.get("mustNotWrite") or []) if str(item).strip()]
+    pack_delegate = action_id in PACK_DELEGATE_ACTIONS
     lines = [
         *dispatch_prompt_header(action),
         *_git_execution_contract(
@@ -549,44 +613,79 @@ def composer_prompt(
         f"Follow {action.get('skill')} and {action.get('command')}.",
         f"Use catalog_action_id={action_id} whenever this skill is shared with other buttons.",
         click_rule,
-        (
-            "Wrap mutating work (concrete ids; only --action-id comes from action-begin JSON):"
-        ),
-        (
-            "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
-            f"--operation {operation} --catalog-action-id {action_id}"
-            + (f" --topic {topic_token}" if topic_id else "")
-            + " --json"
-        ),
-        (
-            "# then run the unique tool= CLI for this catalog_action_id "
-            "(see body below; do not invent a sibling button's task)"
-        ),
-        (
-            "python3 spec/meta/tools/ndf_workflow_status.py action-commit "
-            f"--action-id <from action-begin JSON> --catalog-action-id {action_id} "
-            f"--prompt-file {prompt_rel} --json"
-        ),
-        (
-            "python3 spec/meta/tools/ndf_workflow_status.py action-finish "
-            "--action-id <from action-begin JSON> --result success|failed --json"
-        ),
-        (
-            "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
-            "--out tmp/ndf-canvas-snapshot.json --json"
-        ),
-        (
-            f"action-commit stages mayWrite for catalog_action_id={action_id}, commits with "
-            f"`ndf-action: {action_id}` when dirty (skip if clean), and records button-action "
-            "baselineSha→resultSha. Stop hook may re-run the same commit idempotently."
-        ),
-        (
-            "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
-            "that page auto-reloads the written snapshot. Do not curl localhost:8081. "
-            "htmlpreview or docs/ndf-commander.html is static: rebuild HTML then refresh the browser."
-        ),
-        "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现.",
     ]
+    if pack_delegate:
+        lines.extend(
+            [
+                (
+                    "Wrap: action-begin (concrete ids) → unique pack CLI below → STOP. "
+                    "Do not action-commit here; afterShellExecution hook sends the worker, "
+                    "waits for result, then completion-record → action-commit → snapshot."
+                ),
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
+                    f"--operation {operation} --catalog-action-id {action_id}"
+                    + (f" --topic {topic_token}" if topic_id else "")
+                    + " --json"
+                ),
+                (
+                    "# then run the unique tool= pack CLI for this catalog_action_id "
+                    "(see body below; do not invent a sibling button's task)"
+                ),
+                (
+                    "Stop after pack JSON. MUST NOT write poc/<topic>/src/. MUST NOT cp Trunk. "
+                    "MUST NOT call openclaw.chat_send or invent ACP start from this chat."
+                ),
+                (
+                    "mayWrite below is the *worker* boundary after hook dispatch — "
+                    "not permission for Command Agent to write those paths."
+                ),
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                (
+                    "Wrap mutating work (concrete ids; only --action-id comes from action-begin JSON):"
+                ),
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
+                    f"--operation {operation} --catalog-action-id {action_id}"
+                    + (f" --topic {topic_token}" if topic_id else "")
+                    + " --json"
+                ),
+                (
+                    "# then run the unique tool= CLI for this catalog_action_id "
+                    "(see body below; do not invent a sibling button's task)"
+                ),
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py action-commit "
+                    f"--action-id <from action-begin JSON> --catalog-action-id {action_id} "
+                    f"--prompt-file {prompt_rel} --json"
+                ),
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py action-finish "
+                    "--action-id <from action-begin JSON> --result success|failed --json"
+                ),
+                (
+                    "python3 spec/meta/tools/ndf_workflow_status.py snapshot "
+                    "--out tmp/ndf-canvas-snapshot.json --json"
+                ),
+                (
+                    f"action-commit stages mayWrite for catalog_action_id={action_id}, commits with "
+                    f"`ndf-action: {action_id}` when dirty (skip if clean), and records button-action "
+                    "baselineSha→resultSha. Stop hook may re-run the same commit idempotently."
+                ),
+                (
+                    "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
+                    "that page auto-reloads the written snapshot. Do not curl localhost:8081. "
+                    "htmlpreview or docs/ndf-commander.html is static: rebuild HTML then refresh the browser."
+                ),
+            ]
+        )
+    lines.append(
+        "MUST NOT write .openclaw/state.json from Cursor. MUST NOT invent 已确认 / TOPIC已审核 / 可以开始实现."
+    )
     if may_write:
         lines.append("mayWrite: " + ", ".join(may_write))
     if must_not:
@@ -637,7 +736,7 @@ def composer_prompt(
             "python3 spec/meta/tools/ndf_workflow_status.py control-pack "
             f"--task control_proposal --intent-file {product_intent_rel} --json"
         )
-        lines.append("MUST NOT create poc/ before 已确认. MUST NOT write spec/meta/open/.")
+        lines.append("Stop after pack JSON; hook sends OpenClaw. MUST NOT create poc/ before 已确认. MUST NOT write spec/meta/open/.")
     elif action_id == "align-golden":
         lines.append(
             f"Unique tool for catalog_action_id={action_id}: {action.get('tool')}"
@@ -654,13 +753,13 @@ def composer_prompt(
             "--task ndf_improvement_proposal --origin human_intent "
             f"--intent-file {process_intent_rel} --json"
         )
-        lines.append("Draft spec/meta/open/ only. Status: Pending confirmation.")
+        lines.append("Stop after pack JSON; hook sends OpenClaw. Draft spec/meta/open/ only. Status: Pending confirmation.")
     elif action_id == "repair-kernel":
         lines.append(
             "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
             "--task ndf_improvement_proposal --origin health_finding --json"
         )
-        lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Actual openclaw.chat_send.")
+        lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id in {"land-confirm", "land-review"}:
         proposal = proposal_path or "PROPOSAL_PATH_REQUIRED"
         lines.append(f"proposal_path={proposal}")
@@ -699,17 +798,18 @@ def composer_prompt(
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json"
         )
-        lines.append("Require static_preflight_passed and runtime_dispatch_ready. Then acp-delegate.md#poc.")
-        lines.append("POST_DISPATCH_SYNC. Worker markdown is not the command surface.")
+        lines.append(
+            "Require static_preflight_passed and runtime_dispatch_ready. "
+            "Stop after pack JSON; hook sends Claude Code ACP. See acp-delegate.md#poc."
+        )
+        lines.append("Worker markdown is not the command surface.")
     elif action_id == "prepare-acp-lease":
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json"
         )
         lines.append(
-            "python3 spec/meta/tools/ndf_workflow_status.py lease-record "
-            "--file tmp/lease.json --json"
+            "Stop after pack JSON. Hook runs lease-record only (no implementation start)."
         )
-        lines.append("context-verify + full handshake + lease-record. Do not start implementation.")
         lines.append("Follow .cursor/skills/ndf-workflow-canvas/acp-delegate.md runtime lease.")
     elif action_id == "design-prepare":
         lines.append(f"topic={topic_token}")
@@ -721,7 +821,7 @@ def composer_prompt(
             f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
             "--task binder_pipeline --focus-binder-facet design --json"
         )
-        lines.append("Actual openclaw.chat_send. Composer creation alone is not acknowledged.")
+        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
         lines.append(
             "MUST NOT write GATES.md approved_by. MUST NOT invent TOPIC已审核 / DESIGN已审核 / 可以开始实现."
         )
@@ -730,24 +830,28 @@ def composer_prompt(
             f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
             "--task gate_pipeline --json"
         )
-        lines.append("Actual openclaw.chat_send. Composer creation alone is not acknowledged.")
+        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id == "binder-pipeline":
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
             "--task binder_pipeline --json"
         )
-        lines.append("Actual openclaw.chat_send. Composer creation alone is not acknowledged.")
+        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id == "binder-amend":
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
             "--task binder_amend --json"
         )
-        lines.append("Actual openclaw.chat_send. Composer creation alone is not acknowledged.")
+        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id in {"poc-prepare-baseline", "poc-isolation-repair", "poc-measurement"}:
         task = str(action.get("task") or "")
         lines.append(
             f"python3 spec/meta/tools/ndf_workflow_status.py repair-pack --topic {topic_token} "
             f"--task {task} --json"
+        )
+        lines.append(
+            "Stop after pack JSON. If not safe_to_dispatch, report blockers and stop. "
+            "Hook sends Claude Code ACP for the worker write."
         )
     elif action_id in {"guest-replay-hop", "guest-replay-prefix"}:
         hop_id = (

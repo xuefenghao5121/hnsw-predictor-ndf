@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Fail-open stop hook: if a commander hop started and has no button-action yet,
 # run action-commit + snapshot. Never dispatches OpenClaw/ACP.
+# Prefer afterShellExecution dispatch-send closeout for pack hops; this only
+# backfills when that path did not record a button-action.
 set -u
 input="$(cat || true)"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

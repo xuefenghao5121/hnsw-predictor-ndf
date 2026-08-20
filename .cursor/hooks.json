@@ -6,6 +6,13 @@
         "command": ".cursor/hooks/ndf-action-commit-snapshot.sh",
         "timeout": 120
       }
+    ],
+    "afterShellExecution": [
+      {
+        "command": ".cursor/hooks/ndf-dispatch-after-pack.sh",
+        "timeout": 960,
+        "matcher": "ndf_workflow_status\\.py.*(control-pack|project-control-pack|genesis-pack|repair-pack|\\bpack\\b)"
+      }
     ]
   }
 }

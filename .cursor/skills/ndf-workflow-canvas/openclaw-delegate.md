@@ -23,28 +23,21 @@ conductor session. Read `session_key` from `AGENTS.md`; never hardcode.
   Trust `context-verify.valid` and topic-health `state=valid` / `sha_aligned`; do not
   treat manifest-only inequality as a stop.
 
-## Bridge sequence (Composer)
+## Bridge sequence (Composer → hook)
 
 ```text
 0. EXECUTE now. Do not explain/return this template or stop after newComposerChat.
 1. Prefer resume: control-pack --topic <t> --task <task> --episode <active> --resume [--focus-gate|--focus-binder-facet] --json
    Else: control-pack --topic <t> --task gate_pipeline|binder_pipeline|… --episode <new> --json
-2. Create/preserve request_id. control-dispatch-record state=requested.
-3. If safe_to_delegate is false, record state=blocked + blockers; fail action and refresh.
-4. Cite manifest_sha, OpenClaw context_plan.plan_sha and episode_id; context-verify.
-5. Write ndf-agent-message/v1 request with request_id + pipeline; message-record request.
-   Then control-dispatch-record state=sent.
-6. Discover OpenClaw MCP schema and ACTUALLY call openclaw.chat_send. Do not delegate this
-   call back to the user and do not stop until a result returns.
-7. Write the exact MCP result as matching ndf-agent-message/v1 response; message-record
-   response; then control-dispatch-record state=acknowledged.
-8. Gate: record waiting_human when next_human_phrase returns. Binder: continue only POC NDF /
+2. Command Agent STOPS after pack JSON. MUST NOT call openclaw.chat_send from Composer.
+3. afterShellExecution hook runs dispatch-send when safe_to_dispatch (or safe_to_delegate + runtime).
+   Hook writes ndf-agent-message request path evidence, sends via OpenClaw CLI/gateway,
+   waits for response, then completion → action-commit → snapshot.
+4. If pack is not safe, hook does not send; Command Agent reports blockers only.
+5. Gate: record waiting_human when next_human_phrase returns. Binder: continue only POC NDF /
    workflow preparation. Never dispatch Claude Code here.
-9. Continue in the SAME OpenClaw session until pipeline steps finish; record each step:
-   pipeline-step-record --pipeline gate|binder --kind <event> --step-id <id> --episode <id>
-10. On MCP/error paths record state=blocked. Always action-finish + topic-health + snapshot.
-11. Success requires openclaw.response + acknowledged receipts; Composer creation alone is
-    never success.
+6. Success requires worker response + succeeded closeout; Composer creation / sent alone is
+   never success. Stop hook may backfill action-commit + snapshot only if still missing.
 ```
 
 ## Workspace binding (all tasks)

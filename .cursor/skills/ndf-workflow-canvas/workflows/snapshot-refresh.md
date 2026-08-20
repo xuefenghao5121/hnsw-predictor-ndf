@@ -19,16 +19,22 @@ On a machine running `snapshot --serve` at `http://127.0.0.1:8765`, writing
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json
 ```
 
-Optional deep probe (slow):
+Optional deep probe (slow; doctor):
 
 ```bash
-python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --probe-runtime --json
+python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --probe-runtime full --json
+```
+
+Agents-page light probe (OpenClaw health + Claude CLI/resume, no doctor):
+
+```bash
+python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --probe-runtime light --json
 ```
 
 ## Sequence
 
 1. GIT INPUT checkout of `remote_branch`.
-2. Unique CLI (fast rebuild by default; `--probe-runtime` only when requested).
+2. Unique CLI (fast rebuild by default; `--probe-runtime light|full` only when requested).
 3. Unchanged Merkle layers MUST NOT re-run graphcheck.
 4. `python3 spec/meta/cockpit/build_standalone.py`
 5. MUST NOT write `spec/` or `poc/`.

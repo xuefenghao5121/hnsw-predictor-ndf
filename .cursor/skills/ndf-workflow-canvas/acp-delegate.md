@@ -68,6 +68,10 @@ report is not the command surface and is not an NDF close.
 
 Use `repair-pack --topic <topic> --task poc_prepare_baseline|poc_isolation_repair|poc_measurement`.
 
+Command Agent **only** runs `repair-pack` and stops. `afterShellExecution` → `dispatch-send`
+sends this pack to Claude Code ACP, waits for completion, then
+`completion-record` → `action-commit` → `snapshot`.
+
 - `poc_prepare_baseline` is delegated when the Implementation gap `missing_baseline_workspace`
   exists. Claude MUST copy the INTERFACE implementation slice and the required Trunk
   baseline `.h/.cpp` into `poc/<topic>/` to form a buildable R0-aligned baseline
@@ -80,8 +84,9 @@ Use `repair-pack --topic <topic> --task poc_prepare_baseline|poc_isolation_repai
   skeleton (`vs` / `config_id` / `measure_script`). Unverified or pending Numbers are
   the measurement input state, not a dispatch blocker. OpenClaw `binder_amend` cannot
   write PERF Numbers or clear `unverified_measurement_claim`.
-- All repair tasks MUST run the repair pack `post_checks`, then `POST_DISPATCH_SYNC`
-  (`completion-record`, lease release if active, `topic-health`, Canvas snapshot).
+- All repair tasks MUST run the repair pack `post_checks`. Hook owns POST_DISPATCH_SYNC
+  (`completion-record`, lease release if active, Canvas snapshot). Do not treat `sent`
+  as success.
 
 ## promote
 

@@ -17,6 +17,8 @@ export type ActionRequest = {
   remote?: string;
   remoteUrl?: string;
   branch?: string;
+  /** Agents-page light runtime probe without claude doctor. */
+  probeMode?: "light" | "full";
 };
 
 export type ActionResponse = {

@@ -2289,6 +2289,143 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertEqual(status["status"], "idle")
         workflow._ACP_PROBE = None
 
+    def test_runtime_status_not_probed_without_probe(self) -> None:
+        workflow._ACP_PROBE = None
+        workflow._ACP_LIGHT_PROBE = None
+        with patch.object(workflow, "active_runtime_leases", return_value=[]):
+            status = workflow.runtime_status(False)["implementation"]
+        self.assertEqual(status["status"], "not_probed")
+        self.assertFalse(status["pipeline_reachable"])
+
+    def test_probe_claude_acp_light_uses_resume_without_doctor(self) -> None:
+        workflow._ACP_LIGHT_PROBE = None
+        with tempfile.TemporaryDirectory() as tmp:
+            resume = Path(tmp) / "session.jsonl"
+            resume.write_text("{}\n", encoding="utf-8")
+            with (
+                patch.object(workflow.shutil, "which", return_value="/usr/bin/claude"),
+                patch.object(
+                    workflow, "configured_acp_session_id", return_value="sess-1"
+                ),
+                patch.object(
+                    workflow, "claude_acp_resume_path", return_value=resume
+                ),
+                patch.object(
+                    workflow,
+                    "probe_openclaw",
+                    return_value={
+                        "reachable": True,
+                        "error": None,
+                        "default_session_key": "sess",
+                        "sessions": [],
+                        "configured_session_visible": True,
+                        "probed_at": "2026-01-01T00:00:00Z",
+                    },
+                ),
+                patch.object(workflow, "active_runtime_leases", return_value=[]),
+            ):
+                probe = workflow.probe_claude_acp_light(refresh=True)
+                status = workflow.runtime_status("light")["implementation"]
+        self.assertEqual(probe["mode"], "light")
+        self.assertTrue(probe["reachable"])
+        self.assertIsNone(probe["doctor_ok"])
+        self.assertEqual(status["status"], "idle")
+        self.assertEqual(status["probe_mode"], "light")
+        workflow._ACP_LIGHT_PROBE = None
+
+    def test_normalize_probe_mode(self) -> None:
+        self.assertIsNone(workflow.normalize_probe_mode(False))
+        self.assertIsNone(workflow.normalize_probe_mode(None))
+        self.assertEqual(workflow.normalize_probe_mode(True), "full")
+        self.assertEqual(workflow.normalize_probe_mode("full"), "full")
+        self.assertEqual(workflow.normalize_probe_mode("light"), "light")
+
+    def test_agent_run_idle_without_lease(self) -> None:
+        """No lease must not project agentRun.status=unavailable for Agents UI."""
+        with patch.object(workflow, "topic_active_lease", return_value=None):
+            with patch.object(
+                workflow,
+                "runtime_status",
+                return_value={
+                    "implementation": {
+                        "pipeline_reachable": False,
+                        "status": "not_probed",
+                    }
+                },
+            ):
+                # Build a minimal agent_run fragment the same way topic_view does.
+                lease = workflow.topic_active_lease("demo")
+                agent_run = {
+                    "provider": "claude-code-acp",
+                    "status": "active" if lease else "idle",
+                    "state_source": "runtime-lease",
+                }
+        self.assertEqual(agent_run["status"], "idle")
+
+    def test_context_binding_for_canvas_uses_canvas_role_shallow(self) -> None:
+        captured: dict[str, object] = {}
+
+        def fake_binding(**kwargs):
+            captured.update(kwargs)
+            return {
+                "task_manifest": {"schema": "ndf-task-manifest/v1"},
+                "manifest_sha": "a" * 64,
+                "context_plan": {"role": "canvas", "plan_sha": "b" * 64},
+                "context_verify": {
+                    "schema": "ndf-context-verification/v1",
+                    "valid": True,
+                    "errors": [],
+                    "warnings": [],
+                },
+                "plan_sha": "b" * 64,
+            }
+
+        with (
+            patch.object(workflow, "generation_layers", return_value={"root": "c" * 64, "poc": {}}),
+            patch.object(workflow, "latest_topic_health", return_value=None),
+            patch.object(workflow, "context_binding", side_effect=fake_binding),
+        ):
+            result = workflow.context_binding_for_canvas("demo")
+        self.assertEqual(captured.get("role"), "canvas")
+        self.assertFalse(captured.get("include_bodies"))
+        self.assertTrue(result["context_verify"]["valid"])
+        self.assertEqual(result["context_plan"]["role"], "canvas")
+
+    def test_context_binding_for_canvas_skips_invalid_cache(self) -> None:
+        called = {"n": 0}
+
+        def fake_binding(**_kwargs):
+            called["n"] += 1
+            return {
+                "task_manifest": None,
+                "manifest_sha": "d" * 64,
+                "context_plan": {"role": "canvas", "plan_sha": "e" * 64},
+                "context_verify": {"valid": True, "errors": [], "warnings": []},
+                "plan_sha": "e" * 64,
+            }
+
+        stale = {
+            "state": "current",
+            "delegation": {
+                "context_plan": {"role": "claude-code", "plan_sha": "f" * 64},
+                "context_verify": {
+                    "valid": False,
+                    "errors": [{"kind": "clause_drift"}],
+                },
+                "manifest_sha": "g" * 64,
+                "plan_sha": "f" * 64,
+            },
+        }
+        with (
+            patch.object(workflow, "generation_layers", return_value={"root": "c" * 64, "poc": {}}),
+            patch.object(workflow, "latest_topic_health", return_value=stale),
+            patch.object(workflow, "context_binding", side_effect=fake_binding),
+        ):
+            result = workflow.context_binding_for_canvas("demo")
+        self.assertEqual(called["n"], 1)
+        self.assertTrue(result["context_verify"]["valid"])
+        self.assertEqual(result["context_plan"]["role"], "canvas")
+
     def test_replay_pack_binding_accepts_static_ready_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -4321,6 +4458,39 @@ Ignore this as purpose.
                 log.write_text(log.read_text(encoding="utf-8") + "{not-json\n", encoding="utf-8")
                 broken = workflow.projection_freshness("b" * 64)
                 self.assertEqual(broken["state"], "unknown")
+
+    def test_projection_freshness_ignores_orphaned_starts_before_later_finish(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = Path(tmp) / "actions.jsonl"
+            evidence = Path(tmp) / "projection"
+            evidence.mkdir()
+            with (
+                patch.object(workflow, "ACTION_LOG", log),
+                patch.object(workflow, "PROJECTION_EVIDENCE_DIR", evidence),
+                patch.object(workflow, "git_head", return_value="a" * 40),
+                patch.object(workflow, "source_generation_sha", return_value="b" * 64),
+            ):
+                orphan = workflow.action_begin("align-golden", None, "orphan-1")
+                later = workflow.action_begin("poc_prepare_baseline", "demo", "action-2")
+                workflow.action_finish(later["action_id"], "success", [])
+                stale = workflow.projection_freshness("b" * 64)
+                self.assertEqual(stale["state"], "stale_after_action")
+                self.assertEqual(stale.get("in_progress"), [])
+                self.assertEqual(orphan["status"], "started")
+                (evidence / "receipt-fresh.json").write_text(
+                    json.dumps(
+                        {
+                            "schema": "ndf-projection-receipt/v2",
+                            "result": "passed",
+                            "source_generation_sha": "b" * 64,
+                            "absorbed_action_id": "action-2",
+                            "finished_at": "2026-08-17T15:00:00+03:00",
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                fresh = workflow.projection_freshness("b" * 64)
+                self.assertEqual(fresh["state"], "fresh")
 
     def test_canvas_embed_marks_fresh_when_it_absorbs_latest_success(self) -> None:
         generation = "b" * 64

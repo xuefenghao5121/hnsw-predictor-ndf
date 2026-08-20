@@ -26,7 +26,11 @@ export type Snapshot = {
   snapshotSha?: string;
   payloadSha?: string;
   absorbedActionId?: string | null;
-  projectionFreshness?: { state?: string; latest_action?: Record<string, unknown> };
+  projectionFreshness?: {
+    state?: string;
+    latest_action?: Record<string, unknown>;
+    in_progress?: string[];
+  };
   enabledActions?: Record<string, EnabledAction>;
   business?: {
     identity?: {
@@ -111,6 +115,7 @@ export type Snapshot = {
       provider?: string;
       status?: string;
       pipelineReachable?: boolean | null;
+      probeMode?: string | null;
       defaultSession?: string;
       activeRuns?: unknown[];
       cliAvailable?: boolean | null;
@@ -126,6 +131,7 @@ export type Snapshot = {
       defaultSessionKey?: string;
       reachable?: boolean | null;
       configuredSessionVisible?: boolean | null;
+      probeError?: string | null;
       probe?: unknown;
       workspace?: RuntimeWorkspace;
     };
@@ -227,7 +233,10 @@ export type FocusedTopic = TopicRow & {
     static_preflight_passed?: boolean;
     runtime_dispatch_ready?: boolean;
     context_plan?: { role?: string; plan_sha?: string; read_count?: number };
-    context_verify?: { valid?: boolean; errors?: Array<{ kind?: string; message?: string }> };
+    context_verify?: {
+      valid?: boolean;
+      errors?: Array<{ kind?: string; message?: string }>;
+    };
     dispatch_blockers?: string[];
     evaluated_at?: string;
   };

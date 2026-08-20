@@ -257,7 +257,24 @@ def _proposal_paths(topic_text: str, ndf_dir: Path, root: Path) -> list[Path]:
             if path.is_file():
                 candidates.append(path)
                 break
-    return sorted({path.resolve() for path in candidates}, key=lambda p: _rel(p, root))
+    unique = sorted({path.resolve() for path in candidates}, key=lambda p: _rel(p, root))
+    # Stub pointers under ndf/proposals/ without proposal_contract markers must
+    # not enter gate_bundle_specs: a single missing_gate_slice error nulls
+    # expected_content_sha for every gate (breaks repair-pack / context-verify
+    # while topic_view, which only hashes spec/open/, still looks valid).
+    with_contract: list[Path] = []
+    for path in unique:
+        text = _read(path)
+        if (
+            "ndf:gate-slice begin=proposal_contract" in text
+            or "ndf:gate-slice:start id=proposal_contract" in text
+            or 'id="proposal_contract"' in text
+            or re.search(r"gate-slice[^>\n]*proposal_contract", text)
+        ):
+            with_contract.append(path)
+    # Prefer contract-bearing paths only. Falling back to marker-less stubs
+    # would reintroduce gate_sha expected=null via missing_gate_slice.
+    return with_contract
 
 
 def binder_paths(root: Path, topic: str | None) -> list[Path]:
@@ -381,14 +398,16 @@ def graph_closure(
         if clause is None:
             missing.append(cid)
             continue
+        # clause_sha always fingerprints clause body so shallow Canvas
+        # previews (include_bodies=False) do not fake-drift against verify.
+        text_for_sha = _clause_text(clause, root)
+        clause_sha = canonical_json_sha(text_for_sha)
         if include_bodies:
-            text = _clause_text(clause, root)
+            text = text_for_sha
             size = len(text.encode("utf-8"))
-            clause_sha = canonical_json_sha(text)
         else:
             text = ""
             size = 0
-            clause_sha = canonical_json_sha(cid)
         if include_bodies and bytes_used + size > byte_budget:
             truncated.append("byte_budget")
             continue
@@ -907,6 +926,7 @@ def create_manifest(
             "depth": depth,
             "node_budget": node_budget,
             "byte_budget": byte_budget,
+            "include_bodies": include_bodies,
             "requested_seed_ids": list(requested_seeds),
         },
         "workspace": source["workspace"],
@@ -1129,6 +1149,7 @@ def verify_manifest_current(
             depth=int(policy.get("depth", 2)),
             node_budget=int(policy.get("node_budget", 80)),
             byte_budget=int(policy.get("byte_budget", 256_000)),
+            include_bodies=bool(policy.get("include_bodies", True)),
         )
         drifted = [
             field

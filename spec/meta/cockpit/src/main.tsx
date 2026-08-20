@@ -34,14 +34,16 @@ function pipelineStateLabel(state?: string): string {
     not_dispatched: "尚未派发",
     preparing: "正在准备",
     requested: "正在准备",
-    sent: "已发送",
-    acknowledged: "OpenClaw 已接收",
+    sent: "已发出，等待结果",
+    awaiting_result: "已发出，等待结果",
+    acknowledged: "已接收，执行中",
     waiting_human: "等待人口令",
     running: "执行中",
     in_progress: "执行中",
-    blocked: "阻塞",
-    failed: "阻塞",
-    succeeded: "已完成",
+    blocked: "失败 / 阻塞",
+    failed: "失败",
+    delivery_unknown: "发出状态未知",
+    succeeded: "成功",
   };
   return labels[state || ""] || state || "尚未派发";
 }
@@ -166,7 +168,13 @@ function App() {
   const run = useCallback(
     async (
       id: string,
-      extra?: { intent?: string; topic?: string; episode?: string; timelineStep?: number },
+      extra?: {
+        intent?: string;
+        topic?: string;
+        episode?: string;
+        timelineStep?: number;
+        probeMode?: "light" | "full";
+      },
     ) => {
       const action = requireAction(id);
       if (action.dispatch === "projection_only") {
@@ -187,10 +195,31 @@ function App() {
         }
         if (result.prompt) {
           setCopied(false);
+          const delegateHint =
+            id === "poc-prepare-baseline" ||
+            id === "poc-isolation-repair" ||
+            id === "poc-measurement" ||
+            id === "delegate-poc" ||
+            id === "prepare-acp-lease"
+              ? "将委派 Claude Code ACP"
+              : id === "new-proposal" ||
+                  id === "gate-pipeline" ||
+                  id === "binder-pipeline" ||
+                  id === "binder-amend" ||
+                  id === "design-prepare" ||
+                  id === "repair-kernel" ||
+                  id === "submit-process-improvement" ||
+                  id === "land-confirm" ||
+                  id === "land-review" ||
+                  id === "new-genesis"
+                ? "将委派 OpenClaw"
+                : "本按钮不自动委派工作者";
           setDialog({
             title: `复制委派 Prompt · 不自动执行 · ${action.label} · ${remoteName}/${remoteBranch || "unspecified-branch"}`,
             hint:
-              "粘贴到 Agent 后执行。结束时 stop hook 只补 action-commit + snapshot（已提交则 skip）。按钮本身不派工。",
+              `${delegateHint}。粘贴到 Command Agent 后只组 pack；` +
+              `safe_to_dispatch 时 afterShellExecution hook 发出并等到回执后 action-commit + snapshot。` +
+              `按钮本身不派工；sent/acknowledged 不是成功。`,
             body: result.prompt,
             kind: "composer",
           });
@@ -254,36 +283,86 @@ function App() {
           ? "reachable"
           : snapshot?.runtime?.control?.reachable === false
             ? "unavailable"
-            : "not probed",
+            : "not_probed",
       session: snapshot?.runtime?.control?.defaultSessionKey || "no configured session",
       workspace: `${snapshot?.runtime?.control?.workspace?.state || "unknown"} · match ${String(snapshot?.runtime?.control?.workspace?.match)}`,
       boundaries: "Writes focused Control roots; gate and binder ownership stay separate",
-      note: snapshot?.runtime?.control?.configuredSessionVisible === false ? "Configured session not visible" : "Refresh probes gateway status",
+      note: [
+        snapshot?.runtime?.control?.probeError
+          ? `probe: ${snapshot.runtime.control.probeError}`
+          : snapshot?.runtime?.control?.configuredSessionVisible === false
+            ? "Configured session not visible"
+            : snapshot?.runtime?.control?.reachable == null
+              ? "Click 探测运行时 (light) on this page"
+              : "Gateway probed",
+        snapshot?.runtime?.control?.workspace?.state === "unbound"
+          ? "workspace unbound (active_topic empty — note only)"
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     },
     {
       id: "claude-code",
       name: "Claude Code",
       role: "Implementation/Test: POC code, measurement, Numbers, DELTA",
       provider: snapshot?.runtime?.implementation?.provider || "claude-code-acp",
-      status: focused?.agentRun?.status || snapshot?.runtime?.implementation?.status || "unknown",
-      session: focused?.agentRun?.session_id || snapshot?.runtime?.implementation?.defaultSession || "no session",
-      workspace: focused?.agentRun?.worktree || snapshot?.runtime?.implementation?.workspace?.state || "unbound",
+      // Prefer pipeline probe status — never treat "no lease" as unavailable.
+      status: snapshot?.runtime?.implementation?.status || "not_probed",
+      session:
+        snapshot?.runtime?.implementation?.defaultSession ||
+        focused?.agentRun?.session_id ||
+        "no session",
+      workspace:
+        focused?.agentRun?.worktree ||
+        snapshot?.runtime?.implementation?.workspace?.state ||
+        "unbound",
       boundaries: "Writes only delegated POC roots; Trunk requires close integration",
       note: [
+        `lease ${focused?.agentRun?.status || "idle"}`,
         `${snapshot?.runtime?.implementation?.activeRuns?.length || 0} active runs`,
-        ...(focused?.delegation?.dispatch_blockers || []),
-      ].join(" · "),
+        snapshot?.runtime?.implementation?.cliAvailable === false
+          ? "cli missing"
+          : snapshot?.runtime?.implementation?.cliAvailable
+            ? "cli ok"
+            : null,
+        snapshot?.runtime?.implementation?.resumeAvailable === false
+          ? "resume missing"
+          : snapshot?.runtime?.implementation?.resumeAvailable
+            ? "resume ok"
+            : null,
+        snapshot?.runtime?.implementation?.probeError
+          ? `probe: ${snapshot.runtime.implementation.probeError}`
+          : null,
+        ...(focused?.delegation?.dispatch_blockers || []).slice(0, 3),
+      ]
+        .filter(Boolean)
+        .join(" · "),
     },
     {
       id: "context-compiler",
       name: "context-compiler",
-      role: "Manifest, ordered reads, clause seeds, role-plan verification",
+      role: "Manifest, ordered reads, clause seeds, role-plan verification (local ndf_context)",
       provider: "ndf_context",
-      status: focused?.delegation?.context_verify?.valid ? "verified" : "blocked",
+      status: !focused?.delegation?.context_verify
+        ? "not_compiled"
+        : focused.delegation.context_verify.valid
+          ? "verified"
+          : focused.delegation.context_plan
+            ? "failed"
+            : "not_compiled",
       session: focused?.delegation?.context_plan?.plan_sha?.slice(0, 12) || "no plan",
       workspace: focused?.delegation?.context_plan?.role || "no focused role",
       boundaries: "Read/compile only; no product or runtime state writes",
-      note: focused?.delegation?.context_verify?.errors?.map((item) => item.kind).join(", ") || "Context plan current",
+      note:
+        focused?.delegation?.context_verify?.errors
+          ?.map((item) => item.kind || item.message)
+          .filter(Boolean)
+          .slice(0, 6)
+          .join(", ") ||
+        (focused?.delegation?.context_verify?.valid
+          ? "Context plan current"
+          : "No focused topic context yet"),
     },
   ];
 
@@ -353,7 +432,19 @@ function App() {
           本地 Agent 必须 checkout 该已有远程分支，不得另建替代 feature branch。
         </p>
         {freshness !== "fresh" && (
-          <div className="banner">Write CTAs are fail-closed until projection freshness is fresh.</div>
+          <div className="banner">
+            Write CTAs are fail-closed until projection freshness is fresh
+            {freshness ? ` (now: ${freshness}` : ""}
+            {snapshot?.projectionFreshness?.in_progress?.length
+              ? `; in_progress: ${snapshot.projectionFreshness.in_progress.join(", ")}`
+              : ""}
+            {freshness ? ")" : ""}.
+            {freshness === "refresh_in_progress"
+              ? " Close or finish the started action, then Refresh snapshot."
+              : freshness === "stale_after_action"
+                ? " Click Refresh snapshot to absorb the latest action."
+                : ""}
+          </div>
         )}
         <div className="pills">
           <ActionButton
@@ -757,6 +848,22 @@ function App() {
                   ))}
                   <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} placeholder="写下本轮决策；空文本不会派发" />
                   <p className="eyebrow">Claude Code implementation</p>
+                  <div className="section-heading" style={{ marginBottom: "0.5rem" }}>
+                    <span className={`status-chip ${focused.agent_run?.dispatch_state || focused.agent_run?.status || "not_dispatched"}`}>
+                      {pipelineStateLabel(focused.agent_run?.dispatch_state || focused.delegation?.dispatch_state)}
+                    </span>
+                    <span className="muted">
+                      {focused.agent_run?.delegate_to || focused.delegation?.delegate_to || "claude-code-acp"}
+                    </span>
+                  </div>
+                  {(focused.agent_run?.result_summary || focused.delegation?.result_summary) && (
+                    <p className="muted">{focused.agent_run?.result_summary || focused.delegation?.result_summary}</p>
+                  )}
+                  {(focused.agent_run?.dispatch_blockers_from_send || []).length > 0 && (
+                    <p className="danger">
+                      {(focused.agent_run?.dispatch_blockers_from_send || []).join(", ")}
+                    </p>
+                  )}
                   <div className="pills">
                     <ActionButton
                       actionId="generate-next-step"
@@ -945,8 +1052,24 @@ function App() {
         {tab === "agents" && (
           <section className="page-stack">
             <div className="hero card">
-              <div><p className="eyebrow">Agent Runtime</p><h2>Agents</h2><p>身份、会话、工作区绑定与当前阻塞。</p></div>
-              <span className="status-chip">Runtime probe only on Refresh snapshot</span>
+              <div>
+                <p className="eyebrow">Agent Runtime</p>
+                <h2>Agents</h2>
+                <p>身份、会话、工作区绑定与当前阻塞。context-compiler 是本地 ndf_context，不是远端 Agent。</p>
+              </div>
+              <div className="pills">
+                <button
+                  type="button"
+                  data-ndf-action="refresh-snapshot"
+                  disabled={busyAction === "refresh-snapshot"}
+                  onClick={() => void run("refresh-snapshot", { probeMode: "light" })}
+                >
+                  {busyAction === "refresh-snapshot" ? "探测中…" : "探测运行时 (light)"}
+                </button>
+                <span className="status-chip muted">
+                  Product 顶栏 Refresh 默认不探；此处 light = OpenClaw health + Claude CLI/resume（无 doctor）
+                </span>
+              </div>
             </div>
             <div className="agent-grid">
               {agentCards.map((agent) => (

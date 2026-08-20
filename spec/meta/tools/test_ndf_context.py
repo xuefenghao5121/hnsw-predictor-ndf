@@ -945,6 +945,42 @@ QPS and Recall.
             evidence.validate_runtime_lease_binding(lease, root=self.root)["valid"]
         )
 
+    def test_include_bodies_false_keeps_body_clause_sha(self) -> None:
+        """Shallow Canvas previews must not hash clause ids as clause_sha."""
+        deep = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            depth=1,
+            node_budget=16,
+            byte_budget=64_000,
+            include_bodies=True,
+        )
+        shallow = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            depth=1,
+            node_budget=16,
+            byte_budget=64_000,
+            include_bodies=False,
+        )
+        self.assertFalse(shallow["compiler_policy"]["include_bodies"])
+        deep_by_id = {
+            node["id"]: node["clause_sha"]
+            for node in deep["shared_graph_closure"]["nodes"]
+        }
+        for node in shallow["shared_graph_closure"]["nodes"]:
+            self.assertEqual(node["clause_sha"], deep_by_id[node["id"]], node["id"])
+            self.assertEqual(node.get("bytes"), 0)
+        # role_plan must not raise fake clause_drift on shallow manifests.
+        plan = context.role_plan(shallow, role="canvas")
+        self.assertEqual(plan["role"], "canvas")
+        verify = context.verify_manifest_current(shallow, root=self.root)
+        self.assertTrue(verify["valid"], verify["errors"])
+
 
 if __name__ == "__main__":
     unittest.main()

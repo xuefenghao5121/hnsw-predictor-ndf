@@ -122,6 +122,21 @@ class ActionRegistryTest(unittest.TestCase):
         catalog = actions.registry_by_id()["refresh-snapshot"]
         self.assertFalse(catalog.get("probeRuntime"))
 
+    def test_agents_page_maps_compiler_and_runtime_states(self) -> None:
+        source = (SRC / "main.tsx").read_text(encoding="utf-8")
+        self.assertIn('probeMode: "light"', source)
+        self.assertIn("not_probed", source)
+        self.assertIn("Prefer pipeline probe status", source)
+        self.assertIn("local ndf_context", source)
+        self.assertNotIn(
+            "focused?.agentRun?.status || snapshot?.runtime?.implementation?.status",
+            source,
+        )
+        # Must not treat missing context_verify.valid as generic "blocked".
+        self.assertIn('"not_compiled"', source)
+        self.assertIn('"failed"', source)
+        self.assertIn('"verified"', source)
+
     def test_absorbing_fresh_enables_product_and_process_writes(self) -> None:
         payload = _payload(
             absorbedActionId="action-1",
@@ -472,9 +487,20 @@ class ActionRegistryTest(unittest.TestCase):
             "--task poc_prepare_baseline",
             prompt,
         )
+        self.assertIn("delegate_to=claude-code-acp", prompt)
+        self.assertIn("delegate_hook=afterShellExecution", prompt)
+        self.assertIn("MUST NOT perform the worker write", prompt)
+        self.assertIn("Do not copy files", prompt)
         self.assertIn("BEGIN NDF GIT INPUT", prompt)
         git_at = prompt.index("BEGIN NDF GIT INPUT")
         self.assertLess(prompt.index("/ndf-poc-baseline"), git_at)
+
+    def test_composer_prompt_openclaw_delegate_lines(self) -> None:
+        prompt = actions.composer_prompt("gate-pipeline", _payload(), topic="hotspot-optimization")
+        self.assertIn("delegate_to=openclaw", prompt)
+        self.assertIn("delegate_hook=afterShellExecution", prompt)
+        self.assertIn("Pack JSON goes to afterShellExecution hook", prompt)
+        self.assertNotIn("Actual openclaw.chat_send", prompt)
 
     def test_standalone_intent_template_preserves_human_slot(self) -> None:
         response = actions.standalone_action_template("new-proposal", _payload())
@@ -1011,8 +1037,17 @@ class ActionRegistryTest(unittest.TestCase):
             )
             self.assertIn(f"catalog_action_id={aid}", prompt, aid)
             self.assertIn(f"--catalog-action-id {aid}", prompt, aid)
-            self.assertIn("action-commit", prompt, aid)
-            self.assertIn(actions.action_prompt_relpath(aid), prompt, aid)
+            if aid in actions.PACK_DELEGATE_ACTIONS:
+                self.assertIn("delegate_hook=afterShellExecution", prompt, aid)
+                self.assertIn("Stop after pack", prompt, aid)
+                self.assertNotIn(
+                    "ndf_workflow_status.py action-commit",
+                    prompt,
+                    aid,
+                )
+            else:
+                self.assertIn("ndf_workflow_status.py action-commit", prompt, aid)
+                self.assertIn(actions.action_prompt_relpath(aid), prompt, aid)
             if action.get("tool"):
                 # Unique tool line appears in header via dispatch_prompt_header.
                 self.assertIn(f"tool={action['tool']}", prompt, aid)
@@ -1036,7 +1071,10 @@ class ActionRegistryTest(unittest.TestCase):
         delegate = actions.composer_prompt("delegate-poc", payload, topic="hotspot-optimization")
         lease = actions.composer_prompt("prepare-acp-lease", payload, topic="hotspot-optimization")
         self.assertIn(" pack --topic ", delegate)
-        self.assertIn("lease-record", lease)
+        self.assertIn("delegate_to=claude-code-acp", lease)
+        self.assertIn("delegate_hook=afterShellExecution", lease)
+        self.assertIn("lease-record only", lease)
+        self.assertNotIn("Actual openclaw.chat_send", lease)
 
         next_step = actions.composer_prompt(
             "generate-next-step", payload, intent="promote", topic="hotspot-optimization"

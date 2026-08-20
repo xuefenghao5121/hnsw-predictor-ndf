@@ -10,6 +10,7 @@ requested.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -1638,6 +1639,20 @@ def context_binding(
                     "requested write roots exceed compiler-derived role policy: "
                     f"requested={allowed_write_roots} derived={derived_roots}"
                 )
+        manifest_check = ndf_context.verify_manifest(manifest, root=ROOT)
+        if not manifest_check.get("valid"):
+            return {
+                "task_manifest": manifest,
+                "manifest_sha": manifest.get("manifest_sha"),
+                "context_plan": None,
+                "context_verify": {
+                    "schema": "ndf-context-verification/v1",
+                    "valid": False,
+                    "errors": list(manifest_check.get("errors") or []),
+                    "warnings": [],
+                },
+                "plan_sha": None,
+            }
         plan = ndf_context.role_plan(manifest, role=role)
         verification = ndf_context.verify_plan(
             plan,
@@ -1645,12 +1660,26 @@ def context_binding(
             manifest=manifest,
         )
     except (FileNotFoundError, KeyError, ValueError) as exc:
+        message = str(exc)
+        errors: list[dict[str, Any]] = [{"kind": "context_compile_failed", "message": message}]
+        # Preserve structured errors when role_plan rejected a bad manifest.
+        if "invalid task manifest:" in message:
+            raw = message.split("invalid task manifest:", 1)[1].strip()
+            try:
+                parsed = ast.literal_eval(raw)
+                if isinstance(parsed, list) and parsed:
+                    errors = [
+                        item if isinstance(item, dict) else {"kind": "context_compile_failed", "message": str(item)}
+                        for item in parsed
+                    ]
+            except (SyntaxError, ValueError):
+                pass
         return {
             "context_plan": None,
             "context_verify": {
                 "schema": "ndf-context-verification/v1",
                 "valid": False,
-                "errors": [{"kind": "context_compile_failed", "message": str(exc)}],
+                "errors": errors,
                 "warnings": [],
             },
             "plan_sha": None,
@@ -1689,17 +1718,21 @@ def context_binding_for_canvas(topic: str) -> dict[str, Any]:
     if cached and cached.get("state") == "current":
         delegation = cached.get("delegation")
         if isinstance(delegation, Mapping) and delegation.get("context_plan"):
-            return {
-                "task_manifest": None,
-                "manifest_sha": delegation.get("manifest_sha"),
-                "context_plan": delegation.get("context_plan"),
-                "context_verify": delegation.get("context_verify")
-                or {"valid": True, "plan_sha": delegation.get("plan_sha"), "errors": [], "warnings": []},
-                "plan_sha": delegation.get("plan_sha"),
-            }
+            verify = delegation.get("context_verify") or {}
+            # Only reuse cache when verify already succeeded — otherwise recompile
+            # so Agents/context-compiler is not stuck on stale clause_drift.
+            if verify.get("valid"):
+                return {
+                    "task_manifest": None,
+                    "manifest_sha": delegation.get("manifest_sha"),
+                    "context_plan": delegation.get("context_plan"),
+                    "context_verify": verify,
+                    "plan_sha": delegation.get("plan_sha"),
+                }
+    # Read-only canvas role: truncated graph must not hard-fail write-role verify.
     return context_binding(
         topic=topic,
-        role="claude-code",
+        role="canvas",
         task="poc_implementation",
         track="poc",
         depth=CANVAS_CONTEXT_DEPTH,
@@ -2198,6 +2231,17 @@ def projection_freshness(generation_sha: str) -> dict[str, Any]:
         key=lambda item: str(item.get("finished_at") or item.get("started_at") or ""),
         default=None,
     )
+    # Serial action model: a later finished receipt supersedes older abandoned
+    # starts. Otherwise one orphaned action-begin permanently fail-closes CTAs.
+    if latest_finished is not None:
+        finish_at = str(
+            latest_finished.get("finished_at") or latest_finished.get("started_at") or ""
+        )
+        in_progress = [
+            receipt
+            for receipt in in_progress
+            if str(receipt.get("started_at") or "") >= finish_at
+        ]
     if in_progress:
         state = "refresh_in_progress"
     elif latest_finished:
@@ -4000,13 +4044,15 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
         "baseline_trunk_sha": header(text, "baseline_trunk_sha"),
         "agent_run": {
             "provider": "claude-code-acp",
-            "status": "active" if lease else "unavailable",
+            # Lease presence only — Agents card uses runtime.implementation.status.
+            "status": "active" if lease else "idle",
             "state_source": "runtime-lease",
             "run_id": lease.get("run_id") if lease else None,
             "session_id": lease.get("session_id") if lease else None,
             "base_sha": lease.get("base_sha") if lease else None,
             "worktree": lease.get("worktree") if lease else None,
             "lease": lease,
+            **_implementation_dispatch_view(topic_id),
         },
         "delegation": {
             "safe_to_dispatch": safe_to_dispatch,
@@ -4020,6 +4066,7 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             **context,
             "dispatch_blockers": dispatch_blockers,
             "evaluated_at": now_iso(),
+            **_implementation_dispatch_view(topic_id),
         },
         "traceability": [
             {
@@ -5338,8 +5385,18 @@ def business_risks(views: list[dict[str, Any]], performance: dict[str, Any]) -> 
 
 
 _ACP_PROBE: dict[str, Any] | None = None
+_ACP_LIGHT_PROBE: dict[str, Any] | None = None
 ACP_SESSION_RE = re.compile(r"ACP 长连接会话 ID：`([^`]+)`")
 OPENCLAW_SESSION_RE = re.compile(r"OpenClaw 指挥会话 session_key：`([^`]+)`")
+
+
+def normalize_probe_mode(probe: bool | str | None) -> str | None:
+    """Return None | 'light' | 'full' for runtime probing."""
+    if probe is True or probe == "full":
+        return "full"
+    if probe == "light":
+        return "light"
+    return None
 
 
 def configured_acp_session_id(agents_text: str | None = None) -> str | None:
@@ -5361,17 +5418,16 @@ def claude_acp_resume_path(
 
 
 def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
-    """Light Claude ACP probe: CLI + configured session + resume artifact only.
-
-    Skips ``claude doctor`` / ``agents`` so operational unblock does not hang
-    on fork-starved hosts. Full pipeline reachability still requires
-    :func:`probe_claude_acp`.
-    """
+    """Fast Agents-page probe: CLI + configured session + resume artifact (no doctor)."""
+    global _ACP_LIGHT_PROBE
+    if _ACP_LIGHT_PROBE is not None and not refresh:
+        return _ACP_LIGHT_PROBE
     probed_at = now_iso()
     session_id = configured_acp_session_id()
     executable = shutil.which("claude")
     if not executable:
-        return {
+        result = {
+            "mode": "light",
             "reachable": False,
             "error": "claude_cli_missing",
             "cli_available": False,
@@ -5380,11 +5436,13 @@ def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
             "resume_available": False,
             "sessions": [],
             "configured_session_visible": None,
-            "probe_mode": "light",
             "probed_at": probed_at,
         }
+        _ACP_LIGHT_PROBE = result
+        return result
     if not session_id:
-        return {
+        result = {
+            "mode": "light",
             "reachable": False,
             "error": "acp_session_unconfigured",
             "cli_available": True,
@@ -5393,13 +5451,15 @@ def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
             "resume_available": False,
             "sessions": [],
             "configured_session_visible": None,
-            "probe_mode": "light",
             "probed_at": probed_at,
         }
+        _ACP_LIGHT_PROBE = result
+        return result
     resume_path = claude_acp_resume_path(session_id)
     resume_available = resume_path.is_file() and resume_path.stat().st_size > 0
     error = None if resume_available else "acp_session_resume_missing"
-    return {
+    result = {
+        "mode": "light",
         "reachable": resume_available,
         "error": error,
         "cli_available": True,
@@ -5409,9 +5469,14 @@ def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
         "resume_path": str(resume_path),
         "sessions": [],
         "configured_session_visible": None,
-        "probe_mode": "light",
+        "probe_note": (
+            "light probe: CLI + configured session resume artifact; "
+            "doctor skipped (use --probe-runtime full for dispatch readiness)"
+        ),
         "probed_at": probed_at,
     }
+    _ACP_LIGHT_PROBE = result
+    return result
 
 
 def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
@@ -5430,6 +5495,7 @@ def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
     executable = shutil.which("claude")
     if not executable:
         result = {
+            "mode": "full",
             "reachable": False,
             "error": "claude_cli_missing",
             "cli_available": False,
@@ -5444,6 +5510,7 @@ def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
         return result
     if not session_id:
         result = {
+            "mode": "full",
             "reachable": False,
             "error": "acp_session_unconfigured",
             "cli_available": True,
@@ -5468,6 +5535,7 @@ def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         result = {
+            "mode": "full",
             "reachable": False,
             "error": "doctor_unavailable",
             "detail": str(exc),
@@ -5529,6 +5597,7 @@ def probe_claude_acp(*, refresh: bool = False) -> dict[str, Any]:
     elif not resume_available:
         error = "acp_session_resume_missing"
     result = {
+        "mode": "full",
         "reachable": doctor_ok and resume_available,
         "error": error,
         "cli_available": True,
@@ -5586,26 +5655,17 @@ def probe_openclaw() -> dict[str, Any]:
 
 
 def runtime_status(probe: bool | str = False) -> dict[str, Any]:
-    """Return control/implementation runtime view.
-
-    ``probe`` may be False (no probe), True / ``\"full\"`` (doctor+resume),
-    or ``\"light\"`` (CLI+resume+openclaw health; skips doctor).
-    """
     agents_text = read_text(ROOT / "AGENTS.md")
     session_id = configured_acp_session_id(agents_text)
     openclaw_match = OPENCLAW_SESSION_RE.search(agents_text)
-    mode = "off"
-    if probe is True or probe == "full":
-        mode = "full"
-    elif probe == "light":
-        mode = "light"
-    openclaw_probe = probe_openclaw() if mode != "off" else None
+    mode = normalize_probe_mode(probe)
+    openclaw_probe = probe_openclaw() if mode else None
     if mode == "full":
         acp_probe = probe_claude_acp(refresh=True)
     elif mode == "light":
         acp_probe = probe_claude_acp_light(refresh=True)
     else:
-        acp_probe = _ACP_PROBE
+        acp_probe = _ACP_PROBE or _ACP_LIGHT_PROBE
     configured_key = openclaw_match.group(1) if openclaw_match else "agent:main:main"
     recent_keys = {
         item.get("key")
@@ -5613,9 +5673,12 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
         if isinstance(item, dict)
     }
     leases = active_runtime_leases()
+    probed = acp_probe is not None
     reachable = bool(acp_probe and acp_probe.get("reachable"))
     if leases:
         impl_status = "active"
+    elif not probed and mode is None:
+        impl_status = "not_probed"
     elif reachable:
         impl_status = "idle"
     else:
@@ -5627,7 +5690,8 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
         "implementation": {
             "provider": "claude-code-acp",
             "status": impl_status,
-            "pipeline_reachable": reachable,
+            "pipeline_reachable": reachable if probed else False,
+            "probe_mode": (acp_probe or {}).get("mode") if probed else None,
             "active_runs": leases,
             "default_session": (acp_probe or {}).get("default_session") or session_id,
             "state_source": "pipeline",
@@ -5636,7 +5700,7 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
                 if acp_probe is not None
                 else bool(shutil.which("claude"))
             ),
-            "doctor_ok": doctor_ok,
+            "doctor_ok": None if acp_probe is None else acp_probe.get("doctor_ok"),
             "resume_available": (
                 None if acp_probe is None else bool(acp_probe.get("resume_available"))
             ),
@@ -5647,10 +5711,13 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
             "probe_mode": mode if mode != "off" else None,
             "probe": acp_probe,
             "probe_note": (
-                "Claude CLI presence is not ACP pipeline/run evidence; "
-                "doctor + configured session resume artifact required"
-                if mode != "light"
-                else "light probe: CLI + resume only; doctor skipped"
+                None
+                if acp_probe is None
+                else acp_probe.get("probe_note")
+                or (
+                    "Claude CLI presence is not ACP pipeline/run evidence; "
+                    "doctor + configured session resume artifact required"
+                )
             ),
             "workspace": project_workspace_view(),
         },
@@ -5659,10 +5726,13 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
             "default_session_key": configured_key,
             "reachable": openclaw_probe.get("reachable") if openclaw_probe else None,
             "configured_session_visible": (
-                configured_key in recent_keys if mode != "off" else None
+                configured_key in recent_keys if mode else None
             ),
             "state_source": "gateway",
             "probe": openclaw_probe,
+            "probe_error": (
+                None if openclaw_probe is None else openclaw_probe.get("error")
+            ),
             "workspace": project_workspace_view(),
         },
     }
@@ -5682,6 +5752,45 @@ def implementation_dispatch_runtime(
     lease = topic_active_lease(topic) if topic is not None else None
     ready = bool(runtime.get("pipeline_reachable") and not lease)
     return runtime, ready, lease
+
+
+def _implementation_dispatch_view(topic: str | None = None) -> dict[str, Any]:
+    """Project latest dispatch-send receipt onto the commander surface."""
+    path = ROOT / "tmp" / "ndf-dispatch-last.json"
+    empty = {
+        "delegate_to": "claude-code-acp",
+        "dispatch_state": "not_dispatched",
+        "result_summary": None,
+        "dispatch_blockers_from_send": [],
+    }
+    if not path.is_file():
+        return empty
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    if not isinstance(data, dict):
+        return empty
+    pack_topic = None
+    pack_path = ROOT / "tmp" / "ndf-dispatch-last-pack.json"
+    if pack_path.is_file():
+        try:
+            pack = json.loads(pack_path.read_text(encoding="utf-8"))
+            if isinstance(pack, dict):
+                pack_topic = pack.get("topic")
+        except (OSError, json.JSONDecodeError):
+            pack_topic = None
+    if topic and pack_topic and str(pack_topic) != str(topic):
+        return empty
+    state = str(data.get("dispatch_state") or data.get("state") or "not_dispatched")
+    return {
+        "delegate_to": data.get("delegate_to") or "claude-code-acp",
+        "dispatch_state": state,
+        "result_summary": data.get("result_summary"),
+        "dispatch_blockers_from_send": list(data.get("blockers") or []),
+        "dispatch_request_id": data.get("request_id"),
+        "dispatch_pack_sha": data.get("pack_sha"),
+    }
 
 
 def read_openclaw_workspace() -> dict[str, Any] | None:
@@ -6280,9 +6389,10 @@ def snapshot(
     probe_runtime: bool | str = False,
     replay_episode: str | None = None,
 ) -> dict[str, Any]:
-    if probe_runtime is True or probe_runtime == "full":
+    mode = normalize_probe_mode(probe_runtime)
+    if mode == "full":
         probe_claude_acp(refresh=True)
-    elif probe_runtime == "light":
+    elif mode == "light":
         probe_claude_acp_light(refresh=True)
     layers = generation_layers()
     generation_sha = layers["root"]
@@ -6429,7 +6539,7 @@ def snapshot(
                 "invalidated_receipts": invalidated,
             },
         },
-        "runtime": runtime_status(probe_runtime),
+        "runtime": runtime_status(mode or False),
         "replay": replay_summary(
             focused_id=replay_episode,
             active_topic=topic or (workbench or {}).get("topic_id"),
@@ -7009,6 +7119,7 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 "provider": implementation["provider"],
                 "status": implementation["status"],
                 "pipelineReachable": implementation["pipeline_reachable"],
+                "probeMode": implementation.get("probe_mode"),
                 "defaultSession": implementation["default_session"],
                 "activeRuns": implementation["active_runs"],
                 "cliAvailable": implementation.get("cli_available"),
@@ -7043,6 +7154,7 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 "configuredSessionVisible": control_runtime.get(
                     "configured_session_visible"
                 ),
+                "probeError": control_runtime.get("probe_error"),
                 "probe": control_runtime.get("probe"),
                 "workspace": {
                     "binding": {
@@ -7598,11 +7710,26 @@ def commander_http_handler(
                     state["topic"] = ctx["topicId"]
                 if action_id == "inspect-ledger" and ctx.get("episodeId"):
                     state["replay_episode"] = ctx["episodeId"]
-                # Honor catalog probeRuntime and serve --probe-runtime only.
-                # Do not force probe on refresh-snapshot (that hangs the UI).
-                probe = bool(catalog.get("probeRuntime")) or (
-                    action_id == "refresh-snapshot" and bool(state["probe_runtime"])
-                )
+                # Honor catalog probeRuntime, request probeMode, and serve --probe-runtime.
+                # Default refresh-snapshot stays unprobed (doctor hangs Product CTAs).
+                # Agents page may pass probeMode=light for CLI/resume without doctor.
+                catalog_probe = catalog.get("probeRuntime")
+                body_mode = body.get("probeMode") or body.get("probe_mode")
+                if body_mode in {"light", "full"}:
+                    probe: bool | str = str(body_mode)
+                elif catalog_probe in {"light", "full"}:
+                    probe = str(catalog_probe)
+                elif catalog_probe is True:
+                    probe = "full"
+                elif action_id == "refresh-snapshot" and state.get("probe_runtime"):
+                    serve_probe = state["probe_runtime"]
+                    probe = (
+                        serve_probe
+                        if serve_probe in {"light", "full", True}
+                        else ("full" if serve_probe else False)
+                    )
+                else:
+                    probe = False
                 payload = canvas_snapshot(
                     snapshot(
                         state["topic"],
@@ -10079,12 +10206,13 @@ def main() -> int:
         "--probe-runtime",
         nargs="?",
         const="full",
-        default=False,
+        default=None,
         choices=("light", "full"),
         help=(
-            "Probe OpenClaw health and Claude ACP. "
-            "Omit value or pass 'full' for doctor+resume; pass 'light' to skip doctor. "
-            "Claude CLI presence alone is not pipeline evidence."
+            "Probe agent reachability. "
+            "'light' = OpenClaw health + Claude CLI/resume (Agents page; no doctor). "
+            "'full' / bare flag = doctor + resume (dispatch readiness). "
+            "Default: no probe."
         ),
     )
     snapshot_parser.add_argument("--verify-embedded")
@@ -10146,6 +10274,21 @@ def main() -> int:
     action_commit_parser.add_argument("--prompt-file")
     action_commit_parser.add_argument("--label")
     action_commit_parser.add_argument("--json", action="store_true")
+
+    dispatch_send_parser = sub.add_parser(
+        "dispatch-send",
+        help="Send a safe pack to OpenClaw/ACP, wait, then action-commit + snapshot",
+    )
+    dispatch_send_parser.add_argument(
+        "--pack-file",
+        required=True,
+        help="JSON pack from control-pack / repair-pack / pack",
+    )
+    dispatch_send_parser.add_argument("--catalog-action-id")
+    dispatch_send_parser.add_argument("--action-id")
+    dispatch_send_parser.add_argument("--timeout-sec", type=int)
+    dispatch_send_parser.add_argument("--dry-run", action="store_true")
+    dispatch_send_parser.add_argument("--json", action="store_true")
 
     pack_parser = sub.add_parser("pack")
     pack_parser.add_argument("--topic", required=True)
@@ -10464,6 +10607,19 @@ def main() -> int:
                 )
             )
             return 0
+        if args.command == "dispatch-send":
+            import ndf_dispatch_send
+
+            pack = ndf_dispatch_send.load_pack_from_file(Path(args.pack_file))
+            payload, code = ndf_dispatch_send.dispatch_send(
+                pack,
+                catalog_action_id=args.catalog_action_id,
+                action_id=args.action_id,
+                timeout_sec=args.timeout_sec,
+                dry_run=args.dry_run,
+            )
+            emit(payload)
+            return code
         if args.command == "pack":
             payload, code = pack_topic(args.topic, args.episode)
             emit(payload)
