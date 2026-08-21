@@ -149,32 +149,43 @@ def workspace_truth(
     binding: Mapping[str, Any] | None,
     persisted: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Compare current workspace binding with persisted project state.
+    """Compare current workspace identity with persisted project state.
 
-    ``persisted`` may be either the workspace object or the containing state
-    object.  File existence alone is intentionally not accepted as binding.
+    Workspace **identity** is ``repo_root`` + ``active_topic`` (and required
+    presence of a persisted head field for audit).  Expected commits that
+    advance HEAD must NOT unbound identity; they only mark
+    ``execution_binding_stale``.  File existence alone is not binding.
     """
     expected = dict(binding or {})
     raw = dict(persisted or {})
     actual = raw.get("workspace") if isinstance(raw.get("workspace"), Mapping) else raw
     actual = dict(actual or {})
-    mismatches: list[dict[str, Any]] = []
+    identity_mismatches: list[dict[str, Any]] = []
     for field in ("repo_root", "active_topic"):
         want = expected.get(field)
         got = actual.get(field)
         if want is not None and want != got:
-            mismatches.append({"field": field, "expected": want, "actual": got})
+            identity_mismatches.append({"field": field, "expected": want, "actual": got})
     want_head = expected.get("repo_head") or expected.get("bound_sha")
     got_head = actual.get("repo_head") or actual.get("bound_sha")
-    if want_head is not None and want_head != got_head:
-        mismatches.append({"field": "repo_head", "expected": want_head, "actual": got_head})
-    required = ("repo_root", "repo_head", "active_topic")
-    missing = [name for name in required if not (actual.get(name) or (name == "repo_head" and actual.get("bound_sha")))]
-    bound = bool(expected and actual and not mismatches and not missing)
+    head_mismatch: list[dict[str, Any]] = []
+    if want_head is not None and got_head is not None and want_head != got_head:
+        head_mismatch.append({"field": "repo_head", "expected": want_head, "actual": got_head})
+    identity_required = ("repo_root", "active_topic")
+    missing = [name for name in identity_required if not actual.get(name)]
+    # Audit: persisted should record some head; absence is missing identity evidence.
+    if not (actual.get("repo_head") or actual.get("bound_sha")):
+        missing.append("repo_head")
+    identity_bound = bool(expected and actual and not identity_mismatches and not missing)
+    execution_current = identity_bound and not head_mismatch
     return {
-        "workspace_bound": bound,
-        "state": "bound" if bound else "unbound",
-        "mismatches": mismatches,
+        "workspace_bound": identity_bound,
+        "state": "bound" if identity_bound else "unbound",
+        "execution_binding_current": execution_current,
+        "execution_binding_stale": bool(identity_bound and head_mismatch),
+        "mismatches": identity_mismatches + head_mismatch,
+        "identity_mismatches": identity_mismatches,
+        "execution_mismatches": head_mismatch,
         "missing": missing,
         "binding": expected,
         "persisted_workspace": actual,

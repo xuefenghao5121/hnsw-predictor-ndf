@@ -21,16 +21,19 @@ export function ActionButton({
   onClick,
 }: Props) {
   const action = requireAction(actionId);
-  const snapshotEnabled = enabled?.enabled ?? true;
+  // Fail-closed: missing enabledActions entry MUST disable, never default-enable.
+  const snapshotEnabled = enabled?.enabled === true;
   const intentOk = !action.requiresIntent || Boolean(intent?.trim());
   const can = snapshotEnabled && intentOk && !busy;
-  if (enabled?.failClosed === "hide" && !snapshotEnabled) {
+  if ((enabled?.failClosed ?? action.failClosed) === "hide" && !snapshotEnabled) {
     return null;
   }
   const blocked = !can
     ? busy
       ? "busy"
-      : enabled?.reason || (action.requiresIntent && !intentOk ? "needs_intent" : "disabled")
+      : enabled == null
+        ? "missing_enabledActions"
+        : enabled?.reason || (action.requiresIntent && !intentOk ? "needs_intent" : "disabled")
     : null;
   const label = busy
     ? `${action.label}…`

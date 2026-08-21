@@ -227,11 +227,17 @@ OpenClaw 指挥会话 session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81
 Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。改绑时只改本行。
 
 **宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
-`python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，清理残留
-`snapshot --serve` / qemu；MUST NOT 改 `environment=cloud` 绕开。Command Agent
-MUST NOT 后台残留 `--serve`；日常刷新只用 `snapshot --out`（不要默认 `--probe-runtime full`）。
+`python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读
+`chromium_cgroup` / `consumers` / `advice`：Chromium 占满时关标签，勿默认杀 serve；
+仅当 NDF serve/qemu 确为嫌疑才清理。MUST NOT 改 `environment=cloud` 绕开，MUST NOT
+调大 TasksMax。Command Agent MUST NOT 在 Chromium scope 启动或残留 `--serve`
+（工具层会 `chromium_serve_forbidden`）；日常刷新只用 `snapshot --out`（不要默认
+`--probe-runtime full`）。live 面板只在**仓库外终端**跑 `--serve`。
 派发结果（[[META-011]]）：CLI/OpenClaw 可达 ≠ 任务成功；`dispatch-send` 的 transport
 acknowledgement 不得冒充 validated `ndf-agent-completion/v1` success。
+Commander ActionSpec（`action-registry.json` v2）是可写动作的单一编译源：UI enablement、
+Composer prompt、pack CLI、capability 与 closeout 均由其生成；可写动作 MUST 贯通
+同一 Episode/attempt。`workspace_bound` 表示身份绑定，不等于 execution HEAD 对齐。
 
 ### Claude Code 实现管道
 

@@ -30,16 +30,19 @@ Do not create, refresh, or link a Cursor Canvas. Every control is an id in
 
 ## Open or refresh
 
-**Agent 纪律**：Command Agent MUST NOT 启动或后台残留 `snapshot --serve`。日常刷新只写
-`--out`。若 Agent Shell 出现 `EAGAIN`，先 `host-pids`，禁止改云端。
+**Agent 纪律**：Command Agent MUST NOT 启动或后台残留 `snapshot --serve`
+（Chromium scope 内工具会拒绝）。日常刷新只写 `--out`。若 Agent Shell 出现
+`EAGAIN`，先 `host-pids --json`（看 Chromium slice / consumers），禁止改云端、
+禁止调 TasksMax。
 
-Live panel（人工本机终端，单例）：
+Live panel（**仓库外终端**，单例；勿从 Composer / Cursor Agent Shell 启动）：
 
 ```bash
 python3 spec/meta/tools/ndf_workflow_status.py snapshot --serve --json
 ```
 
-Open `http://127.0.0.1:8765/`。第二份 `--serve` MUST 被 lock 拒绝。`--topic` is optional. After hops write
+Open `http://127.0.0.1:8765/`。第二份 `--serve` MUST 被 lock 拒绝；Chromium
+cgroup 内启动 MUST 被拒绝。`--topic` is optional. After hops write
 `tmp/ndf-canvas-snapshot.json`, the page auto-reloads. Do not curl
 `localhost:8081`. htmlpreview is static.
 
@@ -47,7 +50,7 @@ Open `http://127.0.0.1:8765/`。第二份 `--serve` MUST 被 lock 拒绝。`--to
 
 ```bash
 python3 spec/meta/tools/ndf_workflow_status.py host-pids --json
-# 显式清理过期 serve：
+# 显式清理过期 serve（仅当 advice/consumers 指向 NDF serve）：
 python3 spec/meta/tools/ndf_workflow_status.py host-pids --kill-stale-serve --json
 ```
 

@@ -72,24 +72,74 @@ if not pack:
 if not pack:
     sys.exit(0)
 
-# Resolve current commander hop for closeout.
-catalog_action_id = None
-action_id = None
+# Correlate by pack identity — never "latest started" alone.
+catalog_action_id = (
+    str(pack.get("catalog_action_id") or "").strip()
+    or None
+)
+action_id = str(pack.get("action_id") or pack.get("attempt_id") or "").strip() or None
+episode_id = dispatch._pack_episode_id(pack) or None
+task = str(pack.get("task") or "").strip() or None
+
 try:
     receipts = workflow.read_action_receipts()
-    started = next(
+except Exception:
+    receipts = []
+
+matched = None
+# Prefer exact action_id / attempt_id from pack.
+if action_id:
+    matched = next(
         (
             receipt
             for receipt in reversed(receipts)
-            if receipt.get("status") == "started" and receipt.get("action_id")
+            if receipt.get("status") == "started"
+            and str(receipt.get("action_id") or "") == action_id
         ),
         None,
     )
-    if started:
-        action_id = str(started.get("action_id"))
-        catalog_action_id = str(started.get("catalog_action_id") or "").strip() or None
-except Exception:
-    pass
+# Else match catalog + episode + task.
+if matched is None and (catalog_action_id or episode_id or task):
+    for receipt in reversed(receipts):
+        if receipt.get("status") != "started":
+            continue
+        if catalog_action_id and str(receipt.get("catalog_action_id") or "") != catalog_action_id:
+            continue
+        if episode_id and str(receipt.get("episode_id") or "") not in {
+            episode_id,
+            str((receipt.get("replay") or {}).get("episode_id") or ""),
+        }:
+            # Allow match when receipt has no episode yet.
+            if receipt.get("episode_id") or (receipt.get("replay") or {}).get("episode_id"):
+                continue
+        if task and str(receipt.get("operation") or receipt.get("task") or "") not in {
+            task,
+            str(receipt.get("catalog_action_id") or ""),
+        }:
+            # Soft: catalog match is enough when task differs in naming.
+            if catalog_action_id:
+                pass
+            else:
+                continue
+        matched = receipt
+        break
+
+if matched:
+    action_id = str(matched.get("action_id"))
+    catalog_action_id = (
+        catalog_action_id
+        or str(matched.get("catalog_action_id") or "").strip()
+        or None
+    )
+    # Stamp pack so closeout / worker message carry exact attempt.
+    pack = {
+        **pack,
+        "action_id": action_id,
+        "attempt_id": action_id,
+        "catalog_action_id": catalog_action_id,
+    }
+    if episode_id and not pack.get("episode_id"):
+        pack["episode_id"] = episode_id
 
 # Persist pack for debugging / manual dispatch-send.
 pack_path = root / "tmp" / "ndf-dispatch-last-pack.json"

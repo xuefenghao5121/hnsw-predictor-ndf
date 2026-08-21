@@ -80,7 +80,60 @@ def _pack_preflight_blockers(pack: Mapping[str, Any]) -> list[str]:
         write_root = write_root[0] if write_root else ""
     if not str(write_root or "").strip():
         blockers.append("missing_handshake:allowed_write_root")
+    # Capability readiness: fail closed unless lease-only prepare.
+    if pack.get("execution_capabilities_ready") is False:
+        for item in (pack.get("blockers") or []):
+            text = str(item)
+            if text.startswith("capability_missing:") or text == "waiting_human":
+                if text not in blockers:
+                    blockers.append(text)
+        if "waiting_human" not in blockers and not any(
+            str(b).startswith("capability_missing:") for b in blockers
+        ):
+            blockers.append("execution_capabilities_not_ready")
     return blockers
+
+
+def _pack_episode_id(pack: Mapping[str, Any]) -> str:
+    episode = pack.get("episode_id")
+    if isinstance(episode, str) and episode.strip():
+        return episode.strip()
+    replay = pack.get("replay") if isinstance(pack.get("replay"), Mapping) else {}
+    nested = replay.get("episode_id") if isinstance(replay, Mapping) else None
+    if isinstance(nested, str) and nested.strip():
+        return nested.strip()
+    return ""
+
+
+def _build_worker_message(pack: Mapping[str, Any]) -> str:
+    provider = str(pack.get("provider") or "")
+    topic = pack.get("topic") or ""
+    task = pack.get("task") or ""
+    episode = _pack_episode_id(pack)
+    attempt = (
+        pack.get("attempt_id")
+        or pack.get("action_id")
+        or (pack.get("replay") or {}).get("attempt_id")
+        or ""
+    )
+    catalog = pack.get("catalog_action_id") or ""
+    manifest = pack.get("manifest_sha") or ""
+    plan = pack.get("plan_sha") or (pack.get("context_plan") or {}).get("plan_sha") or ""
+    lines = [
+        f"【NDF dispatch-send】provider={provider} task={task} topic={topic}",
+        f"episode_id={episode}",
+        f"attempt_id={attempt}",
+        f"catalog_action_id={catalog}",
+        f"action_id={pack.get('action_id') or ''}",
+        f"manifest_sha={manifest}",
+        f"context_plan_sha={plan}",
+        f"allowed_write_root={pack.get('allowed_write_root') or pack.get('allowed_write_roots')}",
+        "Follow the pack JSON binding. Return a completion receipt.",
+        "BEGIN NDF_PACK_JSON",
+        json.dumps(pack, ensure_ascii=False, sort_keys=True, default=str),
+        "END NDF_PACK_JSON",
+    ]
+    return "\n".join(lines)
 
 
 def extract_agent_completion(text: str | None) -> tuple[dict[str, Any] | None, list[str]]:
@@ -225,27 +278,6 @@ def _already_sent(pack_sha: str, request_id: str | None) -> dict[str, Any] | Non
             return None
         return {**prior, "idempotent": True}
     return None
-
-
-def _build_worker_message(pack: Mapping[str, Any]) -> str:
-    provider = str(pack.get("provider") or "")
-    topic = pack.get("topic") or ""
-    task = pack.get("task") or ""
-    episode = pack.get("episode_id") or ""
-    manifest = pack.get("manifest_sha") or ""
-    plan = pack.get("plan_sha") or (pack.get("context_plan") or {}).get("plan_sha") or ""
-    lines = [
-        f"【NDF dispatch-send】provider={provider} task={task} topic={topic}",
-        f"episode_id={episode}",
-        f"manifest_sha={manifest}",
-        f"context_plan_sha={plan}",
-        f"allowed_write_root={pack.get('allowed_write_root') or pack.get('allowed_write_roots')}",
-        "Follow the pack JSON binding. Return a completion receipt.",
-        "BEGIN NDF_PACK_JSON",
-        json.dumps(pack, ensure_ascii=False, sort_keys=True, default=str),
-        "END NDF_PACK_JSON",
-    ]
-    return "\n".join(lines)
 
 
 def _send_openclaw(
@@ -460,14 +492,11 @@ def _closeout(
             encoding="utf-8",
         )
         steps["agent_completion_path"] = "tmp/ndf-agent-completion.json"
-        # Best-effort Episode bind when replay episode + role are known.
+        # Bind Episode for both success and failure completions.
         episode_id = None
         if isinstance(pack, Mapping):
-            episode_id = (
-                pack.get("episode_id")
-                or (pack.get("replay") or {}).get("episode_id")
-            )
-        if episode_id and result == "succeeded":
+            episode_id = _pack_episode_id(pack)
+        if episode_id and agent_completion is not None:
             try:
                 verify, verify_code = workflow.record_agent_completion(
                     agent_path,
@@ -482,7 +511,9 @@ def _closeout(
                     "valid": bool(verify.get("valid")),
                     "errors": verify.get("errors") or [],
                 }
-                if verify_code != 0 or not verify.get("valid"):
+                if result == "succeeded" and (
+                    verify_code != 0 or not verify.get("valid")
+                ):
                     # Fail closed: do not keep a false succeeded closeout.
                     result = "failed"
                     for err in verify.get("errors") or ["completion_record_failed"]:
@@ -496,10 +527,11 @@ def _closeout(
                     "valid": False,
                     "errors": [f"completion_record_exception:{type(exc).__name__}"],
                 }
-                result = "failed"
-                blockers.append(f"completion_record_exception:{type(exc).__name__}")
-                completion["result"] = result
-                completion["blockers"] = blockers
+                if result == "succeeded":
+                    result = "failed"
+                    blockers.append(f"completion_record_exception:{type(exc).__name__}")
+                    completion["result"] = result
+                    completion["blockers"] = blockers
     completion_path.write_text(
         json.dumps(completion, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -576,7 +608,19 @@ def _closeout(
     steps["snapshot"] = {
         "exit_code": snap.returncode,
         "stdout": (snap.stdout or "")[-2000:],
+        "stderr": (snap.stderr or "")[-1000:],
     }
+    # Task success + projection failure → distinct state; do not wipe task result.
+    if result == "succeeded" and snap.returncode != 0:
+        result = "succeeded_projection_stale"
+        blockers.append("projection_publish_failed")
+        completion["result"] = result
+        completion["blockers"] = blockers
+        completion_path.write_text(
+            json.dumps(completion, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        steps["completion"] = {"path": "tmp/ndf-dispatch-completion.json", **completion}
     steps["final_result"] = result
     return steps
 
@@ -712,9 +756,9 @@ def dispatch_send(
         agent_completion=agent_completion,
         pack=pack,
     )
-    # completion_record may have downgraded success → failed inside _closeout.
+    # completion_record may have downgraded success → failed / projection_stale.
     close_final = (payload["closeout"] or {}).get("final_result")
-    if close_final in {"succeeded", "failed"} and close_final != task_result:
+    if close_final in {"succeeded", "failed", "succeeded_projection_stale"} and close_final != task_result:
         payload["state"] = close_final
         payload["dispatch_state"] = close_final
         payload["blockers"] = list(

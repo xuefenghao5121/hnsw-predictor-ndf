@@ -1,30 +1,51 @@
 {
-  "schema": "ndf-action-registry/v1",
-  "clauseRefs": ["META-009", "META-010", "META-011", "META-012", "META-013", "META-014", "META-015"],
+  "schema": "ndf-action-registry/v2",
+  "clauseRefs": [
+    "META-009",
+    "META-010",
+    "META-011",
+    "META-012",
+    "META-013",
+    "META-014",
+    "META-015"
+  ],
   "forbidden": [
     {
       "id": "close-tab",
-      "labels": ["Close"],
+      "labels": [
+        "Close"
+      ],
       "reason": "Close is a Topics hop sequence, not a tab"
     },
     {
       "id": "r3-fork",
-      "labels": ["R3", "R3 Fork", "counterfactual"],
+      "labels": [
+        "R3",
+        "R3 Fork",
+        "counterfactual"
+      ],
       "reason": "META-013 R3 is CLI-only; not replay"
     },
     {
       "id": "replay-diff",
-      "labels": ["Replay diff", "replay-diff"],
+      "labels": [
+        "Replay diff",
+        "replay-diff"
+      ],
       "reason": "ReplayStore.diff is CLI-only"
     },
     {
       "id": "generic-delegate-openclaw",
-      "labels": ["Delegate to OpenClaw"],
+      "labels": [
+        "Delegate to OpenClaw"
+      ],
       "reason": "Must name gate_pipeline or binder_pipeline"
     },
     {
       "id": "prepare-pack-user",
-      "labels": ["prepare-pack"],
+      "labels": [
+        "prepare-pack"
+      ],
       "reason": "User-facing prepare-pack buttons are not shown"
     },
     {
@@ -36,6 +57,22 @@
       "id": "open-md-row",
       "labels": [],
       "reason": "Do not add a row of Open md buttons; paths are locators"
+    },
+    {
+      "id": "guest-replay-hop",
+      "labels": [
+        "Guest VM 回放这次 hop",
+        "guest-replay"
+      ],
+      "reason": "META-013 guest-run is CLI-only; not Commander surface"
+    },
+    {
+      "id": "guest-replay-prefix",
+      "labels": [
+        "Guest VM 回放到上一步",
+        "guest-replay"
+      ],
+      "reason": "META-013 guest-run is CLI-only; not Commander surface"
     }
   ],
   "actions": [
@@ -44,26 +81,44 @@
       "label": "Refresh snapshot",
       "tab": "header",
       "module": "global-header",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "snapshot",
       "operation": "refresh-snapshot",
       "enableWhen": [],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-canvas-snapshot.json", "tmp/ndf-workflow-actions.jsonl"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-canvas-snapshot.json",
+        "tmp/ndf-workflow-actions.jsonl"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "probeRuntime": false,
       "command": "/ndf-snapshot-refresh",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/snapshot-refresh.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "tab-product",
       "label": "Product",
       "tab": "nav",
       "module": "tabs",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -71,14 +126,28 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "tab-topics",
       "label": "Topics",
       "tab": "nav",
       "module": "tabs",
-      "clauseRefs": ["META-011", "META-008"],
+      "clauseRefs": [
+        "META-011",
+        "META-008"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -86,14 +155,28 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "tab-control",
       "label": "NDF Control",
       "tab": "nav",
       "module": "tabs",
-      "clauseRefs": ["META-009", "META-011"],
+      "clauseRefs": [
+        "META-009",
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -101,14 +184,28 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "tab-agents",
       "label": "Agents",
       "tab": "nav",
       "module": "tabs",
-      "clauseRefs": ["META-011", "META-013"],
+      "clauseRefs": [
+        "META-011",
+        "META-013"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -116,14 +213,28 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "tab-replay",
       "label": "Replay",
       "tab": "nav",
       "module": "tabs",
-      "clauseRefs": ["META-013", "META-015"],
+      "clauseRefs": [
+        "META-013",
+        "META-015"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -131,14 +242,27 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "collapse-section",
       "label": "Expand or collapse",
       "tab": "any",
       "module": "projection",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -146,14 +270,27 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "copy-prompt",
       "label": "复制 Prompt",
       "tab": "any",
       "module": "command-dialog",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -161,14 +298,28 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "d3-zoom-filter",
       "label": "Overview zoom and filter",
       "tab": "any",
       "module": "projection",
-      "clauseRefs": ["META-011", "META-013"],
+      "clauseRefs": [
+        "META-011",
+        "META-013"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -176,14 +327,27 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "expand-tech-details",
       "label": "显示技术细节",
       "tab": "replay",
       "module": "ledger",
-      "clauseRefs": ["META-013"],
+      "clauseRefs": [
+        "META-013"
+      ],
       "dispatch": "projection_only",
       "operation": null,
       "enableWhen": [],
@@ -191,44 +355,89 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "decision-prefill",
       "label": "Prefill decision chip",
       "tab": "topics",
       "module": "decision",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": null,
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "open-charter",
       "label": "Open Charter",
       "tab": "product",
       "module": "product-actions",
-      "clauseRefs": ["META-009", "META-011"],
+      "clauseRefs": [
+        "META-009",
+        "META-011"
+      ],
       "dispatch": "openFile",
       "operation": null,
-      "enableWhen": ["charterExists"],
+      "enableWhen": [
+        "charterExists"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "open-golden",
       "label": "Open Golden",
       "tab": "product",
       "module": "product-actions",
-      "clauseRefs": ["META-006", "META-011"],
+      "clauseRefs": [
+        "META-006",
+        "META-011"
+      ],
       "dispatch": "openFile",
       "operation": null,
       "enableWhen": [],
@@ -236,361 +445,781 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "align-golden",
       "label": "Align Golden",
       "tab": "product",
       "module": "product-actions",
-      "clauseRefs": ["META-006", "META-011"],
+      "clauseRefs": [
+        "META-006",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "align-golden",
-      "enableWhen": ["fresh", "goldenNotAligned"],
+      "enableWhen": [
+        "fresh",
+        "goldenNotAligned"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["baselines/", "golden-baseline.md"],
-      "mustNotWrite": [".openclaw/state.json"],
+      "mayWrite": [
+        "baselines/",
+        "golden-baseline.md"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-golden-align",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/golden-align.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py action-begin --operation align-golden"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py action-begin --operation align-golden",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": true,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "new-proposal",
       "label": "New Proposal",
       "tab": "product",
       "module": "product-actions",
-      "clauseRefs": ["META-011", "CHR-008"],
+      "clauseRefs": [
+        "META-011",
+        "CHR-008"
+      ],
       "dispatch": "composer",
       "operation": "control_proposal",
       "task": "control_proposal",
-      "enableWhen": ["fresh", "goldenAlignedOrDocsOnly"],
+      "enableWhen": [
+        "fresh",
+        "goldenAlignedOrDocsOnly"
+      ],
       "humanPhrase": "已确认",
       "requiresIntent": true,
       "failClosed": "disable",
-      "mayWrite": ["spec/open/", "tmp/ndf-product-intent-*.md"],
-      "mustNotWrite": ["spec/meta/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "spec/open/",
+        "tmp/ndf-product-intent-*.md"
+      ],
+      "mustNotWrite": [
+        "spec/meta/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-proposal-generate",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/proposal-generate.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task control_proposal"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task control_proposal",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "control-pack",
+      "packTask": "control_proposal"
     },
     {
       "id": "open-workbench",
       "label": "打开工作台",
       "tab": "topics",
       "module": "selector",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "snapshot",
       "operation": "open-workbench",
-      "enableWhen": ["topicNotFocused"],
+      "enableWhen": [
+        "topicNotFocused"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-canvas-snapshot.json"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "probeRuntime": false,
       "command": "/ndf-workbench-open",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/workbench-open.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "open-topic",
       "label": "Open topic",
       "tab": "topics",
       "module": "overview",
-      "clauseRefs": ["BEH-025", "META-008"],
+      "clauseRefs": [
+        "BEH-025",
+        "META-008"
+      ],
       "dispatch": "openFile",
       "operation": null,
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "design-prepare",
       "label": "OpenClaw: 准备设计文档",
       "tab": "topics",
       "module": "space-design",
-      "clauseRefs": ["BEH-025", "META-011"],
+      "clauseRefs": [
+        "BEH-025",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "binder_pipeline",
       "task": "binder_pipeline",
-      "enableWhen": ["focusedTopic", "designDocsMissing"],
+      "enableWhen": [
+        "focusedTopic",
+        "designDocsMissing"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["poc/*/ndf/"],
-      "mustNotWrite": ["src/", "spec/meta/", "GATES.md approved_by"],
+      "mayWrite": [
+        "poc/*/ndf/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "spec/meta/",
+        "GATES.md approved_by"
+      ],
       "command": "/ndf-binder-pipeline",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/binder-pipeline.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_pipeline --focus-binder-facet design"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_pipeline --focus-binder-facet design",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "control-pack",
+      "packTask": "binder_pipeline"
     },
     {
       "id": "gate-pipeline",
       "label": "启动门禁",
       "tab": "topics",
       "module": "control-pipelines",
-      "clauseRefs": ["META-010", "META-011"],
+      "clauseRefs": [
+        "META-010",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "gate_pipeline",
       "task": "gate_pipeline",
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": "TOPIC已审核",
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/ndf/GATES.md"],
-      "mustNotWrite": ["spec/meta/", "src/", ".openclaw/state.json"],
+      "mayWrite": [
+        "poc/*/ndf/GATES.md"
+      ],
+      "mustNotWrite": [
+        "spec/meta/",
+        "src/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-gate-pipeline",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/gate-pipeline.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task gate_pipeline"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task gate_pipeline",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "control-pack",
+      "packTask": "gate_pipeline"
     },
     {
       "id": "binder-pipeline",
       "label": "启动装订器",
       "tab": "topics",
       "module": "control-pipelines",
-      "clauseRefs": ["BEH-025", "META-011"],
+      "clauseRefs": [
+        "BEH-025",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "binder_pipeline",
       "task": "binder_pipeline",
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/ndf/"],
-      "mustNotWrite": ["src/", "spec/meta/", "GATES.md approved_by"],
+      "mayWrite": [
+        "poc/*/ndf/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "spec/meta/",
+        "GATES.md approved_by"
+      ],
       "command": "/ndf-binder-pipeline",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/binder-pipeline.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_pipeline"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_pipeline",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "control-pack",
+      "packTask": "binder_pipeline"
     },
     {
       "id": "binder-amend",
       "label": "同假设装订器修订",
       "tab": "topics",
       "module": "control-pipelines",
-      "clauseRefs": ["BEH-025", "META-011"],
+      "clauseRefs": [
+        "BEH-025",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "binder_amend",
       "task": "binder_amend",
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/ndf/"],
-      "mustNotWrite": ["src/", "approved_by", "selected_decision as new_poc"],
+      "mayWrite": [
+        "poc/*/ndf/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "approved_by",
+        "selected_decision as new_poc"
+      ],
       "command": "/ndf-binder-pipeline",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/binder-pipeline.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_amend"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py control-pack --task binder_amend",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "control-pack",
+      "packTask": "binder_amend"
     },
     {
       "id": "poc-prepare-baseline",
       "label": "基线准备",
       "tab": "topics",
       "module": "space-implementation",
-      "clauseRefs": ["META-007", "META-011"],
+      "clauseRefs": [
+        "META-007",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "poc_prepare_baseline",
       "task": "poc_prepare_baseline",
-      "enableWhen": ["focusedTopic", "gapMissingBaseline"],
+      "enableWhen": [
+        "focusedTopic",
+        "gapMissingBaseline"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "spec/meta/", ".openclaw/state.json"],
+      "mayWrite": [
+        "poc/*/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "spec/meta/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-poc-baseline",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-baseline.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_prepare_baseline"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_prepare_baseline",
+      "provider": "claude-code-acp",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport",
+        "write_poc_ndf",
+        "isolated_worktree"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "repair-pack",
+      "packTask": "poc_prepare_baseline"
     },
     {
       "id": "poc-isolation-repair",
       "label": "隔离修复",
       "tab": "topics",
       "module": "space-implementation",
-      "clauseRefs": ["BEH-018", "META-011"],
+      "clauseRefs": [
+        "BEH-018",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "poc_isolation_repair",
       "task": "poc_isolation_repair",
-      "enableWhen": ["focusedTopic", "findingIsolation"],
+      "enableWhen": [
+        "focusedTopic",
+        "findingIsolation"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "git history"],
+      "mayWrite": [
+        "poc/*/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "git history"
+      ],
       "command": "/ndf-poc-isolation",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-isolation.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_isolation_repair"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_isolation_repair",
+      "provider": "claude-code-acp",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport",
+        "write_poc_ndf",
+        "isolated_worktree"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "repair-pack",
+      "packTask": "poc_isolation_repair"
     },
     {
       "id": "open-delta",
       "label": "Open DELTA.md",
       "tab": "topics",
       "module": "space-test",
-      "clauseRefs": ["META-007", "BEH-025"],
+      "clauseRefs": [
+        "META-007",
+        "BEH-025"
+      ],
       "dispatch": "openFile",
       "operation": null,
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "poc-measurement",
       "label": "补测 / 写 DELTA",
       "tab": "topics",
       "module": "space-test",
-      "clauseRefs": ["META-007", "META-011"],
+      "clauseRefs": [
+        "META-007",
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "poc_measurement",
       "task": "poc_measurement",
-      "enableWhen": ["focusedTopic", "gapNumbersPending"],
+      "enableWhen": [
+        "focusedTopic",
+        "gapNumbersPending"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/ndf/DELTA.md", "poc/*/ndf/PERF_BASELINE.md"],
-      "mustNotWrite": ["spec/meta/", "src/"],
+      "mayWrite": [
+        "poc/*/ndf/DELTA.md",
+        "poc/*/ndf/PERF_BASELINE.md",
+        "poc/*/ndf/evidence/",
+        "poc/*/ndf/COMMITS.md"
+      ],
+      "mustNotWrite": [
+        "spec/meta/",
+        "src/"
+      ],
       "command": "/ndf-poc-measure",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-measure.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_measurement"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py repair-pack --task poc_measurement",
+      "provider": "claude-code-acp",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport",
+        "write_poc_ndf",
+        "isolated_worktree",
+        "run_sustained",
+        "sudo_cgroup",
+        "command_allowlist"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "repair-pack",
+      "packTask": "poc_measurement"
     },
     {
       "id": "refresh-topic",
       "label": "Refresh topic",
       "tab": "topics",
       "module": "blockers",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "snapshot",
       "operation": "refresh-topic",
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-canvas-snapshot.json"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "probeRuntime": false,
       "command": "/ndf-topic-refresh",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/topic-refresh.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --out tmp/ndf-canvas-snapshot.json --json",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "diagnose-topic",
       "label": "Diagnose topic",
       "tab": "topics",
       "module": "blockers",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "topic-health",
-      "enableWhen": ["focusedTopic"],
+      "enableWhen": [
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-workflow-health/"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-workflow-health/"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-diagnose-health",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-health.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py topic-health"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py topic-health",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "generate-next-step",
       "label": "生成下一步",
       "tab": "topics",
       "module": "decision",
-      "clauseRefs": ["META-011", "BEH-019"],
+      "clauseRefs": [
+        "META-011",
+        "BEH-019"
+      ],
       "dispatch": "composer",
       "operation": "selected_decision",
-      "enableWhen": ["fresh", "focusedTopic"],
+      "enableWhen": [
+        "fresh",
+        "focusedTopic"
+      ],
       "humanPhrase": null,
       "requiresIntent": true,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/ndf/TOPIC.md"],
-      "mustNotWrite": [".openclaw/state.json"],
+      "mayWrite": [
+        "poc/*/ndf/TOPIC.md"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-close-hop",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/close-hop.md",
-      "tool": "python3 spec/meta/tools/ndf_close.py plan"
+      "tool": "python3 spec/meta/tools/ndf_close.py plan",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": true,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "delegate-poc",
       "label": "Delegate POC",
       "tab": "topics",
       "module": "decision",
-      "clauseRefs": ["META-011", "META-012"],
+      "clauseRefs": [
+        "META-011",
+        "META-012"
+      ],
       "dispatch": "composer",
       "operation": "pack",
       "task": "poc_implementation",
-      "enableWhen": ["fresh", "focusedTopic", "selectedImplementOrExplore", "staticPreflight", "runtimeDispatchReady"],
+      "enableWhen": [
+        "fresh",
+        "focusedTopic",
+        "selectedImplementOrExplore",
+        "staticPreflight",
+        "runtimeDispatchReady"
+      ],
       "humanPhrase": "可以开始实现",
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["poc/*/"],
-      "mustNotWrite": ["src/", "spec/meta/", "spec/00-50"],
+      "mayWrite": [
+        "poc/*/"
+      ],
+      "mustNotWrite": [
+        "src/",
+        "spec/meta/",
+        "spec/00-50"
+      ],
       "command": "/ndf-poc-delegate",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-delegate.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack",
+      "provider": "claude-code-acp",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport",
+        "write_poc_ndf",
+        "isolated_worktree"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "pack",
+      "packTask": "poc_implementation"
     },
     {
       "id": "prepare-acp-lease",
       "label": "Prepare ACP lease",
       "tab": "topics",
       "module": "decision",
-      "clauseRefs": ["META-011", "META-012"],
+      "clauseRefs": [
+        "META-011",
+        "META-012"
+      ],
       "dispatch": "composer",
       "operation": "lease-record",
-      "enableWhen": ["fresh", "focusedTopic", "selectedImplementOrExplore", "staticPreflight", "runtimeNotReady"],
+      "enableWhen": [
+        "fresh",
+        "focusedTopic",
+        "selectedImplementOrExplore",
+        "staticPreflight",
+        "runtimeNotReady"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-workflow-leases.jsonl"],
-      "mustNotWrite": ["poc/ code", "src/"],
+      "mayWrite": [
+        "tmp/ndf-workflow-leases.jsonl"
+      ],
+      "mustNotWrite": [
+        "poc/ code",
+        "src/"
+      ],
       "command": "/ndf-poc-delegate",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-delegate.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py lease-record"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack --json",
+      "provider": "claude-code-acp",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport",
+        "write_poc_ndf",
+        "isolated_worktree",
+        "lease"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "pack",
+      "packTask": "prepare_acp_lease"
     },
     {
       "id": "next-close-hop",
       "label": "继续关闭收口",
       "tab": "topics",
       "module": "decision",
-      "clauseRefs": ["META-011", "BEH-019"],
+      "clauseRefs": [
+        "META-011",
+        "BEH-019"
+      ],
       "dispatch": "composer",
       "operation": "close-apply",
-      "enableWhen": ["fresh", "focusedTopic", "closeSelected"],
+      "enableWhen": [
+        "fresh",
+        "focusedTopic",
+        "closeSelected"
+      ],
       "humanPhrase": "已审核",
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["spec/", "poc/*/ndf/"],
-      "mustNotWrite": [".openclaw/state.json as SoT"],
+      "mayWrite": [
+        "spec/",
+        "poc/*/ndf/"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json as SoT"
+      ],
       "command": "/ndf-close-hop",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/close-hop.md",
-      "tool": "python3 spec/meta/tools/ndf_close.py plan"
+      "tool": "python3 spec/meta/tools/ndf_close.py plan",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": true,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "new-genesis",
       "label": "New Genesis",
       "tab": "control",
       "module": "genesis",
-      "clauseRefs": ["META-009"],
+      "clauseRefs": [
+        "META-009"
+      ],
       "dispatch": "composer",
       "operation": "genesis",
-      "enableWhen": ["fresh", "genesisNotAccepted"],
+      "enableWhen": [
+        "fresh",
+        "genesisNotAccepted"
+      ],
       "humanPhrase": "IDEA已审核",
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["spec/open/proposal-project-genesis.md"],
-      "mustNotWrite": ["spec/meta/ stable", "poc/"],
+      "mayWrite": [
+        "spec/open/proposal-project-genesis.md"
+      ],
+      "mustNotWrite": [
+        "spec/meta/ stable",
+        "poc/"
+      ],
       "command": "/ndf-genesis",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/genesis.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "genesis-pack",
+      "packTask": "project_genesis"
     },
     {
       "id": "open-language-md",
       "label": "Open language.md",
       "tab": "control",
       "module": "kernel-map",
-      "clauseRefs": ["META-001", "META-011"],
+      "clauseRefs": [
+        "META-001",
+        "META-011"
+      ],
       "dispatch": "openFile",
       "operation": null,
       "enableWhen": [],
@@ -598,14 +1227,27 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "open-process-md",
       "label": "Open process.md",
       "tab": "control",
       "module": "kernel-map",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "openFile",
       "operation": null,
       "enableWhen": [],
@@ -613,14 +1255,27 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "open-meta-readme",
       "label": "Open meta README",
       "tab": "control",
       "module": "kernel-map",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "openFile",
       "operation": null,
       "enableWhen": [],
@@ -628,156 +1283,314 @@
       "requiresIntent": false,
       "failClosed": "disable",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "run-ndf-control-check",
       "label": "Run NDF Control check",
       "tab": "control",
       "module": "spec-health",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "spec-health",
       "enableWhen": [],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-workflow-health/spec.json"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-workflow-health/spec.json"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-diagnose-health",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-health.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py spec-health --json"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py spec-health --json",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "diagnose-advisor",
       "label": "Diagnose with Advisor",
       "tab": "control",
       "module": "spec-health",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "composer",
       "operation": "ndf_advise",
       "enableWhen": [],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-diagnose-drift",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/diagnose-drift.md",
-      "tool": "python3 spec/meta/tools/ndf_advise.py plan"
+      "tool": "python3 spec/meta/tools/ndf_advise.py plan",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "repair-kernel",
       "label": "OpenClaw: 修内核",
       "tab": "control",
       "module": "spec-health",
-      "clauseRefs": ["META-011", "META-014"],
+      "clauseRefs": [
+        "META-011",
+        "META-014"
+      ],
       "dispatch": "composer",
       "operation": "ndf_improvement_proposal",
       "task": "ndf_improvement_proposal",
-      "enableWhen": ["fresh", "specHealthFindings"],
+      "enableWhen": [
+        "fresh",
+        "specHealthFindings"
+      ],
       "humanPhrase": "已确认",
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["spec/meta/open/"],
-      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/"],
+      "mayWrite": [
+        "spec/meta/open/"
+      ],
+      "mustNotWrite": [
+        "spec/meta/ stable",
+        "spec/00-50",
+        "poc/"
+      ],
       "command": "/ndf-process-improve",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-improve.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "project-control-pack",
+      "packTask": "ndf_improvement_proposal"
     },
     {
       "id": "go-product",
       "label": "去 Product",
       "tab": "control",
       "module": "spec-health",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": "plane-tab",
-      "enableWhen": ["productGraphFinding"],
+      "enableWhen": [
+        "productGraphFinding"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": [],
-      "mustNotWrite": ["spec/meta/"]
+      "mustNotWrite": [
+        "spec/meta/"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "go-topics",
       "label": "去 Topics",
       "tab": "control",
       "module": "spec-health",
-      "clauseRefs": ["META-011"],
+      "clauseRefs": [
+        "META-011"
+      ],
       "dispatch": "projection_only",
       "operation": "plane-tab",
-      "enableWhen": ["binderHealthActivePoc"],
+      "enableWhen": [
+        "binderHealthActivePoc"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": [],
-      "mustNotWrite": ["spec/meta/"]
+      "mustNotWrite": [
+        "spec/meta/"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "submit-process-improvement",
       "label": "提交流程改进",
       "tab": "control",
       "module": "workflow-evolution",
-      "clauseRefs": ["META-011", "META-014"],
+      "clauseRefs": [
+        "META-011",
+        "META-014"
+      ],
       "dispatch": "composer",
       "operation": "ndf_improvement_proposal",
       "task": "ndf_improvement_proposal",
-      "enableWhen": ["fresh"],
+      "enableWhen": [
+        "fresh"
+      ],
       "humanPhrase": "已确认",
       "requiresIntent": true,
       "failClosed": "disable",
-      "mayWrite": ["spec/meta/open/", "tmp/ndf-process-intent-*.md"],
-      "mustNotWrite": ["spec/meta/ stable", "spec/00-50", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "spec/meta/open/",
+        "tmp/ndf-process-intent-*.md"
+      ],
+      "mustNotWrite": [
+        "spec/meta/ stable",
+        "spec/00-50",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-process-improve",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-improve.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_proposal",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "project-control-pack",
+      "packTask": "ndf_improvement_proposal"
     },
     {
       "id": "land-confirm",
       "label": "推进：已确认",
       "tab": "control",
       "module": "workflow-evolution",
-      "clauseRefs": ["META-010", "META-014"],
+      "clauseRefs": [
+        "META-010",
+        "META-014"
+      ],
       "dispatch": "composer",
       "operation": "ndf_improvement_land",
       "task": "ndf_improvement_land",
-      "enableWhen": ["fresh", "processHopConfirm"],
+      "enableWhen": [
+        "fresh",
+        "processHopConfirm"
+      ],
       "humanPhrase": "已确认",
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["spec/meta/"],
-      "mustNotWrite": [".openclaw/state.json"],
+      "mayWrite": [
+        "spec/meta/"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json"
+      ],
       "command": "/ndf-process-land",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-land.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "project-control-pack",
+      "packTask": "ndf_improvement_land"
     },
     {
       "id": "land-review",
       "label": "推进：已审核",
       "tab": "control",
       "module": "workflow-evolution",
-      "clauseRefs": ["META-010", "META-014"],
+      "clauseRefs": [
+        "META-010",
+        "META-014"
+      ],
       "dispatch": "composer",
       "operation": "ndf_improvement_land",
       "task": "ndf_improvement_land",
-      "enableWhen": ["fresh", "processHopReview"],
+      "enableWhen": [
+        "fresh",
+        "processHopReview"
+      ],
       "humanPhrase": "已审核",
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["spec/meta/open/ review receipt"],
-      "mustNotWrite": ["spec/meta/ stable without 已确认"],
+      "mayWrite": [
+        "spec/meta/open/ review receipt"
+      ],
+      "mustNotWrite": [
+        "spec/meta/ stable without 已确认"
+      ],
       "command": "/ndf-process-land",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/process-land.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack --task ndf_improvement_land",
+      "provider": "openclaw",
+      "episodePolicy": "required",
+      "requireFresh": true,
+      "requiredCapabilities": [
+        "transport"
+      ],
+      "closeoutPolicy": "transactional",
+      "attemptBinding": "exact",
+      "commanderSurface": true,
+      "packKind": "project-control-pack",
+      "packTask": "ndf_improvement_land"
     },
     {
       "id": "replay-agent-filter",
       "label": "用该身份查看 Replay",
       "tab": "replay",
       "module": "directory",
-      "clauseRefs": ["META-013"],
+      "clauseRefs": [
+        "META-013"
+      ],
       "dispatch": "projection_only",
       "operation": "replay-agent-filter-v1",
       "enableWhen": [],
@@ -785,98 +1598,193 @@
       "requiresIntent": false,
       "failClosed": "hide",
       "mayWrite": [],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"]
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "inspect-ledger",
       "label": "查这条账",
       "tab": "replay",
       "module": "directory",
-      "clauseRefs": ["META-013"],
+      "clauseRefs": [
+        "META-013"
+      ],
       "dispatch": "snapshot",
       "operation": "inspect-ledger",
-      "enableWhen": ["hopNotFocused"],
+      "enableWhen": [
+        "hopNotFocused"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["tmp/ndf-canvas-snapshot.json"],
-      "mustNotWrite": ["spec/", "poc/", ".openclaw/state.json"],
+      "mayWrite": [
+        "tmp/ndf-canvas-snapshot.json"
+      ],
+      "mustNotWrite": [
+        "spec/",
+        "poc/",
+        ".openclaw/state.json"
+      ],
       "probeRuntime": false,
       "command": "/ndf-episode-inspect",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/episode-inspect.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --replay-episode"
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py snapshot --replay-episode",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "command-replay-run",
       "label": "执行回放",
       "tab": "replay",
       "module": "jobs",
-      "clauseRefs": ["META-013"],
+      "clauseRefs": [
+        "META-013"
+      ],
       "dispatch": "composer",
       "operation": "command-replay-run",
-      "enableWhen": ["buttonActionFocused"],
+      "enableWhen": [
+        "buttonActionFocused"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-command-replay"],
-      "mustNotWrite": [".openclaw/state.json", "live working branch checkout"],
+      "mayWrite": [
+        "tmp/ndf-command-replay"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json",
+        "live working branch checkout"
+      ],
       "command": "/ndf-command-replay-run",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/command-replay-run.md",
-      "tool": "python3 spec/meta/tools/ndf_replay.py command-replay"
+      "tool": "python3 spec/meta/tools/ndf_replay.py command-replay",
+      "provider": "none",
+      "episodePolicy": "optional",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "command-replay-compare",
       "label": "打开主线对照",
       "tab": "replay",
       "module": "jobs",
-      "clauseRefs": ["META-013"],
+      "clauseRefs": [
+        "META-013"
+      ],
       "dispatch": "composer",
       "operation": "command-replay-compare",
-      "enableWhen": ["buttonActionFocused"],
+      "enableWhen": [
+        "buttonActionFocused"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "disable",
-      "mayWrite": ["tmp/ndf-command-replay"],
-      "mustNotWrite": [".openclaw/state.json", "live working branch checkout"],
+      "mayWrite": [
+        "tmp/ndf-command-replay"
+      ],
+      "mustNotWrite": [
+        ".openclaw/state.json",
+        "live working branch checkout"
+      ],
       "command": "/ndf-command-replay-compare",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/command-replay-compare.md",
-      "tool": "python3 spec/meta/tools/ndf_replay.py command-replay --compare-only"
+      "tool": "python3 spec/meta/tools/ndf_replay.py command-replay --compare-only",
+      "provider": "none",
+      "episodePolicy": "optional",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
     },
     {
       "id": "guest-replay-hop",
       "label": "Guest VM 回放这次 hop",
       "tab": "replay",
       "module": "jobs",
-      "clauseRefs": ["META-013", "META-015"],
+      "clauseRefs": [
+        "META-013",
+        "META-015"
+      ],
       "dispatch": "composer",
       "operation": "guest-run",
-      "enableWhen": ["canRestoreRecord"],
+      "enableWhen": [
+        "canRestoreRecord"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["tmp/ guest-proof"],
-      "mustNotWrite": ["live repo_root host-mount", "src/"],
+      "mayWrite": [
+        "tmp/ guest-proof"
+      ],
+      "mustNotWrite": [
+        "live repo_root host-mount",
+        "src/"
+      ],
       "command": "/ndf-guest-replay",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/guest-replay.md",
-      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm"
+      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm",
+      "commanderSurface": false,
+      "provider": "none",
+      "episodePolicy": "optional",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "none",
+      "attemptBinding": "none"
     },
     {
       "id": "guest-replay-prefix",
       "label": "Guest VM 回放到上一步",
       "tab": "replay",
       "module": "jobs",
-      "clauseRefs": ["META-013", "META-015"],
+      "clauseRefs": [
+        "META-013",
+        "META-015"
+      ],
       "dispatch": "composer",
       "operation": "guest-run",
-      "enableWhen": ["canRestoreRecord", "timelineStepSelected"],
+      "enableWhen": [
+        "canRestoreRecord",
+        "timelineStepSelected"
+      ],
       "humanPhrase": null,
       "requiresIntent": false,
       "failClosed": "hide",
-      "mayWrite": ["tmp/ guest-proof"],
-      "mustNotWrite": ["live repo_root host-mount", "src/"],
+      "mayWrite": [
+        "tmp/ guest-proof"
+      ],
+      "mustNotWrite": [
+        "live repo_root host-mount",
+        "src/"
+      ],
       "command": "/ndf-guest-replay",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/guest-replay.md",
-      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm"
+      "tool": "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm",
+      "commanderSurface": false,
+      "provider": "none",
+      "episodePolicy": "optional",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "none",
+      "attemptBinding": "none"
     }
   ]
 }

@@ -1723,6 +1723,65 @@ def trim_canvas_replay_directory(
     return kept, omitted
 
 
+def _button_action_directory_card(item: Mapping[str, Any]) -> dict[str, Any]:
+    """Directory row: pointer/hash only — never embed full Prompt text."""
+    prompt = str(item.get("prompt") or "")
+    prompt_sha = None
+    if prompt:
+        prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+    return {
+        "id": item.get("id"),
+        "title": item.get("title"),
+        "actionId": item.get("actionId"),
+        "label": item.get("label"),
+        "happenedAt": item.get("happenedAt"),
+        "baselineSha": item.get("baselineSha"),
+        "resultSha": item.get("resultSha"),
+        "promptSha": prompt_sha,
+        "promptBytes": len(prompt.encode("utf-8")) if prompt else 0,
+        "topic": item.get("topic"),
+        "committed": item.get("committed"),
+        "skipReason": item.get("skipReason"),
+        "replayStatus": item.get("replayStatus"),
+        "replayHead": item.get("replayHead"),
+        "replayDiffStat": item.get("replayDiffStat"),
+        "originalDiffStat": item.get("originalDiffStat"),
+        "workflowActionId": item.get("workflowActionId"),
+        "canReplay": item.get("canReplay"),
+        "state": item.get("state") or "button_action",
+    }
+
+
+def trim_button_action_directory(
+    cards: list[Mapping[str, Any]],
+    *,
+    byte_limit: int = CANVAS_REPLAY_DIRECTORY_LIMIT,
+) -> tuple[list[dict[str, Any]], int]:
+    """Keep newest button-action directory rows under the byte budget."""
+    kept: list[dict[str, Any]] = []
+    for card in cards:
+        row = dict(card)
+        candidate = kept + [row]
+        if _json_bytes(candidate) > byte_limit and kept:
+            continue
+        if _json_bytes(candidate) > byte_limit and not kept:
+            # Single oversized row: keep a pointer-only stub.
+            stub = {
+                "id": row.get("id"),
+                "actionId": row.get("actionId"),
+                "baselineSha": row.get("baselineSha"),
+                "resultSha": row.get("resultSha"),
+                "promptSha": row.get("promptSha"),
+                "state": row.get("state") or "button_action",
+                "omittedFields": True,
+            }
+            kept = [stub]
+            break
+        kept = candidate
+    omitted = len(cards) - len(kept)
+    return kept, omitted
+
+
 def project_canvas_replay(
     replay: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
@@ -1740,7 +1799,21 @@ def project_canvas_replay(
             and item.get("resultSha")
             and item.get("actionId")
         ]
-        data["episodes"] = episodes
+        cards = [_button_action_directory_card(item) for item in episodes]
+        trimmed, omitted = trim_button_action_directory(
+            cards, byte_limit=CANVAS_REPLAY_DIRECTORY_LIMIT
+        )
+        # Focused detail MAY keep prompt pointer only (hash), never full text.
+        focused = data.get("focused")
+        if isinstance(focused, Mapping):
+            focused = dict(focused)
+            prompt = str(focused.get("prompt") or "")
+            if prompt:
+                focused["promptSha"] = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+                focused["promptBytes"] = len(prompt.encode("utf-8"))
+            focused.pop("prompt", None)
+            data["focused"] = focused
+        data["episodes"] = trimmed
         data["mode"] = "button_actions"
         data["storeRoot"] = data.get("storeRoot") or ".ndf/replay"
         if not data.get("archivedNote"):
@@ -1748,8 +1821,11 @@ def project_canvas_replay(
                 "Legacy canvas-ledger and episode hops live under "
                 ".ndf/replay/archive/ and are not projected."
             )
-        data.pop("omittedCount", None)
-        data.pop("canvasOmittedEpisodes", None)
+        data["omittedCount"] = omitted
+        if omitted:
+            data["canvasOmittedEpisodes"] = omitted
+        else:
+            data.pop("canvasOmittedEpisodes", None)
         return data
     # Legacy path: drop archived-style hops from projection (empty directory).
     data["episodes"] = []
@@ -1760,7 +1836,7 @@ def project_canvas_replay(
         "Legacy canvas-ledger and episode hops live under "
         ".ndf/replay/archive/ and are not projected."
     )
-    data.pop("omittedCount", None)
+    data["omittedCount"] = 0
     return data
 
 

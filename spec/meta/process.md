@@ -269,15 +269,21 @@ UI MUST NOT 另写一套 Golden/gate/freshness 判断，也 MUST NOT 发明未�
 的唯一派发面；commander 的 snapshot hop（Refresh / 打开工作台 / 查这条账）MAY 由
 本地 `--serve` 重建 `tmp/ndf-canvas-snapshot.json`，MUST NOT 写 `.openclaw/state.json`。
 `--serve` MUST bind loopback（`127.0.0.1`）。`--serve` MUST 单例（lock + 拒绝第二份）；
-HTTP/SSE 线程 MUST 有界并可断线退出。本进程 cgroup 空闲 PID/线程不足时，`--serve` 与
-`action-begin` MUST fail-closed（`host_pid_exhausted`）；诊断入口 `host-pids`。
+HTTP/SSE 线程 MUST 有界并可断线退出。`--serve` MUST NOT 在
+`app-org.chromium.Chromium-*.scope` 内启动（`chromium_serve_forbidden`）；live 面板
+仅允许仓库外终端。`action-begin` 与 `--serve` MUST 使用**拆分** PID 余量门槛
+（action fork 余量 vs serve 较大余量）；不足时 fail-closed（`host_pid_exhausted`）。
+`host-pids` MUST 同时报告 self cgroup 与 Chromium app slice、top 线程消费者与分类
+计数；当 NDF/qemu 可忽略而 Chromium 占满 TasksMax 时，advice MUST 指向关 Cursor
+标签 / `snapshot --out`，MUST NOT 默认归咎 leftover serve。
 Command Agent MUST NOT 后台残留 `--serve`；日常刷新只写 `--out`。Cloud Agent VM 对人浏览器没有 TCP 入站，
 因此 `http://127.0.0.1:8765/` 不是云端可打开地址。Cloud Agent MUST 生成
 `docs/ndf-commander.html` 自包含投影；MAY 从磁盘直接打开、由本地/内网静态服务器
 托管，或从可达 HTTPS 页面打开。工作台使用 MUST NOT 依赖 GitHub、CDN 或外网；
 命令继续回到同一 Composer 执行。MUST NOT 为了给人看页面而在 VM 上 `--serve`。
-发现 Agent Shell `EAGAIN` / fork 失败时 MUST 先跑 `host-pids` 并清理残留 serve/qemu，
-MUST NOT 改 `environment=cloud` 绕开本机宿主卫生。
+发现 Agent Shell `EAGAIN` / fork 失败时 MUST 先跑 `host-pids`（看 Chromium slice
+与 consumers）；清理仅当 NDF serve/qemu 确为主因；MUST NOT 改 `environment=cloud`
+绕开本机宿主卫生，MUST NOT 调大 Chromium `TasksMax` 作为主修复。
 
 实现/Control 派发结果 MUST 区分三层，不得互相冒充：
 （1）**runtime 投影**默认 snapshot 为 `not_probed`，MUST NOT 生成虚假
@@ -286,7 +292,8 @@ MUST NOT 改 `environment=cloud` 绕开本机宿主卫生。
 （3）**validated completion** 必须解析唯一的 `ndf-agent-completion/v1` 且
 `result=success`（并经 `completion-record` 绑 Episode 时）才可投影 succeeded。
 `workspace_truth.workspace_bound=false` 时 pack MUST NOT `safe_to_dispatch`。
-OpenClaw gateway 健康与 Claude ACP 可达正交，MUST NOT 用其一清另一侧 blocker。
+身份绑定与执行 HEAD 绑定 MUST 分离：仅身份失配构成 `workspace_unbound`；HEAD
+漂移单独投影为 `execution_binding_stale`。OpenClaw gateway 健康与 Claude ACP 可达正交，MUST NOT 用其一清另一侧 blocker。
 
 Snapshot MUST 投影生成该指挥面的 Git remote URL、remote 名与命名分支。所有
 Composer / snapshot Prompt MUST 以 `BEGIN NDF GIT INPUT` / `END NDF GIT INPUT`
@@ -301,9 +308,22 @@ Command Agent 的目标分支。驾驶舱 MUST 提供可编辑的远程仓库/�
 Topics 空间卡 MUST 把每个 gap 写成 why + how + 命令入口，不得只显示 gap id。
 `missing_baseline_workspace` MUST 指向 `poc-prepare-baseline`；`numbers_pending`
 MUST 指向 `poc-measurement`。这些 Composer 修复按钮，以及页底门禁/装订器流水线按钮，
-MUST 在对应 gap 或流水线卡片上保持可见可点以复制 Prompt；投影 stale 只禁止把状态
-画成 ready / closed，MUST NOT 因此隐藏修复入口。Delegate / land / 人口令落地仍须
-fresh 与既有门禁。
+MUST 在对应 gap 或流水线卡片上保持**可见**；投影 stale 时 MUST disable 可写执行
+（`requireFresh` / ActionSpec），MUST NOT 在缺失 `enabledActions` 条目时默认启用。
+stale 只禁止把状态画成 ready / closed，也 MUST NOT 让过期投影继续触发可写 repair /
+delegate。Delegate / land / 人口令落地仍须 fresh 与既有门禁。
+
+`workspace_truth.workspace_bound` MUST 只表示工作区**身份**（`repo_root` +
+`active_topic` 等）一致；正常 commit 推进 HEAD MUST NOT 单独判为身份失绑。HEAD
+漂移 MUST 记为 `execution_binding_stale`；pack `base_sha` MUST 取 live `git_head()`。
+可写 ActionSpec MUST 声明 `episodePolicy=required`、`provider`、
+`requiredCapabilities` 与 `closeoutPolicy`；`action-begin` MUST 绑定同一 Episode/
+attempt，并贯通 pack / worker message / hook / completion。`safe_to_dispatch`
+MUST 同时满足 `static_preflight_passed`、`transport_reachable`、
+`execution_capabilities_ready`（及适用时 `lease_acquired`）；缺 sudo/cgroup/
+命令批准等能力时 MUST `waiting_human` 或 fail-closed，不得先发送再碰运气。
+失败 completion 也 MUST Episode-bind；task 成功但 projection 失败 MUST 记
+`succeeded_projection_stale`，不得冒充全成功。
 
 ```text
 project_maturity | lifecycle | gates
@@ -740,8 +760,11 @@ Commander Replay 页 MUST 只展示**按钮动作**回放（catalog `action_id` 
 Prompt 并记录 HEAD；右列对照主线 B（`git show` / `git diff A B`），不重跑 skill。
 MUST NOT 用页面按钮声称「已回放」；`执行回放` / `打开对照` MUST 标为 Composer
 instructions。日常机械步骤走 CLI `command-replay`（可选 `guest-run`，[[META-015]]）。
-旧 Canvas 账本（`canvas-ledger`、人话 / 规范 / 实发 Prompt 三栏、plane×agent hop、
+Guest VM 回放按钮 MUST NOT 出现在 Commander（`commanderSurface=false` / forbidden）；
+仅保留 CLI。旧 Canvas 账本（`canvas-ledger`、人话 / 规范 / 实发 Prompt 三栏、plane×agent hop、
 「查这条账」）MUST 归档且 MUST NOT 再投影到 Commander；CLI 考古不叫 Replay 主路径。
+Replay 目录投影 MUST 裁剪且 MUST NOT 内嵌完整 Prompt 文本（仅 pointer/hash）；超预算
+MUST 省略 bucket 并记录 `omittedCount`，不得令整份 snapshot 失败。
 按钮 skill 在刷新可视化面板前 MUST 按 registry `mayWrite` 自动 `git commit`（提交说明
 `ndf-action: <action_id>`；工作区干净可跳过），以便 A→B 可复现。Agents 页 MUST NOT
 跳转 Replay。R0/R1/R2/R3 等级合同仍适用审计与沙盒工具，但不是 Commander 主交互。

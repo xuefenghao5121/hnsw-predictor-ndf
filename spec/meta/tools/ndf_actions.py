@@ -19,9 +19,12 @@ SNAPSHOT_OUT = TOOLS.parents[2] / "tmp" / "ndf-canvas-snapshot.json"
 
 WRITE_DISPATCH = frozenset({"composer", "snapshot"})
 LEGACY_EMBED_ACTION_IDS = frozenset({"refresh-snapshot"})
+SUPPORTED_REGISTRY_SCHEMAS = frozenset(
+    {"ndf-action-registry/v1", "ndf-action-registry/v2"}
+)
 
-# Pack CLI → afterShellExecution hook → OpenClaw / Claude Code ACP.
-DELEGATE_OPENCLAW = frozenset(
+# Legacy fallbacks when registry omits provider (pre-v2). Prefer ActionSpec.provider.
+_LEGACY_DELEGATE_OPENCLAW = frozenset(
     {
         "new-proposal",
         "gate-pipeline",
@@ -35,7 +38,7 @@ DELEGATE_OPENCLAW = frozenset(
         "new-genesis",
     }
 )
-DELEGATE_ACP = frozenset(
+_LEGACY_DELEGATE_ACP = frozenset(
     {
         "poc-prepare-baseline",
         "poc-isolation-repair",
@@ -44,16 +47,60 @@ DELEGATE_ACP = frozenset(
         "prepare-acp-lease",
     }
 )
-PACK_DELEGATE_ACTIONS = DELEGATE_OPENCLAW | DELEGATE_ACP
+
+
+def action_provider(action: Mapping[str, Any] | str) -> str:
+    """Return openclaw | claude-code-acp | none from ActionSpec (or legacy id)."""
+    if isinstance(action, str):
+        spec = registry_by_id().get(action) or {"id": action}
+    else:
+        spec = action
+    provider = str(spec.get("provider") or "").strip()
+    if provider in {"openclaw", "claude-code-acp", "none"}:
+        return provider
+    action_id = str(spec.get("id") or "")
+    if action_id in _LEGACY_DELEGATE_OPENCLAW:
+        return "openclaw"
+    if action_id in _LEGACY_DELEGATE_ACP:
+        return "claude-code-acp"
+    return "none"
+
+
+def action_episode_policy(action: Mapping[str, Any] | str) -> str:
+    if isinstance(action, str):
+        action = registry_by_id().get(action) or {"id": action}
+    policy = str(action.get("episodePolicy") or "").strip()
+    if policy in {"required", "optional", "none"}:
+        return policy
+    return "required" if action_provider(action) != "none" else "none"
+
+
+def action_requires_fresh(action: Mapping[str, Any]) -> bool:
+    if action.get("requireFresh") is True:
+        return True
+    if action.get("requireFresh") is False:
+        return False
+    return "fresh" in (action.get("enableWhen") or [])
+
+
+def pack_delegate_action_ids() -> frozenset[str]:
+    return frozenset(
+        item["id"]
+        for item in registry_actions()
+        if action_provider(item) in {"openclaw", "claude-code-acp"}
+        and item.get("commanderSurface", True) is not False
+    )
+
+
+# Back-compat aliases used by older tests / imports.
+DELEGATE_OPENCLAW = _LEGACY_DELEGATE_OPENCLAW
+DELEGATE_ACP = _LEGACY_DELEGATE_ACP
+PACK_DELEGATE_ACTIONS = _LEGACY_DELEGATE_OPENCLAW | _LEGACY_DELEGATE_ACP
 
 
 def delegate_target_for_action(action_id: str) -> str:
     """Return openclaw | claude-code-acp | none for a catalog action."""
-    if action_id in DELEGATE_OPENCLAW:
-        return "openclaw"
-    if action_id in DELEGATE_ACP:
-        return "claude-code-acp"
-    return "none"
+    return action_provider(action_id)
 
 
 def delegate_hint_zh(action_id: str) -> str:
@@ -65,15 +112,75 @@ def delegate_hint_zh(action_id: str) -> str:
     return "本按钮不自动委派工作者"
 
 
+def validate_action_spec(action: Mapping[str, Any]) -> list[str]:
+    """Fail-closed checks for one ActionSpec row."""
+    errors: list[str] = []
+    aid = str(action.get("id") or "")
+    if not aid:
+        errors.append("missing:id")
+    dispatch = action.get("dispatch")
+    if dispatch not in {"composer", "openFile", "snapshot", "projection_only"}:
+        errors.append(f"invalid_dispatch:{dispatch}")
+    if dispatch in WRITE_DISPATCH:
+        for field in ("command", "skill", "tool"):
+            if not action.get(field):
+                errors.append(f"missing:{field}")
+    provider = action_provider(action)
+    if provider not in {"openclaw", "claude-code-acp", "none"}:
+        errors.append(f"invalid_provider:{provider}")
+    if provider != "none" and action_episode_policy(action) != "required":
+        errors.append("writable_delegate_requires_episodePolicy=required")
+    if provider != "none" and not action.get("closeoutPolicy"):
+        errors.append("missing:closeoutPolicy")
+    if provider != "none" and action.get("attemptBinding") not in {"exact", "none", None}:
+        errors.append(f"invalid_attemptBinding:{action.get('attemptBinding')}")
+    return errors
+
+
+def validate_registry() -> dict[str, Any]:
+    data = load_registry()
+    errors: list[str] = []
+    for action in data.get("actions") or []:
+        for err in validate_action_spec(action):
+            errors.append(f"{action.get('id')}:{err}")
+    return {"valid": not errors, "errors": errors, "schema": data.get("schema")}
+
+
 @lru_cache(maxsize=1)
 def load_registry() -> dict[str, Any]:
     data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-    if data.get("schema") != "ndf-action-registry/v1":
-        raise ValueError(f"unexpected action registry schema: {data.get('schema')}")
+    schema = data.get("schema")
+    if schema not in SUPPORTED_REGISTRY_SCHEMAS:
+        raise ValueError(f"unexpected action registry schema: {schema}")
     ids = [item["id"] for item in data.get("actions") or []]
     if len(ids) != len(set(ids)):
         raise ValueError("duplicate action ids in registry")
     return data
+
+
+def action_matrix() -> list[dict[str, Any]]:
+    """Mechanical matrix: UI ↔ prompt ↔ pack ↔ provider ↔ write ↔ closeout."""
+    rows: list[dict[str, Any]] = []
+    for action in registry_actions():
+        rows.append(
+            {
+                "id": action["id"],
+                "dispatch": action.get("dispatch"),
+                "provider": action_provider(action),
+                "episodePolicy": action_episode_policy(action),
+                "requireFresh": action_requires_fresh(action),
+                "packKind": action.get("packKind"),
+                "packTask": action.get("packTask") or action.get("task"),
+                "mayWrite": list(action.get("mayWrite") or []),
+                "requiredCapabilities": list(action.get("requiredCapabilities") or []),
+                "closeoutPolicy": action.get("closeoutPolicy"),
+                "attemptBinding": action.get("attemptBinding"),
+                "commanderSurface": action.get("commanderSurface", True),
+                "command": action.get("command"),
+                "tool": action.get("tool"),
+            }
+        )
+    return rows
 
 
 def registry_actions() -> list[dict[str, Any]]:
@@ -417,15 +524,25 @@ def evaluate_action(
     context = dict(ctx or {})
     reasons: list[str] = []
     enabled = True
+    # Commander surface retirement (guest-replay etc.): hide/disable always.
+    if action.get("commanderSurface") is False:
+        enabled = False
+        reasons.append("commander_surface_retired")
     for name in action.get("enableWhen") or []:
         if not predicate_holds(str(name), payload, context):
             enabled = False
             reasons.append(name)
-    if action.get("dispatch") in WRITE_DISPATCH and "fresh" in (action.get("enableWhen") or []):
+    needs_fresh = action_requires_fresh(action) or (
+        action.get("dispatch") in WRITE_DISPATCH and "fresh" in (action.get("enableWhen") or [])
+    )
+    if needs_fresh and action.get("dispatch") in WRITE_DISPATCH:
         if _freshness_state(payload) != "fresh":
             enabled = False
-            if "fresh" not in reasons:
-                reasons.append(_freshness_state(payload) or "unknown")
+            state = _freshness_state(payload) or "unknown"
+            if state not in reasons and "fresh" not in reasons:
+                reasons.append(state if state != "fresh" else "stale")
+            if "fresh" not in reasons and state != "fresh":
+                reasons.append("fresh")
     return {
         "id": action["id"],
         "enabled": enabled,
@@ -439,6 +556,8 @@ def evaluate_action(
         "task": action.get("task"),
         "tab": action.get("tab"),
         "module": action.get("module"),
+        "provider": action_provider(action),
+        "requireFresh": needs_fresh,
     }
 
 
@@ -522,9 +641,9 @@ def dispatch_prompt_header(action: Mapping[str, Any]) -> list[str]:
     if not command or not skill or not tool:
         raise ValueError(f"{action.get('id')} missing command/skill/tool mapping")
     action_id = str(action.get("id") or "")
-    target = delegate_target_for_action(action_id)
+    target = action_provider(action)
     lines = [str(command), f"skill={skill}", f"tool={tool}", f"delegate_to={target}"]
-    if action_id in PACK_DELEGATE_ACTIONS:
+    if target in {"openclaw", "claude-code-acp"}:
         lines.extend(
             [
                 "delegate_hook=afterShellExecution",
@@ -543,18 +662,41 @@ def dispatch_prompt_header(action: Mapping[str, Any]) -> list[str]:
     return lines
 
 
-def action_prompt_relpath(catalog_action_id: str) -> str:
+def action_prompt_relpath(catalog_action_id: str, attempt_id: str | None = None) -> str:
     safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in catalog_action_id)
+    if attempt_id:
+        attempt_safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in attempt_id)
+        return f"tmp/ndf-action-prompt-{safe}-{attempt_safe}.md"
     return f"tmp/ndf-action-prompt-{safe}.md"
 
 
-def persist_action_prompt(catalog_action_id: str, prompt: str) -> Path:
+def persist_action_prompt(
+    catalog_action_id: str,
+    prompt: str,
+    *,
+    attempt_id: str | None = None,
+) -> Path:
     """Write the copied Prompt so action-commit / stop hook can bind it."""
-    rel = action_prompt_relpath(catalog_action_id)
+    rel = action_prompt_relpath(catalog_action_id, attempt_id=attempt_id)
     path = TOOLS.parents[2] / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(prompt if prompt.endswith("\n") else prompt + "\n", encoding="utf-8")
     return path
+
+
+def _episode_cli_token(episode_id: str | None, *, placeholders: bool) -> str:
+    if placeholders:
+        return "<episode_id from action-begin JSON>"
+    if episode_id and str(episode_id).strip():
+        return str(episode_id).strip()
+    return "<episode_id from action-begin JSON>"
+
+
+def _pack_cli_with_episode(base_cmd: str, episode_token: str) -> str:
+    """Append --episode to a pack CLI when not already present."""
+    if "--episode" in base_cmd:
+        return base_cmd
+    return f"{base_cmd} --episode {episode_token}"
 
 
 def composer_prompt(
@@ -592,7 +734,9 @@ def composer_prompt(
     )
     may_write = [str(item) for item in (action.get("mayWrite") or []) if str(item).strip()]
     must_not = [str(item) for item in (action.get("mustNotWrite") or []) if str(item).strip()]
-    pack_delegate = action_id in PACK_DELEGATE_ACTIONS
+    pack_delegate = action_provider(action) in {"openclaw", "claude-code-acp"}
+    episode_token = _episode_cli_token(episode_id, placeholders=placeholders)
+    episode_required = action_episode_policy(action) == "required"
     lines = [
         *dispatch_prompt_header(action),
         *_git_execution_contract(
@@ -609,6 +753,8 @@ def composer_prompt(
         f"catalog_action_id={action_id}",
         f"label={action.get('label')}",
         f"operation={operation}",
+        f"provider={action_provider(action)}",
+        f"episode_policy={action_episode_policy(action)}",
         f"clauses={', '.join(action.get('clauseRefs') or [])}",
         f"Follow {action.get('skill')} and {action.get('command')}.",
         f"Use catalog_action_id={action_id} whenever this skill is shared with other buttons.",
@@ -626,7 +772,16 @@ def composer_prompt(
                     "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
                     f"--operation {operation} --catalog-action-id {action_id}"
                     + (f" --topic {topic_token}" if topic_id else "")
+                    + (
+                        f" --episode {episode_id}"
+                        if episode_id and not placeholders
+                        else ""
+                    )
                     + " --json"
+                ),
+                (
+                    "Parse action-begin JSON: keep action_id and episode_id. "
+                    "Every subsequent pack CLI MUST pass the same --episode <episode_id>."
                 ),
                 (
                     "# then run the unique tool= pack CLI for this catalog_action_id "
@@ -640,8 +795,18 @@ def composer_prompt(
                     "mayWrite below is the *worker* boundary after hook dispatch — "
                     "not permission for Command Agent to write those paths."
                 ),
+                (
+                    "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
+                    "that page auto-reloads the written snapshot. Do not curl localhost:8081. "
+                    "htmlpreview or docs/ndf-commander.html is static: rebuild HTML then refresh the browser."
+                ),
             ]
         )
+        if episode_required:
+            lines.append(
+                "Writable pack MUST include --episode from action-begin; "
+                "missing Episode fail-closes safe_to_dispatch / bind_pack_to_episode."
+            )
     else:
         lines.extend(
             [
@@ -733,8 +898,11 @@ def composer_prompt(
         lines.append(intent.strip())
         lines.append("END HUMAN PRODUCT INTENT")
         lines.append(
-            "python3 spec/meta/tools/ndf_workflow_status.py control-pack "
-            f"--task control_proposal --intent-file {product_intent_rel} --json"
+            _pack_cli_with_episode(
+                "python3 spec/meta/tools/ndf_workflow_status.py control-pack "
+                f"--task control_proposal --intent-file {product_intent_rel} --json",
+                episode_token,
+            )
         )
         lines.append("Stop after pack JSON; hook sends OpenClaw. MUST NOT create poc/ before 已确认. MUST NOT write spec/meta/open/.")
     elif action_id == "align-golden":
@@ -743,31 +911,50 @@ def composer_prompt(
         )
         lines.append("If Trunk src/include/tests changed since Golden: re-run Golden matrix.")
         lines.append("Docs-only ahead: do not re-run; refresh snapshot.")
+        lines.append(
+            "Golden path: python3 spec/meta/tools/ndf_perf_baseline.py check "
+            "--golden (or project Golden skill); update baselines/bl-trunk-golden-<sha>.md "
+            "only after matrix pass — never invent Numbers."
+        )
     elif action_id == "submit-process-improvement":
         lines.append(f"Write exact META intent to {process_intent_rel}")
         lines.append("BEGIN HUMAN META INTENT")
         lines.append(intent.strip())
         lines.append("END HUMAN META INTENT")
         lines.append(
-            "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
-            "--task ndf_improvement_proposal --origin human_intent "
-            f"--intent-file {process_intent_rel} --json"
+            _pack_cli_with_episode(
+                "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
+                "--task ndf_improvement_proposal --origin human_intent "
+                f"--intent-file {process_intent_rel} --json",
+                episode_token,
+            )
         )
         lines.append("Stop after pack JSON; hook sends OpenClaw. Draft spec/meta/open/ only. Status: Pending confirmation.")
     elif action_id == "repair-kernel":
         lines.append(
-            "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
-            "--task ndf_improvement_proposal --origin health_finding --json"
+            _pack_cli_with_episode(
+                "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
+                "--task ndf_improvement_proposal --origin health_finding --json",
+                episode_token,
+            )
         )
         lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id in {"land-confirm", "land-review"}:
         proposal = proposal_path or "PROPOSAL_PATH_REQUIRED"
         lines.append(f"proposal_path={proposal}")
+        lines.append(f"human_phrase={phrase}")
         lines.append(
-            "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
-            f"--task ndf_improvement_land --proposal {proposal} --json"
+            _pack_cli_with_episode(
+                "python3 spec/meta/tools/ndf_workflow_status.py project-control-pack "
+                f"--task ndf_improvement_land --proposal {proposal} --json",
+                episode_token,
+            )
         )
         lines.append(f"Wait for exact phrase: {phrase}")
+        lines.append(
+            "Land hop MUST pass the exact human phrase into the control pack / gate receipt; "
+            "button click alone is not approval."
+        )
     elif action_id == "generate-next-step":
         lines.append(f"topic={topic_token}")
         lines.append("BEGIN HUMAN POC DECISION")
@@ -779,6 +966,9 @@ def composer_prompt(
             "If selected_decision is reject|promote|partial, run "
             f"python3 spec/meta/tools/ndf_close.py plan --topic {topic_token} "
             "--mode <from selected_decision only> (not silent promote). Else do not run ndf_close."
+        )
+        lines.append(
+            "Persist selected_decision on TOPIC / decision receipt before claiming next-close-hop ready."
         )
     elif action_id == "next-close-hop":
         lines.append(f"topic={topic_token}")
@@ -796,19 +986,27 @@ def composer_prompt(
         lines.append("Not silent promote. Follow close-console.md. Wait for exact phrase 已审核.")
     elif action_id == "delegate-poc":
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json",
+                episode_token,
+            )
         )
         lines.append(
-            "Require static_preflight_passed and runtime_dispatch_ready. "
-            "Stop after pack JSON; hook sends Claude Code ACP. See acp-delegate.md#poc."
+            "Require static_preflight_passed, runtime_dispatch_ready, and "
+            "execution_capabilities_ready. Stop after pack JSON; hook sends Claude Code ACP. "
+            "See acp-delegate.md#poc."
         )
         lines.append("Worker markdown is not the command surface.")
     elif action_id == "prepare-acp-lease":
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json",
+                episode_token,
+            )
         )
         lines.append(
-            "Stop after pack JSON. Hook runs lease-record only (no implementation start)."
+            "Stop after pack JSON. Hook runs lease-record only (no implementation start). "
+            "Lease receipt MUST bind action_id + episode_id + base_sha + worktree."
         )
         lines.append("Follow .cursor/skills/ndf-workflow-canvas/acp-delegate.md runtime lease.")
     elif action_id == "design-prepare":
@@ -818,8 +1016,11 @@ def composer_prompt(
             "Prepare or amend DESIGN.md from the proposal; write INTERFACE.md only if binder order still requires it."
         )
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
-            "--task binder_pipeline --focus-binder-facet design --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
+                "--task binder_pipeline --focus-binder-facet design --json",
+                episode_token,
+            )
         )
         lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
         lines.append(
@@ -827,32 +1028,50 @@ def composer_prompt(
         )
     elif action_id == "gate-pipeline":
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
-            "--task gate_pipeline --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
+                "--task gate_pipeline --json",
+                episode_token,
+            )
         )
         lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id == "binder-pipeline":
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
-            "--task binder_pipeline --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
+                "--task binder_pipeline --json",
+                episode_token,
+            )
         )
         lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id == "binder-amend":
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
-            "--task binder_amend --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py control-pack --topic {topic_token} "
+                "--task binder_amend --json",
+                episode_token,
+            )
         )
         lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
     elif action_id in {"poc-prepare-baseline", "poc-isolation-repair", "poc-measurement"}:
         task = str(action.get("task") or "")
         lines.append(
-            f"python3 spec/meta/tools/ndf_workflow_status.py repair-pack --topic {topic_token} "
-            f"--task {task} --json"
+            _pack_cli_with_episode(
+                f"python3 spec/meta/tools/ndf_workflow_status.py repair-pack --topic {topic_token} "
+                f"--task {task} --json",
+                episode_token,
+            )
         )
         lines.append(
             "Stop after pack JSON. If not safe_to_dispatch, report blockers and stop. "
             "Hook sends Claude Code ACP for the worker write."
         )
+        if action_id == "poc-measurement":
+            lines.append(
+                "Measurement requires capability receipts for run_sustained / sudo_cgroup / "
+                "write_poc_ndf. Missing capability → waiting_human or fail-closed; "
+                "MUST NOT send then hope for approval."
+            )
     elif action_id in {"guest-replay-hop", "guest-replay-prefix"}:
         hop_id = (
             episode_id
@@ -863,10 +1082,19 @@ def composer_prompt(
             "python3 spec/meta/tools/ndf_replay.py guest-run --adapter vm "
             f"--episode {hop_id} --commit <sha from guest proof only>"
         )
-        lines.append("Proof ndf-replay-guest-proof/v1 adapter=vm. MUST NOT host-mount live repo_root.")
+        lines.append(
+            "CLI-only (commanderSurface=false). Proof ndf-replay-guest-proof/v1 adapter=vm. "
+            "MUST NOT host-mount live repo_root."
+        )
     elif action_id == "new-genesis":
         lines.append("python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json")
         lines.append("Draft spec/open/proposal-project-genesis.md track=bootstrap.")
+        lines.append(
+            _pack_cli_with_episode(
+                "python3 spec/meta/tools/ndf_workflow_status.py genesis-pack --json",
+                episode_token,
+            )
+        )
         lines.append("Stop at IDEA已审核. Follow .cursor/skills/ndf-workflow-canvas/genesis.md.")
     elif action_id == "run-ndf-control-check":
         lines.append("python3 spec/meta/tools/ndf_workflow_status.py spec-health --json")

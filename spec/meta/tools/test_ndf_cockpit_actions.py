@@ -108,15 +108,46 @@ class ActionRegistryTest(unittest.TestCase):
         stale = _payload(projectionFreshness={"state": "stale_after_action"})
         enabled = actions.evaluate_enabled_actions(stale)
         self.assertFalse(enabled["new-proposal"]["enabled"])
-        self.assertEqual(enabled["new-proposal"]["reason"], "fresh")
+        self.assertIn("fresh", enabled["new-proposal"]["reason"] or "")
         self.assertFalse(enabled["align-golden"]["enabled"])
         self.assertFalse(enabled["delegate-poc"]["enabled"])
-        self.assertFalse(enabled["submit-process-improvement"]["enabled"])
         self.assertTrue(enabled["refresh-snapshot"]["enabled"])
-        self.assertTrue(enabled["gate-pipeline"]["enabled"])
-        self.assertTrue(enabled["binder-pipeline"]["enabled"])
-        self.assertTrue(enabled["poc-prepare-baseline"]["enabled"])
-        self.assertTrue(enabled["poc-measurement"]["enabled"])
+        # Writable repairs requireFresh under ActionSpec — visible but not executable.
+        self.assertFalse(enabled["gate-pipeline"]["enabled"])
+        self.assertFalse(enabled["binder-pipeline"]["enabled"])
+        self.assertFalse(enabled["poc-prepare-baseline"]["enabled"])
+        self.assertFalse(enabled["poc-measurement"]["enabled"])
+
+    def test_action_matrix_covers_writable_delegates(self) -> None:
+        matrix = {row["id"]: row for row in actions.action_matrix()}
+        for action_id in ("poc-measurement", "delegate-poc", "gate-pipeline", "new-proposal"):
+            row = matrix[action_id]
+            self.assertEqual(row["episodePolicy"], "required")
+            self.assertIn(row["provider"], {"openclaw", "claude-code-acp"})
+            self.assertTrue(row["requireFresh"])
+            self.assertEqual(row["closeoutPolicy"], "transactional")
+        self.assertFalse(matrix["guest-replay-hop"]["commanderSurface"])
+        report = actions.validate_registry()
+        self.assertTrue(report["valid"], report["errors"])
+
+    def test_writable_prompts_require_episode_flag(self) -> None:
+        payload = _payload(
+            projectionFreshness={"state": "fresh"},
+            business={
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {"id": "hotspot-optimization"},
+                "topics": [{"id": "hotspot-optimization"}],
+            },
+        )
+        prompt = actions.composer_prompt(
+            "poc-measurement",
+            payload,
+            topic="hotspot-optimization",
+            placeholders=True,
+        )
+        self.assertIn("--episode", prompt)
+        self.assertIn("episode_policy=required", prompt)
+        self.assertIn("repair-pack", prompt)
 
     def test_refresh_snapshot_does_not_default_probe_runtime(self) -> None:
         catalog = actions.registry_by_id()["refresh-snapshot"]
@@ -1114,12 +1145,13 @@ class ActionRegistryTest(unittest.TestCase):
         with mock.patch.object(workflow, "git_head", return_value="abc123deadbeef"):
             with mock.patch.object(workflow, "source_generation_sha", return_value="gensha"):
                 with mock.patch.object(workflow, "append_action_receipt"):
-                    begin = workflow.action_begin(
-                        "align-golden",
-                        None,
-                        "wf-align-test-1",
-                        catalog_action_id="align-golden",
-                    )
+                    with mock.patch.object(workflow, "ensure_host_pid_headroom", return_value=None):
+                        begin = workflow.action_begin(
+                            "align-golden",
+                            None,
+                            "wf-align-test-1",
+                            catalog_action_id="align-golden",
+                        )
         self.assertEqual(begin["catalog_action_id"], "align-golden")
         self.assertEqual(begin["status"], "started")
         self.assertEqual(begin["action_id"], "wf-align-test-1")

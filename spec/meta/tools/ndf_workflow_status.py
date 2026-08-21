@@ -70,12 +70,19 @@ LEASE_LOG = ROOT / "tmp" / "ndf-workflow-leases.jsonl"
 CLOSE_EVIDENCE_DIR = ROOT / "tmp" / "ndf-close-evidence"
 PROJECTION_EVIDENCE_DIR = ROOT / "tmp" / "ndf-projection-evidence"
 SERVE_LOCK_PATH = ROOT / "tmp" / "ndf-commander-serve.lock"
-HOST_PID_MIN_FREE = 512
+# Outer-terminal --serve keeps a larger reserve so HTTP workers do not starve the host.
+HOST_PID_MIN_FREE_SERVE = 512
+# action-begin only needs room for one python + a few children (not IDE baseline).
+HOST_PID_MIN_FREE_ACTION = 64
+# Backward-compatible alias (serve-side reserve).
+HOST_PID_MIN_FREE = HOST_PID_MIN_FREE_SERVE
 SERVE_MAX_WORKERS = 16
 SERVE_MAX_SSE = 2
 # Cap long-lived SSE so half-open browsers cannot pin workers forever.
 SERVE_SSE_MAX_SECONDS = 900
 HOST_PID_EXHAUSTED = "host_pid_exhausted"
+HOST_PID_CHROMIUM_SERVE_FORBIDDEN = "chromium_serve_forbidden"
+CHROMIUM_CGROUP_MARKER = "app-org.chromium.Chromium-"
 # Held open for the lifetime of --serve so flock stays exclusive across processes.
 _SERVE_LOCK_FD: int | None = None
 
@@ -2008,6 +2015,7 @@ def bind_pack_to_episode(
         "event_sha": event["event_sha"],
         "coverage": "preflight",
     }
+    payload["episode_id"] = identifier
     return payload
 
 
@@ -2286,14 +2294,31 @@ def action_begin(
     episode_id: str | None = None,
     catalog_action_id: str | None = None,
 ) -> dict[str, Any]:
-    ensure_host_pid_headroom()
-    if episode_id and ndf_replay.ReplayStore(ROOT).read_ref(
-        f"episodes/{episode_id}/HEAD"
-    ) is None:
-        raise ValueError(f"unknown replay episode: {episode_id}")
+    ensure_action_pid_headroom()
     catalog_id = (catalog_action_id or "").strip() or None
     if catalog_id and catalog_id not in ndf_actions.registry_by_id():
         raise ValueError(f"unknown catalog_action_id: {catalog_id}")
+    catalog = ndf_actions.registry_by_id().get(catalog_id or "") or {}
+    episode_policy = ndf_actions.action_episode_policy(catalog) if catalog else "none"
+    bound_episode = (episode_id or "").strip() or None
+    if bound_episode and ndf_replay.ReplayStore(ROOT).read_ref(
+        f"episodes/{bound_episode}/HEAD"
+    ) is None:
+        raise ValueError(f"unknown replay episode: {bound_episode}")
+    # Writable / pack-delegate actions MUST bind an Episode at action-begin.
+    if episode_policy == "required" and not bound_episode:
+        store = ndf_replay.ReplayStore(ROOT)
+        created = store.init_episode(
+            topic=topic,
+            task=str(operation),
+            role=str(ndf_actions.action_provider(catalog) or "tool"),
+            track="process",
+            manifest=None,
+            episode_id=None,
+        )
+        bound_episode = str(created.get("episode_id") or created.get("id") or "")
+        if not bound_episode:
+            raise ValueError("failed to create Replay Episode for writable action")
     identifier = action_id or str(uuid.uuid4())
     started_at = now_iso()
     repo_head = git_head()
@@ -2304,6 +2329,7 @@ def action_begin(
             "operation": operation,
             "topic": topic,
             "catalog_action_id": catalog_id,
+            "episode_id": bound_episode,
         }
     )
     receipt = {
@@ -2330,13 +2356,15 @@ def action_begin(
         "blockers": [],
         "repo_head_before": repo_head,
         "snapshot_sha_before": generation,
+        "episode_id": bound_episode,
+        "attempt_id": identifier,
     }
     append_action_receipt(receipt)
-    if episode_id:
+    if bound_episode:
         store = ndf_replay.ReplayStore(ROOT)
         blob_sha = store.put_blob(receipt)
         event = store.append_event(
-            episode_id,
+            bound_episode,
             kind="action.begin",
             actor="canvas",
             payload_sha=blob_sha,
@@ -2348,10 +2376,11 @@ def action_begin(
             context_plan_sha=None,
         )
         receipt["replay"] = {
-            "episode_id": episode_id,
+            "episode_id": bound_episode,
             "blob_sha": blob_sha,
             "event_sha": event["event_sha"],
         }
+        receipt["episode_id"] = bound_episode
     return receipt
 
 
@@ -6907,6 +6936,54 @@ def canvas_snapshot_budget_error(payload: Mapping[str, Any], encoded_len: int) -
     )
 
 
+def apply_canvas_snapshot_budget(payload: dict[str, Any]) -> dict[str, Any]:
+    """Omit oversized non-core buckets instead of failing the whole snapshot.
+
+    Core identity / freshness / enabledActions always publish. Replay directory
+    and focused ledger may be truncated with omittedCount.
+    """
+    data = dict(payload)
+    replay = data.get("replay")
+    if isinstance(replay, Mapping):
+        data["replay"] = ndf_replay.project_canvas_replay(replay)
+    compact = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+    encoded_len = len(compact.encode("utf-8"))
+    err = canvas_snapshot_budget_error(data, encoded_len)
+    if err is None:
+        return data
+    # Drop focused replay detail first, then truncate directory further.
+    replay2 = dict(data.get("replay") or {})
+    if replay2.get("focused") is not None:
+        replay2["focused"] = {
+            "id": (replay2.get("focused") or {}).get("id")
+            if isinstance(replay2.get("focused"), Mapping)
+            else None,
+            "omitted": True,
+            "reason": "snapshot_budget",
+        }
+        data["replay"] = replay2
+        compact = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        encoded_len = len(compact.encode("utf-8"))
+        err = canvas_snapshot_budget_error(data, encoded_len)
+        if err is None:
+            data.setdefault("projectionNotes", []).append("omitted_focused_replay")
+            return data
+    # Hard-trim episodes to empty directory pointer.
+    replay2 = dict(data.get("replay") or {})
+    omitted = len(replay2.get("episodes") or [])
+    replay2["episodes"] = []
+    replay2["omittedCount"] = int(replay2.get("omittedCount") or 0) + omitted
+    replay2["budgetOmitted"] = True
+    data["replay"] = replay2
+    data.setdefault("projectionNotes", []).append("omitted_replay_directory")
+    data["snapshotBudget"] = {
+        "state": "partial",
+        "omittedBuckets": ["replay_directory"],
+        "priorError": err,
+    }
+    return data
+
+
 def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     """Return the stable, camelCase payload embedded by the Cursor Canvas."""
     business = payload["business"]
@@ -7215,12 +7292,13 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
     }
     mark_canvas_fresh_if_absorbing(result)
     result["enabledActions"] = ndf_actions.evaluate_enabled_actions(result)
+    result = apply_canvas_snapshot_budget(result)
     result["payloadSha"] = canvas_payload_sha(result)
     return result
 
 
 def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
-    """Promote stale_after_action when this payload stamps the latest success.
+    """Promote stale_after_action when this payload stamps the latest terminal.
 
     ``projection_freshness`` compares the *previous* projection receipt. Official
     embed writes that receipt *after* SNAPSHOT is rendered, so a successful
@@ -7228,9 +7306,12 @@ def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
     Product write buttons disabled. This snapshot's ``absorbedActionId`` is the
     proof of absorption.
 
+    Terminal results ``success`` / ``failed`` / ``cancelled`` may all be absorbed.
+    Unfinished actions MUST NOT be cleared by an unrelated finish.
+
     Serve rebuilds always mint a new ``evidenceGeneration`` / ``snapshotSha``, so
     a generation match against the prior action receipt is not required: a newer
-    snapshot that absorbs the latest finished success is current, not stale.
+    snapshot that absorbs the latest finished terminal is current, not stale.
     """
     freshness = payload.get("projectionFreshness")
     if not isinstance(freshness, dict):
@@ -7240,12 +7321,16 @@ def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
     latest = freshness.get("latest_action") or {}
     if not isinstance(latest, Mapping):
         return
-    if latest.get("status") != "finished" or latest.get("result") != "success":
+    if latest.get("status") != "finished":
+        return
+    terminal = str(latest.get("result") or "").lower()
+    if terminal not in {"success", "failed", "cancelled"}:
         return
     if latest.get("action_id") != payload.get("absorbedActionId"):
         return
     freshness["state"] = "fresh"
     freshness["absorbed_by_this_snapshot"] = True
+    freshness["absorbed_terminal"] = terminal
 
 
 CANVAS_SNAPSHOT_BYTE_LIMIT = ndf_replay.CANVAS_SNAPSHOT_BYTE_LIMIT
@@ -7557,11 +7642,15 @@ def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = Non
     """Write the full canvas-json commander payload (not embedded in Canvas)."""
     target = path or (ROOT / "tmp" / "ndf-canvas-snapshot.json")
     target.parent.mkdir(parents=True, exist_ok=True)
-    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    budget_error = canvas_snapshot_budget_error(payload, len(compact.encode("utf-8")))
-    if budget_error:
-        raise ValueError(budget_error)
-    rendered = json.dumps(payload, ensure_ascii=False, indent=2)
+    bounded = apply_canvas_snapshot_budget(dict(payload))
+    compact = json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
+    # After omit, still refuse only if core exceeds absolute limit.
+    if len(compact.encode("utf-8")) > CANVAS_SNAPSHOT_BYTE_LIMIT * 2:
+        raise ValueError(
+            canvas_snapshot_budget_error(bounded, len(compact.encode("utf-8")))
+            or "canvas snapshot still exceeds hard limit after omit"
+        )
+    rendered = json.dumps(bounded, ensure_ascii=False, indent=2)
     temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
     try:
         with temporary.open("w", encoding="utf-8") as stream:
@@ -7650,6 +7739,136 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def _proc_comm(pid: int) -> str:
+    try:
+        return Path(f"/proc/{pid}/comm").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _proc_nthreads(pid: int) -> int:
+    try:
+        for line in Path(f"/proc/{pid}/status").read_text(encoding="utf-8").splitlines():
+            if line.startswith("Threads:"):
+                return int(line.split()[1])
+    except (OSError, ValueError, IndexError):
+        return 0
+    return 0
+
+
+def _proc_cgroup_rel(pid: int) -> str:
+    try:
+        text = Path(f"/proc/{pid}/cgroup").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    for line in text.splitlines():
+        if line.startswith("0::"):
+            return line.split("::", 1)[1].strip()
+        if ":pids:" in line:
+            return line.split(":pids:", 1)[1].strip()
+    return ""
+
+
+def is_chromium_cgroup_path(path: str | None) -> bool:
+    """True when *path* is under a Chromium/Cursor app slice (TasksMax shared with Agent)."""
+    if not path:
+        return False
+    return CHROMIUM_CGROUP_MARKER in str(path)
+
+
+def self_in_chromium_cgroup() -> bool:
+    stats = read_cgroup_pids()
+    return is_chromium_cgroup_path(str(stats.get("cgroup") or ""))
+
+
+def read_cgroup_pids_at_path(cgroup_path: str) -> dict[str, Any]:
+    """Read pids.current/max for an absolute cgroup path (or /sys/fs/cgroup + rel)."""
+    result: dict[str, Any] = {
+        "pid": None,
+        "cgroup": None,
+        "current": None,
+        "max": None,
+        "free": None,
+        "available": False,
+        "error": None,
+    }
+    base = Path(cgroup_path)
+    if not base.is_absolute():
+        base = Path("/sys/fs/cgroup") / str(cgroup_path).lstrip("/")
+    result["cgroup"] = str(base)
+    try:
+        current = int((base / "pids.current").read_text(encoding="utf-8").strip())
+        max_raw = (base / "pids.max").read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        result["error"] = f"pids_unreadable:{exc}"
+        return result
+    result["current"] = current
+    if max_raw == "max":
+        result["max"] = None
+        result["free"] = None
+        result["available"] = True
+        return result
+    try:
+        maximum = int(max_raw)
+    except ValueError:
+        result["error"] = f"pids_max_invalid:{max_raw}"
+        return result
+    result["max"] = maximum
+    result["free"] = max(0, maximum - current)
+    result["available"] = True
+    return result
+
+
+def find_chromium_cgroup_slices() -> list[dict[str, Any]]:
+    """Locate live app-org.chromium.Chromium-*.scope dirs under user@*/app.slice."""
+    roots = Path("/sys/fs/cgroup")
+    found: list[dict[str, Any]] = []
+    try:
+        user_slices = list(roots.glob("user.slice/user-*.slice/user@*.service/app.slice"))
+    except OSError:
+        return found
+    for app_slice in user_slices:
+        try:
+            children = list(app_slice.iterdir())
+        except OSError:
+            continue
+        for child in children:
+            name = child.name
+            if not name.startswith(CHROMIUM_CGROUP_MARKER) or not name.endswith(".scope"):
+                continue
+            if not child.is_dir():
+                continue
+            stats = read_cgroup_pids_at_path(str(child))
+            found.append(stats)
+    found.sort(key=lambda row: int(row.get("current") or 0), reverse=True)
+    return found
+
+
+def classify_host_pid_kind(cmdline: str, comm: str = "") -> str:
+    """Map a process to consumer bucket for host-pids attribution."""
+    tokens = cmdline.split() if cmdline else []
+    if any(tok.endswith("ndf_workflow_status.py") for tok in tokens):
+        if "--serve" in tokens:
+            return "ndf_serve"
+        return "ndf_workflow_status"
+    if any("qemu-system" in tok for tok in tokens):
+        return "qemu"
+    if any(tok.endswith("ndf_replay.py") for tok in tokens) and any(
+        tok in {"guest-run", "guest-probe", "guest-image"} or tok.startswith("guest-")
+        for tok in tokens
+    ):
+        return "ndf_replay_guest"
+    lowered = f"{cmdline} {comm}".lower()
+    if (
+        "chromium" in lowered
+        or "cursor" in lowered
+        or "chrome" in lowered
+        or CHROMIUM_CGROUP_MARKER.lower() in lowered
+    ):
+        return "chromium_or_cursor"
+    return "other"
+
+
 def list_host_pid_suspects() -> list[dict[str, Any]]:
     """Scan /proc for local NDF serve / workflow / qemu without spawning pgrep."""
     suspects: list[dict[str, Any]] = []
@@ -7668,30 +7887,161 @@ def list_host_pid_suspects() -> list[dict[str, Any]]:
         # Cursor agent shells embed prior argv in a policy wrapper; skip those.
         if "cursorsandbox" in cmdline or "snap=$(command cat" in cmdline:
             continue
-        tokens = cmdline.split()
-        kind = None
-        if any(tok.endswith("ndf_workflow_status.py") for tok in tokens):
-            kind = "ndf_workflow_status"
-            if "--serve" in tokens:
-                kind = "ndf_workflow_serve"
-        elif any("qemu-system" in tok for tok in tokens):
-            kind = "qemu-system"
-        elif any(tok.endswith("ndf_replay.py") for tok in tokens) and any(
-            tok in {"guest-run", "guest-probe", "guest-image"} or tok.startswith("guest-")
-            for tok in tokens
-        ):
-            kind = "ndf_replay_guest"
-        if kind is None:
+        kind = classify_host_pid_kind(cmdline)
+        if kind not in {
+            "ndf_serve",
+            "ndf_workflow_status",
+            "qemu",
+            "ndf_replay_guest",
+        }:
             continue
+        # Preserve prior kind labels for NDF workflow (non-serve).
+        if kind == "ndf_workflow_status":
+            report_kind = "ndf_workflow_status"
+        elif kind == "ndf_serve":
+            report_kind = "ndf_workflow_serve"
+        elif kind == "qemu":
+            report_kind = "qemu-system"
+        else:
+            report_kind = kind
         suspects.append(
             {
                 "pid": pid,
-                "kind": kind,
+                "kind": report_kind,
                 "cmdline": cmdline[:240],
+                "threads": _proc_nthreads(pid),
             }
         )
     suspects.sort(key=lambda row: (row["kind"], row["pid"]))
     return suspects
+
+
+def collect_cgroup_consumers(
+    cgroup_path: str | None,
+    *,
+    top_n: int = 15,
+) -> dict[str, Any]:
+    """Top thread consumers and bucket counts for processes in *cgroup_path*."""
+    empty: dict[str, Any] = {
+        "cgroup": cgroup_path,
+        "top": [],
+        "counts": {
+            "chromium_or_cursor": 0,
+            "ndf_serve": 0,
+            "ndf_replay_guest": 0,
+            "qemu": 0,
+            "ndf_workflow_status": 0,
+            "other": 0,
+        },
+        "thread_sums": {
+            "chromium_or_cursor": 0,
+            "ndf_serve": 0,
+            "ndf_replay_guest": 0,
+            "qemu": 0,
+            "ndf_workflow_status": 0,
+            "other": 0,
+        },
+    }
+    if not cgroup_path:
+        return empty
+    target_abs = Path(cgroup_path)
+    if not target_abs.is_absolute():
+        target_abs = Path("/sys/fs/cgroup") / str(cgroup_path).lstrip("/")
+    target_abs = target_abs.resolve() if target_abs.exists() else target_abs
+    rows: list[dict[str, Any]] = []
+    try:
+        entries = list(Path("/proc").iterdir())
+    except OSError:
+        return empty
+    for entry in entries:
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        rel = _proc_cgroup_rel(pid)
+        if not rel:
+            continue
+        abs_cg = Path("/sys/fs/cgroup") / rel.lstrip("/")
+        try:
+            same = abs_cg.resolve() == target_abs or abs_cg == target_abs
+        except OSError:
+            same = abs_cg == target_abs
+        if not same:
+            continue
+        cmdline = _proc_cmdline(pid)
+        if "cursorsandbox" in cmdline or "snap=$(command cat" in cmdline:
+            continue
+        comm = _proc_comm(pid)
+        threads = _proc_nthreads(pid)
+        if threads <= 0 and not cmdline:
+            continue
+        kind = classify_host_pid_kind(cmdline, comm)
+        if kind == "other" and is_chromium_cgroup_path(str(abs_cg)):
+            kind = "chromium_or_cursor"
+        bucket = kind if kind in empty["counts"] else "other"
+        empty["counts"][bucket] += 1
+        empty["thread_sums"][bucket] += threads
+        rows.append(
+            {
+                "pid": pid,
+                "comm": comm,
+                "threads": threads,
+                "kind": bucket,
+                "ndf": bucket
+                in {"ndf_serve", "ndf_replay_guest", "ndf_workflow_status"},
+                "cmdline": cmdline[:160],
+            }
+        )
+    rows.sort(key=lambda row: int(row.get("threads") or 0), reverse=True)
+    empty["top"] = rows[: max(1, int(top_n))]
+    return empty
+
+
+def host_pid_advice(
+    *,
+    self_stats: Mapping[str, Any],
+    chromium_stats: Mapping[str, Any] | None,
+    consumers: Mapping[str, Any] | None,
+    min_free_action: int = HOST_PID_MIN_FREE_ACTION,
+    min_free_serve: int = HOST_PID_MIN_FREE_SERVE,
+) -> str:
+    """Branching advice: do not blame leftover serve when Chromium owns the budget."""
+    thread_sums = (consumers or {}).get("thread_sums") or {}
+    ndf_threads = int(thread_sums.get("ndf_serve") or 0) + int(
+        thread_sums.get("ndf_replay_guest") or 0
+    )
+    qemu_threads = int(thread_sums.get("qemu") or 0)
+    chrome_threads = int(thread_sums.get("chromium_or_cursor") or 0)
+    focus = chromium_stats if chromium_stats and chromium_stats.get("available") else self_stats
+    free = focus.get("free")
+    maximum = focus.get("max")
+    if free is None:
+        return "headroom ok or unlimited"
+    free_i = int(free)
+    ndf_qemu = ndf_threads + qemu_threads
+    chrome_dominant = chrome_threads >= max(ndf_qemu * 10, 100) or (
+        maximum is not None and free_i < int(min_free_serve) and ndf_qemu < 64
+    )
+    if free_i < int(min_free_action):
+        if chrome_dominant:
+            return (
+                "Chromium/Cursor TasksMax nearly full (NDF serve/qemu negligible); "
+                "close Cursor tabs / stop Composer-started leftover serve; "
+                "run live --serve only from an external terminal; "
+                "use snapshot --out from Command Agent; "
+                "do not raise TasksMax; do not switch to cloud agents"
+            )
+        return (
+            "free PIDs/threads under cgroup limit; stop leftover "
+            "`snapshot --serve` and qemu guests; do not raise TasksMax as the fix; "
+            "do not switch to cloud agents"
+        )
+    if free_i < int(min_free_serve) and chrome_dominant:
+        return (
+            "action-begin headroom ok but Chromium slice tight for --serve; "
+            "do not start snapshot --serve inside Chromium; "
+            "Command Agent: snapshot --out only; live panel from external terminal"
+        )
+    return "headroom ok or unlimited"
 
 
 def read_serve_lock(path: Path | None = None) -> dict[str, Any] | None:
@@ -7849,50 +8199,104 @@ def kill_stale_serve(*, path: Path | None = None, force_pid: int | None = None) 
     return {"killed": killed, "lock_cleared": True}
 
 
-def ensure_host_pid_headroom(min_free: int = HOST_PID_MIN_FREE) -> dict[str, Any]:
-    """Fail closed when cgroup free PIDs/threads are below *min_free*."""
+def ensure_host_pid_headroom(
+    min_free: int = HOST_PID_MIN_FREE_SERVE,
+    *,
+    purpose: str = "serve",
+) -> dict[str, Any]:
+    """Fail closed when cgroup free PIDs/threads are below *min_free*.
+
+    *purpose* is included in the error so callers can tell serve vs action-begin.
+    """
     stats = read_cgroup_pids()
     if not stats.get("available"):
         # Non-Linux / missing cgroup: do not block; report only.
-        return {"ok": True, "skipped": True, "stats": stats}
+        return {"ok": True, "skipped": True, "stats": stats, "purpose": purpose}
     free = stats.get("free")
     if free is None:
-        return {"ok": True, "skipped": True, "stats": stats}
+        return {"ok": True, "skipped": True, "stats": stats, "purpose": purpose}
     if int(free) < int(min_free):
         raise ValueError(
             f"{HOST_PID_EXHAUSTED}: free={free} < min_free={min_free} "
-            f"cgroup={stats.get('cgroup')} current={stats.get('current')} "
-            f"max={stats.get('max')}; run host-pids and stop leftover "
-            f"snapshot --serve / qemu before retrying"
+            f"purpose={purpose} cgroup={stats.get('cgroup')} "
+            f"current={stats.get('current')} max={stats.get('max')}; "
+            f"run host-pids --json; if Chromium owns the budget close Cursor tabs "
+            f"and use snapshot --out / external-terminal --serve "
+            f"(do not raise TasksMax; do not switch to cloud)"
         )
-    return {"ok": True, "skipped": False, "stats": stats}
+    return {"ok": True, "skipped": False, "stats": stats, "purpose": purpose}
+
+
+def ensure_action_pid_headroom() -> dict[str, Any]:
+    """Fail closed only when fork is about to EAGAIN (tight action reserve)."""
+    return ensure_host_pid_headroom(HOST_PID_MIN_FREE_ACTION, purpose="action-begin")
+
+
+def ensure_serve_pid_headroom() -> dict[str, Any]:
+    """Reject --serve inside Chromium scope; otherwise require serve reserve."""
+    stats = read_cgroup_pids()
+    cg = str(stats.get("cgroup") or "")
+    if is_chromium_cgroup_path(cg):
+        raise ValueError(
+            f"{HOST_PID_CHROMIUM_SERVE_FORBIDDEN}: refuse snapshot --serve inside "
+            f"Chromium/Cursor cgroup ({cg}); run --serve from an external terminal "
+            f"outside app-org.chromium.Chromium-*.scope, or Command Agent: "
+            f"snapshot --out tmp/ndf-canvas-snapshot.json only"
+        )
+    return ensure_host_pid_headroom(HOST_PID_MIN_FREE_SERVE, purpose="serve")
 
 
 def host_pids_report(*, kill_stale: bool = False) -> dict[str, Any]:
     stats = read_cgroup_pids()
+    chromium_slices = find_chromium_cgroup_slices()
+    chromium = chromium_slices[0] if chromium_slices else None
+    # Prefer Chromium slice for consumer attribution when present; else self.
+    focus_path = None
+    if chromium and chromium.get("cgroup"):
+        focus_path = str(chromium["cgroup"])
+    elif stats.get("cgroup"):
+        focus_path = str(stats["cgroup"])
+    consumers = collect_cgroup_consumers(focus_path)
     suspects = list_host_pid_suspects()
     lock = read_serve_lock()
     killed = kill_stale_serve() if kill_stale else None
     free = stats.get("free")
+    chrome_free = chromium.get("free") if chromium else None
+    headroom_action_ok = free is None or (
+        stats.get("available") and int(free) >= HOST_PID_MIN_FREE_ACTION
+    )
+    headroom_serve_ok = (not is_chromium_cgroup_path(str(stats.get("cgroup") or ""))) and (
+        free is None or (stats.get("available") and int(free) >= HOST_PID_MIN_FREE_SERVE)
+    )
+    # Legacy headroom_ok: action-begin threshold (Composer truth).
+    headroom_ok = headroom_action_ok
+    if chrome_free is not None and int(chrome_free) < HOST_PID_MIN_FREE_ACTION:
+        # Surface Chromium tightness even when outer-terminal self looks fine.
+        headroom_ok = False
+    advice = host_pid_advice(
+        self_stats=stats,
+        chromium_stats=chromium,
+        consumers=consumers,
+    )
     return {
         "schema": "ndf-host-pids/v1",
         "generated_at": now_iso(),
         "cgroup": stats,
-        "min_free": HOST_PID_MIN_FREE,
-        "headroom_ok": (
-            free is None or (stats.get("available") and int(free) >= HOST_PID_MIN_FREE)
-        ),
+        "chromium_cgroup": chromium,
+        "chromium_slices": chromium_slices,
+        "self_in_chromium": is_chromium_cgroup_path(str(stats.get("cgroup") or "")),
+        "consumers": consumers,
+        "min_free": HOST_PID_MIN_FREE_SERVE,
+        "min_free_serve": HOST_PID_MIN_FREE_SERVE,
+        "min_free_action": HOST_PID_MIN_FREE_ACTION,
+        "headroom_ok": headroom_ok,
+        "headroom_action_ok": headroom_action_ok,
+        "headroom_serve_ok": headroom_serve_ok,
         "serve_lock": lock,
         "serve_lock_alive": serve_lock_holder_alive(lock),
         "suspects": suspects,
         "kill_stale": killed,
-        "advice": (
-            "free PIDs/threads under Chromium TasksMax; stop leftover "
-            "`snapshot --serve` and qemu guests; do not raise TasksMax as the fix; "
-            "do not switch to cloud agents"
-            if free is not None and int(free) < HOST_PID_MIN_FREE
-            else "headroom ok or unlimited"
-        ),
+        "advice": advice,
     }
 
 
@@ -8196,7 +8600,7 @@ def serve_commander(
     event_interval: float = 0.5,
 ) -> dict[str, Any]:
     """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
-    ensure_host_pid_headroom()
+    ensure_serve_pid_headroom()
     lock = acquire_serve_lock(port)
     atexit.register(release_serve_lock, pid=os.getpid())
     payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
@@ -8468,6 +8872,91 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
     return bind_pack_to_episode(payload, episode_id=episode_id), 0 if safe_to_dispatch else 1
 
 
+def evaluate_execution_capabilities(
+    *,
+    catalog_action_id: str | None,
+    task: str | None = None,
+    topic: str | None = None,
+    provider: str | None = None,
+) -> dict[str, Any]:
+    """Static + env capability receipt for dispatch readiness (META-011).
+
+    Does not claim live worktree existence; marks missing approvals as
+    ``waiting_human`` blockers rather than pretending transport is enough.
+    """
+    catalog_id = (catalog_action_id or "").strip()
+    action = ndf_actions.registry_by_id().get(catalog_id) if catalog_id else None
+    if action is None and task:
+        # Map repair task → catalog id.
+        for item in ndf_actions.registry_actions():
+            if item.get("task") == task or item.get("packTask") == task:
+                action = item
+                catalog_id = item["id"]
+                break
+    required = list((action or {}).get("requiredCapabilities") or [])
+    if not required and provider == "claude-code-acp":
+        required = ["transport", "write_poc_ndf", "isolated_worktree"]
+    missing: list[str] = []
+    waiting: list[str] = []
+    present: list[str] = []
+    receipt_path = ROOT / "tmp" / "ndf-capability-receipt.json"
+    receipt: dict[str, Any] = {}
+    if receipt_path.is_file():
+        try:
+            loaded = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                receipt = loaded
+        except json.JSONDecodeError:
+            receipt = {}
+    approved = set(str(x) for x in (receipt.get("approved_capabilities") or []) if str(x).strip())
+    env_approve = {
+        item.strip()
+        for item in str(os.environ.get("NDF_CAPABILITY_APPROVED") or "").split(",")
+        if item.strip()
+    }
+    approved |= env_approve
+    for cap in required:
+        if cap == "transport":
+            present.append(cap)
+            continue
+        if cap in {"sudo_cgroup", "run_sustained", "command_allowlist"}:
+            if cap in approved or os.environ.get("NDF_HARNESS_APPROVED") == "1":
+                present.append(cap)
+            else:
+                waiting.append(cap)
+                missing.append(cap)
+            continue
+        if cap == "lease":
+            # Lease acquisition is a separate hop; presence of capability means
+            # caller accepts lease-only dispatch.
+            present.append(cap)
+            continue
+        if cap in {"write_poc_ndf", "isolated_worktree"}:
+            # Declared by pack allowed_write_root + ACP handshake; static OK.
+            present.append(cap)
+            continue
+        if cap in approved:
+            present.append(cap)
+        else:
+            missing.append(cap)
+    ready = not missing
+    return {
+        "schema": "ndf-execution-capabilities/v1",
+        "catalog_action_id": catalog_id or None,
+        "topic": topic,
+        "required": required,
+        "present": present,
+        "missing": missing,
+        "waiting_human": waiting,
+        "execution_capabilities_ready": ready,
+        "state": (
+            "ready"
+            if ready
+            else ("waiting_human" if waiting else "capability_missing")
+        ),
+    }
+
+
 def repair_pack(
     topic: str,
     task: str,
@@ -8539,6 +9028,22 @@ def repair_pack(
     if not truth.get("workspace_bound"):
         blockers.append("workspace_unbound")
     runtime_ready = runtime_ready and bool(truth.get("workspace_bound"))
+    caps = evaluate_execution_capabilities(
+        catalog_action_id=None,
+        task=task,
+        topic=topic,
+        provider="claude-code-acp",
+    )
+    caps_ready = bool(caps.get("execution_capabilities_ready"))
+    if not caps_ready:
+        for miss in caps.get("missing") or []:
+            blockers.append(f"capability_missing:{miss}")
+        if caps.get("waiting_human"):
+            blockers.append("waiting_human")
+    lease_acquired = bool(lease) is False  # no conflicting lease; acquisition is worker-side
+    safe_to_dispatch = (
+        static_ready and runtime_ready and caps_ready
+    )
     payload = {
         "schema": "ndf-implementation-repair-pack/v2",
         "compatibility": {"legacy_schema": "ndf-implementation-repair-pack/v1"},
@@ -8560,15 +9065,37 @@ def repair_pack(
             "git history rewrite",
         ],
         "safe_to_delegate": static_ready,
-        "safe_to_dispatch": static_ready and runtime_ready,
+        "safe_to_dispatch": safe_to_dispatch,
         "static_preflight_passed": static_ready,
+        "transport_reachable": bool(runtime.get("pipeline_reachable")),
         "runtime_dispatch_ready": runtime_ready,
+        "execution_capabilities_ready": caps_ready,
+        "lease_acquired": lease_acquired,
+        "capabilities": caps,
+        "dispatch_state": (
+            "waiting_human"
+            if caps.get("waiting_human") and static_ready and runtime_ready
+            else ("ready" if safe_to_dispatch else "blocked")
+        ),
+        "catalog_action_id": next(
+            (
+                item["id"]
+                for item in ndf_actions.registry_actions()
+                if item.get("task") == task or item.get("packTask") == task
+            ),
+            None,
+        ),
         **context,
         "blockers": blockers,
         "human_gate": (
             "人工确认 destructive git disposition"
             if task == "poc_isolation_repair"
-            else None
+            else (
+                "批准 sustained harness / sudo_cgroup（写入 tmp/ndf-capability-receipt.json "
+                "或 NDF_HARNESS_APPROVED=1）"
+                if task == "poc_measurement" and caps.get("waiting_human")
+                else None
+            )
         ),
         "required_handshake": [
             "run_id",
@@ -11030,7 +11557,7 @@ def main() -> int:
                         out_path,
                     )
             if args.serve:
-                ensure_host_pid_headroom()
+                # serve_commander re-checks Chromium forbid + serve reserve.
                 serve_commander(
                     topic=args.topic,
                     probe_runtime=args.probe_runtime,

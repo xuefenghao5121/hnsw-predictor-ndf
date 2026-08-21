@@ -298,8 +298,10 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `--format canvas-json` 输出官方 camelCase commander payload（含 `enabledActions`），
   `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 绑定 `127.0.0.1` 提供 React+D3
   指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；MUST 单例（lock）、
-  有界线程/SSE；空闲 cgroup PID 不足时 fail-closed。`host-pids` 诊断；
-  `--kill-stale-serve` 显式清理。POST `/api/action`
+  有界线程/SSE；MUST NOT 在 Chromium app slice 内启动。`action-begin` 与 `--serve`
+  使用拆分 PID 余量门槛；不足 fail-closed。`host-pids` 报告 self + `chromium_cgroup`
+  + `consumers`（top / 分类）与分支 `advice`；`--kill-stale-serve` 显式清理。
+  POST `/api/action`
   只接受登记动作。Cloud Agent 用 `build_standalone.py` 生成
   `docs/ndf-commander.html` 自包含 React+D3 投影；运行时不依赖 GitHub/CDN，可直接
   从磁盘打开或由本地/内网静态服务器托管。Canvas 不在现行 UI 链路；
@@ -310,9 +312,17 @@ python3 spec/meta/tools/ndf_replay.py fsck
   一页，账本真值在 `.ndf/replay`。  Claude CLI 存在不等于
   ACP pipeline/run 可用。默认 snapshot 不探测时投影为 `not_probed`，MUST NOT 冒充
   `runtime_unavailable`。`pack` / `repair-pack` / `genesis-pack` 生成时 MUST 探测 ACP，
-  并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时+workspace 绑定）分开。
+  并把 `safe_to_delegate`（静态预检）与 `safe_to_dispatch`（静态+运行时+workspace 身份绑定
+  + execution capabilities）分开。`workspace_bound` 只比身份（`repo_root`/`active_topic`）；
+  HEAD 漂移记 `execution_binding_stale`，pack `base_sha` 取 live HEAD。可写 ActionSpec
+  （`action-registry.json` v2）MUST 声明 `provider` / `episodePolicy=required` /
+  `requiredCapabilities` / `closeoutPolicy`；`action-begin` 贯通同一 Episode/attempt。
+  测量类缺 `sudo_cgroup`/`run_sustained` 批准 → `waiting_human`，不得先送再碰运气。
   `dispatch-send`：CLI/agent exit 0 只是 transport acknowledgement；MUST 解析唯一
   `ndf-agent-completion/v1`，失败/缺失回执 fail-closed，不得 `action-finish success`。
+  失败 completion 也 MUST Episode-bind；task 成功但 snapshot 失败 →
+  `succeeded_projection_stale`。hook 按 pack 的 `action_id`/`catalog_action_id`/`episode_id`
+  关联，MUST NOT 取全局最新 started。
 - `action-begin` / `action-finish`：append-only 本地 action receipt。终态含 repo SHA、
   snapshot SHA、result 与 blockers，并使用统一 receipt 字段和哈希链；断链使投影
   freshness=`unknown`。embedded snapshot verify 另写 payload/absorbed-action receipt。

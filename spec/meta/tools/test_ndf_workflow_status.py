@@ -1084,6 +1084,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(workflow, "ACTION_LOG", log),
                 patch.object(workflow, "git_head", return_value="a" * 40),
                 patch.object(workflow, "source_generation_sha", return_value="b" * 64),
+                patch.object(workflow, "ensure_host_pid_headroom", return_value=None),
             ):
                 started = workflow.action_begin("refresh", "demo", "action-1")
                 workflow.action_finish(started["action_id"], "success", [])
@@ -1098,6 +1099,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(workflow, "ACTION_LOG", log),
                 patch.object(workflow, "git_head", return_value="a" * 40),
                 patch.object(workflow, "source_generation_sha", return_value="b" * 64),
+                patch.object(workflow, "ensure_host_pid_headroom", return_value=None),
             ):
                 workflow.action_begin("refresh", "demo", "action-1")
                 record = json.loads(log.read_text(encoding="utf-8"))
@@ -2240,14 +2242,78 @@ class WorkflowHealthTest(unittest.TestCase):
                     "bind_pack_to_episode",
                     side_effect=lambda payload, episode_id=None: payload,
                 ),
+                patch.dict(os.environ, {"NDF_HARNESS_APPROVED": "1"}),
             ):
                 payload, code = workflow.repair_pack("demo", "poc_measurement")
             self.assertEqual(code, 0, payload["blockers"])
             self.assertTrue(payload["safe_to_delegate"])
             self.assertTrue(payload["safe_to_dispatch"])
             self.assertTrue(payload["runtime_dispatch_ready"])
+            self.assertTrue(payload["execution_capabilities_ready"])
             self.assertNotIn("runtime_unavailable", payload["blockers"])
             self.assertNotIn("workspace_unbound", payload["blockers"])
+
+    def test_repair_pack_measurement_waits_for_harness_capability(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            poc = Path(tmp)
+            ndf = poc / "demo" / "ndf"
+            ndf.mkdir(parents=True)
+            (ndf / "TOPIC.md").write_text("> topic_id: demo\n", encoding="utf-8")
+            fake = {
+                "topic_id": "demo",
+                "lifecycle": "exploring",
+                "gates": {"implementation_approval": {"state": "valid"}},
+                "perf": {
+                    "errors": [],
+                    "bind": {
+                        "vs": "bl-demo",
+                        "config_id": "cfg-demo",
+                        "measure_script": "scripts/run_sustained.sh",
+                    },
+                    "numbers": "pending",
+                    "unverified": True,
+                },
+                "delegation": {"perf_check_passed": False},
+                "health": {
+                    "checks": {"isolation": {"state": "passed"}},
+                    "findings": [],
+                },
+            }
+            context = {
+                "context_plan": {},
+                "context_verify": {"valid": True},
+                "plan_sha": "a" * 64,
+            }
+            env = {k: v for k, v in os.environ.items() if k not in {
+                "NDF_HARNESS_APPROVED", "NDF_CAPABILITY_APPROVED"
+            }}
+            with (
+                patch.object(workflow, "POC", poc),
+                patch.object(workflow, "topic_view", return_value=fake),
+                patch.object(workflow, "context_binding", return_value=context),
+                patch.object(
+                    workflow,
+                    "implementation_dispatch_runtime",
+                    return_value=({"pipeline_reachable": True}, True, None),
+                ),
+                patch.object(
+                    workflow,
+                    "workspace_truth_view",
+                    return_value={"workspace_bound": True, "state": "bound"},
+                ),
+                patch.object(
+                    workflow,
+                    "bind_pack_to_episode",
+                    side_effect=lambda payload, episode_id=None: payload,
+                ),
+                patch.dict(os.environ, env, clear=True),
+            ):
+                payload, code = workflow.repair_pack("demo", "poc_measurement")
+            self.assertEqual(code, 1)
+            self.assertFalse(payload["safe_to_dispatch"])
+            self.assertFalse(payload["execution_capabilities_ready"])
+            self.assertEqual(payload["dispatch_state"], "waiting_human")
+            self.assertIn("waiting_human", payload["blockers"])
 
     def test_probe_claude_acp_does_not_treat_cli_alone_as_reachable(self) -> None:
         workflow._ACP_PROBE = None
@@ -3279,7 +3345,8 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertLess(longest, 8000)
 
     def test_canvas_replay_is_index_plus_one_focused_ledger(self) -> None:
-        replay = {
+        # Commander projects button-actions only; legacy hops are emptied.
+        legacy = {
             "schema": "ndf-replay-summary/v1",
             "episodes": [
                 {
@@ -3287,63 +3354,57 @@ class WorkflowHealthTest(unittest.TestCase):
                     "topic": "cluster-gbdt",
                     "happenedAt": f"2026-08-01T00:00:{index:02d}Z",
                     "assembledPrompt": {"text": "A" * 1200, "whyMissing": None},
-                    "timeline": [
-                        {
-                            "seq": 1,
-                            "kind": "openclaw.request",
-                            "payloadPreview": "x" * 400,
-                            "preview": {
-                                "orderedReads": ["poc/x/ndf/TOPIC.md"],
-                                "noise": "drop-me",
-                            },
-                        }
-                    ],
-                    "kinds": ["openclaw.request"],
-                    "manifestSummary": {"intent": "task", "graph": {"nodes": [1, 2, 3]}},
-                    "r2Profile": {"keep": False},
-                    "currentReadinessErrors": [{"kind": "file_drift", "path": "a.md", "extra": 1}],
                 }
                 for index in range(39)
             ],
+            "focused": {"id": "old-38", "assembledPrompt": {"text": "A" * 1200}},
+        }
+        trimmed_legacy = workflow.trim_canvas_replay_prompts(legacy)
+        self.assertEqual(trimmed_legacy["mode"], "button_actions")
+        self.assertEqual(trimmed_legacy["episodes"], [])
+        self.assertIsNone(trimmed_legacy["focused"])
+
+        huge = "P" * 4000
+        button = {
+            "mode": "button_actions",
+            "episodes": [
+                {
+                    "id": f"ba-{index}",
+                    "actionId": "poc-measurement",
+                    "baselineSha": "a" * 40,
+                    "resultSha": "b" * 40,
+                    "prompt": huge,
+                    "happenedAt": f"2026-08-01T00:00:{index:02d}Z",
+                }
+                for index in range(40)
+            ],
             "focused": {
-                "id": "old-38",
-                "assembledPrompt": {"text": "A" * 1200, "whyMissing": None},
-                "dispatchedPrompt": {"text": "B" * 200, "whyMissing": None},
-                "timeline": [
-                    {
-                        "seq": 1,
-                        "kind": "openclaw.request",
-                        "payloadPreview": "x" * 400,
-                        "preview": {
-                            "orderedReads": ["poc/x/ndf/TOPIC.md"],
-                            "noise": "drop-me",
-                        },
-                    }
-                ],
-                "r2Profile": {"keep": False},
-                "manifestSummary": {"intent": "task", "seeds": ["META-001"], "graphNodes": 3},
+                "schema": "ndf-button-action-focused/v1",
+                "id": "ba-39",
+                "actionId": "poc-measurement",
+                "baselineSha": "a" * 40,
+                "resultSha": "b" * 40,
+                "prompt": huge,
             },
         }
-        trimmed = workflow.trim_canvas_replay_prompts(replay)
-        ids = [item["id"] for item in trimmed["episodes"]]
-        self.assertEqual(len(ids), 39)
-        self.assertNotIn("canvasOmittedEpisodes", trimmed)
+        trimmed = workflow.trim_canvas_replay_prompts(button)
+        self.assertGreater(len(trimmed["episodes"]), 0)
+        self.assertLessEqual(len(trimmed["episodes"]), 40)
         for card in trimmed["episodes"]:
-            self.assertNotIn("assembledPrompt", card)
-            self.assertNotIn("timeline", card)
-            self.assertNotIn("r2Profile", card)
-        focused = trimmed["focused"]
-        self.assertEqual(focused["id"], "old-38")
-        self.assertLessEqual(
-            len(focused["assembledPrompt"]["text"]),
-            workflow.ndf_replay.CANVAS_PROMPT_LIMIT,
-        )
-        self.assertNotIn("r2Profile", focused)
-        self.assertEqual(
-            focused["timeline"][0]["preview"],
-            {"orderedReads": ["poc/x/ndf/TOPIC.md"]},
-        )
+            self.assertNotIn("prompt", card)
+            self.assertIn("promptSha", card)
+        self.assertNotIn("prompt", trimmed["focused"] or {})
         compact = json.dumps(trimmed, ensure_ascii=False, separators=(",", ":"))
+        self.assertLessEqual(
+            len(
+                json.dumps(
+                    trimmed["episodes"],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+            ),
+            workflow.ndf_replay.CANVAS_REPLAY_DIRECTORY_LIMIT,
+        )
         self.assertLess(len(compact.encode("utf-8")), workflow.CANVAS_SNAPSHOT_BYTE_LIMIT)
 
     def test_canvas_delegation_omits_compiler_manifest(self) -> None:
@@ -4466,6 +4527,7 @@ Ignore this as purpose.
                 patch.object(workflow, "PROJECTION_EVIDENCE_DIR", evidence),
                 patch.object(workflow, "git_head", return_value="a" * 40),
                 patch.object(workflow, "source_generation_sha", return_value="b" * 64),
+                patch.object(workflow, "ensure_host_pid_headroom", return_value=None),
             ):
                 empty = workflow.projection_freshness("b" * 64)
                 self.assertEqual(empty["state"], "unknown")
@@ -4503,6 +4565,7 @@ Ignore this as purpose.
                 patch.object(workflow, "PROJECTION_EVIDENCE_DIR", evidence),
                 patch.object(workflow, "git_head", return_value="a" * 40),
                 patch.object(workflow, "source_generation_sha", return_value="b" * 64),
+                patch.object(workflow, "ensure_host_pid_headroom", return_value=None),
             ):
                 orphan = workflow.action_begin("align-golden", None, "orphan-1")
                 later = workflow.action_begin("poc_prepare_baseline", "demo", "action-2")
@@ -5215,6 +5278,100 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
                 workflow.ensure_host_pid_headroom(min_free=512)
             self.assertIn(workflow.HOST_PID_EXHAUSTED, str(caught.exception))
 
+    def test_action_pid_headroom_passes_at_400_fails_at_43(self) -> None:
+        base = {
+            "available": True,
+            "max": 34550,
+            "cgroup": "/sys/fs/cgroup/user.slice/.../app-org.chromium.Chromium-1.scope",
+            "error": None,
+        }
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={**base, "current": 34150, "free": 400},
+        ):
+            ok = workflow.ensure_action_pid_headroom()
+            self.assertTrue(ok["ok"])
+            self.assertEqual(ok["purpose"], "action-begin")
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={**base, "current": 34507, "free": 43},
+        ):
+            with self.assertRaises(ValueError) as caught:
+                workflow.ensure_action_pid_headroom()
+            self.assertIn(workflow.HOST_PID_EXHAUSTED, str(caught.exception))
+            self.assertIn("purpose=action-begin", str(caught.exception))
+
+    def test_serve_forbidden_inside_chromium_cgroup(self) -> None:
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={
+                "available": True,
+                "current": 1000,
+                "max": 34550,
+                "free": 33550,
+                "cgroup": (
+                    "/sys/fs/cgroup/user.slice/user-1000.slice/"
+                    "user@1000.service/app.slice/app-org.chromium.Chromium-11136.scope"
+                ),
+                "error": None,
+            },
+        ):
+            with self.assertRaises(ValueError) as caught:
+                workflow.ensure_serve_pid_headroom()
+            self.assertIn(workflow.HOST_PID_CHROMIUM_SERVE_FORBIDDEN, str(caught.exception))
+            self.assertIn("snapshot --out", str(caught.exception))
+
+    def test_serve_allowed_outside_chromium_when_headroom_ok(self) -> None:
+        with patch.object(
+            workflow,
+            "read_cgroup_pids",
+            return_value={
+                "available": True,
+                "current": 200,
+                "max": 10000,
+                "free": 9800,
+                "cgroup": "/sys/fs/cgroup/user.slice/user-1000.slice/session-1.scope",
+                "error": None,
+            },
+        ):
+            ok = workflow.ensure_serve_pid_headroom()
+            self.assertTrue(ok["ok"])
+            self.assertEqual(ok["purpose"], "serve")
+
+    def test_host_pid_advice_blames_chromium_not_serve(self) -> None:
+        advice = workflow.host_pid_advice(
+            self_stats={
+                "available": True,
+                "free": 43,
+                "max": 34550,
+                "current": 34507,
+                "cgroup": "/sys/fs/cgroup/.../app-org.chromium.Chromium-1.scope",
+            },
+            chromium_stats={
+                "available": True,
+                "free": 43,
+                "max": 34550,
+                "current": 34507,
+                "cgroup": "/sys/fs/cgroup/.../app-org.chromium.Chromium-1.scope",
+            },
+            consumers={
+                "thread_sums": {
+                    "chromium_or_cursor": 34000,
+                    "ndf_serve": 8,
+                    "ndf_replay_guest": 0,
+                    "qemu": 0,
+                    "ndf_workflow_status": 1,
+                    "other": 0,
+                }
+            },
+        )
+        self.assertIn("Chromium/Cursor", advice)
+        self.assertIn("external terminal", advice)
+        self.assertNotIn("stop leftover `snapshot --serve` and qemu guests", advice)
+
     def test_sse_limit_returns_503_when_slots_full(self) -> None:
         import threading
         import urllib.error
@@ -5258,21 +5415,61 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
                 httpd.server_close()
 
     def test_host_pids_report_schema(self) -> None:
-        with patch.object(
-            workflow,
-            "read_cgroup_pids",
-            return_value={
-                "available": True,
-                "current": 100,
-                "max": 1000,
-                "free": 900,
-                "cgroup": "/sys/fs/cgroup/mock",
-                "error": None,
+        self_stats = {
+            "available": True,
+            "current": 100,
+            "max": 1000,
+            "free": 900,
+            "cgroup": "/sys/fs/cgroup/mock-session",
+            "error": None,
+        }
+        chrome = {
+            "available": True,
+            "current": 34507,
+            "max": 34550,
+            "free": 43,
+            "cgroup": (
+                "/sys/fs/cgroup/user.slice/user-1000.slice/"
+                "user@1000.service/app.slice/app-org.chromium.Chromium-1.scope"
+            ),
+            "error": None,
+            "pid": None,
+        }
+        consumers = {
+            "cgroup": chrome["cgroup"],
+            "top": [{"pid": 1, "comm": "cursor", "threads": 100, "kind": "chromium_or_cursor", "ndf": False}],
+            "counts": {
+                "chromium_or_cursor": 10,
+                "ndf_serve": 1,
+                "ndf_replay_guest": 0,
+                "qemu": 0,
+                "ndf_workflow_status": 0,
+                "other": 0,
             },
-        ), patch.object(workflow, "list_host_pid_suspects", return_value=[]):
+            "thread_sums": {
+                "chromium_or_cursor": 34000,
+                "ndf_serve": 8,
+                "ndf_replay_guest": 0,
+                "qemu": 0,
+                "ndf_workflow_status": 0,
+                "other": 0,
+            },
+        }
+        with (
+            patch.object(workflow, "read_cgroup_pids", return_value=self_stats),
+            patch.object(workflow, "find_chromium_cgroup_slices", return_value=[chrome]),
+            patch.object(workflow, "collect_cgroup_consumers", return_value=consumers),
+            patch.object(workflow, "list_host_pid_suspects", return_value=[]),
+        ):
             report = workflow.host_pids_report()
         self.assertEqual(report["schema"], "ndf-host-pids/v1")
-        self.assertTrue(report["headroom_ok"])
+        self.assertIn("consumers", report)
+        self.assertEqual(report["chromium_cgroup"]["free"], 43)
+        self.assertEqual(report["min_free_action"], workflow.HOST_PID_MIN_FREE_ACTION)
+        self.assertEqual(report["min_free_serve"], workflow.HOST_PID_MIN_FREE_SERVE)
+        self.assertFalse(report["headroom_ok"])  # Chromium free < action threshold
+        self.assertIn("Chromium/Cursor", report["advice"])
+        self.assertNotIn("stop leftover `snapshot --serve` and qemu guests", report["advice"])
 
 
 if __name__ == "__main__":

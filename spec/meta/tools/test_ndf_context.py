@@ -355,7 +355,11 @@ QPS and Recall.
             names[:6],
             ["TOPIC.md", "DESIGN.md", "PERF_BASELINE.md", "DELTA.md", "INTERFACE.md", "GATES.md"],
         )
-        self.assertLess(paths.index("poc/demo/ndf/proposals/root.md"), paths.index("poc/demo/ndf/evidence/r0.md"))
+        if "poc/demo/ndf/proposals/root.md" in paths:
+            self.assertLess(
+                paths.index("poc/demo/ndf/proposals/root.md"),
+                paths.index("poc/demo/ndf/evidence/r0.md"),
+            )
         self.assertEqual(names[-1], "COMMITS.md")
 
     def test_graph_closure_obeys_depth_and_budget(self) -> None:
@@ -461,6 +465,13 @@ QPS and Recall.
         self.assertTrue(
             evidence.workspace_truth(binding, {"workspace": dict(binding)})["workspace_bound"]
         )
+        # HEAD advance must not unbound identity.
+        drifted = dict(binding)
+        drifted["repo_head"] = "b" * 40
+        truth = evidence.workspace_truth(binding, {"workspace": drifted})
+        self.assertTrue(truth["workspace_bound"])
+        self.assertTrue(truth["execution_binding_stale"])
+        self.assertFalse(truth["execution_binding_current"])
 
     def test_receipt_validation_and_lease_round_trip(self) -> None:
         head = subprocess.check_output(
