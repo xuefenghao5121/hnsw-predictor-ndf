@@ -71,6 +71,38 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertEqual(by_kind["missing_config"]["repair_task"], "binder_amend")
         self.assertEqual(by_kind["missing_config"]["binder_facet"], "perf_baseline")
 
+    def test_vs_unmentioned_routes_to_measurement_not_binder(self) -> None:
+        checks = {
+            "perf_baseline": {
+                "exit_code": 0,
+                "output": (
+                    "[info] vs_unmentioned: Numbers does not mention vs "
+                    "`bl-trunk-golden-7ee4ee2` (ok if own R0 table)\n"
+                ),
+            },
+            "isolation": {"exit_code": 0, "output": ""},
+            "bindcheck": {"exit_code": 0, "output": ""},
+        }
+        findings = workflow.external_check_findings("demo", checks)
+        by_kind = {item["kind"]: item for item in findings}
+        item = by_kind["vs_unmentioned"]
+        self.assertEqual(item["repair_owner"], "claude-code")
+        self.assertEqual(item["repair_task"], "poc_measurement")
+        self.assertEqual(item["space"], "Test")
+        self.assertEqual(item["severity"], "info")
+        self.assertIsNone(item["binder_facet"])
+        self.assertNotEqual(item.get("pipeline"), workflow.PIPELINE_BINDER)
+        # Advisory: visible on findings, excluded from forced next_actions / binder steps.
+        pipelines = workflow.control_pipelines_view("demo", findings)
+        self.assertFalse(pipelines["binder"]["needed"])
+        self.assertEqual(pipelines["binder"]["steps"], [])
+        actions = workflow.unique_actions(findings)
+        self.assertEqual(actions, [])
+        facet, order, label = workflow.binder_facet_meta("vs_unmentioned")
+        self.assertIsNone(facet)
+        self.assertIsNone(order)
+        self.assertIsNone(label)
+
     def test_upsert_replaces_wrong_measurement_route(self) -> None:
         findings = [
             workflow.finding(
@@ -1163,7 +1195,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
             patch.object(
                 workflow,
@@ -1201,7 +1233,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
         ):
             payload, code = workflow.project_control_pack(
@@ -1268,7 +1300,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
             patch.object(
                 workflow,
@@ -1310,7 +1342,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
             patch.object(
                 workflow,
@@ -1547,7 +1579,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(
                     workflow,
                     "runtime_status",
-                    return_value={"control": {"reachable": True}},
+                    return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
                 ),
                 patch.object(
                     workflow,
@@ -1625,7 +1657,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(
                     workflow,
                     "runtime_status",
-                    return_value={"control": {"reachable": True}},
+                    return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
                 ),
                 patch.object(
                     workflow,
@@ -1704,7 +1736,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(
                     workflow,
                     "runtime_status",
-                    return_value={"control": {"reachable": True}},
+                    return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
                 ),
                 patch.object(
                     workflow,
@@ -1759,7 +1791,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 patch.object(
                     workflow,
                     "runtime_status",
-                    return_value={"control": {"reachable": True}},
+                    return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
                 ),
                 patch.object(
                     workflow,
@@ -3599,7 +3631,7 @@ class WorkflowHealthTest(unittest.TestCase):
                 "spaces": {"design": {"gaps": []}, "implementation": {"gaps": []}, "test": {"gaps": []}},
             }
             context = {"context_plan": {}, "context_verify": {"valid": True}, "plan_sha": "a" * 64}
-            runtime = {"control": {"reachable": True}}
+            runtime = {"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}}
             with (
                 patch.object(workflow, "POC", poc),
                 patch.object(workflow, "topic_view", return_value=fake),
@@ -3644,7 +3676,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
             patch.object(
                 workflow,
@@ -3682,7 +3714,7 @@ class WorkflowHealthTest(unittest.TestCase):
             patch.object(
                 workflow,
                 "runtime_status",
-                return_value={"control": {"reachable": True}},
+                return_value={"control": {"reachable": True, "session_configured": True, "session_dispatchable": True, "resolved_session_id": "11111111-1111-1111-1111-111111111111"}},
             ),
             patch.object(
                 workflow,
@@ -5470,6 +5502,112 @@ class CanvasBudgetAndReadModelTest(unittest.TestCase):
         self.assertFalse(report["headroom_ok"])  # Chromium free < action threshold
         self.assertIn("Chromium/Cursor", report["advice"])
         self.assertNotIn("stop leftover `snapshot --serve` and qemu guests", report["advice"])
+
+
+
+class OpenClawSessionDispatchableTest(unittest.TestCase):
+    def test_resolve_routing_key_in_store_is_dispatchable_via_session_key(self) -> None:
+        sessions = [
+            {
+                "key": "agent:main:feishu:direct:ou_demo",
+                "sessionId": "agent:main:feishu:direct:ou_demo",
+            }
+        ]
+        resolved = workflow.resolve_openclaw_dispatch_session(
+            "agent:main:feishu:direct:ou_demo", sessions=sessions
+        )
+        self.assertTrue(resolved["session_configured"])
+        self.assertTrue(resolved["session_dispatchable"])
+        self.assertEqual(resolved["transport"], "session_key")
+        self.assertIsNone(resolved["resolved_session_id"])
+        self.assertIsNone(resolved["error"])
+
+    def test_resolve_maps_key_to_uuid_session_id(self) -> None:
+        sessions = [
+            {
+                "key": "agent:main:main",
+                "sessionId": "bb867085-0457-4d41-8134-aec801e3a0df",
+            }
+        ]
+        resolved = workflow.resolve_openclaw_dispatch_session(
+            "agent:main:main", sessions=sessions
+        )
+        self.assertTrue(resolved["session_dispatchable"])
+        self.assertEqual(resolved["transport"], "session_id")
+        self.assertEqual(
+            resolved["resolved_session_id"], "bb867085-0457-4d41-8134-aec801e3a0df"
+        )
+
+    def test_resolve_unknown_routing_key_is_invalid(self) -> None:
+        resolved = workflow.resolve_openclaw_dispatch_session(
+            "agent:main:feishu:direct:ou_missing",
+            sessions=[{"key": "agent:main:main", "sessionId": "bb867085-0457-4d41-8134-aec801e3a0df"}],
+        )
+        self.assertFalse(resolved["session_dispatchable"])
+        self.assertEqual(resolved["error"], "openclaw_session_invalid")
+
+    def test_control_blockers_prefer_session_invalid_when_gateway_ok(self) -> None:
+        blockers = workflow.control_runtime_dispatch_blockers(
+            {
+                "reachable": True,
+                "session_configured": True,
+                "session_dispatchable": False,
+                "session_error": "openclaw_session_invalid",
+            }
+        )
+        self.assertEqual(blockers, ["openclaw_session_invalid"])
+        self.assertFalse(
+            workflow.control_runtime_dispatch_ready(
+                {
+                    "reachable": True,
+                    "session_dispatchable": False,
+                }
+            )
+        )
+
+    def test_project_control_pack_blocks_invalid_session_when_gateway_ok(self) -> None:
+        context = {
+            "task_manifest": {"schema": "ndf-task-manifest/v1"},
+            "manifest_sha": "a" * 64,
+            "context_plan": {
+                "privileges": {"allowed_write_roots": ["spec/meta/open/"]}
+            },
+            "context_verify": {"valid": True, "errors": [], "warnings": []},
+            "plan_sha": "b" * 64,
+        }
+        with (
+            patch.object(workflow, "latest_spec_health", return_value=None),
+            patch.object(workflow, "context_binding", return_value=context),
+            patch.object(
+                workflow,
+                "runtime_status",
+                return_value={
+                    "control": {
+                        "reachable": True,
+                        "session_configured": True,
+                        "session_dispatchable": False,
+                        "session_error": "openclaw_session_invalid",
+                        "resolved_session_id": None,
+                    }
+                },
+            ),
+            patch.object(
+                workflow,
+                "bind_pack_to_episode",
+                side_effect=lambda payload, episode_id=None: payload,
+            ),
+        ):
+            payload, code = workflow.project_control_pack(
+                "ndf_improvement_proposal",
+                "ep-session-blocked",
+                origin="human_intent",
+                intent="改进 META session 三态。",
+            )
+        self.assertEqual(code, 1)
+        self.assertTrue(payload["safe_to_delegate"])
+        self.assertFalse(payload["safe_to_dispatch"])
+        self.assertIn("openclaw_session_invalid", payload["blockers"])
+        self.assertNotIn("runtime_unavailable", payload["blockers"])
 
 
 if __name__ == "__main__":

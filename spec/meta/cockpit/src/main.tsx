@@ -280,7 +280,9 @@ function App() {
       provider: snapshot?.runtime?.control?.provider || "openclaw",
       status:
         snapshot?.runtime?.control?.reachable === true
-          ? "reachable"
+          ? snapshot?.runtime?.control?.sessionDispatchable === false
+            ? "session_invalid"
+            : "reachable"
           : snapshot?.runtime?.control?.reachable === false
             ? "unavailable"
             : "not_probed",
@@ -290,11 +292,23 @@ function App() {
       note: [
         snapshot?.runtime?.control?.probeError
           ? `probe: ${snapshot.runtime.control.probeError}`
+          : null,
+        snapshot?.runtime?.control?.sessionConfigured === false
+          ? "session_configured=false — set AGENTS.md OpenClaw session_key"
+          : snapshot?.runtime?.control?.sessionDispatchable === false
+            ? `session_dispatchable=false (${snapshot.runtime.control.sessionError || "openclaw_session_invalid"})`
+            : snapshot?.runtime?.control?.sessionDispatchable === true
+              ? "session_dispatchable=true"
+              : null,
+        snapshot?.runtime?.control?.sessionFixHint
+          ? String(snapshot.runtime.control.sessionFixHint)
           : snapshot?.runtime?.control?.configuredSessionVisible === false
             ? "Configured session not visible"
             : snapshot?.runtime?.control?.reachable == null
               ? "Click 探测运行时 (light) on this page"
-              : "Gateway probed",
+              : snapshot?.runtime?.control?.sessionDispatchable === false
+                ? null
+                : "Gateway probed",
         snapshot?.runtime?.control?.workspace?.state === "unbound"
           ? "workspace unbound (active_topic empty — note only)"
           : null,

@@ -357,6 +357,16 @@ DESIGN_DOC_GAP_KINDS = frozenset(
     }
 )
 
+# Keep in sync with ndf_workflow_status.MEASUREMENT_FINDING_KINDS.
+MEASUREMENT_FINDING_KINDS = frozenset(
+    {
+        "unverified_measurement_claim",
+        "empty_numbers",
+        "numbers_pending",
+        "vs_unmentioned",
+    }
+)
+
 
 def _design_docs_missing(payload: Mapping[str, Any]) -> bool:
     return any(gap in DESIGN_DOC_GAP_KINDS for gap in _space_gaps(payload, "design"))
@@ -447,6 +457,13 @@ PREDICATES = {
     in _space_gaps(payload, "implementation"),
     "gapNumbersPending": lambda payload, ctx: "numbers_pending"
     in _space_gaps(payload, "test"),
+    "gapMeasurementWork": lambda payload, ctx: (
+        any(
+            gap in {"numbers_pending", "empty_numbers", "unverified_measurement_claim"}
+            for gap in _space_gaps(payload, "test")
+        )
+        or bool(_finding_kinds(payload) & MEASUREMENT_FINDING_KINDS)
+    ),
     "designDocsMissing": lambda payload, ctx: _design_docs_missing(payload),
     "findingIsolation": lambda payload, ctx: any(
         "isolation" in kind or kind in {"trunk_write", "poc_isolation"}
@@ -646,14 +663,15 @@ def dispatch_prompt_header(action: Mapping[str, Any]) -> list[str]:
     if target in {"openclaw", "claude-code-acp"}:
         lines.extend(
             [
-                "delegate_hook=afterShellExecution",
+                "delegate_hook=dispatch-send",
                 (
                     "Command Agent MUST NOT perform the worker write. "
-                    "This chat only runs the unique tool= pack CLI."
+                    "This chat runs pack CLI, then after human 「派发」 runs dispatch-send."
                 ),
                 (
-                    "If the pack JSON is not safe_to_dispatch, stop. "
-                    "Do not copy files. Do not invent chat_send."
+                    "If the pack JSON is not safe_to_dispatch, report blockers, "
+                    "action-finish cancelled + snapshot --out --topic, and stop. "
+                    "Do not copy files. Do not invent openclaw.chat_send."
                 ),
             ]
         )
@@ -694,9 +712,12 @@ def _episode_cli_token(episode_id: str | None, *, placeholders: bool) -> str:
 
 def _pack_cli_with_episode(base_cmd: str, episode_token: str) -> str:
     """Append --episode to a pack CLI when not already present."""
-    if "--episode" in base_cmd:
-        return base_cmd
-    return f"{base_cmd} --episode {episode_token}"
+    cmd = base_cmd
+    if "--episode" not in cmd:
+        cmd = f"{cmd} --episode {episode_token}"
+    if " repair-pack " in f" {cmd} " and "--action-id" not in cmd:
+        cmd = f"{cmd} --action-id <from action-begin JSON>"
+    return cmd
 
 
 def composer_prompt(
@@ -764,9 +785,11 @@ def composer_prompt(
         lines.extend(
             [
                 (
-                    "Wrap: action-begin (concrete ids) → unique pack CLI below → STOP. "
-                    "Do not action-commit here; afterShellExecution hook sends the worker, "
-                    "waits for result, then completion-record → action-commit → snapshot."
+                    "Wrap: action-begin (concrete ids) → unique pack CLI below → "
+                    "report pack summary → STOP for human 「派发」/「继续」. "
+                    "Do not action-commit here. After human confirms, run dispatch-send "
+                    "(waits for worker, then completion-record → action-commit → "
+                    "action-finish → snapshot --out)."
                 ),
                 (
                     "python3 spec/meta/tools/ndf_workflow_status.py action-begin "
@@ -781,19 +804,35 @@ def composer_prompt(
                 ),
                 (
                     "Parse action-begin JSON: keep action_id and episode_id. "
-                    "Every subsequent pack CLI MUST pass the same --episode <episode_id>."
+                    "Every subsequent pack CLI MUST pass the same --episode <episode_id> "
+                    "and --action-id <action_id>."
                 ),
                 (
                     "# then run the unique tool= pack CLI for this catalog_action_id "
                     "(see body below; do not invent a sibling button's task)"
                 ),
                 (
-                    "Stop after pack JSON. MUST NOT write poc/<topic>/src/. MUST NOT cp Trunk. "
-                    "MUST NOT call openclaw.chat_send or invent ACP start from this chat."
+                    "After pack JSON: report safe_to_dispatch, allowed_write_root, "
+                    "episode_id, action_id, blockers. Pack is also at "
+                    "tmp/ndf-dispatch-last-pack.json. MUST NOT write poc/<topic>/src/. "
+                    "MUST NOT cp Trunk. MUST NOT call openclaw.chat_send."
                 ),
                 (
-                    "mayWrite below is the *worker* boundary after hook dispatch — "
-                    "not permission for Command Agent to write those paths."
+                    "If safe_to_dispatch=false (waiting_human/blocked): report blockers; "
+                    "action-finish --result cancelled + snapshot --out --topic; stop. "
+                    "MUST NOT wait for 「派发」. MUST NOT restart --serve."
+                ),
+                (
+                    "If safe_to_dispatch=true: STOP and ask human to reply 「派发」 or "
+                    "「继续」 in this same chat. After that reply, run exactly:\n"
+                    "python3 spec/meta/tools/ndf_workflow_status.py dispatch-send "
+                    "--pack-file tmp/ndf-dispatch-last-pack.json "
+                    f"--catalog-action-id {action_id} "
+                    "--action-id <from action-begin JSON> --json\n"
+                    "dispatch-send is the official ACP/OpenClaw send + closeout "
+                    "(not inventing chat_send). It reads disk ndf-agent-completion "
+                    "from pack.completion_receipt_path; stdout is ndf-dispatch-notify/v1 "
+                    "only. MayWrite below is the *worker* boundary."
                 ),
                 (
                     "If snapshot --serve is running at http://127.0.0.1:8765 on this machine, "
@@ -929,7 +968,7 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Stop after pack JSON; hook sends OpenClaw. Draft spec/meta/open/ only. Status: Pending confirmation.")
+        lines.append("Stop after pack JSON; report summary; wait for human 「派发」 then dispatch-send. Draft spec/meta/open/ only. Status: Pending confirmation.")
     elif action_id == "repair-kernel":
         lines.append(
             _pack_cli_with_episode(
@@ -938,7 +977,11 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Draft spec/meta/open/ only. Status: Pending confirmation. Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
+        lines.append(
+            "Draft spec/meta/open/ only. Status: Pending confirmation. "
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(not openclaw.chat_send)."
+        )
     elif action_id in {"land-confirm", "land-review"}:
         proposal = proposal_path or "PROPOSAL_PATH_REQUIRED"
         lines.append(f"proposal_path={proposal}")
@@ -993,8 +1036,8 @@ def composer_prompt(
         )
         lines.append(
             "Require static_preflight_passed, runtime_dispatch_ready, and "
-            "execution_capabilities_ready. Stop after pack JSON; hook sends Claude Code ACP. "
-            "See acp-delegate.md#poc."
+            "execution_capabilities_ready. Report pack summary; wait for human "
+            "「派发」 then dispatch-send. See acp-delegate.md#poc."
         )
         lines.append("Worker markdown is not the command surface.")
     elif action_id == "prepare-acp-lease":
@@ -1005,7 +1048,8 @@ def composer_prompt(
             )
         )
         lines.append(
-            "Stop after pack JSON. Hook runs lease-record only (no implementation start). "
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(lease-record only; no implementation start). "
             "Lease receipt MUST bind action_id + episode_id + base_sha + worktree."
         )
         lines.append("Follow .cursor/skills/ndf-workflow-canvas/acp-delegate.md runtime lease.")
@@ -1022,7 +1066,10 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
+        lines.append(
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(not openclaw.chat_send)."
+        )
         lines.append(
             "MUST NOT write GATES.md approved_by. MUST NOT invent TOPIC已审核 / DESIGN已审核 / 可以开始实现."
         )
@@ -1034,7 +1081,10 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
+        lines.append(
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(not openclaw.chat_send)."
+        )
     elif action_id == "binder-pipeline":
         lines.append(
             _pack_cli_with_episode(
@@ -1043,7 +1093,10 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
+        lines.append(
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(not openclaw.chat_send)."
+        )
     elif action_id == "binder-amend":
         lines.append(
             _pack_cli_with_episode(
@@ -1052,7 +1105,10 @@ def composer_prompt(
                 episode_token,
             )
         )
-        lines.append("Pack JSON goes to afterShellExecution hook (not Agent chat_send).")
+        lines.append(
+            "Report pack summary; wait for human 「派发」 then dispatch-send "
+            "(not openclaw.chat_send)."
+        )
     elif action_id in {"poc-prepare-baseline", "poc-isolation-repair", "poc-measurement"}:
         task = str(action.get("task") or "")
         lines.append(
@@ -1063,14 +1119,29 @@ def composer_prompt(
             )
         )
         lines.append(
-            "Stop after pack JSON. If not safe_to_dispatch, report blockers and stop. "
-            "Hook sends Claude Code ACP for the worker write."
+            "Report pack summary (safe_to_dispatch / write root / episode / blockers). "
+            "If not safe_to_dispatch: action-finish cancelled + snapshot --out --topic; stop. "
+            "If safe: wait for human 「派发」 then dispatch-send. MUST NOT restart --serve. "
+            "MUST NOT write DELTA/Numbers in this chat."
         )
         if action_id == "poc-measurement":
             lines.append(
                 "Measurement requires capability receipts for run_sustained / sudo_cgroup / "
                 "write_poc_ndf. Missing capability → waiting_human or fail-closed; "
                 "MUST NOT send then hope for approval."
+            )
+            lines.append(
+                "Human capability approval is a META hop on the Cursor commander only. "
+                "After the human approves, run: "
+                f"python3 spec/meta/tools/ndf_workflow_status.py capability-approve "
+                f"--catalog-action-id poc-measurement --capability run_sustained "
+                f"--capability sudo_cgroup --capability command_allowlist "
+                f"--approved-by human --topic {topic_token} --json. "
+                "That writes tmp/ndf-capability-receipt.json, closes the waiting attempt, "
+                "and snapshot --out. Live --serve auto-reloads. MUST NOT only hand-edit JSON. "
+                "MUST NOT store passwords. MUST NOT restart --serve. Then re-click 补测. "
+                "MUST NOT send the human into the Claude Code ACP session to approve Bash; "
+                "dispatch-send inherits commander capability receipts."
             )
     elif action_id in {"guest-replay-hop", "guest-replay-prefix"}:
         hop_id = (

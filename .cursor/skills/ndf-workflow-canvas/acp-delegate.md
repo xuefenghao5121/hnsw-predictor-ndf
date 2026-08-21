@@ -68,9 +68,26 @@ report is not the command surface and is not an NDF close.
 
 Use `repair-pack --topic <topic> --task poc_prepare_baseline|poc_isolation_repair|poc_measurement`.
 
-Command Agent **only** runs `repair-pack` and stops. `afterShellExecution` → `dispatch-send`
-sends this pack to Claude Code ACP, waits for completion, then
-`completion-record` → `action-commit` → `snapshot`.
+Command Agent runs `repair-pack` (writes `tmp/ndf-dispatch-last-pack.json`), reports
+the pack summary, and **waits for human 「派发」/「继续」** in the same chat. Then:
+
+```bash
+python3 spec/meta/tools/ndf_workflow_status.py dispatch-send \
+  --pack-file tmp/ndf-dispatch-last-pack.json \
+  --catalog-action-id <id> --action-id <uuid> --json
+```
+
+`dispatch-send` sends the pack to Claude Code ACP, waits for
+`ndf-dispatch-notify/v1`, reads `pack.completion_receipt_path` from disk, then
+`completion-record` → `action-commit` → `action-finish` → `snapshot --out`.
+Stdout is notify-only; the disk file MUST include handshake
+(`worktree` / `branch` / `run_id` / `session_id`) plus `changed_files` and
+`reproduce_commands`. MUST NOT treat stdout `ndf-agent-completion/v1` as the
+validated receipt.
+MUST NOT rely on Cursor `afterShellExecution` to auto-send.
+Commander-approved packs inherit ACP permission bypass; humans MUST NOT be
+sent into the Claude Code session to click Bash approve.
+`execution_binding_stale` is not a measurement blocker.
 
 - `poc_prepare_baseline` is delegated when the Implementation gap `missing_baseline_workspace`
   exists. Claude MUST copy the INTERFACE implementation slice and the required Trunk
@@ -84,9 +101,9 @@ sends this pack to Claude Code ACP, waits for completion, then
   skeleton (`vs` / `config_id` / `measure_script`). Unverified or pending Numbers are
   the measurement input state, not a dispatch blocker. OpenClaw `binder_amend` cannot
   write PERF Numbers or clear `unverified_measurement_claim`.
-- All repair tasks MUST run the repair pack `post_checks`. Hook owns POST_DISPATCH_SYNC
-  (`completion-record`, lease release if active, Canvas snapshot). Do not treat `sent`
-  as success.
+- All repair tasks MUST run the repair pack `post_checks`. `dispatch-send` owns
+  POST_DISPATCH_SYNC (`completion-record`, lease release if active, Canvas snapshot).
+  Do not treat `sent` as success.
 
 ## promote
 

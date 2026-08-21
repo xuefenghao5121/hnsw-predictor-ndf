@@ -2,6 +2,11 @@
 
 Canvas Control actions delegate NDF document-flow work to the configured OpenClaw
 conductor session. Read `session_key` from `AGENTS.md`; never hardcode.
+Gateway reachable ≠ session dispatchable: the key MUST appear in
+`openclaw sessions` (or be a UUID). Routing keys (feishu `agent:…:…`) stay valid;
+`dispatch-send` uses gateway `sessionKey`, not `agent --session-id`. If pack
+blockers include `openclaw_session_invalid` / `openclaw_session_unconfigured`,
+fix `AGENTS.md` then refresh probe — Canvas MUST NOT write `AGENTS.md`.
 
 ## Two pipelines (hard split)
 
@@ -23,21 +28,24 @@ conductor session. Read `session_key` from `AGENTS.md`; never hardcode.
   Trust `context-verify.valid` and topic-health `state=valid` / `sha_aligned`; do not
   treat manifest-only inequality as a stop.
 
-## Bridge sequence (Composer → hook)
+## Bridge sequence (Composer → dispatch-send)
 
 ```text
 0. EXECUTE now. Do not explain/return this template or stop after newComposerChat.
 1. Prefer resume: control-pack --topic <t> --task <task> --episode <active> --resume [--focus-gate|--focus-binder-facet] --json
    Else: control-pack --topic <t> --task gate_pipeline|binder_pipeline|… --episode <new> --json
-2. Command Agent STOPS after pack JSON. MUST NOT call openclaw.chat_send from Composer.
-3. afterShellExecution hook runs dispatch-send when safe_to_dispatch (or safe_to_delegate + runtime).
-   Hook writes ndf-agent-message request path evidence, sends via OpenClaw CLI/gateway,
-   waits for response, then completion → action-commit → snapshot.
-4. If pack is not safe, hook does not send; Command Agent reports blockers only.
-5. Gate: record waiting_human when next_human_phrase returns. Binder: continue only POC NDF /
+2. Command Agent reports pack summary (written to tmp/ndf-dispatch-last-pack.json).
+   MUST NOT call openclaw.chat_send from Composer.
+3. If not safe_to_dispatch: action-finish cancelled + snapshot --out; stop.
+4. If safe: STOP for human 「派发」/「继续」 in this chat.
+5. After confirm: dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json
+   (sends via OpenClaw CLI/gateway, waits for ndf-dispatch-notify/v1, reads
+   pack.completion_receipt_path from disk, then completion-record →
+   action-commit → action-finish → snapshot).
+6. Gate: record waiting_human when next_human_phrase returns. Binder: continue only POC NDF /
    workflow preparation. Never dispatch Claude Code here.
-6. Success requires worker response + succeeded closeout; Composer creation / sent alone is
-   never success. Stop hook may backfill action-commit + snapshot only if still missing.
+7. Success requires disk ndf-agent-completion/v1 + succeeded closeout; Composer
+   creation / sent / stdout JSON alone is never success. Stop hook skips ready packs awaiting human dispatch.
 ```
 
 ## Workspace binding (all tasks)

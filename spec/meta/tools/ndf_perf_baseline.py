@@ -31,7 +31,7 @@ BL_DIR = ROOT / "spec" / "50-verification" / "baselines"
 
 @dataclass
 class Finding:
-    severity: str  # error | warning
+    severity: str  # error | warning | info
     kind: str
     topic: str
     message: str
@@ -454,7 +454,7 @@ def inspect_topic(topic: str, require_card: bool) -> CardView:
             ):
                 view.findings.append(
                     Finding(
-                        "warning",
+                        "info",
                         "vs_unmentioned",
                         topic,
                         f"Numbers does not mention vs `{view.vs}` (ok if own R0 table)",

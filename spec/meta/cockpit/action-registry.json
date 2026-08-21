@@ -901,7 +901,7 @@
       "task": "poc_measurement",
       "enableWhen": [
         "focusedTopic",
-        "gapNumbersPending"
+        "gapMeasurementWork"
       ],
       "humanPhrase": null,
       "requiresIntent": false,

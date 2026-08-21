@@ -280,7 +280,11 @@ python3 spec/meta/tools/ndf_replay.py fsck
 - `snapshot`（schema v2）严格分三平面：
   - `business`：本地产品 identity/goals/capabilities/Golden/roadmap/product proposals/topics/risks；
   - `control`：Genesis（含 `accepted` / `genesis_trunk_sha` / `install_needed`）/`kernel_map`（`spec/meta/graph.json` 种子条款）/process proposals/spec health（含 `next_actions`）/gate summary + 保守的 `close` 投影；
-  - `runtime`：`implementation`（Claude Code）与 `control`（OpenClaw session_key）双 agent。
+  - `runtime`：`implementation`（Claude Code）与 `control`（OpenClaw）双 agent。
+    Control 探测分三态：`gateway_reachable` / `session_configured` /
+    `session_dispatchable`。`session_key` 是路由身份；dispatch 对 routing key 走
+    gateway `sessionKey`，仅 UUID 才用 `agent --session-id`。Canvas 只读投影，
+    MUST NOT 写 `AGENTS.md`。
   Topic detail 仍正交输出 lifecycle/gates/Design-Implementation-Test/agent_run/health。
   有产品 Charter 时 Canvas 默认 Product；无 Charter 时默认 NDF Control（Genesis 安装轨）。
   `operational_legacy` 只在 Control 显示可选 adopt，不阻断 Product/Topics。
@@ -294,7 +298,12 @@ python3 spec/meta/tools/ndf_replay.py fsck
   Canvas payload 另含 `payloadSha`、`absorbedActionId` 与绑定后的 action 摘要；
   `projection_freshness` 为
   `fresh|refresh_in_progress|stale_after_action|unknown`。仅 `fresh` 且 verifier
-  `passed + current` 可启用 repair/delegate/close。
+  `passed + current` 可启用 repair/delegate/close。`waiting_human` / 能力未就绪的
+  `action-begin` MUST `action-finish cancelled` + `snapshot --out`（`capability-approve`
+  同样）；ready pack 等人「派发」时 stop hook MUST NOT 误取消。Command Agent 显式
+  `dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json` 是送 worker + closeout
+  的唯一入口（不依赖 afterShell 自动送）。live `--serve` 侦听 snapshot 文件，不得靠
+  重启 serve 解锁 CTA。
   `--format canvas-json` 输出官方 camelCase commander payload（含 `enabledActions`），
   `--out` 写 `tmp/ndf-canvas-snapshot.json`。`--serve` 绑定 `127.0.0.1` 提供 React+D3
   指挥舱与 `/snapshot.json`（Cloud Agent 无入站，不能当云端 URL）；MUST 单例（lock）、
@@ -319,7 +328,14 @@ python3 spec/meta/tools/ndf_replay.py fsck
   `requiredCapabilities` / `closeoutPolicy`；`action-begin` 贯通同一 Episode/attempt。
   测量类缺 `sudo_cgroup`/`run_sustained` 批准 → `waiting_human`，不得先送再碰运气。
   `dispatch-send`：CLI/agent exit 0 只是 transport acknowledgement；MUST 解析唯一
-  `ndf-agent-completion/v1`，失败/缺失回执 fail-closed，不得 `action-finish success`。
+  `ndf-dispatch-notify/v1`，再读 pack `completion_receipt_path` 上的磁盘
+  `ndf-agent-completion/v1`。stdout 薄 completion JSON 不得 `completion-record`。
+  失败/缺失通知或磁盘回执 fail-closed，不得 `action-finish success`。
+  OpenClaw 等待用心跳续等（`NDF_OPENCLAW_PING_SEC`/`STALL_SEC`/`MAX_SEC`）：定时
+  ping 会话 `updatedAt`/`totalTokens`（及磁盘 completion）；有进展刷新 stall；连续
+  无进展 → `openclaw_stalled`；绝对上限 → `openclaw_timeout`。不得单靠固定 gateway
+  `--timeout` 把仍在跑的长 hop 判死。心跳写入 `tmp/ndf-dispatch-last.json` 的
+  `openclaw_heartbeat`。
   失败 completion 也 MUST Episode-bind；task 成功但 snapshot 失败 →
   `succeeded_projection_stale`。hook 按 pack 的 `action_id`/`catalog_action_id`/`episode_id`
   关联，MUST NOT 取全局最新 started。

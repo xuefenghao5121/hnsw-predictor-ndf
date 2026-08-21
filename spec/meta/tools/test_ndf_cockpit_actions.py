@@ -118,6 +118,53 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertFalse(enabled["poc-prepare-baseline"]["enabled"])
         self.assertFalse(enabled["poc-measurement"]["enabled"])
 
+    def test_poc_measurement_enables_on_vs_unmentioned_finding(self) -> None:
+        """Numbers already filled (no numbers_pending gap) but vs_unmentioned advisory."""
+        payload = _payload(
+            projectionFreshness={"state": "fresh"},
+            business={
+                "identity": {
+                    "name": "DiskHNSW",
+                    "goal": "g",
+                    "charterExists": True,
+                    "charterPath": "spec/00-charter/charter.md",
+                },
+                "performance": {"goldenHeadStatus": "aligned"},
+                "focusedTopicId": "hotspot-optimization",
+                "focusedTopic": {
+                    "id": "hotspot-optimization",
+                    "decision": {"selected": None},
+                    "spaces": {
+                        "implementation": {"gaps": []},
+                        "test": {"gaps": [], "ready": True},
+                    },
+                    "health": {
+                        "findings": [
+                            {
+                                "kind": "vs_unmentioned",
+                                "severity": "info",
+                                "repair_owner": "claude-code",
+                                "repair_task": "poc_measurement",
+                            }
+                        ]
+                    },
+                    "delegation": {
+                        "static_preflight_passed": True,
+                        "runtime_dispatch_ready": True,
+                    },
+                },
+                "topics": [{"id": "hotspot-optimization"}],
+            },
+        )
+        enabled = actions.evaluate_enabled_actions(payload)
+        self.assertTrue(enabled["poc-measurement"]["enabled"])
+        self.assertIn("gapMeasurementWork", actions.registry_by_id()["poc-measurement"]["enableWhen"])
+        # Without the finding (and without numbers_pending), measure stays off.
+        payload["business"]["focusedTopic"]["health"]["findings"] = []
+        enabled = actions.evaluate_enabled_actions(payload)
+        self.assertFalse(enabled["poc-measurement"]["enabled"])
+        self.assertIn("gapMeasurementWork", enabled["poc-measurement"]["reason"] or "")
+
     def test_action_matrix_covers_writable_delegates(self) -> None:
         matrix = {row["id"]: row for row in actions.action_matrix()}
         for action_id in ("poc-measurement", "delegate-poc", "gate-pipeline", "new-proposal"):
@@ -519,7 +566,7 @@ class ActionRegistryTest(unittest.TestCase):
             prompt,
         )
         self.assertIn("delegate_to=claude-code-acp", prompt)
-        self.assertIn("delegate_hook=afterShellExecution", prompt)
+        self.assertIn("delegate_hook=dispatch-send", prompt)
         self.assertIn("MUST NOT perform the worker write", prompt)
         self.assertIn("Do not copy files", prompt)
         self.assertIn("BEGIN NDF GIT INPUT", prompt)
@@ -529,9 +576,11 @@ class ActionRegistryTest(unittest.TestCase):
     def test_composer_prompt_openclaw_delegate_lines(self) -> None:
         prompt = actions.composer_prompt("gate-pipeline", _payload(), topic="hotspot-optimization")
         self.assertIn("delegate_to=openclaw", prompt)
-        self.assertIn("delegate_hook=afterShellExecution", prompt)
-        self.assertIn("Pack JSON goes to afterShellExecution hook", prompt)
+        self.assertIn("delegate_hook=dispatch-send", prompt)
+        self.assertIn("dispatch-send", prompt)
+        self.assertIn("「派发」", prompt)
         self.assertNotIn("Actual openclaw.chat_send", prompt)
+        self.assertNotIn("afterShellExecution hook", prompt)
 
     def test_standalone_intent_template_preserves_human_slot(self) -> None:
         response = actions.standalone_action_template("new-proposal", _payload())
@@ -1069,13 +1118,15 @@ class ActionRegistryTest(unittest.TestCase):
             self.assertIn(f"catalog_action_id={aid}", prompt, aid)
             self.assertIn(f"--catalog-action-id {aid}", prompt, aid)
             if aid in actions.PACK_DELEGATE_ACTIONS:
-                self.assertIn("delegate_hook=afterShellExecution", prompt, aid)
-                self.assertIn("Stop after pack", prompt, aid)
+                self.assertIn("delegate_hook=dispatch-send", prompt, aid)
+                self.assertIn("dispatch-send --pack-file", prompt, aid)
+                self.assertIn("「派发」", prompt, aid)
                 self.assertNotIn(
                     "ndf_workflow_status.py action-commit",
                     prompt,
                     aid,
                 )
+                self.assertNotIn("afterShellExecution hook sends", prompt, aid)
             else:
                 self.assertIn("ndf_workflow_status.py action-commit", prompt, aid)
                 self.assertIn(actions.action_prompt_relpath(aid), prompt, aid)
@@ -1103,8 +1154,9 @@ class ActionRegistryTest(unittest.TestCase):
         lease = actions.composer_prompt("prepare-acp-lease", payload, topic="hotspot-optimization")
         self.assertIn(" pack --topic ", delegate)
         self.assertIn("delegate_to=claude-code-acp", lease)
-        self.assertIn("delegate_hook=afterShellExecution", lease)
+        self.assertIn("delegate_hook=dispatch-send", lease)
         self.assertIn("lease-record only", lease)
+        self.assertIn("dispatch-send", lease)
         self.assertNotIn("Actual openclaw.chat_send", lease)
 
         next_step = actions.composer_prompt(

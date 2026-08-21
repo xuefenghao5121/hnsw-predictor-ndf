@@ -23,13 +23,13 @@ Use the catalog `tool=` line for this dispatch.
 OpenClaw via [openclaw-delegate.md](../openclaw-delegate.md) pipeline B (面).
 Facets: TOPIC → DESIGN → PERF_BASELINE → DELTA → INTERFACE → COMMITS.
 `binder_amend` is same-hypothesis facet tweak only (`--focus-binder-facet`).
-Command Agent stops after pack JSON; hook sends OpenClaw.
+Command Agent prepares pack, waits for human 「派发」, then `dispatch-send`.
 
 ## Sequence
 
 1. GIT INPUT checkout of `remote_branch`.
 2. Prefer `--resume` when binder Episode is active.
-3. `control-pack` then **STOP**. Hook runs `dispatch-send` (not Agent `chat_send`).
+3. `control-pack` then report summary; wait for 「派发」; then `dispatch-send` (not Agent `chat_send`).
 4. Worker amends only the focused facet; complete facets are recheck no-ops.
 5. MUST NOT write gate approvals, PERF Numbers, DELTA Rounds, or evidence.
 6. Hypothesis change is `new_poc` via `/ndf-proposal-generate`, not amend.

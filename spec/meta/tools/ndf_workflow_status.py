@@ -63,6 +63,7 @@ from ndf_workflow_evidence import (  # noqa: E402
 )
 
 ACTION_LOG = ROOT / "tmp" / "ndf-workflow-actions.jsonl"
+DISPATCH_PACK_PATH = ROOT / "tmp" / "ndf-dispatch-last-pack.json"
 HEALTH_DIR = ROOT / "tmp" / "ndf-workflow-health"
 PIPELINE_EPISODE_DIR = ROOT / "tmp" / "ndf-control-pipelines"
 CONTROL_DISPATCH_LOG = ROOT / "tmp" / "ndf-control-dispatch.jsonl"
@@ -190,6 +191,16 @@ MEASUREMENT_FINDING_KINDS = frozenset(
         "unverified_measurement_claim",
         "empty_numbers",
         "numbers_pending",
+        # Numbers body did not restate vs/bl-trunk (bind header may already have vs).
+        # Owned by Claude Code poc_measurement — MUST NOT route to binder/OpenClaw.
+        "vs_unmentioned",
+    }
+)
+# Non-blocking advisories: keep on health.findings, exclude from forced next_actions /
+# binder pipeline steps (ok if own R0 table).
+ADVISORY_FINDING_KINDS = frozenset(
+    {
+        "vs_unmentioned",
     }
 )
 KIND_TO_BINDER_FACET = {
@@ -291,6 +302,10 @@ SPACE_GAP_FIX = {
     ),
     "unverified_measurement_claim": (
         "点击「补测 / 写 DELTA」。补齐 Claude Code 测量回执后再把 Numbers 算数。"
+    ),
+    "vs_unmentioned": (
+        "可选：点击「补测 / 写 DELTA」在 Numbers 正文补一行 vs/bl-trunk 引用。"
+        "若本主题已有独立 R0 表，可忽略（ok if own R0 table）——不是装订器活。"
     ),
 }
 REPAIR_TASK_ACTION_IDS = {
@@ -1100,6 +1115,11 @@ def finding_why_blocked(
         return "没有测量 Numbers，不能判断假设是否成立，也不能 promote。"
     if kind == "unverified_measurement_claim":
         return "Numbers 无验证回执，测试空间不算完备。"
+    if kind == "vs_unmentioned":
+        return (
+            "Numbers 正文未再提 vs/金标（advisory）。绑头已齐且有独立 R0 时可忽略；"
+            "若要钉引用，由 Claude Code 补测/改 Numbers，不是装订器修订。"
+        )
     if kind in {"trunk_write", "isolation_failed"}:
         return "POC 触碰 Trunk 或隔离失败，探索结果不可信。"
     if kind == "missing_delta":
@@ -1279,6 +1299,11 @@ def unique_actions(findings: list[dict[str, Any]]) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
     for item in findings:
+        kind = str(item.get("kind") or "")
+        severity = str(item.get("severity") or "")
+        # Advisories stay on findings for display; do not force repair CTAs / pipeline steps.
+        if kind in ADVISORY_FINDING_KINDS or severity == "info":
+            continue
         action = finding_action(item)
         key = (
             action["owner"],
@@ -1777,13 +1802,18 @@ def bind_pack_to_episode(
     )
     if payload.get("allowed_write_root"):
         allowed_roots = [payload.get("allowed_write_root")]
-    writable = bool(allowed_roots) and bool(
-        payload.get("safe_to_dispatch")
-        or (
-            payload.get("safe_to_delegate")
-            and payload.get("runtime_dispatch_ready") is not False
-        )
+    # Episode is required only when this pack would actually send. waiting_human /
+    # capability-blocked packs MUST still return JSON so hook closeout can finish
+    # the started attempt instead of raising "writable pack requires Episode".
+    will_send = payload.get("safe_to_dispatch") is True or (
+        payload.get("safe_to_delegate") is True
+        and payload.get("runtime_dispatch_ready") is not False
+        and payload.get("provider") == "openclaw"
+        and payload.get("execution_capabilities_ready") is not False
+        and payload.get("dispatch_state") != "waiting_human"
+        and "waiting_human" not in (payload.get("blockers") or [])
     )
+    writable = bool(allowed_roots) and bool(will_send)
     if not identifier:
         if writable:
             raise ValueError("writable pack requires explicit Replay Episode")
@@ -3043,7 +3073,7 @@ def parsed_tool_issues(name: str, check: dict[str, Any]) -> list[tuple[str, str,
     issues: list[tuple[str, str, str]] = []
     if name == "perf_baseline":
         for severity, kind, message in re.findall(
-            r"(?m)^\s*\[(error|warning)\]\s+([a-z0-9_-]+):\s*(.+)$",
+            r"(?m)^\s*\[(error|warning|info)\]\s+([a-z0-9_-]+):\s*(.+)$",
             output,
         ):
             issues.append((severity, kind, message.strip()))
@@ -3566,8 +3596,10 @@ def latest_poc_completion(topic_dir: Path) -> tuple[Path | None, dict[str, Any] 
         found.append((path.stat().st_mtime, path, data))
     if not found:
         return None, None
-    found.sort(key=lambda item: (item[0], str(item[1])))
-    _, path, data = found[-1]
+    preferred = [item for item in found if item[1].name.endswith("-completion.json")]
+    pool = preferred or found
+    pool.sort(key=lambda item: (item[0], str(item[1])))
+    _, path, data = pool[-1]
     return path, data
 
 
@@ -5705,6 +5737,169 @@ def probe_openclaw() -> dict[str, Any]:
     }
 
 
+_OPENCLAW_SESSION_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_openclaw_agent_session_id(value: str) -> bool:
+    """True when value is acceptable as ``openclaw agent --session-id``."""
+    return bool(_OPENCLAW_SESSION_UUID_RE.fullmatch(str(value or "").strip()))
+
+
+def _extract_json_object(text: str) -> dict[str, Any] | None:
+    raw = text or ""
+    try:
+        value = json.loads(raw)
+        return value if isinstance(value, dict) else None
+    except json.JSONDecodeError:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end <= start:
+            return None
+        try:
+            value = json.loads(raw[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+        return value if isinstance(value, dict) else None
+
+
+def list_openclaw_sessions(*, limit: int = 100) -> tuple[list[dict[str, Any]], str | None]:
+    """Return (sessions, error). Sessions come from ``openclaw sessions --json``."""
+    executable = shutil.which("openclaw")
+    if not executable:
+        return [], "openclaw_cli_missing"
+    proc = subprocess.run(
+        [
+            executable,
+            "sessions",
+            "--json",
+            "--all-agents",
+            "--limit",
+            str(max(1, int(limit))),
+        ],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+        timeout=15,
+    )
+    payload = _extract_json_object(proc.stdout or "")
+    if payload is None:
+        return [], "invalid_sessions_json"
+    sessions = payload.get("sessions")
+    if not isinstance(sessions, list):
+        return [], "invalid_sessions_json"
+    return [item for item in sessions if isinstance(item, dict)], None
+
+
+def resolve_openclaw_dispatch_session(
+    configured: str | None,
+    *,
+    sessions: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Resolve AGENTS.md session_key for Control dispatch.
+
+    Routing keys (``agent:main:feishu:…``) are valid Control identity when present
+    as a store ``key``. UUID values are valid ``openclaw agent --session-id`` ids.
+    Transport chooses gateway ``sessionKey`` vs CLI ``--session-id`` accordingly.
+    """
+    key = str(configured or "").strip()
+    hint = (
+        "Edit AGENTS.md OpenClaw 指挥会话 session_key to a key listed in "
+        "`openclaw sessions --json` (or a UUID sessionId), then click 探测运行时 (light)."
+    )
+    if not key:
+        return {
+            "session_configured": False,
+            "session_dispatchable": False,
+            "resolved_session_id": None,
+            "matched_key": None,
+            "transport": None,
+            "error": "openclaw_session_unconfigured",
+            "fix_hint": hint,
+        }
+    store = sessions
+    store_error = None
+    if store is None:
+        store, store_error = list_openclaw_sessions()
+
+    def _ok(
+        *,
+        matched_key: str | None,
+        resolved_session_id: str | None,
+        transport: str,
+    ) -> dict[str, Any]:
+        return {
+            "session_configured": True,
+            "session_dispatchable": True,
+            "resolved_session_id": resolved_session_id,
+            "matched_key": matched_key,
+            "transport": transport,
+            "error": None,
+            "fix_hint": None,
+        }
+
+    def _bad(error: str) -> dict[str, Any]:
+        return {
+            "session_configured": True,
+            "session_dispatchable": False,
+            "resolved_session_id": None,
+            "matched_key": None,
+            "transport": None,
+            "error": error,
+            "fix_hint": hint,
+        }
+
+    if store_error and not store:
+        if _looks_like_openclaw_agent_session_id(key):
+            return _ok(
+                matched_key=None,
+                resolved_session_id=key,
+                transport="session_id",
+            )
+        # Store unavailable: still allow routing-key transport when configured;
+        # gateway call validates membership at send time.
+        if ":" in key:
+            return _ok(
+                matched_key=key,
+                resolved_session_id=None,
+                transport="session_key",
+            )
+        return _bad(store_error or "openclaw_session_invalid")
+
+    match: dict[str, Any] | None = None
+    for item in store:
+        if str(item.get("sessionId") or "") == key or str(item.get("key") or "") == key:
+            match = item
+            break
+    if match is None:
+        if _looks_like_openclaw_agent_session_id(key):
+            return _ok(
+                matched_key=None,
+                resolved_session_id=key,
+                transport="session_id",
+            )
+        return _bad("openclaw_session_invalid")
+
+    matched_key = str(match.get("key") or key)
+    sid = str(match.get("sessionId") or "").strip()
+    if _looks_like_openclaw_agent_session_id(sid):
+        return _ok(
+            matched_key=matched_key,
+            resolved_session_id=sid,
+            transport="session_id",
+        )
+    # Routing key hit in store — dispatch via gateway sessionKey (chat_send-equivalent).
+    return _ok(
+        matched_key=matched_key,
+        resolved_session_id=None,
+        transport="session_key",
+    )
+
+
 def runtime_status(probe: bool | str = False) -> dict[str, Any]:
     agents_text = read_text(ROOT / "AGENTS.md")
     session_id = configured_acp_session_id(agents_text)
@@ -5723,6 +5918,29 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
         for item in (openclaw_probe or {}).get("sessions", [])
         if isinstance(item, dict)
     }
+    session_resolution: dict[str, Any] | None = None
+    if mode:
+        if openclaw_probe and openclaw_probe.get("reachable"):
+            session_resolution = resolve_openclaw_dispatch_session(configured_key)
+        elif not str(configured_key or "").strip():
+            session_resolution = resolve_openclaw_dispatch_session("")
+        else:
+            session_resolution = {
+                "session_configured": True,
+                "session_dispatchable": False,
+                "resolved_session_id": None,
+                "matched_key": None,
+                "error": (
+                    (openclaw_probe or {}).get("error")
+                    if openclaw_probe is not None
+                    else "not_probed"
+                )
+                or "runtime_unavailable",
+                "fix_hint": (
+                    "Restore OpenClaw gateway (`openclaw health --json`), then "
+                    "verify AGENTS.md session_key is dispatchable."
+                ),
+            }
     leases = active_runtime_leases()
     probed = acp_probe is not None
     reachable = bool(acp_probe and acp_probe.get("reachable"))
@@ -5782,8 +6000,39 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
             "provider": "openclaw",
             "default_session_key": configured_key,
             "reachable": openclaw_probe.get("reachable") if openclaw_probe else None,
+            "gateway_reachable": (
+                openclaw_probe.get("reachable") if openclaw_probe else None
+            ),
             "configured_session_visible": (
                 configured_key in recent_keys if mode else None
+            ),
+            "session_configured": (
+                None
+                if session_resolution is None
+                else bool(session_resolution.get("session_configured"))
+            ),
+            "session_dispatchable": (
+                None
+                if session_resolution is None
+                else bool(session_resolution.get("session_dispatchable"))
+            ),
+            "resolved_session_id": (
+                None
+                if session_resolution is None
+                else session_resolution.get("resolved_session_id")
+            ),
+            "session_transport": (
+                None
+                if session_resolution is None
+                else session_resolution.get("transport")
+            ),
+            "session_error": (
+                None if session_resolution is None else session_resolution.get("error")
+            ),
+            "session_fix_hint": (
+                None
+                if session_resolution is None
+                else session_resolution.get("fix_hint")
             ),
             "state_source": "gateway",
             "probe": openclaw_probe,
@@ -5799,6 +6048,33 @@ def openclaw_session_key() -> str:
     agents_text = read_text(ROOT / "AGENTS.md")
     match = OPENCLAW_SESSION_RE.search(agents_text)
     return match.group(1) if match else "agent:main:main"
+
+
+def control_runtime_dispatch_ready(control: Mapping[str, Any] | None) -> bool:
+    """Gateway reachable AND configured session resolves to a dispatchable id."""
+    runtime = control or {}
+    return bool(runtime.get("reachable") and runtime.get("session_dispatchable"))
+
+
+def control_runtime_dispatch_blockers(control: Mapping[str, Any] | None) -> list[str]:
+    runtime = control or {}
+    if runtime.get("reachable") and runtime.get("session_dispatchable"):
+        return []
+    blockers: list[str] = []
+    if not runtime.get("reachable"):
+        blockers.append("runtime_unavailable")
+    elif runtime.get("session_configured") is False:
+        blockers.append("openclaw_session_unconfigured")
+    elif runtime.get("session_dispatchable") is False:
+        err = str(runtime.get("session_error") or "openclaw_session_invalid")
+        blockers.append(
+            err
+            if err.startswith("openclaw_session_")
+            else "openclaw_session_invalid"
+        )
+    else:
+        blockers.append("runtime_unavailable")
+    return blockers
 
 
 def implementation_dispatch_runtime(
@@ -7256,9 +7532,16 @@ def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
                 "provider": control_runtime["provider"],
                 "defaultSessionKey": control_runtime["default_session_key"],
                 "reachable": control_runtime["reachable"],
+                "gatewayReachable": control_runtime.get("gateway_reachable"),
                 "configuredSessionVisible": control_runtime.get(
                     "configured_session_visible"
                 ),
+                "sessionConfigured": control_runtime.get("session_configured"),
+                "sessionDispatchable": control_runtime.get("session_dispatchable"),
+                "resolvedSessionId": control_runtime.get("resolved_session_id"),
+                "sessionTransport": control_runtime.get("session_transport"),
+                "sessionError": control_runtime.get("session_error"),
+                "sessionFixHint": control_runtime.get("session_fix_hint"),
                 "probeError": control_runtime.get("probe_error"),
                 "probe": control_runtime.get("probe"),
                 "workspace": {
@@ -7661,6 +7944,104 @@ def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = Non
     finally:
         temporary.unlink(missing_ok=True)
     return target
+
+
+def write_live_commander_snapshot(topic: str | None = None) -> dict[str, Any]:
+    """Rebuild tmp/ndf-canvas-snapshot.json. Live --serve watches this file."""
+    selected = (topic or "").strip() or persisted_active_topic()
+    payload = snapshot(selected, False, None)
+    projected = canvas_snapshot(payload)
+    path = write_commander_snapshot(
+        projected
+        if isinstance(projected, dict)
+        and projected.get("schema") == "ndf-workflow-canvas-snapshot/v1"
+        else canvas_snapshot(payload),
+        ROOT / "tmp" / "ndf-canvas-snapshot.json",
+    )
+    freshness = projected.get("projectionFreshness") if isinstance(projected, dict) else {}
+    return {
+        "schema": "ndf-live-snapshot/v1",
+        "path": rel(path),
+        "topic": selected,
+        "freshness": (freshness or {}).get("state") if isinstance(freshness, Mapping) else None,
+        "absorbedActionId": projected.get("absorbedActionId")
+        if isinstance(projected, dict)
+        else None,
+    }
+
+
+def persist_dispatch_pack(payload: Mapping[str, Any]) -> Path:
+    """Write pack JSON for Command Agent dispatch-send (human 「派发」 round)."""
+    DISPATCH_PACK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    DISPATCH_PACK_PATH.write_text(
+        json.dumps(dict(payload), ensure_ascii=False, indent=2, sort_keys=True, default=str)
+        + "\n",
+        encoding="utf-8",
+    )
+    return DISPATCH_PACK_PATH
+
+
+def close_unsent_started_action() -> dict[str, Any] | None:
+    """Stop-hook backstop: finish a started attempt that is not awaiting send."""
+    import ndf_dispatch_send as dispatch
+
+    receipts = read_action_receipts()
+    started = next(
+        (
+            receipt
+            for receipt in reversed(receipts)
+            if receipt.get("status") == "started" and receipt.get("action_id")
+        ),
+        None,
+    )
+    if started is None:
+        return None
+    action_id = str(started["action_id"])
+    last: dict[str, Any] = {}
+    if dispatch.DISPATCH_LAST.is_file():
+        try:
+            loaded = json.loads(dispatch.DISPATCH_LAST.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                last = loaded
+        except json.JSONDecodeError:
+            last = {}
+    in_flight = str(last.get("state") or "") in {"sent", "awaiting_result", "running"}
+    last_aid = str(last.get("action_id") or last.get("attempt_id") or "")
+    if in_flight and (not last_aid or last_aid == action_id):
+        return {
+            "schema": "ndf-unsent-action-close/v1",
+            "skipped": "dispatch_in_flight",
+            "action_id": action_id,
+        }
+    # Ready pack on disk awaiting human 「派发」 — do not cancel.
+    if DISPATCH_PACK_PATH.is_file():
+        try:
+            pack = json.loads(DISPATCH_PACK_PATH.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            pack = {}
+        if isinstance(pack, dict) and pack.get("safe_to_dispatch") is True:
+            pack_aid = str(pack.get("action_id") or pack.get("attempt_id") or "")
+            if not pack_aid or pack_aid == action_id:
+                return {
+                    "schema": "ndf-unsent-action-close/v1",
+                    "skipped": "awaiting_human_dispatch",
+                    "action_id": action_id,
+                    "pack_path": rel(DISPATCH_PACK_PATH),
+                }
+    episode = started.get("episode_id") or (started.get("replay") or {}).get("episode_id")
+    finish = action_finish(
+        action_id,
+        "cancelled",
+        ["abandoned_at_command_stop"],
+        str(episode) if episode else None,
+    )
+    snap = write_live_commander_snapshot(str(started.get("topic") or "") or None)
+    return {
+        "schema": "ndf-unsent-action-close/v1",
+        "action_id": action_id,
+        "action_finish": finish,
+        "snapshot": snap,
+    }
 
 
 def read_cgroup_pids(pid: int | None = None) -> dict[str, Any]:
@@ -8869,7 +9250,16 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
             "allowed_write_root",
         ],
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if safe_to_dispatch else 1
+    return bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    ), 0 if safe_to_dispatch else 1
+
+
+def _with_completion_receipt_path(payload: dict[str, Any]) -> dict[str, Any]:
+    import ndf_dispatch_send as dispatch
+
+    payload["completion_receipt_path"] = dispatch.completion_receipt_path_for_pack(payload)
+    return payload
 
 
 def evaluate_execution_capabilities(
@@ -8957,10 +9347,98 @@ def evaluate_execution_capabilities(
     }
 
 
+def capability_approve(
+    catalog_action_id: str,
+    capabilities: list[str],
+    *,
+    approved_by: str = "human",
+    topic: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Record human capability approval, close waiting attempts, snapshot --out."""
+    catalog_id = (catalog_action_id or "").strip()
+    if catalog_id not in ndf_actions.registry_by_id():
+        raise ValueError(f"unknown catalog_action_id: {catalog_id}")
+    caps = [item.strip() for item in capabilities if str(item).strip()]
+    if not caps:
+        raise ValueError("at least one --capability is required")
+    receipt_path = ROOT / "tmp" / "ndf-capability-receipt.json"
+    existing: dict[str, Any] = {}
+    if receipt_path.is_file():
+        try:
+            loaded = json.loads(receipt_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                existing = loaded
+        except json.JSONDecodeError:
+            existing = {}
+    approved = {
+        str(item)
+        for item in (existing.get("approved_capabilities") or [])
+        if str(item).strip()
+    }
+    approved.update(caps)
+    selected_topic = (topic or "").strip() or persisted_active_topic()
+    receipt = {
+        "schema": "ndf-capability-receipt/v1",
+        "topic": selected_topic,
+        "catalog_action_id": catalog_id,
+        "approved_capabilities": sorted(approved),
+        "approved_by": (approved_by or "human").strip() or "human",
+        "approved_at": now_iso(),
+        "note": note,
+    }
+    receipt_path.parent.mkdir(parents=True, exist_ok=True)
+    receipt_path.write_text(
+        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    latest_by_id: dict[str, dict[str, Any]] = {}
+    for row in read_action_receipts():
+        latest_by_id[str(row.get("action_id"))] = row
+    action_spec = ndf_actions.registry_by_id().get(catalog_id) or {}
+    expected_ops = {
+        catalog_id,
+        str(action_spec.get("task") or ""),
+        str(action_spec.get("operation") or ""),
+        str(action_spec.get("packTask") or ""),
+    }
+    finished: list[dict[str, Any]] = []
+    for row in latest_by_id.values():
+        if row.get("status") != "started":
+            continue
+        rec_catalog = str(row.get("catalog_action_id") or "")
+        rec_op = str(row.get("operation") or row.get("task") or "")
+        if rec_catalog and rec_catalog != catalog_id:
+            continue
+        if rec_catalog != catalog_id and rec_op not in expected_ops:
+            continue
+        episode = row.get("episode_id") or (row.get("replay") or {}).get("episode_id")
+        try:
+            finished.append(
+                action_finish(
+                    str(row["action_id"]),
+                    "cancelled",
+                    ["waiting_human_resolved"],
+                    str(episode) if episode else None,
+                )
+            )
+        except ValueError:
+            continue
+    snap = write_live_commander_snapshot(selected_topic)
+    return {
+        "schema": "ndf-capability-approve/v1",
+        "receipt_path": rel(receipt_path),
+        "receipt": receipt,
+        "finished_actions": [item.get("action_id") for item in finished],
+        "snapshot": snap,
+    }
+
+
 def repair_pack(
     topic: str,
     task: str,
     episode_id: str | None = None,
+    action_id: str | None = None,
 ) -> tuple[dict[str, Any], int]:
     if task not in IMPLEMENTATION_REPAIR_TASKS:
         raise ValueError(f"unknown implementation repair task: {task}")
@@ -9110,7 +9588,30 @@ def repair_pack(
             f"python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic {topic} --json",
         ],
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if payload["safe_to_dispatch"] else 1
+    attempt = (action_id or "").strip() or None
+    if attempt:
+        payload["action_id"] = attempt
+        payload["attempt_id"] = attempt
+        if not episode_id:
+            start = next(
+                (
+                    receipt
+                    for receipt in reversed(read_action_receipts())
+                    if str(receipt.get("action_id") or "") == attempt
+                ),
+                None,
+            )
+            if start:
+                episode_id = str(
+                    start.get("episode_id")
+                    or (start.get("replay") or {}).get("episode_id")
+                    or ""
+                ) or None
+    bound = bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    )
+    persist_dispatch_pack(bound)
+    return bound, 0 if bound.get("safe_to_dispatch") else 1
 
 
 def control_proposal_idea_pack(
@@ -9131,7 +9632,8 @@ def control_proposal_idea_pack(
     context_valid = bool(context["context_verify"].get("valid"))
     episode_ready = bool(episode_id or os.environ.get("NDF_REPLAY_EPISODE"))
     static_ready = bool(normalized_intent) and context_valid and episode_ready
-    runtime_ready = bool(runtime_status(True)["control"].get("reachable"))
+    control_runtime = runtime_status(True)["control"]
+    runtime_ready = control_runtime_dispatch_ready(control_runtime)
     safe = static_ready and runtime_ready
     blockers: list[str] = []
     if not normalized_intent:
@@ -9140,8 +9642,7 @@ def control_proposal_idea_pack(
         blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
-    if not runtime_ready:
-        blockers.append("runtime_unavailable")
+    blockers.extend(control_runtime_dispatch_blockers(control_runtime))
     intent_sha = (
         hashlib.sha256(normalized_intent.encode("utf-8")).hexdigest()
         if normalized_intent
@@ -9161,6 +9662,8 @@ def control_proposal_idea_pack(
         "active_episode_id": None,
         "provider": "openclaw",
         "session_key": openclaw_session_key(),
+        "resolved_session_id": control_runtime.get("resolved_session_id"),
+        "session_transport": control_runtime.get("session_transport"),
         "base_sha": git_head(),
         "workspace": workspace_binding(None),
         "workspace_truth": workspace_truth_view(None),
@@ -9196,7 +9699,9 @@ def control_proposal_idea_pack(
         **context,
         "blockers": blockers,
     }
-    bound = bind_pack_to_episode(payload, episode_id=episode_id)
+    bound = bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    )
     return bound, 0 if safe else 1
 
 
@@ -9298,7 +9803,7 @@ def control_pack(
     context_valid = bool(context["context_verify"].get("valid"))
     static_ready = (task in audit_tasks or not invalidated) and context_valid
     control_runtime = runtime_status(True)["control"]
-    runtime_ready = bool(control_runtime.get("reachable"))
+    runtime_ready = control_runtime_dispatch_ready(control_runtime)
     safe = static_ready and runtime_ready
     blockers: list[str] = []
     if not safe:
@@ -9306,8 +9811,7 @@ def control_pack(
             blockers.append("gate_invalidated")
         if not context_valid:
             blockers.append("context_verify_failed")
-        if not runtime_ready:
-            blockers.append("runtime_unavailable")
+        blockers.extend(control_runtime_dispatch_blockers(control_runtime))
     # SHA drift is the reason for gate_sha_audit / gate_pipeline focus — not a
     # static preflight blocker for those audit tasks.
     pipeline_block = None
@@ -9354,6 +9858,8 @@ def control_pack(
         "active_episode_id": active_episode,
         "provider": "openclaw",
         "session_key": openclaw_session_key(),
+        "resolved_session_id": control_runtime.get("resolved_session_id"),
+        "session_transport": control_runtime.get("session_transport"),
         "base_sha": git_head(),
         "workspace": workspace_binding(topic),
         "workspace_truth": workspace_truth_view(topic),
@@ -9421,7 +9927,9 @@ def control_pack(
         "blockers": blockers,
     }
     try:
-        bound = bind_pack_to_episode(payload, episode_id=episode_id)
+        bound = bind_pack_to_episode(
+            _with_completion_receipt_path(payload), episode_id=episode_id
+        )
     except ValueError as exc:
         if resume and "episode manifest does not match" in str(exc):
             if pipeline:
@@ -9697,7 +10205,8 @@ def project_control_land_pack(
     )
     context_valid = bool(context["context_verify"].get("valid"))
     episode_ready = bool(episode_id or os.environ.get("NDF_REPLAY_EPISODE"))
-    runtime_ready = bool(runtime_status(True)["control"].get("reachable"))
+    control_runtime = runtime_status(True)["control"]
+    runtime_ready = control_runtime_dispatch_ready(control_runtime)
     blockers: list[str] = []
     if path_blocker:
         blockers.append(path_blocker)
@@ -9713,8 +10222,7 @@ def project_control_land_pack(
         blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
-    if not runtime_ready:
-        blockers.append("runtime_unavailable")
+    blockers.extend(control_runtime_dispatch_blockers(control_runtime))
     source_ready = bool(record) and managed and (
         hop == PROCESS_HOP_CONFIRM_LAND
         or (hop == PROCESS_HOP_MANAGED_REVIEW and human_phrase == "已审核")
@@ -9805,6 +10313,8 @@ def project_control_land_pack(
         },
         "provider": "openclaw",
         "session_key": openclaw_session_key(),
+        "resolved_session_id": control_runtime.get("resolved_session_id"),
+        "session_transport": control_runtime.get("session_transport"),
         "base_sha": git_head(),
         "workspace": workspace_binding(None),
         "workspace_truth": workspace_truth_view(None),
@@ -9831,7 +10341,9 @@ def project_control_land_pack(
         **context,
         "blockers": blockers,
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if (
+    return bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    ), 0 if (
         static_ready and runtime_ready
     ) else 1
 
@@ -9900,7 +10412,8 @@ def project_control_pack(
         else bool(normalized_intent)
     )
     static_ready = source_ready and context_valid and episode_ready
-    runtime_ready = bool(runtime_status(True)["control"].get("reachable"))
+    control_runtime = runtime_status(True)["control"]
+    runtime_ready = control_runtime_dispatch_ready(control_runtime)
     safe = static_ready and runtime_ready
     blockers = []
     if origin == "health_finding":
@@ -9922,8 +10435,8 @@ def project_control_pack(
         blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
-    if not runtime_ready:
-        blockers.append("runtime_unavailable")
+    blockers.extend(control_runtime_dispatch_blockers(control_runtime))
+    safe = static_ready and control_runtime_dispatch_ready(control_runtime)
     payload = {
         "schema": "ndf-project-control-pack/v3",
         "compatibility": {
@@ -9956,6 +10469,8 @@ def project_control_pack(
         },
         "provider": "openclaw",
         "session_key": openclaw_session_key(),
+        "resolved_session_id": control_runtime.get("resolved_session_id"),
+        "session_transport": control_runtime.get("session_transport"),
         "base_sha": git_head(),
         "workspace": workspace_binding(None),
         "workspace_truth": workspace_truth_view(None),
@@ -9990,7 +10505,9 @@ def project_control_pack(
         **context,
         "blockers": blockers,
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if safe else 1
+    return bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    ), 0 if safe else 1
 
 
 def genesis_pack(mode: str, episode_id: str | None = None) -> tuple[dict[str, Any], int]:
@@ -10054,7 +10571,9 @@ def genesis_pack(mode: str, episode_id: str | None = None) -> tuple[dict[str, An
             "allowed_write_root",
         ],
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if payload["safe_to_dispatch"] else 1
+    return bind_pack_to_episode(
+        _with_completion_receipt_path(payload), episode_id=episode_id
+    ), 0 if payload["safe_to_dispatch"] else 1
 
 
 def close_plan(topic: str, mode: str, ids: list[str]) -> tuple[dict[str, Any], int]:
@@ -11257,6 +11776,22 @@ def main() -> int:
     action_finish_parser.add_argument("--episode")
     action_finish_parser.add_argument("--json", action="store_true")
 
+    capability_approve_parser = sub.add_parser(
+        "capability-approve",
+        help="Record human capability approval, close waiting attempts, snapshot --out",
+    )
+    capability_approve_parser.add_argument("--catalog-action-id", required=True)
+    capability_approve_parser.add_argument(
+        "--capability",
+        action="append",
+        dest="capabilities",
+        required=True,
+    )
+    capability_approve_parser.add_argument("--approved-by", default="human")
+    capability_approve_parser.add_argument("--topic")
+    capability_approve_parser.add_argument("--note")
+    capability_approve_parser.add_argument("--json", action="store_true")
+
     action_commit_parser = sub.add_parser(
         "action-commit",
         help="Commit mayWrite changes and record button-action A→B before snapshot",
@@ -11298,6 +11833,10 @@ def main() -> int:
         required=True,
     )
     repair_pack_parser.add_argument("--episode")
+    repair_pack_parser.add_argument(
+        "--action-id",
+        help="UUID from action-begin; stamped on pack for hook closeout",
+    )
     repair_pack_parser.add_argument("--json", action="store_true")
 
     control_pack_parser = sub.add_parser("control-pack")
@@ -11483,6 +12022,7 @@ def main() -> int:
             return 0
         if args.command == "genesis-pack":
             payload, code = genesis_pack(args.mode, args.episode)
+            persist_dispatch_pack(payload)
             emit(payload)
             return code
         if args.command == "snapshot":
@@ -11594,6 +12134,17 @@ def main() -> int:
         if args.command == "action-finish":
             emit(action_finish(args.action_id, args.result, args.blocker, args.episode))
             return 0
+        if args.command == "capability-approve":
+            emit(
+                capability_approve(
+                    args.catalog_action_id,
+                    args.capabilities,
+                    approved_by=args.approved_by,
+                    topic=args.topic,
+                    note=args.note,
+                )
+            )
+            return 0
         if args.command == "action-commit":
             prompt_text = None
             if args.prompt_file:
@@ -11622,10 +12173,14 @@ def main() -> int:
             return code
         if args.command == "pack":
             payload, code = pack_topic(args.topic, args.episode)
+            persist_dispatch_pack(payload)
             emit(payload)
             return code
         if args.command == "repair-pack":
-            payload, code = repair_pack(args.topic, args.task, args.episode)
+            payload, code = repair_pack(
+                args.topic, args.task, args.episode, args.action_id
+            )
+            # repair_pack already persist_dispatch_pack
             emit(payload)
             return code
         if args.command == "control-pack":
@@ -11648,6 +12203,7 @@ def main() -> int:
                     else None
                 ),
             )
+            persist_dispatch_pack(payload)
             emit(payload)
             return code
         if args.command == "pipeline-step-record":
@@ -11696,6 +12252,7 @@ def main() -> int:
                     origin=args.origin,
                     intent=read_process_intent_file(args.intent_file),
                 )
+            persist_dispatch_pack(payload)
             emit(payload)
             return code
         if args.command == "lease-record":

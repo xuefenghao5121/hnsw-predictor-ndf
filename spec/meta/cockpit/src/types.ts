@@ -130,7 +130,14 @@ export type Snapshot = {
       provider?: string;
       defaultSessionKey?: string;
       reachable?: boolean | null;
+      gatewayReachable?: boolean | null;
       configuredSessionVisible?: boolean | null;
+      sessionConfigured?: boolean | null;
+      sessionDispatchable?: boolean | null;
+      resolvedSessionId?: string | null;
+      sessionTransport?: string | null;
+      sessionError?: string | null;
+      sessionFixHint?: string | null;
       probeError?: string | null;
       probe?: unknown;
       workspace?: RuntimeWorkspace;

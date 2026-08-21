@@ -289,11 +289,30 @@ Command Agent MUST NOT 后台残留 `--serve`；日常刷新只写 `--out`。Clo
 （1）**runtime 投影**默认 snapshot 为 `not_probed`，MUST NOT 生成虚假
 `runtime_unavailable`；仅 live probe 后的 `unavailable` 才是运行时 blocker；
 （2）**transport acknowledgement**（CLI/agent exit 0）只表示消息已送达；
-（3）**validated completion** 必须解析唯一的 `ndf-agent-completion/v1` 且
+（3）**validated completion** 必须先从 worker stdout 解析唯一的
+`ndf-dispatch-notify/v1`，再读取 pack 钉死的 `completion_receipt_path`
+上的磁盘 `ndf-agent-completion/v1`（ACP 与 OpenClaw 同一合同），且
 `result=success`（并经 `completion-record` 绑 Episode 时）才可投影 succeeded。
+stdout 中的 `ndf-agent-completion/v1` MUST NOT 作为 `completion-record` 输入。
+`prepare-acp-lease` 保持 lease_only，不要求磁盘 completion。
 `workspace_truth.workspace_bound=false` 时 pack MUST NOT `safe_to_dispatch`。
 身份绑定与执行 HEAD 绑定 MUST 分离：仅身份失配构成 `workspace_unbound`；HEAD
 漂移单独投影为 `execution_binding_stale`。OpenClaw gateway 健康与 Claude ACP 可达正交，MUST NOT 用其一清另一侧 blocker。
+OpenClaw Control 探测 MUST 再分三态：`gateway_reachable`（health）、
+`session_configured`（`AGENTS.md` 非空 session_key）、`session_dispatchable`
+（配置的 **session_key 路由身份**可派发：在 sessions store 命中 `key`，或本身为
+合法 UUID sessionId）。`session_key`（可含 `:` 的飞书/通道路由串）与
+`openclaw agent --session-id`（UUID）MUST 区分；Control pack
+`safe_to_dispatch` MUST 要求 gateway 可达且 session 可派发。缺配置 →
+`openclaw_session_unconfigured`；配置无法匹配 store 且非 UUID →
+`openclaw_session_invalid`。Canvas MUST 只读投影上述三态与「改 `AGENTS.md` 后探测」
+引导，MUST NOT 提供写 `AGENTS.md` 的改绑 CTA。`dispatch-send` MUST：对 routing
+`session_key` 走 gateway `agent` 调用并传 `sessionKey`（等价 MCP chat_send）；
+仅当已解析出 UUID 时才使用 `--session-id`；MUST NOT 把未解析的 routing key 原样
+塞给 `--session-id`。OpenClaw 等待 MUST 用心跳续等（默认约每 60s ping 会话
+`updatedAt`/`totalTokens` 或磁盘 completion）：有进展则刷新 stall 时钟；连续无进展
+达 stall 阈值才 `openclaw_stalled`；绝对上限才 `openclaw_timeout`。MUST NOT 仅靠
+单次固定 gateway `--timeout` 把仍在工作的长 hop 判死。
 
 Snapshot MUST 投影生成该指挥面的 Git remote URL、remote 名与命名分支。所有
 Composer / snapshot Prompt MUST 以 `BEGIN NDF GIT INPUT` / `END NDF GIT INPUT`
@@ -322,8 +341,32 @@ attempt，并贯通 pack / worker message / hook / completion。`safe_to_dispatc
 MUST 同时满足 `static_preflight_passed`、`transport_reachable`、
 `execution_capabilities_ready`（及适用时 `lease_acquired`）；缺 sudo/cgroup/
 命令批准等能力时 MUST `waiting_human` 或 fail-closed，不得先发送再碰运气。
+`waiting_human` / 能力未批准导致 pack 不能 `safe_to_dispatch` 时，已 `action-begin`
+的 attempt MUST `action-finish`（`cancelled`）并 `snapshot --out`（带 `--topic`），
+使投影回到 `fresh`；MUST NOT 把未收口的 started 回执留成 `refresh_in_progress`
+从而永久 fail-close 可写 CTA。人类能力批准是 META 工作流 hop：MUST 走
+`capability-approve`（写入 `tmp/ndf-capability-receipt.json`、收口 waiting attempt、
+立即重算 snapshot）；MUST NOT 只手改 JSON。指挥官面（Cursor Composer / commander）
+是能力批准的**唯一人工面**。回执已就绪且人审「派发」之后，`dispatch-send` 对
+Claude Code ACP 的 print/resume 调用 MUST 继承该批准（permission bypass），
+MUST NOT 再要求人类在 ACP 会话里点工具/Bash 批准。`execution_binding_stale`
+MUST NOT 作为测量或实现 blocker（身份绑定 ≠ 执行 HEAD）。live `--serve` MUST 侦听
+`tmp/ndf-canvas-snapshot.json` 自动刷新，MUST NOT 要求重启 serve。
 失败 completion 也 MUST Episode-bind；task 成功但 projection 失败 MUST 记
 `succeeded_projection_stale`，不得冒充全成功。
+
+可写 pack 委派 MUST 由 **Command Agent** 在同一聊天完成两轮：先
+`action-begin` + pack CLI（写出 `tmp/ndf-dispatch-last-pack.json`），向人类报告
+`safe_to_dispatch` / 写根 / episode / blockers，停等本聊天短语「派发」或「继续」；
+收到后再显式跑 `dispatch-send --pack-file`。`dispatch-send` MUST 是送 worker
+（OpenClaw / Claude Code ACP）与 closeout（completion → action-commit →
+action-finish → `snapshot --out`）的唯一入口。MUST NOT 依赖 Cursor
+`afterShellExecution` 自动送 pack。MUST NOT 发明 `openclaw.chat_send`。
+人审「派发」是聊天确认，MUST NOT 新增 GATES.md / [[META-010]] 口令。
+`safe_to_dispatch=false` 时 MUST 报告 blockers 并 `action-finish cancelled` +
+`snapshot --out`，不得等人派发。stop hook 对磁盘 ready pack（action_id 对齐）
+MUST 记 `awaiting_human_dispatch`，MUST NOT 误标 `cancelled`。Command Agent
+MUST NOT 代写 worker 边界内的实现/测量文件。
 
 ```text
 project_maturity | lifecycle | gates

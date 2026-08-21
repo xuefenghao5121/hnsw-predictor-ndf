@@ -225,6 +225,12 @@ MUST NOT 改写本文件（只读投影 `workspace` 若存在）。
 OpenClaw 指挥会话 session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35`
 
 Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。改绑时只改本行。
+该值是 **session_key 路由身份**（飞书等通道），不是 `openclaw agent --session-id` 的 UUID。
+gateway `health` 可达 ≠ session 可派发：配置 key 须在 `openclaw sessions` 中可匹配（或本身为 UUID）。
+`dispatch-send` 对 routing key 走 gateway `sessionKey`；非法/缺失才
+`openclaw_session_invalid` fail-closed。面板只读诊断，MUST NOT 用 Canvas 改本行。
+OpenClaw 等待用心跳续等（`NDF_OPENCLAW_PING_SEC` / `STALL_SEC` / `MAX_SEC`），
+有会话进展就继续等，勿把长 hop 当固定 15 分钟超时杀掉。
 
 **宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读
@@ -233,8 +239,20 @@ Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。
 调大 TasksMax。Command Agent MUST NOT 在 Chromium scope 启动或残留 `--serve`
 （工具层会 `chromium_serve_forbidden`）；日常刷新只用 `snapshot --out`（不要默认
 `--probe-runtime full`）。live 面板只在**仓库外终端**跑 `--serve`。
-派发结果（[[META-011]]）：CLI/OpenClaw 可达 ≠ 任务成功；`dispatch-send` 的 transport
-acknowledgement 不得冒充 validated `ndf-agent-completion/v1` success。
+`waiting_human` / 人类能力批准是 META hop：`capability-approve` 写回执后 MUST
+`snapshot --out`；能力未就绪的 attempt MUST `action-finish cancelled`。
+Cursor 指挥官面是能力批准的唯一人工面；回执已就绪后 `dispatch-send` MUST 让
+ACP print/resume 继承该批准，MUST NOT 把人类设计进 Claude Code 会话里的二次
+Bash 批准。`execution_binding_stale` MUST NOT 挡测量。
+live `--serve` 侦听 snapshot 文件自动刷新，MUST NOT 重启 serve。
+可写 pack 委派（[[META-011]]）：Command Agent 先造 pack → 本聊天等人回「派发」/
+「继续」→ 显式 `dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json`。
+`dispatch-send` 是送 worker + closeout 的唯一入口；MUST NOT 依赖
+`afterShellExecution` 自动送。ready pack 等人审时 stop hook MUST NOT 误取消。
+派发结果：CLI/OpenClaw 可达 ≠ 任务成功；`dispatch-send` 的 transport
+acknowledgement 与 stdout `ndf-dispatch-notify/v1` 都不得冒充 validated
+磁盘 `ndf-agent-completion/v1` success。Command Agent MUST 读 pack
+`completion_receipt_path`，MUST NOT 手抄 Numbers 当 success。
 Commander ActionSpec（`action-registry.json` v2）是可写动作的单一编译源：UI enablement、
 Composer prompt、pack CLI、capability 与 closeout 均由其生成；可写动作 MUST 贯通
 同一 Episode/attempt。`workspace_bound` 表示身份绑定，不等于 execution HEAD 对齐。
