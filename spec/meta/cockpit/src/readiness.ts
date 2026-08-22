@@ -51,13 +51,20 @@ export function buildReadiness(focused: FocusedTopic | null | undefined): Readin
   const dispatchChipOk =
     selectedDecision === "implement" || selectedDecision === "continue_exploring";
 
-  let runtimeDetail = d.runtime_dispatch_ready
-    ? "ready"
-    : "runtime not probed / lease not ready";
+  const leasePresent = Boolean(
+    focused.agentRun?.run_id && focused.agentRun?.worktree,
+  );
+  const leaseReady =
+    leasePresent || d.active_isolated_lease === true;
+  const runtimeReady =
+    d.runtime_dispatch_ready === true || leaseReady;
+
+  let runtimeDetail = "ready";
   let runtimeFix: string | null = null;
   let runtimeInline = false;
   let runtimeHint: string | null = null;
-  if (!d.runtime_dispatch_ready) {
+  if (!runtimeReady) {
+    runtimeDetail = "runtime not probed / lease not ready";
     if (!dispatchChipOk) {
       runtimeHint =
         focused.decision?.decision_required
@@ -67,11 +74,12 @@ export function buildReadiness(focused: FocusedTopic | null | undefined): Readin
       runtimeFix = "prepare-acp-lease";
       runtimeInline = true;
     }
+  } else if (!d.runtime_dispatch_ready && leaseReady) {
+    runtimeDetail =
+      d.runtime_dispatch_ready_source === "active_lease"
+        ? "active lease (snapshot not live-probed)"
+        : "active lease satisfies runtime (Delegate POC does not require live probe)";
   }
-
-  const leasePresent = Boolean(
-    focused.agentRun?.run_id && focused.agentRun?.worktree,
-  );
   let leaseFix: string | null = null;
   let leaseInline = false;
   let leaseHint: string | null = null;
@@ -186,7 +194,7 @@ export function buildReadiness(focused: FocusedTopic | null | undefined): Readin
     {
       id: "runtime_dispatch",
       label: "运行时可派发",
-      ok: d.runtime_dispatch_ready === true,
+      ok: runtimeReady,
       detail: runtimeDetail,
       fix: runtimeFix,
       fixPhase: "execute",

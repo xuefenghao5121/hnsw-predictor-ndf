@@ -4422,9 +4422,9 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     lease = topic_active_lease(topic_id)
     active_lease_ok, _active_lease = active_isolated_lease_for_topic(topic_id)
     runtime = runtime_status(False)["implementation"]
-    # Default snapshot does not probe ACP. not_probed MUST NOT look like
-    # runtime_unavailable (transport plane unprobed ≠ pipeline down).
-    runtime_probed = str(runtime.get("status") or "") != "not_probed"
+    # Default snapshot does not probe ACP. Lease-derived status=active MUST NOT
+    # look like runtime_unavailable (transport plane unprobed ≠ pipeline down).
+    runtime_probed = bool(runtime.get("probe")) or bool(runtime.get("probe_mode"))
     runtime_dispatch_ready, runtime_ready_source = runtime_dispatch_ready_for_topic(
         topic_id, runtime, lease
     )
@@ -4460,11 +4460,7 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             ),
             (
                 "topic_active_lease"
-                if lease
-                and not (
-                    str(lease.get("base_sha") or lease.get("repo_head") or "")
-                    == str(git_head() or "")
-                )
+                if lease and not active_lease_ok
                 else None
             ),
         )
@@ -6343,7 +6339,10 @@ def runtime_status(probe: bool | str = False) -> dict[str, Any]:
     reachable = bool(acp_probe and acp_probe.get("reachable"))
     if leases:
         impl_status = "active"
-        probe_state = "reachable"
+        if probed:
+            probe_state = "reachable" if reachable else "unavailable"
+        else:
+            probe_state = "not_probed"
     elif not probed and mode is None:
         impl_status = "not_probed"
         probe_state = "not_probed"
@@ -6544,9 +6543,12 @@ def runtime_dispatch_ready_for_topic(
     runtime: Mapping[str, Any],
     lease: Mapping[str, Any] | None,
 ) -> tuple[bool, str | None]:
-    """ACP pipeline reachable (live probe or absorbed pack); not active lease."""
+    """ACP pipeline reachable (live probe, absorbed pack, or active isolated lease)."""
+    active_ok, _active = active_isolated_lease_for_topic(topic_id)
+    if active_ok:
+        return True, "active_lease"
     head = git_head()
-    probed = str(runtime.get("status") or "") != "not_probed"
+    probed = bool(runtime.get("probe")) or bool(runtime.get("probe_mode"))
     if probed:
         if runtime.get("pipeline_reachable"):
             return True, "live_probe"

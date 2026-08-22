@@ -7,8 +7,9 @@ description: Pack and delegate POC implementation, or prepare an ACP lease
 ## Description
 
 Atomic pack / lease-record for Claude Code POC work. Delegate only when
-`static_preflight_passed` and `runtime_dispatch_ready`. If runtime is not
-ready, prepare the lease and stop. Extracted from actions.md and acp-delegate.md.
+`static_preflight_passed` and **active isolated lease** (`run_id` + worktree).
+If no lease yet, run Prepare ACP lease first. Extracted from actions.md and
+acp-delegate.md.
 
 ## Parameters
 

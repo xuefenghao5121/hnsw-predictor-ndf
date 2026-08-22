@@ -5767,6 +5767,30 @@ class RuntimeDispatchReadyAbsorptionTests(unittest.TestCase):
             self.assertFalse(ready)
             self.assertIsNone(source)
 
+    def test_runtime_dispatch_ready_from_active_isolated_lease(self) -> None:
+        head = "c" * 40
+        runtime = {"status": "not_probed", "pipeline_reachable": False}
+        lease_row = {
+            "topic": "demo",
+            "base_sha": head,
+            "run_id": "run-lease-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+            "result": "active",
+        }
+        with (
+            patch.object(workflow, "git_head", return_value=head),
+            patch.object(
+                workflow,
+                "active_isolated_lease_for_topic",
+                return_value=(True, lease_row),
+            ),
+        ):
+            ready, source = workflow.runtime_dispatch_ready_for_topic(
+                "demo", runtime, lease_row
+            )
+        self.assertTrue(ready)
+        self.assertEqual(source, "active_lease")
+
     def test_last_dispatch_send_matches_topic_without_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

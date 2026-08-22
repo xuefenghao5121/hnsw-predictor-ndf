@@ -131,7 +131,10 @@ function humanFixBlockedReason(actionId: string, reason: string | null | undefin
     return "运行时已就绪，无需准备租约";
   }
   if (actionId === "prepare-acp-lease" && r.includes("missingActiveLease")) {
-    return "已有活跃隔离租约，无需再准备";
+    return "已有活跃隔离租约，无需再准备；请直接点「派发探索任务」";
+  }
+  if (actionId === "delegate-poc" && r.includes("runtimeDispatchReady")) {
+    return "租约已就绪时可忽略运行时可派发；请刷新 snapshot 后再试 Delegate POC";
   }
   return r;
 }
