@@ -1,0 +1,997 @@
+import importlib.util
+import contextlib
+import io
+import json
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+
+TOOLS = Path(__file__).resolve().parent
+if str(TOOLS) not in sys.path:
+    sys.path.insert(0, str(TOOLS))
+
+import ndf_workflow_evidence as evidence
+import ndf_replay
+
+SPEC = importlib.util.spec_from_file_location("ndf_context", TOOLS / "ndf_context.py")
+assert SPEC and SPEC.loader
+context = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = context
+SPEC.loader.exec_module(context)
+
+
+class ContextCompilerTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self._write(
+            "spec/meta/process.md",
+            """# Process
+## Context {#META-100}
+<!-- ndf: kind=req level=must layer=L1 status=stable scope=ndf-process -->
+<!-- ndf: depends-on=META-101 -->
+MUST compile context.
+
+## Base {#META-101}
+<!-- ndf: kind=def level=must layer=L0 status=stable scope=ndf-process -->
+Base.
+""",
+        )
+        self._write(
+            "spec/20-behavior/demo.md",
+            """# Product
+## Product behavior {#BEH-100}
+<!-- ndf: kind=req level=must layer=L1 status=draft depends-on=BEH-101 conflicts-with=BEH-999 -->
+Behavior.
+
+## Product base {#BEH-101}
+<!-- ndf: kind=arch level=must layer=L0 status=stable -->
+Base.
+
+## Product root {#BEH-102}
+<!-- ndf: kind=arch level=must layer=L0 status=stable -->
+Root.
+
+## Product intent {#BEH-103}
+<!-- ndf: kind=arch level=must layer=L0 status=stable -->
+Intent.
+""",
+        )
+        self._write(
+            "spec/50-verification/demo.md",
+            """# Verification
+## Verify behavior {#VER-100}
+<!-- ndf: kind=verif level=must layer=L3 status=draft verifies=BEH-100 -->
+Verify it.
+""",
+        )
+        self._write(
+            "poc/demo/ndf/TOPIC.md",
+            """> topic_id: demo
+> status: exploring
+> baseline_status: current
+> baseline_trunk_sha: 0123456
+> draft_clauses: BEH-100
+
+## Draft clauses
+[[BEH-100]]
+
+## Proposals
+| role | path | status |
+|---|---|---|
+| root | poc/demo/ndf/proposals/root.md | Draft |
+""",
+        )
+        self._write("poc/demo/ndf/DESIGN.md", "# Design\n")
+        self._write(
+            "poc/demo/ndf/PERF_BASELINE.md",
+            """# Perf
+> vs: bl-demo
+> config_id: cfg-demo
+> measure_script: poc/demo/measure.py
+
+## Numbers
+SECRET_QPS = 12345
+
+## Measure
+QPS and Recall.
+""",
+        )
+        self._write("poc/demo/ndf/DELTA.md", "# Delta\n")
+        self._write("poc/demo/ndf/INTERFACE.md", "# Interface\n")
+        self._write(
+            "poc/demo/ndf/GATES.md",
+            """| gate | phrase | approved_by | approved_at | approved_content_sha | source_ref | status |
+|---|---|---|---|---|---|---|
+| implementation_approval | 可以开始实现 | | | | | pending |
+""",
+        )
+        self._write(
+            "poc/demo/ndf/proposals/root.md",
+            "# Proposal {#BEH-102}\nLinked [[BEH-103]].\n",
+        )
+        self._write(
+            "poc/demo/ndf/evidence/r0.md",
+            "# Evidence\nNo imported observation.\n",
+        )
+        self._write(
+            "poc/demo/ndf/COMMITS.md",
+            "| date | code_commit | ndf_commit | proposals | clauses | protocol | note |\n"
+            "|---|---|---|---|---|---|---|\n"
+            "| now | abc | def | root | BEH-100 | demo | Clauses: VER-100 |\n",
+        )
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=self.root, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=self.root, check=True)
+        subprocess.run(["git", "add", "."], cwd=self.root, check=True)
+        subprocess.run(["git", "commit", "-qm", "fixture"], cwd=self.root, check=True)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def _write(self, relative: str, text: str) -> Path:
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def _plan(self, **overrides):
+        args = {
+            "root": self.root,
+            "topic": "demo",
+            "role": "openclaw",
+            "task": "binder_amend",
+            "track": "poc",
+            "seed_ids": (),
+            "depth": 2,
+            "node_budget": 80,
+            "byte_budget": 256_000,
+        }
+        args.update(overrides)
+        return context.compile_plan(**args)
+
+    @staticmethod
+    def _resign(plan):
+        plan["plan_sha"] = context.canonical_json_sha(
+            {key: value for key, value in plan.items() if key != "plan_sha"}
+        )
+
+    def test_canonical_json_and_plan_are_deterministic(self) -> None:
+        self.assertEqual(
+            evidence.canonical_json_sha({"b": 2, "a": 1}),
+            evidence.canonical_json_sha({"a": 1, "b": 2}),
+        )
+        self.assertEqual(self._plan(), self._plan())
+
+    def test_manifest_is_shared_parent_for_role_plans(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            business_goal="repair binder",
+        )
+        openclaw = context.role_plan(manifest, role="openclaw")
+        canvas = context.role_plan(manifest, role="canvas")
+        self.assertEqual(openclaw["manifest_sha"], manifest["manifest_sha"])
+        self.assertEqual(canvas["manifest_sha"], manifest["manifest_sha"])
+        self.assertNotEqual(openclaw["plan_sha"], canvas["plan_sha"])
+        self.assertTrue(
+            context.verify_plan(
+                openclaw,
+                root=self.root,
+                manifest=manifest,
+            )["valid"]
+        )
+
+    def test_context_cli_resolves_replay_object_shas_and_records_episode(self) -> None:
+        store = ndf_replay.ReplayStore(self.root)
+        store.init_episode(
+            topic="demo",
+            task="binder_amend",
+            role="openclaw",
+            track="poc",
+            episode_id="ep-context",
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "manifest-create",
+                    "--topic",
+                    "demo",
+                    "--task",
+                    "binder_amend",
+                    "--track",
+                    "poc",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        manifest_event = next(
+            event
+            for event in store.read_events("ep-context")
+            if event["kind"] == "manifest.created"
+        )
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "role-plan",
+                    "--manifest",
+                    manifest_event["payload_sha"],
+                    "--role",
+                    "openclaw",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        plan_event = [
+            event
+            for event in store.read_events("ep-context")
+            if event["kind"] == "context.compiled"
+        ][-1]
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = context.main(
+                [
+                    "--root",
+                    str(self.root),
+                    "context-verify",
+                    "--plan",
+                    plan_event["payload_sha"],
+                    "--manifest",
+                    manifest_event["payload_sha"],
+                    "--strict",
+                    "--episode",
+                    "ep-context",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(store.read_events("ep-context")[-1]["kind"], "context.verified")
+
+    def test_plan_rejects_wrong_manifest_parent(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        plan = context.role_plan(manifest, role="openclaw")
+        other = dict(manifest)
+        other["business_goal"] = "changed"
+        other["manifest_sha"] = context.canonical_json_sha(
+            {key: value for key, value in other.items() if key != "manifest_sha"}
+        )
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            manifest=other,
+        )
+        self.assertIn(
+            "plan_manifest_sha_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_resigned_role_plan_cannot_escalate_privileges(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        plan = context.role_plan(manifest, role="openclaw")
+        plan["privileges"]["allowed_write_roots"].append("spec/40-constraints/")
+        self._resign(plan)
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            manifest=manifest,
+            require_manifest=True,
+        )
+        self.assertIn(
+            "role_plan_derivation_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_resigned_manifest_cannot_escalate_role_policy(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        manifest["role_policies"]["openclaw"]["allowed_write_roots"].append(
+            "spec/40-constraints/"
+        )
+        manifest["manifest_sha"] = context.canonical_json_sha(
+            {
+                key: value
+                for key, value in manifest.items()
+                if key != "manifest_sha"
+            }
+        )
+        result = context.verify_manifest(manifest, root=self.root)
+        self.assertIn(
+            "manifest_role_policy_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_strict_verification_rejects_legacy_plan_without_manifest(self) -> None:
+        plan = self._plan()
+        plan["schema"] = "ndf-context-plan/v1"
+        self._resign(plan)
+        result = context.verify_plan(
+            plan,
+            root=self.root,
+            require_manifest=True,
+        )
+        self.assertIn(
+            "manifest_required_for_role_plan",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_bundle_sha_is_order_independent_and_path_bound(self) -> None:
+        first = self.root / "one"
+        second = self.root / "two"
+        first.write_bytes(b"same")
+        second.write_bytes(b"same")
+        left = evidence.bundle_sha([first, second], root=self.root)
+        right = evidence.bundle_sha([second, first], root=self.root)
+        self.assertEqual(left, right)
+        second.write_bytes(b"different")
+        self.assertNotEqual(left, evidence.bundle_sha([first, second], root=self.root))
+
+    def test_binder_order_is_fixed(self) -> None:
+        paths = [record["path"] for record in self._plan()["ordered_reads"]]
+        names = [Path(path).name for path in paths]
+        self.assertEqual(
+            names[:6],
+            ["TOPIC.md", "DESIGN.md", "PERF_BASELINE.md", "DELTA.md", "INTERFACE.md", "GATES.md"],
+        )
+        if "poc/demo/ndf/proposals/root.md" in paths:
+            self.assertLess(
+                paths.index("poc/demo/ndf/proposals/root.md"),
+                paths.index("poc/demo/ndf/evidence/r0.md"),
+            )
+        self.assertEqual(names[-1], "COMMITS.md")
+
+    def test_graph_closure_obeys_depth_and_budget(self) -> None:
+        shallow = self._plan(seed_ids=["BEH-100"], depth=0)
+        ids = {node["id"] for node in shallow["graph"]["nodes"]}
+        self.assertIn("BEH-100", ids)
+        self.assertNotIn("BEH-101", ids)
+        self.assertIn("depth", shallow["graph"]["truncated"])
+        bounded = self._plan(seed_ids=["BEH-100"], node_budget=1)
+        self.assertLessEqual(len(bounded["graph"]["nodes"]), 1)
+        self.assertIn("node_budget", bounded["graph"]["truncated"])
+
+    def test_measurement_adds_verifier_and_conflict_is_blocker(self) -> None:
+        plan = self._plan(task="measurement", seed_ids=["BEH-100"])
+        ids = {node["id"] for node in plan["graph"]["nodes"]}
+        self.assertIn("VER-100", ids)
+        self.assertTrue(
+            any(item["kind"] == "clause_conflict" for item in plan["graph"]["blockers"])
+        )
+
+    def test_project_control_is_meta_only(self) -> None:
+        plan = self._plan(
+            role="project-control",
+            task="ndf_improvement_proposal",
+            track="process",
+            seed_ids=["META-100", "BEH-100"],
+        )
+        ids = {node["id"] for node in plan["graph"]["nodes"]}
+        self.assertIn("META-100", ids)
+        self.assertNotIn("BEH-100", ids)
+        self.assertIn("BEH-100", plan["graph"]["missing_seeds"])
+
+    def test_non_measurement_bundle_omits_perf_numbers(self) -> None:
+        bundle = context.expand_plan(self._plan(), root=self.root)
+        perf = next(item["content"] for item in bundle["files"] if item["path"].endswith("PERF_BASELINE.md"))
+        self.assertNotIn("SECRET_QPS", perf)
+        self.assertIn("measure_script", perf)
+        measured = context.expand_plan(self._plan(task="poc_measurement"), root=self.root)
+        measured_perf = next(
+            item["content"] for item in measured["files"] if item["path"].endswith("PERF_BASELINE.md")
+        )
+        self.assertIn("SECRET_QPS", measured_perf)
+        surface = context.compile_prompt_surface(bundle)
+        self.assertEqual(surface["bundle_sha"], bundle["bundle_sha"])
+        self.assertIn("visible_prompt", surface)
+        self.assertTrue(surface["source_refs"]["files"])
+
+    def test_verify_detects_file_drift(self) -> None:
+        plan = self._plan()
+        self._write("poc/demo/ndf/DESIGN.md", "# Changed\n")
+        result = context.verify_plan(plan, root=self.root)
+        self.assertFalse(result["valid"])
+        self.assertIn("file_drift", {item["kind"] for item in result["errors"]})
+
+    def test_manifest_verification_detects_gate_drift(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        self._write("poc/demo/ndf/GATES.md", "# changed gate\n")
+        result = context.verify_manifest(manifest, root=self.root)
+        self.assertFalse(result["valid"])
+        self.assertIn("gate_drift", {item["kind"] for item in result["errors"]})
+
+    def test_verify_detects_bundle_tampering(self) -> None:
+        plan = self._plan()
+        bundle = context.expand_plan(plan, root=self.root)
+        bundle["files"][0]["content"] += "tampered"
+        result = context.verify_plan(plan, root=self.root, bundle=bundle)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertIn("bundle_sha_mismatch", kinds)
+        self.assertIn("bundle_content_sha_mismatch", kinds)
+
+    def test_verify_rejects_forbidden_write_overlap(self) -> None:
+        plan = self._plan()
+        plan["privileges"]["allowed_write_roots"] = ["src/"]
+        plan["privileges"]["forbidden_write_paths"].append("src/")
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertIn("forbidden_path", {item["kind"] for item in result["errors"]})
+
+    def test_verify_rejects_stale_baseline(self) -> None:
+        plan = self._plan(task="verification", role="claude-code")
+        plan["baseline"]["baseline_status"] = "stale"
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertIn("baseline_stale", {item["kind"] for item in result["errors"]})
+
+    def test_explicit_seed_is_preserved(self) -> None:
+        plan = self._plan(seed_ids=["BEH-101"])
+        self.assertIn("BEH-101", plan["seed_ids"])
+        self.assertIn("BEH-101", plan["seed_sources"]["explicit"])
+
+    def test_safe_tmp_guard_and_workspace_truth(self) -> None:
+        safe = evidence.safe_tmp_report_path("tmp/report.json", root=self.root)
+        self.assertEqual(safe, self.root / "tmp/report.json")
+        with self.assertRaises(ValueError):
+            evidence.safe_tmp_report_path("../escape.json", root=self.root)
+        binding = {"repo_root": str(self.root), "repo_head": "a" * 40, "active_topic": "demo"}
+        self.assertFalse(evidence.workspace_truth(binding, {})["workspace_bound"])
+        self.assertTrue(
+            evidence.workspace_truth(binding, {"workspace": dict(binding)})["workspace_bound"]
+        )
+        # HEAD advance must not unbound identity.
+        drifted = dict(binding)
+        drifted["repo_head"] = "b" * 40
+        truth = evidence.workspace_truth(binding, {"workspace": drifted})
+        self.assertTrue(truth["workspace_bound"])
+        self.assertTrue(truth["execution_binding_stale"])
+        self.assertFalse(truth["execution_binding_current"])
+
+    def test_receipt_validation_and_lease_round_trip(self) -> None:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=self.root,
+            text=True,
+        ).strip()
+        worktree = self.root / "tmp" / "lease-worktree"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "lease-test", str(worktree), head],
+            cwd=self.root,
+            check=True,
+        )
+        lease = {
+            "schema": "ndf-runtime-lease/v1",
+            "task": "implement",
+            "topic": "demo",
+            "mode": "poc",
+            "step": "start",
+            "repo_head": head,
+            "source_generation_sha": "b" * 64,
+            "manifest_sha": "f" * 64,
+            "context_plan_sha": "c" * 64,
+            "command": "run",
+            "input_sha": "d" * 64,
+            "output_sha": "e" * 64,
+            "evidence_paths": [],
+            "started_at": "2026-08-12T00:00:00Z",
+            "finished_at": None,
+            "result": "active",
+            "blockers": [],
+            "run_id": "run",
+            "session_id": "session",
+            "base_sha": head,
+            "worktree": str(worktree),
+            "branch": "lease-test",
+            "repo_root": str(self.root),
+            "allowed_write_root": "poc/demo/",
+            "pack_sha": "9" * 64,
+            "episode_id": "ep-demo",
+        }
+        self.assertTrue(evidence.validate_receipt(lease)["valid"])
+        path = evidence.append_lease("tmp/leases.jsonl", lease, root=self.root)
+        self.assertEqual(evidence.read_leases(path, root=self.root), [lease])
+        bound = evidence.validate_runtime_lease_binding(
+            lease,
+            root=self.root,
+            expected={
+                "topic": "demo",
+                "task": "implement",
+                "plan_sha": "c" * 64,
+                "allowed_write_root": "poc/demo/",
+                "pack_sha": "9" * 64,
+                "episode_id": "ep-demo",
+                "branch": "lease-test",
+                "repo_root": str(self.root),
+            },
+        )
+        self.assertTrue(bound["valid"], bound["errors"])
+        escaped = dict(lease, worktree="/tmp/outside-ndf-repo")
+        self.assertFalse(
+            evidence.validate_runtime_lease_binding(
+                escaped,
+                root=self.root,
+            )["valid"]
+        )
+        bad = dict(lease, schema="unknown")
+        self.assertFalse(evidence.validate_receipt(bad)["valid"])
+
+    def test_short_gate_sha_never_verifies(self) -> None:
+        plan = self._plan(task="verification", role="claude-code")
+        receipt = {
+            "gate": "implementation_approval",
+            "status": "approved",
+            "phrase": "可以开始实现",
+            "expected_phrase": "可以开始实现",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T00:00:00Z",
+            "source_ref": "poc/demo/ndf/INTERFACE.md",
+            "approved_content_sha": "abc123",
+            "expected_content_sha": "abc123" + "0" * 58,
+        }
+        plan["gates"]["receipts"] = [receipt]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["errors"]})
+
+    def test_content_aligned_review_slice_manifest_drift_does_not_fail_verify(self) -> None:
+        sha = "a" * 64
+        plan = self._plan(task="poc_implementation", role="claude-code")
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "implementation_approval",
+                "status": "approved",
+                "phrase": "可以开始实现",
+                "expected_phrase": "可以开始实现",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "TOPIC+DESIGN+PERF",
+                "approved_content_sha": sha,
+                "expected_content_sha": sha,
+                "receipt_bundle_mode": "review_slice",
+                "expected_bundle_mode": "review_slice",
+                "receipt_slice_manifest_sha": "d" * 64,
+                "expected_slice_manifest_sha": "e" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertNotIn("gate_sha_mismatch", kinds, result["errors"])
+        self.assertNotIn("required_gate_not_valid", kinds, result["errors"])
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_review_slice_content_mismatch_still_fails_verify(self) -> None:
+        plan = self._plan(task="poc_implementation", role="claude-code")
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "implementation_approval",
+                "status": "approved",
+                "phrase": "可以开始实现",
+                "expected_phrase": "可以开始实现",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "TOPIC+DESIGN+PERF",
+                "approved_content_sha": "a" * 64,
+                "expected_content_sha": "b" * 64,
+                "receipt_bundle_mode": "review_slice",
+                "expected_bundle_mode": "review_slice",
+                "receipt_slice_manifest_sha": "d" * 64,
+                "expected_slice_manifest_sha": "e" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertIn("gate_sha_mismatch", kinds)
+        self.assertIn("required_gate_not_valid", kinds)
+
+    def test_gate_audit_task_treats_sha_mismatch_as_warning(self) -> None:
+        plan = self._plan(task="gate_sha_audit", role="openclaw")
+        receipt = {
+            "gate": "topic_review",
+            "status": "approved",
+            "phrase": "TOPIC已审核",
+            "expected_phrase": "TOPIC已审核",
+            "approved_by": "human",
+            "approved_at": "2026-08-13T00:00:00Z",
+            "source_ref": "poc/demo/ndf/TOPIC.md",
+            "approved_content_sha": "a" * 64,
+            "expected_content_sha": "b" * 64,
+        }
+        plan["gates"]["receipts"] = [receipt]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn("gate_sha_mismatch", {item["kind"] for item in result["errors"]})
+        self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["warnings"]})
+        self.assertTrue(result["valid"])
+
+    def test_binder_repair_treats_stale_baseline_and_gate_drift_as_warnings(self) -> None:
+        plan = self._plan(task="binder_amend", role="openclaw")
+        plan["baseline"]["baseline_status"] = "stale"
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "design_review",
+                "status": "approved",
+                "phrase": "DESIGN已审核",
+                "expected_phrase": "DESIGN已审核",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "poc/demo/ndf/DESIGN.md",
+                "approved_content_sha": "a" * 64,
+                "expected_content_sha": "b" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        warning_kinds = {item["kind"] for item in result["warnings"]}
+        self.assertTrue(result["valid"], result["errors"])
+        self.assertIn("baseline_stale", warning_kinds)
+        self.assertIn("gate_sha_mismatch", warning_kinds)
+
+    def test_measurement_treats_stale_baseline_as_warning(self) -> None:
+        plan = self._plan(task="poc_measurement", role="claude-code")
+        plan["baseline"]["baseline_status"] = "stale"
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn(
+            "baseline_stale", {item["kind"] for item in result["errors"]}
+        )
+        self.assertIn(
+            "baseline_stale", {item["kind"] for item in result["warnings"]}
+        )
+
+    def test_selected_decision_header_is_mutable_section_not_file_drift(self) -> None:
+        self._write(
+            "poc/demo/ndf/TOPIC.md",
+            "> topic_id: demo\n"
+            "> status: exploring\n\n"
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        topic = self.root / "poc/demo/ndf/TOPIC.md"
+        topic.write_text(
+            "> topic_id: demo\n"
+            "> status: exploring\n"
+            "> selected_decision: reject\n\n"
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertNotIn("file_drift", kinds, result["errors"])
+        self.assertIn(
+            "mutable_section_drift",
+            {item["kind"] for item in result["warnings"]},
+        )
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_perf_numbers_edit_is_mutable_section_not_file_drift(self) -> None:
+        self._write(
+            "poc/demo/ndf/PERF_BASELINE.md",
+            "> vs: bl-demo\n"
+            "> config_id: cfg-demo\n"
+            "> measure_script: poc/demo/measure.py\n\n"
+            "<!-- ndf:gate-slice begin=perf_bind -->\n"
+            "bind card\n"
+            "<!-- ndf:gate-slice end=perf_bind -->\n\n"
+            "## Numbers\nQPS=1\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        perf = self.root / "poc/demo/ndf/PERF_BASELINE.md"
+        perf.write_text(
+            "> vs: bl-demo\n"
+            "> config_id: cfg-demo\n"
+            "> measure_script: poc/demo/measure.py\n\n"
+            "<!-- ndf:gate-slice begin=perf_bind -->\n"
+            "bind card\n"
+            "<!-- ndf:gate-slice end=perf_bind -->\n\n"
+            "## Numbers\nQPS=999\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        self.assertNotIn(
+            "file_drift", {item["kind"] for item in result["errors"]}, result["errors"]
+        )
+        self.assertIn(
+            "mutable_section_drift",
+            {item["kind"] for item in result["warnings"]},
+        )
+        self.assertTrue(result["valid"], result["errors"])
+
+    def test_contract_slice_edit_still_file_drifts(self) -> None:
+        self._write(
+            "poc/demo/ndf/TOPIC.md",
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis A\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+        )
+        plan = self._plan(task="verification", role="claude-code")
+        topic = self.root / "poc/demo/ndf/TOPIC.md"
+        topic.write_text(
+            "<!-- ndf:gate-slice begin=topic_contract -->\n"
+            "hypothesis Z\n"
+            "<!-- ndf:gate-slice end=topic_contract -->\n",
+            encoding="utf-8",
+        )
+        result = context.verify_plan(plan, root=self.root)
+        self.assertIn("file_drift", {item["kind"] for item in result["errors"]})
+        self.assertFalse(result["valid"])
+
+    def test_gate_info_parses_review_slice_nine_column_table(self) -> None:
+        sha = "f" * 64
+        slice_sha = "e" * 64
+        self._write(
+            "poc/demo/ndf/GATES.md",
+            "| gate | phrase | approved_by | approved_at | approved_content_sha |"
+            " bundle_mode | slice_manifest_sha | source_ref | status |\n"
+            "|------|--------|-------------|-------------|----------------------|"
+            "-------------|-------------------|------------|--------|\n"
+            f"| implementation_approval | 可以开始实现 | human | 2026-08-14T10:26:00Z |"
+            f" {sha} | review_slice | {slice_sha} | TOPIC+DESIGN+PERF | approved |\n",
+        )
+        info = context._gate_info(self.root, "demo")
+        receipt = next(
+            item
+            for item in info["receipts"]
+            if item["gate"] == "implementation_approval"
+        )
+        self.assertEqual(receipt["approved_content_sha"], sha)
+        self.assertEqual(receipt["status"], "approved")
+        self.assertEqual(receipt["bundle_mode"], "review_slice")
+        self.assertEqual(receipt["slice_manifest_sha"], slice_sha)
+        self.assertEqual(receipt["source_ref"], "TOPIC+DESIGN+PERF")
+        self.assertNotEqual(receipt["status"], "TOPIC+DESIGN+PERF")
+
+    def test_manifest_resigned_after_closure_tamper_fails_rederivation(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        manifest["shared_graph_closure"]["nodes"] = []
+        manifest["compiler_derivation"]["derived_sha"] = (
+            context._manifest_derivation_digest(manifest)
+        )
+        manifest["manifest_sha"] = context.canonical_json_sha(
+            {key: value for key, value in manifest.items() if key != "manifest_sha"}
+        )
+        result = context.verify_manifest_current(manifest, root=self.root)
+        self.assertIn(
+            "manifest_compiler_derivation_mismatch",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_role_task_matrix_rejects_control_task_for_claude(self) -> None:
+        manifest = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+        )
+        with self.assertRaisesRegex(ValueError, "incompatible role/task/track"):
+            context.role_plan(manifest, role="claude-code")
+
+    def test_section_privileges_split_binder_and_measurement(self) -> None:
+        binder = context._privileges(
+            "openclaw", "binder_pipeline", "poc", "demo"
+        )
+        self.assertIn("design_contract", binder["allowed_sections"])
+        self.assertIn("perf_numbers", binder["forbidden_sections"])
+        self.assertIn("delta_rounds", binder["forbidden_sections"])
+
+        measurement = context._privileges(
+            "claude-code", "poc_measurement", "poc", "demo"
+        )
+        self.assertIn("perf_numbers", measurement["allowed_sections"])
+        self.assertIn("delta_rounds", measurement["allowed_sections"])
+        self.assertIn("gate_receipts", measurement["forbidden_sections"])
+
+    def test_project_control_land_privileges_cover_spec_meta(self) -> None:
+        land = context._privileges(
+            "project-control", "ndf_improvement_land", "process", None
+        )
+        draft = context._privileges(
+            "project-control", "ndf_improvement_proposal", "process", None
+        )
+        self.assertEqual(
+            land["allowed_write_roots"],
+            ["spec/meta/", "spec/meta/open/"],
+        )
+        self.assertEqual(draft["allowed_write_roots"], ["spec/meta/open/"])
+        self.assertNotIn("spec/meta/", draft["allowed_write_roots"])
+        self.assertNotIn("src/", land["allowed_write_roots"])
+        self.assertIn("src/", land["forbidden_write_paths"])
+
+    def test_project_control_manifest_binds_stage_identity_and_exact_targets(self) -> None:
+        proposal = self._write(
+            "spec/meta/open/proposal-meta-managed.md",
+            "# Managed\n\n> track: process\n> control-flow: managed\n",
+        )
+        proposal_sha = evidence.file_sha(proposal)
+        binding = {
+            "proposal_id": "meta-managed",
+            "flow_id": "flow-managed",
+            "hop": "confirm_land",
+            "origin": "human_confirmation",
+            "intent_sha": None,
+            "proposal_path": "spec/meta/open/proposal-meta-managed.md",
+            "proposal_sha": proposal_sha,
+            "land_targets": [
+                "spec/meta/process.md",
+                "spec/meta/tools/ndf_context.py",
+            ],
+        }
+        manifest = context.create_manifest(
+            root=self.root,
+            topic=None,
+            task="ndf_improvement_land",
+            track="process",
+            control_binding=binding,
+        )
+        self.assertEqual(manifest["control"], binding)
+        plan = context.role_plan(manifest, role="project-control")
+        self.assertEqual(plan["control"]["hop"], "confirm_land")
+        self.assertEqual(
+            plan["privileges"]["allowed_write_roots"],
+            [
+                "spec/meta/process.md",
+                "spec/meta/tools/ndf_context.py",
+                "spec/meta/open/proposal-meta-managed.md",
+            ],
+        )
+        proposal.write_text(proposal.read_text() + "\ndrift\n", encoding="utf-8")
+        result = context.verify_manifest_current(manifest, root=self.root)
+        self.assertIn(
+            "proposal_drift",
+            {item["kind"] for item in result["errors"]},
+        )
+
+    def test_project_control_manifest_rejects_missing_or_incompatible_stage(self) -> None:
+        with self.assertRaisesRegex(ValueError, "control binding"):
+            context.create_manifest(
+                root=self.root,
+                topic=None,
+                task="ndf_improvement_land",
+                track="process",
+            )
+        with self.assertRaisesRegex(ValueError, "incompatible project-control stage"):
+            context.create_manifest(
+                root=self.root,
+                topic=None,
+                task="ndf_improvement_proposal",
+                track="process",
+                control_binding={
+                    "proposal_id": "meta-managed",
+                    "flow_id": "flow-managed",
+                    "hop": "review",
+                    "origin": "human_intent",
+                    "intent_sha": "a" * 64,
+                    "proposal_path": "spec/meta/open/proposal-meta-managed.md",
+                    "proposal_sha": None,
+                    "land_targets": [],
+                },
+            )
+
+    def test_recorded_lease_proof_survives_worktree_cleanup(self) -> None:
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=self.root, text=True
+        ).strip()
+        worktree = self.root / "tmp" / "recorded-proof"
+        subprocess.run(
+            ["git", "worktree", "add", "-q", "-b", "recorded-proof", str(worktree), head],
+            cwd=self.root,
+            check=True,
+        )
+        lease = {
+            "schema": "ndf-runtime-lease/v1",
+            "task": "implement",
+            "topic": "demo",
+            "mode": "poc",
+            "step": "start",
+            "repo_head": head,
+            "source_generation_sha": "b" * 64,
+            "manifest_sha": "f" * 64,
+            "context_plan_sha": "c" * 64,
+            "command": "run",
+            "input_sha": "d" * 64,
+            "output_sha": "e" * 64,
+            "evidence_paths": [],
+            "started_at": "2026-08-12T00:00:00Z",
+            "finished_at": None,
+            "result": "active",
+            "blockers": [],
+            "run_id": "run",
+            "session_id": "session",
+            "base_sha": head,
+            "worktree": str(worktree),
+            "branch": "recorded-proof",
+            "repo_root": str(self.root),
+            "allowed_write_root": "poc/demo/",
+            "pack_sha": "9" * 64,
+            "episode_id": "ep-demo",
+        }
+        lease["binding_proof"] = evidence.runtime_lease_binding_proof(
+            lease, root=self.root
+        )
+        subprocess.run(
+            ["git", "worktree", "remove", "--force", str(worktree)],
+            cwd=self.root,
+            check=True,
+        )
+        self.assertTrue(
+            evidence.validate_recorded_runtime_lease_binding(lease)["valid"]
+        )
+        self.assertFalse(
+            evidence.validate_runtime_lease_binding(lease, root=self.root)["valid"]
+        )
+
+    def test_include_bodies_false_keeps_body_clause_sha(self) -> None:
+        """Shallow Canvas previews must not hash clause ids as clause_sha."""
+        deep = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            depth=1,
+            node_budget=16,
+            byte_budget=64_000,
+            include_bodies=True,
+        )
+        shallow = context.create_manifest(
+            root=self.root,
+            topic="demo",
+            task="binder_amend",
+            track="poc",
+            depth=1,
+            node_budget=16,
+            byte_budget=64_000,
+            include_bodies=False,
+        )
+        self.assertFalse(shallow["compiler_policy"]["include_bodies"])
+        deep_by_id = {
+            node["id"]: node["clause_sha"]
+            for node in deep["shared_graph_closure"]["nodes"]
+        }
+        for node in shallow["shared_graph_closure"]["nodes"]:
+            self.assertEqual(node["clause_sha"], deep_by_id[node["id"]], node["id"])
+            self.assertEqual(node.get("bytes"), 0)
+        # role_plan must not raise fake clause_drift on shallow manifests.
+        plan = context.role_plan(shallow, role="canvas")
+        self.assertEqual(plan["role"], "canvas")
+        verify = context.verify_manifest_current(shallow, root=self.root)
+        self.assertTrue(verify["valid"], verify["errors"])
+
+
+if __name__ == "__main__":
+    unittest.main()

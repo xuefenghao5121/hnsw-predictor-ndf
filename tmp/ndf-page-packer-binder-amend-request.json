@@ -1,0 +1,15 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "request_id": "af97473b-c1eb-4510-981d-41a9934d35e2",
+  "pipeline": "binder",
+  "topic": "page-packer",
+  "task": "binder_amend",
+  "track": "poc",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "56efa57445006ce9cafefa399042a26d1cfe9bcc4093c64801c3eff78a8de40e",
+  "context_plan_sha": "640592cc1cca45884e02211d74852e291f7c6c7b03b3de74b0bc202ae9a4601c",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "af97473b-c1eb-4510-981d-41a9934d35e2",
+  "message": "binder_amend topic facet: write selected_decision reject header only"
+}

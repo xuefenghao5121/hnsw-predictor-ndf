@@ -1,0 +1,21 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "control_proposal",
+  "track": "poc",
+  "topic": "hotspot-optimization",
+  "pipeline": null,
+  "hop": "review",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "8f942da8bd2ccc97dab0ccc1b1990132cfd9f5af9587b9ebb473ca7f90a54f7e",
+  "context_plan_sha": "f90b26e1e7f25419b53553df68403e1da199858e548f48a96149ce9de5054326",
+  "plan_sha": "f90b26e1e7f25419b53553df68403e1da199858e548f48a96149ce9de5054326",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "484ab5a9-a791-442f-be71-7f5ae97a8a3d",
+  "request_id": "req-control-proposal-review-hotspot-optimization-20260818T162800Z",
+  "origin": "human_phrase",
+  "human_utterance": "已审核",
+  "proposal_path": "spec/open/proposal-poc-hotspot-optimization.md",
+  "next_human_phrase": "TOPIC已审核",
+  "message": "Proposal path: spec/open/proposal-poc-hotspot-optimization.md\nReviewed: 已审核 on 2026-08-18\nStatus: Implemented on 2026-08-18\n\nProduct proposal review recorded. 已审核 was not copied to GATES.md as topic_review. No DESIGN written. No approved_by forged.\nstate.json: human_phrase=已审核, pending_decision=waiting_topic_review.\nNext phrase: TOPIC已审核"
+}

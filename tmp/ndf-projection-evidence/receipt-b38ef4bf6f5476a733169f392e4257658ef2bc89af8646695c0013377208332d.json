@@ -1,0 +1,27 @@
+{
+  "absorbed_action_id": "c3d5ea1b-8102-4ba8-8c90-015af888b61a",
+  "blockers": [
+    "embedded_projection_mismatch"
+  ],
+  "command": "ndf_workflow_status.py snapshot --verify-embedded",
+  "context_plan_sha": null,
+  "episode_id": "ep-meta-014-confirm-land",
+  "evidence_paths": [
+    "tmp/ndf-projection-evidence/embedded-b38ef4bf6f5476a733169f392e4257658ef2bc89af8646695c0013377208332d.json"
+  ],
+  "finished_at": "2026-08-17T13:34:12.589075+00:00",
+  "input_sha": "2e1b863278456a3f39e28ae4c92b420c164cb2d9312d62026e9c92aa744e7abe",
+  "manifest_sha": null,
+  "mode": "process",
+  "output_sha": "48da532f567b622f84e653fa8cabc771f145fb18d2e00169f4e641c6c184f965",
+  "projection_sha": "b38ef4bf6f5476a733169f392e4257658ef2bc89af8646695c0013377208332d",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "failed",
+  "schema": "ndf-projection-receipt/v2",
+  "snapshot_sha_after": "41368a578f5fe35bb7d1087d3995a41cee7cb9b1cd588cb971c3a1236dc3a85b",
+  "source_generation_sha": "41368a578f5fe35bb7d1087d3995a41cee7cb9b1cd588cb971c3a1236dc3a85b",
+  "started_at": "2026-08-17T13:34:12.589075+00:00",
+  "step": "verify-embedded",
+  "task": "snapshot_embedded",
+  "topic": null
+}

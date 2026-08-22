@@ -1,0 +1,7 @@
+{
+  "schema": "ndf-control-pipeline-binding/v1",
+  "topic": "cluster-gbdt",
+  "pipeline": "gate",
+  "episode_id": "ep-gate-pipeline-cluster-gbdt-20260814T071814Z",
+  "updated_at": "2026-08-14T19:40:16.471653+00:00"
+}

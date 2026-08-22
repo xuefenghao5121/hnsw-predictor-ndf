@@ -1,0 +1,234 @@
+{
+  "schema": "ndf-context-plan/v1",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+    "topic": "cluster-gbdt"
+  },
+  "role": "claude-code",
+  "task": "poc_implementation",
+  "track": "poc",
+  "topic": "cluster-gbdt",
+  "source_generation_sha": "beffaa6b1545c30a4dcf3d9e3a49322307f13b8ab375626c26350a098f647df5",
+  "ordered_reads": [
+    {
+      "order": 0,
+      "path": "poc/cluster-gbdt/ndf/TOPIC.md",
+      "sha256": "48a57491b72ee0500c9722ad05ec79f3521780f6c6cabd0c6991877530b5bfb2",
+      "bytes": 916,
+      "phase": "binder",
+      "reason": "binder_root"
+    },
+    {
+      "order": 1,
+      "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+      "sha256": "8e59717f9747f616d13b6069fe91c0269e8a9436bd011fc2732d4435490af9a7",
+      "bytes": 165,
+      "phase": "binder",
+      "reason": "binder_root"
+    }
+  ],
+  "seed_ids": [
+    "META-012"
+  ],
+  "seed_sources": {
+    "topic": [],
+    "proposals": [],
+    "commits": [],
+    "task_defaults": [
+      "META-012"
+    ],
+    "explicit": []
+  },
+  "graph": {
+    "relations": [
+      "depends-on",
+      "refines"
+    ],
+    "direction": "upstream; verifies also reverse",
+    "depth": 2,
+    "node_budget": 80,
+    "byte_budget": 256000,
+    "bytes_used": 19015,
+    "nodes": [
+      {
+        "id": "META-012",
+        "title": "NDF 任务上下文与证据绑定",
+        "file": "spec/meta/process.md",
+        "line": 381,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 0,
+        "clause_sha": "ed0dc8add3592972da99b06d9d33e3cb9dc3d8169380fc30e5386df436f231ee",
+        "bytes": 2392,
+        "edges": {
+          "depends-on": [
+            "META-002",
+            "META-008",
+            "META-010",
+            "META-011"
+          ]
+        }
+      },
+      {
+        "id": "META-002",
+        "title": "NDF 图边与引用",
+        "file": "spec/meta/language.md",
+        "line": 56,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 1,
+        "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+        "bytes": 1150,
+        "edges": {
+          "depends-on": [
+            "META-001"
+          ]
+        }
+      },
+      {
+        "id": "META-008",
+        "title": "NDF 工作空间视角",
+        "file": "spec/meta/language.md",
+        "line": 111,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 1,
+        "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+        "bytes": 1644,
+        "edges": {
+          "depends-on": [
+            "META-002",
+            "META-003"
+          ]
+        }
+      },
+      {
+        "id": "META-010",
+        "title": "人工门禁回执",
+        "file": "spec/meta/process.md",
+        "line": 181,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 1,
+        "clause_sha": "9487a9686c49285834f7df34f42fc9f9c5ed4b0d04794b5f75b3d9baed0179c3",
+        "bytes": 1108,
+        "edges": {
+          "depends-on": [
+            "META-001",
+            "META-008"
+          ]
+        }
+      },
+      {
+        "id": "META-011",
+        "title": "Workflow 投影与 Claude Code 委派",
+        "file": "spec/meta/process.md",
+        "line": 203,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 1,
+        "clause_sha": "0f9861307d73aaae46b6f26b980d4fb4332bbabd1bcb8d369764c12eb71996b1",
+        "bytes": 9517,
+        "edges": {
+          "depends-on": [
+            "META-008",
+            "META-010"
+          ]
+        }
+      },
+      {
+        "id": "META-001",
+        "title": "NDF 条款书写与元数据",
+        "file": "spec/meta/language.md",
+        "line": 11,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 2,
+        "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+        "bytes": 2288,
+        "edges": {
+          "depends-on": [
+            "ADR-META-002"
+          ]
+        }
+      },
+      {
+        "id": "META-003",
+        "title": "分层与强制语气",
+        "file": "spec/meta/language.md",
+        "line": 81,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "hop": 2,
+        "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+        "bytes": 916,
+        "edges": {
+          "depends-on": [
+            "META-001"
+          ]
+        }
+      }
+    ],
+    "missing_seeds": [],
+    "truncated": [
+      "depth"
+    ],
+    "blockers": []
+  },
+  "implementation_surface": [
+    "poc/cluster-gbdt/"
+  ],
+  "baseline": {
+    "path": "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+    "baseline_status": "current",
+    "baseline_trunk_sha": "1f684c7",
+    "baseline_protocol": "CON-SLA-020 sustained",
+    "bind": {
+      "baseline": "bl-trunk-golden-7ee4ee2",
+      "config": "Config C (M=24, EF=60), SIFT1M"
+    },
+    "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+  },
+  "gates": {
+    "path": null,
+    "path_sha": null,
+    "expected": {
+      "topic_review": "2569af404cd4e8e0ed806c3abba445884e1a6685815b6d129654e2c076916207",
+      "design_review": null,
+      "implementation_approval": null
+    },
+    "receipts": []
+  },
+  "evidence_refs": [],
+  "privileges": {
+    "allowed_write_roots": [
+      "poc/cluster-gbdt/"
+    ],
+    "forbidden_write_paths": [
+      "spec/meta/",
+      "spec/00-charter/",
+      "spec/10-architecture/",
+      "src/",
+      "include/",
+      "tests/"
+    ],
+    "summary_only": false
+  },
+  "human_phrase": "可以开始实现",
+  "plan_sha": "6b94db23fac51c8b04d8d3548f139c6efd91b55152d855d60e5d4ef811c487bf"
+}

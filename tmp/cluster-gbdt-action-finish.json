@@ -1,0 +1,31 @@
+{
+  "schema": "ndf-workflow-action/v2",
+  "task": "claude-repair-poc_measurement",
+  "action_id": "f96fe54b-1eeb-4260-b11c-851bcacff75a",
+  "topic": "cluster-gbdt",
+  "mode": "process",
+  "step": "finish",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "source_generation_sha": "4a77e45cd77eaaf9c2ff14b63f77554b181bbb0db9cd597c924a5fb1fd585846",
+  "manifest_sha": null,
+  "context_plan_sha": null,
+  "command": "claude-repair-poc_measurement",
+  "input_sha": "1de736b92339af873d432cdced3e0b86ce4f378a2760fbb7bca2fa85d6e85af5",
+  "output_sha": "963cc2453a5b50d0ca51ebafcfecf08f3a599c56e9ebe3d64d329d3e2223af11",
+  "evidence_paths": [],
+  "operation": "claude-repair-poc_measurement",
+  "status": "finished",
+  "started_at": "2026-08-14T08:35:15.958170+00:00",
+  "finished_at": "2026-08-14T08:46:25.387082+00:00",
+  "result": "success",
+  "repo_head_before": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head_after": "a14339234133cc6c5a2348464954f744c6465efb",
+  "snapshot_sha_after": null,
+  "evidence_generation": "4a77e45cd77eaaf9c2ff14b63f77554b181bbb0db9cd597c924a5fb1fd585846",
+  "blockers": [],
+  "replay": {
+    "episode_id": "ep-repair-poc-measurement-cluster-gbdt-20260814T083515Z",
+    "blob_sha": "af6f55152ec01397eb22fabc160d72aa06a7564e9eaba1576d78ed4401979dc3",
+    "event_sha": "15562403dbe3584d7bad2482b8184be14a0fff8fc81567f181d50fac8f307e5f"
+  }
+}

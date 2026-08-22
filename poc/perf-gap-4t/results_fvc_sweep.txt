@@ -1,0 +1,53 @@
+=== flat_vec_cache Sweep (SIFT1M 4T, 512MB cgroup, CON-SLA-014) ===
+Baseline: FLAT_VEC_MB=64 -> 9657 QPS / 95.80% recall
+
+--- FLAT_VEC_MB=64 ---
+Recall: 95.80%
+Mean:   0.43 ms
+P50:    0.39 ms
+P95:    0.61 ms
+P99:    0.65 ms
+QPS:    9252.2
+RSS:    202 MB
+  cgroup_peak: 536870912  oom: oom 0  anon: anon 409600  file: file 325210112
+
+--- FLAT_VEC_MB=96 ---
+Recall: 95.75%
+Mean:   0.37 ms
+P50:    0.36 ms
+P95:    0.55 ms
+P99:    0.65 ms
+QPS:    10716.8
+RSS:    211 MB
+  cgroup_peak: 536870912  oom: oom 0  anon: anon 417792  file: file 315908096
+
+--- FLAT_VEC_MB=128 ---
+Recall: 95.75%
+Mean:   0.40 ms
+P50:    0.35 ms
+P95:    0.59 ms
+P99:    0.63 ms
+QPS:    9975.4
+RSS:    216 MB
+  cgroup_peak: 536870912  oom: oom 0  anon: anon 430080  file: file 309944320
+
+--- FLAT_VEC_MB=160 ---
+Recall: 95.75%
+Mean:   0.34 ms
+P50:    0.34 ms
+P95:    0.56 ms
+P99:    0.67 ms
+QPS:    11420.7
+RSS:    220 MB
+  cgroup_peak: 536870912  oom: oom 0  anon: anon 434176  file: file 306348032
+
+--- FLAT_VEC_MB=192 ---
+Recall: 95.75%
+Mean:   0.40 ms
+P50:    0.36 ms
+P95:    0.59 ms
+P99:    0.62 ms
+QPS:    9741.4
+RSS:    222 MB
+  cgroup_peak: 536870912  oom: oom 0  anon: anon 438272  file: file 303849472
+

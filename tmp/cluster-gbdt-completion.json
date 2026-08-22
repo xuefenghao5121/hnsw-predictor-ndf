@@ -1,0 +1,92 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "topic": "cluster-gbdt",
+  "task": "poc_measurement",
+  "track": "poc",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "be0b56edf04118db8bfb392329f2cb089bc564c47852c92caa04bc9717bb80a6",
+  "context_plan_sha": "5794508eb3428b558d777804f24f70821f73bbb8c43d8585082850dcf9670ebf",
+  "changed_files": [
+    "poc/cluster-gbdt/ndf/PERF_BASELINE.md",
+    "poc/cluster-gbdt/ndf/TOPIC.md"
+  ],
+  "changed_file_shas": {
+    "poc/cluster-gbdt/ndf/PERF_BASELINE.md": "dad047c086b66c2aa8bba509ed5d0cfd031a645943b6951b13bf5097a69b72dd",
+    "poc/cluster-gbdt/ndf/TOPIC.md": "c54c6339f5d12006d4b311f0fdcc09983c198ea09ee35c38bbc025e9b10005ac"
+  },
+  "changed_sections": [
+    "perf_numbers",
+    "topic_runtime_headers",
+    "delta_rounds",
+    "evidence",
+    "commits_append"
+  ],
+  "reproduce_commands": [
+    "CGROUP_MB=512 THREADS=1 TAG=cluster-gbdt-r0-512mb OUTDIR=poc/cluster-gbdt/ndf/evidence bash scripts/run_sustained.sh --config cfg-m24-ef60",
+    "CGROUP_MB=256 THREADS=1 TAG=cluster-gbdt-r0-256mb OUTDIR=poc/cluster-gbdt/ndf/evidence bash scripts/run_sustained.sh --config cfg-m24-ef60"
+  ],
+  "evidence_paths": [
+    "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log",
+    "poc/cluster-gbdt/ndf/evidence/cluster-gbdt-r0-256mb_256mb_1t_n1000_r15.log",
+    "poc/cluster-gbdt/ndf/evidence/r0-remeasure-verified-20260814.md",
+    "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+    "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+  ],
+  "evidence_bundle_sha": "ebe5da256bdcb7a00003f772dd607dbd4e654b74e878c60b1c247c3e6f4e45b6",
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+      "result": "passed",
+      "output_sha": "1c376c7059a4baabb4b33777972c2015268ccf1737e52171ed02d67c72530727",
+      "evidence_paths": [
+        "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_poc_isolation.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_poc_isolation.py",
+          "check",
+          "--topic",
+          "cluster-gbdt",
+          "--workspace",
+          "--report",
+          "-"
+        ],
+        "version_sha": "05611551f8868d8f4249a3f18fb161b15a44b2ba59b266d833ac1457946e4102",
+        "exit_code": 0,
+        "output_schema": "ndf-poc-isolation/v1"
+      }
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json",
+      "result": "passed",
+      "output_sha": "47aba7ea6932bc00b203a8ce16f2fd6bce490bf7cab9b7e921097f63e756201c",
+      "evidence_paths": [
+        "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_workflow_status.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_workflow_status.py",
+          "topic-health",
+          "--topic",
+          "cluster-gbdt",
+          "--json"
+        ],
+        "version_sha": "e9c8a5a1f4cb36b8979d3e26d8d5ec074b23c2bd4d7350f770d9a29d1f98cf47",
+        "exit_code": 0,
+        "output_schema": "ndf-topic-health/v1"
+      }
+    }
+  ],
+  "result": "success",
+  "run_id": "run-repair-poc-measurement-cluster-gbdt-20260814T083515Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/cluster-gbdt-measurement-20260814T083515Z",
+  "branch": "poc/cluster-gbdt-measurement-20260814T083515Z",
+  "summary": "Verified CON-SLA-020 R0 remeasure for cluster-gbdt cfg-m24-ef60: 512MB agg QPS 2248.7 recall 96.59%; 256MB agg QPS 1805.2 recall 96.60%. Teardown SIGABRT after printed aggregates. baseline_status=current."
+}

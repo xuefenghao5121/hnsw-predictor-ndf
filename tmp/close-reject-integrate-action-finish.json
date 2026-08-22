@@ -1,0 +1,33 @@
+{
+  "schema": "ndf-workflow-action/v2",
+  "task": "close-reject-integrate",
+  "action_id": "51ba2609-4b1e-448c-95db-bb20ccf86191",
+  "topic": "cluster-gbdt",
+  "mode": "process",
+  "step": "finish",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "source_generation_sha": "a5339c1e5abf99aa7366823ccacec4e1f042c202a59a55cf88edb4b1f0939ec4",
+  "manifest_sha": null,
+  "context_plan_sha": null,
+  "command": "close-reject-integrate",
+  "input_sha": "675b469da2bbb1474238830bf4cbff0944887eac122075d600b867997e5a1c91",
+  "output_sha": "fdcf554294f7482111ea2c73b1b69b6990c0a8d3fb9dc6a0a66c8581afdcca93",
+  "evidence_paths": [],
+  "operation": "close-reject-integrate",
+  "status": "finished",
+  "started_at": "2026-08-15T09:28:08.023483+00:00",
+  "finished_at": "2026-08-15T09:32:48.723068+00:00",
+  "result": "failed",
+  "repo_head_before": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head_after": "a14339234133cc6c5a2348464954f744c6465efb",
+  "snapshot_sha_after": null,
+  "evidence_generation": "a5339c1e5abf99aa7366823ccacec4e1f042c202a59a55cf88edb4b1f0939ec4",
+  "blockers": [
+    "context_verify_failed",
+    "gate_slice_manifest_drift:topic_review,design_review,implementation_approval",
+    "required_gate_not_valid:implementation_approval",
+    "runtime_unavailable",
+    "acp_not_dispatched:context_verify_invalid",
+    "reject_integrate_blocked:no_code_disposition_without_verified_plan"
+  ]
+}

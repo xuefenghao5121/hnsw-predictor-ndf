@@ -1,0 +1,154 @@
+{
+  "schema": "ndf-control-pack/v2",
+  "task": "binder_amend",
+  "pipeline": "binder",
+  "topic": "page-packer",
+  "track": "poc",
+  "provider": "openclaw",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_name": "hnsw-predictor-ndf",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "state_path": ".openclaw/state.json",
+    "active_topic": "page-packer",
+    "topic_dir": "poc/page-packer/",
+    "topic_ndf_dir": "poc/page-packer/ndf/"
+  },
+  "manifest_sha": "56efa57445006ce9cafefa399042a26d1cfe9bcc4093c64801c3eff78a8de40e",
+  "plan_sha": "640592cc1cca45884e02211d74852e291f7c6c7b03b3de74b0bc202ae9a4601c",
+  "replay": {
+    "episode_id": "ep-binder-amend-page-packer-20260818T065000Z",
+    "pack_blob_sha": "d79c9e210d4298a296cffa74332d3cb7ca7d4dc15a9102b729816de6bb423fb2",
+    "event_sha": "d9f48648804bfd02002dcd08a9332be8f48284e221a1959679597515d7f50595",
+    "coverage": "preflight"
+  },
+  "allowed_write_roots": [
+    "poc/page-packer/ndf/TOPIC.md"
+  ],
+  "allowed_write_paths": [
+    "poc/page-packer/ndf/TOPIC.md"
+  ],
+  "allowed_sections": [
+    "topic_contract",
+    "design_contract",
+    "perf_bind",
+    "delta_hypothesis",
+    "interface_contract",
+    "ledger_skeleton",
+    "topic_runtime_headers"
+  ],
+  "forbidden_sections": [
+    "gate_receipts",
+    "perf_numbers",
+    "delta_rounds",
+    "evidence",
+    "commits_append",
+    "decision_selected"
+  ],
+  "mutable_sections": [
+    "topic_runtime_headers",
+    "perf_numbers",
+    "delta_rounds",
+    "evidence",
+    "commits",
+    "gates"
+  ],
+  "forbidden": [
+    "src/",
+    "include/",
+    "tests/",
+    "spec/meta/ (stable body)",
+    "GATES.md approved_by without human phrase",
+    "cross-pipeline merge without pipeline+step events",
+    "gate pipeline writing binder facets",
+    "binder pipeline writing GATES.md approvals or close decisions"
+  ],
+  "context_verify": {
+    "schema": "ndf-context-verification/v1",
+    "valid": true,
+    "plan_sha": "640592cc1cca45884e02211d74852e291f7c6c7b03b3de74b0bc202ae9a4601c",
+    "manifest_sha": "56efa57445006ce9cafefa399042a26d1cfe9bcc4093c64801c3eff78a8de40e",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "errors": [],
+    "warnings": []
+  },
+  "pipeline_plan": {
+    "pipeline": "binder",
+    "focus_binder_facet": "topic",
+    "write_ownership": {
+      "allowed": [
+        "poc/page-packer/ndf/TOPIC.md"
+      ],
+      "forbidden": [
+        "poc/page-packer/ndf/GATES.md"
+      ],
+      "no_op_when_complete": true
+    },
+    "event_kinds": [
+      "binder.audit",
+      "binder.amend",
+      "binder.recheck"
+    ],
+    "post_check": [
+      "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic page-packer --json"
+    ]
+  },
+  "context_plan": {
+    "schema": "ndf-context-plan/openclaw/v1",
+    "role": "openclaw",
+    "task": "binder_amend",
+    "ordered_reads": [
+      {
+        "order": 0,
+        "path": "poc/page-packer/ndf/TOPIC.md",
+        "sha256": "fb47b7ad0289222fce4fc0212a1aeb55a833469f1c0138d397137f275d2861fc",
+        "bytes": 1002,
+        "phase": "binder",
+        "reason": "binder_root"
+      },
+      {
+        "order": 1,
+        "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+        "sha256": "248a5909c799c63fffcc53cc22a3373621fd179dbaad1c3500d6abb33385751a",
+        "bytes": 164,
+        "phase": "binder",
+        "reason": "binder_root"
+      }
+    ],
+    "privileges": {
+      "allowed_write_roots": [
+        "poc/page-packer/ndf/TOPIC.md"
+      ],
+      "allowed_sections": [
+        "topic_contract",
+        "design_contract",
+        "perf_bind",
+        "delta_hypothesis",
+        "interface_contract",
+        "ledger_skeleton",
+        "topic_runtime_headers"
+      ],
+      "forbidden_sections": [
+        "gate_receipts",
+        "perf_numbers",
+        "delta_rounds",
+        "evidence",
+        "commits_append",
+        "decision_selected"
+      ],
+      "forbidden_write_paths": [
+        "src/",
+        "include/",
+        "tests/",
+        "spec/meta/process.md"
+      ]
+    },
+    "implementation_surface": [
+      "poc/page-packer/"
+    ],
+    "plan_sha": "640592cc1cca45884e02211d74852e291f7c6c7b03b3de74b0bc202ae9a4601c",
+    "manifest_sha": "56efa57445006ce9cafefa399042a26d1cfe9bcc4093c64801c3eff78a8de40e"
+  }
+}

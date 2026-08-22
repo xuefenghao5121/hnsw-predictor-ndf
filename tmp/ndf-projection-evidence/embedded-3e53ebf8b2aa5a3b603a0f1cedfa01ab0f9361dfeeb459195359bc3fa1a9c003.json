@@ -1,0 +1,22 @@
+{
+  "checks": {
+    "absorbedActionId": true,
+    "payloadSha": true,
+    "snapshotSha": true
+  },
+  "embedded": {
+    "absorbedActionId": null,
+    "canonicalPayloadSha": "3e53ebf8b2aa5a3b603a0f1cedfa01ab0f9361dfeeb459195359bc3fa1a9c003",
+    "payloadSha": "3e53ebf8b2aa5a3b603a0f1cedfa01ab0f9361dfeeb459195359bc3fa1a9c003",
+    "snapshotSha": "2cd4f56109d281582711dcad5d210951426e53a1a657c1f2c8e07dabcdd89894"
+  },
+  "fresh": {
+    "absorbedActionId": null,
+    "payloadSha": "3e53ebf8b2aa5a3b603a0f1cedfa01ab0f9361dfeeb459195359bc3fa1a9c003",
+    "snapshotSha": "2cd4f56109d281582711dcad5d210951426e53a1a657c1f2c8e07dabcdd89894"
+  },
+  "schema": "ndf-embedded-projection-evidence/v1",
+  "source_file_sha": "61090417bd4731eb9ac152ef0289c228aa0e6cf2f21816efd7eb52724afd89b0",
+  "source_path": "/home/huawei/.cursor/projects/home-huawei-hnsw-predictor-ndf/canvases/ndf-workflow.canvas.tsx",
+  "topic": "cluster-gbdt"
+}

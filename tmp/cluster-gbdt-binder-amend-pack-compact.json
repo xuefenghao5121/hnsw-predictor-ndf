@@ -1,0 +1,53 @@
+{
+  "schema": "ndf-control-pack/v2",
+  "topic": "cluster-gbdt",
+  "track": "poc",
+  "task": "binder_amend",
+  "pipeline": "binder",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_name": "hnsw-predictor-ndf",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "state_path": ".openclaw/state.json",
+    "active_topic": "cluster-gbdt",
+    "topic_dir": "poc/cluster-gbdt/",
+    "topic_ndf_dir": "poc/cluster-gbdt/ndf/"
+  },
+  "allowed_write_paths": [
+    "poc/cluster-gbdt/ndf/TOPIC.md"
+  ],
+  "allowed_sections": [
+    "topic_contract",
+    "design_contract",
+    "perf_bind",
+    "delta_hypothesis",
+    "interface_contract",
+    "ledger_skeleton",
+    "topic_runtime_headers"
+  ],
+  "forbidden_sections": [
+    "gate_receipts",
+    "perf_numbers",
+    "delta_rounds",
+    "evidence",
+    "commits_append",
+    "decision_selected"
+  ],
+  "safe_to_delegate": true,
+  "manifest_sha": "5f61c5c2cf5c428f325043cc609c1f4636550110423ad7cd34b6e9b8fbfe7669",
+  "plan_sha": "ec26c9543a6ea49761ae30007edee9efbdc6fa5cb23c5f241351ed52ec9987e0",
+  "replay": {
+    "episode_id": "ep-binder-amend-cluster-gbdt-20260814T194120Z",
+    "pack_blob_sha": "d13a4682819fc13bf750ea3c40fbe5b706e4a5b33b6931c5862070fa967dce5c",
+    "event_sha": "7b9cbbe44b7f0d54810612f1f264ef7da20d6d79b8a7e5ad3c18a7bf0da6d74f",
+    "coverage": "preflight"
+  },
+  "context_verify": {
+    "valid": true,
+    "plan_sha": "ec26c9543a6ea49761ae30007edee9efbdc6fa5cb23c5f241351ed52ec9987e0",
+    "manifest_sha": "5f61c5c2cf5c428f325043cc609c1f4636550110423ad7cd34b6e9b8fbfe7669",
+    "errors": []
+  }
+}

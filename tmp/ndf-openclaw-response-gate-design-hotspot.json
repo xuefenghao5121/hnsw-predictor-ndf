@@ -1,0 +1,22 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "gate_pipeline",
+  "track": "poc",
+  "topic": "hotspot-optimization",
+  "pipeline": "gate",
+  "hop": "design_review",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "2a036bb5e6e8bca0875ade54af690aca79ccabdfeb4c589c7c04d99cc35c9887",
+  "context_plan_sha": "72bf2d35060382ba5ef15202ba9532f27bef77759e9e008a3920aaa2cd9b60c7",
+  "plan_sha": "72bf2d35060382ba5ef15202ba9532f27bef77759e9e008a3920aaa2cd9b60c7",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "be7c205b-bc80-40a7-82c0-1b8cc65c680a",
+  "request_id": "req-gate-design-review-hotspot-optimization-20260818T175900Z",
+  "origin": "human_phrase",
+  "proposal_path": "poc/hotspot-optimization/ndf/GATES.md",
+  "next_human_phrase": "可以开始实现",
+  "delivery": "local_conductor",
+  "note": "Feishu openclaw.chat_send was blocked by Auto-review; receipts written in this Composer/OpenClaw conductor session under repo_root.",
+  "message": "GATES path: poc/hotspot-optimization/ndf/GATES.md\ntopic_review rebound review_slice SHA bb89e6e809770240703f9285d541a1ca3d00cd0cf6cf4a4329e2381aa03a61f0 (same human phrase TOPIC已审核; markers only).\ndesign_review confirmed SHA ae81e56722dcd7543e029fa61ba2df578ae06f56485248d3e4f9d2b585deba6e bundle_mode=review_slice.\nPERF_BASELINE/DELTA/INTERFACE written. Next phrase: 可以开始实现. No topic code."
+}

@@ -1,0 +1,42 @@
+Persist workspace.repo_root / active_topic / repo_head from the bound control-pack into {repo_root}/.openclaw/state.json before any file operation. Verify the exact manifest and OpenClaw context plan before work. Obey only ordered reads, graph closure, implementation surface, and privileges in the verified plan.
+
+【track=poc】【control=binder_amend】topic: cluster-gbdt
+pipeline: binder
+binder_facet: topic (1/6)
+session_key: agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35
+
+Human already recorded decision.selected mode=reject (actor=human, no file mutations) on gate episode ep-gate-pipeline-cluster-gbdt-20260814T071814Z.
+Canvas local text is now that structured decision. You MUST project it into TOPIC.md runtime headers only.
+
+Revise ONLY poc/cluster-gbdt/ndf/TOPIC.md.
+Allowed write path from pack: poc/cluster-gbdt/ndf/TOPIC.md
+Allowed changed_sections: topic_runtime_headers
+MUST add or replace exactly this runtime header (outside <!-- ndf:gate-slice begin=topic_contract -->):
+> selected_decision: reject
+
+MUST NOT:
+- edit topic_contract
+- edit open_decision inside the contract slice
+- edit PERF Numbers, DELTA Rounds, evidence, GATES.md, DESIGN, INTERFACE, COMMITS
+- write approved_by or gate receipts
+- select close, draft a reject proposal, or dispatch Claude Code
+- start A2/A3 or PQ simulation
+- change status / active_hypothesis / explore_surface
+
+Record binder.audit → binder.amend → binder.recheck conceptually in your reply with exact changed_files + changed_sections. Composer will record the pipeline-step-record events from your evidence.
+
+Episode: ep-binder-amend-cluster-gbdt-20260814T194120Z
+request_id: 4707d248-cbb3-4876-a007-0d74a10ce3a2
+manifest_sha: 5f61c5c2cf5c428f325043cc609c1f4636550110423ad7cd34b6e9b8fbfe7669
+context_plan_sha: ec26c9543a6ea49761ae30007edee9efbdc6fa5cb23c5f241351ed52ec9987e0
+
+EXECUTE NOW. After persisting workspace, amend only the TOPIC.md runtime header. Return: files changed, changed_sections, the new selected_decision line, and a short confirmation that contract slices were untouched.
+
+RELEVANT OPENCLAW DELEGATION TEMPLATE (binder_amend):
+【track=poc】【control=binder_amend】topic: cluster-gbdt
+binder_facet: topic
+session_key: agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35
+
+Revise only the focused binder facet under poc/cluster-gbdt/ndf/.
+Record binder.audit → binder.amend → binder.recheck. Gates remain human-approved.
+

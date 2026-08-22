@@ -1,0 +1,33 @@
+{
+  "schema": "ndf-workflow-action/v2",
+  "task": "delegate-poc",
+  "action_id": "0bf9250d-c1fb-42aa-859c-87d3174049ca",
+  "topic": "cluster-gbdt",
+  "mode": "process",
+  "step": "finish",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "source_generation_sha": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+  "manifest_sha": null,
+  "context_plan_sha": null,
+  "command": "delegate-poc",
+  "input_sha": "0e9a8e586010161cefa343187e7186195192d322d0e0c72ae90e16dd09a023ee",
+  "output_sha": "b6f9bc9b6bd0a7e2801645faf340251b9a748eb97516d34841719f57e5269bf5",
+  "evidence_paths": [],
+  "operation": "delegate-poc",
+  "status": "finished",
+  "started_at": "2026-08-14T09:09:21.928149+00:00",
+  "finished_at": "2026-08-14T09:27:14.679452+00:00",
+  "result": "success",
+  "repo_head_before": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head_after": "a14339234133cc6c5a2348464954f744c6465efb",
+  "snapshot_sha_after": null,
+  "evidence_generation": "c3f1f3bb7c2435ba15f2eec1637ff40d001ef8db7dccdcb25c3a0e4c7fe03854",
+  "blockers": [
+    "runtime_unavailable"
+  ],
+  "replay": {
+    "episode_id": "ep-poc-implementation-cluster-gbdt-20260814T090921Z",
+    "blob_sha": "a1de9da59237fff393d74055a9e41bea71f3be125620e1dc7b7afdf9a38c5e47",
+    "event_sha": "aa2b785e34aea655fb9f3c39282ec72f7efdd0fb5e1170b7f594653afdd5c46c"
+  }
+}

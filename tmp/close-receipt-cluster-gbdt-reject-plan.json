@@ -1,0 +1,23 @@
+{
+  "schema": "ndf-close-evidence/v1",
+  "task": "close",
+  "topic": "cluster-gbdt",
+  "mode": "reject",
+  "step": "plan",
+  "actor": "composer",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "source_generation_sha": "e6d44d17d4b3aa94f4abb7c9e7c7fc5d8668fac03a999dc6bcfc0895d06b8c92",
+  "manifest_sha": "89bf80adf96857b51bbb212507365e6465efe944268fad535cf5aaeb6f9e1d36",
+  "context_plan_sha": null,
+  "command": "python3 spec/meta/tools/ndf_close.py plan --topic cluster-gbdt --mode reject --report tmp/close-plan-cluster-gbdt-reject.md",
+  "input_sha": "77b1795d0cae849ee8f52cd1d8e78c5f194fcb8abe6826248c18cfada6bd48eb",
+  "output_sha": "844e2b138b8ef35c9bb590022196569ac27fdccb94ad075cce9b448864ca61fe",
+  "evidence_paths": [
+    "tmp/close-plan-cluster-gbdt-reject.md"
+  ],
+  "started_at": "2026-08-15T11:53:32.464801+00:00",
+  "finished_at": "2026-08-15T11:56:23.560198+00:00",
+  "result": "passed",
+  "blockers": [],
+  "notes": "context-verify against cited plan_sha=e368d323bb8137b3cdc8637ead902395834fda73cb842c791b6bded79428b5af shared pack.manifest_sha=89bf80adf96857b51bbb212507365e6465efe944268fad535cf5aaeb6f9e1d36. valid=false only for manifest_compiler_derivation_mismatch on binder_roots; binder file SHAs, expected_content_sha, and review_slice receipts match. Not contract-slice/clause/missing-file drift; did not recompile. context_plan_sha omitted in this receipt because close-receipt-verify recompiles context_binding(task=reject) and would mark the cited poc_implementation plan SHA stale. Plan has no blockers; Trunk N/A / no src writes. pack.replay.episode_id not present on this Composer hop."
+}

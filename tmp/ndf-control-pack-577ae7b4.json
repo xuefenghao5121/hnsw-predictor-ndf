@@ -1,0 +1,739 @@
+{
+  "schema": "ndf-control-pack/v2",
+  "compatibility": {
+    "legacy_schema": "ndf-control-pack/v1"
+  },
+  "generated_at": "2026-08-18T14:07:02.588086+00:00",
+  "topic": null,
+  "track": "poc",
+  "task": "control_proposal",
+  "pipeline": null,
+  "pipeline_plan": null,
+  "hop": "draft",
+  "resume": false,
+  "active_episode_id": null,
+  "provider": "openclaw",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_name": "hnsw-predictor-ndf",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "state_path": ".openclaw/state.json",
+    "active_topic": null,
+    "topic_dir": null,
+    "topic_ndf_dir": null
+  },
+  "workspace_truth": {
+    "workspace_bound": false,
+    "state": "unbound",
+    "mismatches": [
+      {
+        "field": "repo_root",
+        "expected": "/home/huawei/hnsw-predictor-ndf",
+        "actual": null
+      },
+      {
+        "field": "repo_head",
+        "expected": "a14339234133cc6c5a2348464954f744c6465efb",
+        "actual": null
+      }
+    ],
+    "missing": [
+      "repo_root",
+      "repo_head",
+      "active_topic"
+    ],
+    "binding": {
+      "repo_root": "/home/huawei/hnsw-predictor-ndf",
+      "repo_name": "hnsw-predictor-ndf",
+      "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+      "state_path": ".openclaw/state.json",
+      "active_topic": null,
+      "topic_dir": null,
+      "topic_ndf_dir": null
+    },
+    "persisted_workspace": {}
+  },
+  "request": {
+    "origin": "human_intent",
+    "intent": "我们能不能增大Top-K的值来进行测试，看看结果是不是更有利于我们？因为业界DiskANN等论文好像在测试的时候设置了较大的Top-K，来获得相对更好结果。",
+    "intent_sha": "f77726f35acb0b0c608814095d8baf29537c6308f7c830fce6c9c6754fcc2897",
+    "intent_summary": "我们能不能增大Top-K的值来进行测试，看看结果是不是更有利于我们？因为业界DiskANN等论文好像在测试的时候设置了较大的Top-K，来获得相对更好结果。"
+  },
+  "required_reads": [
+    "AGENTS.md",
+    "spec/00-charter/charter.md",
+    "META-011",
+    "META-012"
+  ],
+  "allowed_write_roots": [
+    "spec/open/"
+  ],
+  "allowed_write_paths": [
+    "spec/open/"
+  ],
+  "forbidden": [
+    "poc/",
+    "src/",
+    "include/",
+    "tests/",
+    "spec/meta/",
+    "spec/meta/open/",
+    "spec/meta/ (stable body)",
+    ".openclaw/state.json",
+    "GATES.md approved_by without human phrase",
+    "human approval fabrication"
+  ],
+  "required_proposal_status": "Pending confirmation",
+  "next_human_phrase": "已确认",
+  "safe_to_delegate": true,
+  "safe_to_dispatch": true,
+  "static_preflight_passed": true,
+  "runtime_dispatch_ready": true,
+  "task_manifest": {
+    "schema": "ndf-task-manifest/v1",
+    "intent": "control_proposal",
+    "business_goal": "control_proposal",
+    "topic": null,
+    "task": "control_proposal",
+    "track": "poc",
+    "control": null,
+    "compiler_policy": {
+      "depth": 8,
+      "node_budget": 240,
+      "byte_budget": 1048576,
+      "requested_seed_ids": []
+    },
+    "workspace": {
+      "repo_root": "/home/huawei/hnsw-predictor-ndf",
+      "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+      "topic": null
+    },
+    "source_generation_sha": "911a4547d67d0e0a0322e62b9cddcd66b749538f21424025aebf63f524c6173d",
+    "binder_roots": [],
+    "clause_seeds": [
+      "META-011",
+      "META-012"
+    ],
+    "seed_sources": {
+      "topic": [],
+      "proposals": [],
+      "commits": [],
+      "task_defaults": [
+        "META-011",
+        "META-012"
+      ],
+      "explicit": []
+    },
+    "shared_graph_closure": {
+      "relations": [
+        "depends-on",
+        "refines"
+      ],
+      "direction": "upstream; verifies also reverse",
+      "depth": 8,
+      "node_budget": 240,
+      "byte_budget": 1048576,
+      "bytes_used": 35442,
+      "nodes": [
+        {
+          "id": "META-011",
+          "title": "Workflow 投影与 Claude Code 委派",
+          "file": "spec/meta/process.md",
+          "line": 255,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 0,
+          "clause_sha": "705b433ce41cf1f24e062db3e225a25f1e184927d8c845f233383bdb05741a8d",
+          "bytes": 17355,
+          "edges": {
+            "depends-on": [
+              "META-008",
+              "META-010"
+            ]
+          }
+        },
+        {
+          "id": "META-012",
+          "title": "NDF 任务上下文与证据绑定",
+          "file": "spec/meta/process.md",
+          "line": 563,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 0,
+          "clause_sha": "8244024586e895c7258f8337fc8bdbaa497aba2f5c86b006a5f8570678399bf7",
+          "bytes": 4609,
+          "edges": {
+            "depends-on": [
+              "META-002",
+              "META-008",
+              "META-010",
+              "META-011"
+            ]
+          }
+        },
+        {
+          "id": "META-008",
+          "title": "NDF 工作空间视角",
+          "file": "spec/meta/language.md",
+          "line": 111,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+          "bytes": 1644,
+          "edges": {
+            "depends-on": [
+              "META-002",
+              "META-003"
+            ]
+          }
+        },
+        {
+          "id": "META-010",
+          "title": "人工门禁回执",
+          "file": "spec/meta/process.md",
+          "line": 188,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "02a85c6a667f81837c3c3c0edec85a8c06ea87467a1c3f8d3e2abb3cb9f9e23e",
+          "bytes": 3224,
+          "edges": {
+            "depends-on": [
+              "META-001",
+              "META-008"
+            ]
+          }
+        },
+        {
+          "id": "META-002",
+          "title": "NDF 图边与引用",
+          "file": "spec/meta/language.md",
+          "line": 56,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+          "bytes": 1150,
+          "edges": {
+            "depends-on": [
+              "META-001"
+            ]
+          }
+        },
+        {
+          "id": "META-003",
+          "title": "分层与强制语气",
+          "file": "spec/meta/language.md",
+          "line": 81,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 2,
+          "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+          "bytes": 916,
+          "edges": {
+            "depends-on": [
+              "META-001"
+            ]
+          }
+        },
+        {
+          "id": "META-001",
+          "title": "NDF 条款书写与元数据",
+          "file": "spec/meta/language.md",
+          "line": 11,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 2,
+          "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+          "bytes": 2288,
+          "edges": {
+            "depends-on": [
+              "ADR-META-002"
+            ]
+          }
+        },
+        {
+          "id": "ADR-META-002",
+          "title": "ADR: Meta 条款独立编号命名空间",
+          "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+          "line": 1,
+          "kind": "decision",
+          "level": "",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 3,
+          "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+          "bytes": 2397,
+          "edges": {
+            "depends-on": [
+              "ADR-META-001"
+            ]
+          }
+        },
+        {
+          "id": "ADR-META-001",
+          "title": "ADR: NDF 元规范与产品契约分层",
+          "file": "spec/meta/decisions/adr-meta-layer-split.md",
+          "line": 1,
+          "kind": "",
+          "level": "",
+          "status": "",
+          "scope": null,
+          "trunk_ref": null,
+          "hop": 4,
+          "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+          "bytes": 1859,
+          "edges": {}
+        }
+      ],
+      "missing_seeds": [],
+      "truncated": [],
+      "blockers": []
+    },
+    "implementation_surface": [],
+    "ledger_joins": [],
+    "baseline": {
+      "path": null,
+      "baseline_status": "n/a",
+      "bind": {},
+      "bind_sha": null
+    },
+    "human_gates": {
+      "path": null,
+      "path_sha": null,
+      "receipts": []
+    },
+    "evidence_refs": [],
+    "trunk_ref_joins": [],
+    "conflicts": [],
+    "role_policies": {
+      "canvas": {
+        "allowed_write_roots": [],
+        "forbidden_write_paths": [
+          "*"
+        ],
+        "summary_only": true,
+        "allowed_sections": [],
+        "forbidden_sections": [],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "human": {
+        "allowed_write_roots": [],
+        "forbidden_write_paths": [
+          "*"
+        ],
+        "summary_only": true,
+        "allowed_sections": [],
+        "forbidden_sections": [],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "openclaw": {
+        "allowed_write_roots": [
+          "spec/open/",
+          "spec/meta/open/"
+        ],
+        "forbidden_write_paths": [
+          "src/",
+          "include/",
+          "tests/",
+          "spec/meta/process.md"
+        ],
+        "summary_only": false,
+        "allowed_sections": [],
+        "forbidden_sections": [],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "claude-code": {
+        "allowed_write_roots": [],
+        "forbidden_write_paths": [
+          "spec/meta/",
+          "spec/00-charter/",
+          "spec/10-architecture/",
+          "src/",
+          "include/",
+          "tests/"
+        ],
+        "summary_only": false,
+        "allowed_sections": [
+          "poc_code",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits_append",
+          "topic_runtime_headers"
+        ],
+        "forbidden_sections": [
+          "topic_contract",
+          "design_contract",
+          "perf_bind",
+          "delta_hypothesis",
+          "interface_contract",
+          "gate_receipts"
+        ],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "project-control": {
+        "allowed_write_roots": [
+          "spec/meta/open/"
+        ],
+        "forbidden_write_paths": [
+          "src/",
+          "include/",
+          "tests/",
+          "spec/00-charter/",
+          "spec/20-behavior/"
+        ],
+        "summary_only": false,
+        "allowed_sections": [],
+        "forbidden_sections": [],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      }
+    },
+    "compiler_derivation": {
+      "schema": "ndf-context-compiler-derivation/v1",
+      "compiler_id": "ndf-context-compiler/v1",
+      "compiler_sha": "446149064aaf7c355af72854f45458f7e6bea4ac13fdd850c25b4e5ba6192c2c",
+      "policy_sha": "ac00e1e4fb946e04ffb1201026edb64302f6e7f2339dc7a4280c6312bbf42698",
+      "input_sha": "e6fa935a7d9e99492597aafab9455dd6f17b22c756f854d576e8b17611c5ebd1",
+      "derived_sha": "f77313436ae2ea551aaaec0ef2769c5bfe5a81ff74d71e08932b463c6c60a9e9"
+    },
+    "manifest_sha": "6cff56313a8300221a5dba594c2d80318f45463fb500d7f86b204233ca8b96f8"
+  },
+  "manifest_sha": "6cff56313a8300221a5dba594c2d80318f45463fb500d7f86b204233ca8b96f8",
+  "context_plan": {
+    "schema": "ndf-context-plan/openclaw/v1",
+    "manifest_sha": "6cff56313a8300221a5dba594c2d80318f45463fb500d7f86b204233ca8b96f8",
+    "workspace": {
+      "repo_root": "/home/huawei/hnsw-predictor-ndf",
+      "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+      "topic": null
+    },
+    "role": "openclaw",
+    "task": "control_proposal",
+    "track": "poc",
+    "topic": null,
+    "control": null,
+    "source_generation_sha": "911a4547d67d0e0a0322e62b9cddcd66b749538f21424025aebf63f524c6173d",
+    "ordered_reads": [],
+    "seed_ids": [
+      "META-011",
+      "META-012"
+    ],
+    "seed_sources": {
+      "topic": [],
+      "proposals": [],
+      "commits": [],
+      "task_defaults": [
+        "META-011",
+        "META-012"
+      ],
+      "explicit": []
+    },
+    "graph": {
+      "relations": [
+        "depends-on",
+        "refines"
+      ],
+      "direction": "upstream; verifies also reverse",
+      "depth": 8,
+      "node_budget": 240,
+      "byte_budget": 1048576,
+      "bytes_used": 35442,
+      "nodes": [
+        {
+          "id": "META-011",
+          "title": "Workflow 投影与 Claude Code 委派",
+          "file": "spec/meta/process.md",
+          "line": 255,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 0,
+          "clause_sha": "705b433ce41cf1f24e062db3e225a25f1e184927d8c845f233383bdb05741a8d",
+          "bytes": 17355,
+          "edges": {
+            "depends-on": [
+              "META-008",
+              "META-010"
+            ]
+          }
+        },
+        {
+          "id": "META-012",
+          "title": "NDF 任务上下文与证据绑定",
+          "file": "spec/meta/process.md",
+          "line": 563,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 0,
+          "clause_sha": "8244024586e895c7258f8337fc8bdbaa497aba2f5c86b006a5f8570678399bf7",
+          "bytes": 4609,
+          "edges": {
+            "depends-on": [
+              "META-002",
+              "META-008",
+              "META-010",
+              "META-011"
+            ]
+          }
+        },
+        {
+          "id": "META-008",
+          "title": "NDF 工作空间视角",
+          "file": "spec/meta/language.md",
+          "line": 111,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+          "bytes": 1644,
+          "edges": {
+            "depends-on": [
+              "META-002",
+              "META-003"
+            ]
+          }
+        },
+        {
+          "id": "META-010",
+          "title": "人工门禁回执",
+          "file": "spec/meta/process.md",
+          "line": 188,
+          "kind": "req",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "02a85c6a667f81837c3c3c0edec85a8c06ea87467a1c3f8d3e2abb3cb9f9e23e",
+          "bytes": 3224,
+          "edges": {
+            "depends-on": [
+              "META-001",
+              "META-008"
+            ]
+          }
+        },
+        {
+          "id": "META-002",
+          "title": "NDF 图边与引用",
+          "file": "spec/meta/language.md",
+          "line": 56,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 1,
+          "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+          "bytes": 1150,
+          "edges": {
+            "depends-on": [
+              "META-001"
+            ]
+          }
+        },
+        {
+          "id": "META-003",
+          "title": "分层与强制语气",
+          "file": "spec/meta/language.md",
+          "line": 81,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 2,
+          "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+          "bytes": 916,
+          "edges": {
+            "depends-on": [
+              "META-001"
+            ]
+          }
+        },
+        {
+          "id": "META-001",
+          "title": "NDF 条款书写与元数据",
+          "file": "spec/meta/language.md",
+          "line": 11,
+          "kind": "def",
+          "level": "must",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 2,
+          "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+          "bytes": 2288,
+          "edges": {
+            "depends-on": [
+              "ADR-META-002"
+            ]
+          }
+        },
+        {
+          "id": "ADR-META-002",
+          "title": "ADR: Meta 条款独立编号命名空间",
+          "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+          "line": 1,
+          "kind": "decision",
+          "level": "",
+          "status": "stable",
+          "scope": "ndf-process",
+          "trunk_ref": null,
+          "hop": 3,
+          "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+          "bytes": 2397,
+          "edges": {
+            "depends-on": [
+              "ADR-META-001"
+            ]
+          }
+        },
+        {
+          "id": "ADR-META-001",
+          "title": "ADR: NDF 元规范与产品契约分层",
+          "file": "spec/meta/decisions/adr-meta-layer-split.md",
+          "line": 1,
+          "kind": "",
+          "level": "",
+          "status": "",
+          "scope": null,
+          "trunk_ref": null,
+          "hop": 4,
+          "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+          "bytes": 1859,
+          "edges": {}
+        }
+      ],
+      "missing_seeds": [],
+      "truncated": [],
+      "blockers": []
+    },
+    "implementation_surface": [],
+    "ledger_joins": [],
+    "baseline": {
+      "path": null,
+      "baseline_status": "n/a",
+      "bind": {},
+      "bind_sha": null
+    },
+    "gates": {
+      "path": null,
+      "path_sha": null,
+      "receipts": []
+    },
+    "evidence_refs": [],
+    "trunk_ref_joins": [],
+    "privileges": {
+      "allowed_write_roots": [
+        "spec/open/",
+        "spec/meta/open/"
+      ],
+      "forbidden_write_paths": [
+        "src/",
+        "include/",
+        "tests/",
+        "spec/meta/process.md"
+      ],
+      "summary_only": false,
+      "allowed_sections": [],
+      "forbidden_sections": [],
+      "mutable_sections": [
+        "topic_runtime_headers",
+        "perf_numbers",
+        "delta_rounds",
+        "evidence",
+        "commits",
+        "gates"
+      ]
+    },
+    "human_phrase": null,
+    "plan_sha": "3dd8fd41ef63a5e9c58005bb799addbca3b86595323df02b925a75e8c378ba78"
+  },
+  "context_verify": {
+    "schema": "ndf-context-verification/v1",
+    "valid": true,
+    "plan_sha": "3dd8fd41ef63a5e9c58005bb799addbca3b86595323df02b925a75e8c378ba78",
+    "manifest_sha": "6cff56313a8300221a5dba594c2d80318f45463fb500d7f86b204233ca8b96f8",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "errors": [],
+    "warnings": []
+  },
+  "plan_sha": "3dd8fd41ef63a5e9c58005bb799addbca3b86595323df02b925a75e8c378ba78",
+  "blockers": [],
+  "replay": {
+    "episode_id": "ep-control-proposal-20260818T140440Z",
+    "pack_blob_sha": "e9d75b22f47fe855e2703bed4d2fa7d80a6ceef7af9f1785705c22fc365a3884",
+    "event_sha": "30694c9d985280035bedeb140440794ef49538cab8bc499153e016995a26a6b3",
+    "coverage": "preflight"
+  }
+}

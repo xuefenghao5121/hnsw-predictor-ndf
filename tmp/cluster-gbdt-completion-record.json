@@ -1,0 +1,10 @@
+{
+  "schema": "ndf-agent-completion-verification/v1",
+  "valid": true,
+  "episode_id": "ep-repair-poc-measurement-cluster-gbdt-20260814T083515Z",
+  "coverage": "completion_only",
+  "blob_sha": "077fe19f5878cc7f5b252b358bc19cef981af8714385fc78c8890527fa20114d",
+  "event_sha": "f022a6d94f357d02e2e2db8e5420121d0e47d81ca18e00730835ebaade9c39c1",
+  "commit_sha": "9bff512c1aef3b47862426b8f76aa3f066d2e63af88e994292365e660650e7e6",
+  "write_violations": []
+}

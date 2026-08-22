@@ -1,0 +1,23 @@
+{
+  "actor": "composer",
+  "blockers": [],
+  "command": "python3 spec/meta/tools/ndf_graphcheck.py --report tmp/graphcheck-after-close-page-packer.md",
+  "context_plan_sha": null,
+  "evidence_paths": [
+    "tmp/graphcheck-after-close-page-packer.md"
+  ],
+  "finished_at": "2026-08-18T08:04:20.140311+00:00",
+  "input_sha": "d80892c6e7748f6bf3093703793c861e0684aa7c1be098873f6db2e40478ff11",
+  "manifest_sha": "03ba874f31ce572df8c11b4aa41a8ea126deb81e860f940b39e326aad523c8a2",
+  "mode": "reject",
+  "notes": "index+graphcheck after reject finalize. hard_errors=0; warnings=15 unlinked (pre-existing). DEC-100 indexed. integrate N/A trunk_src_writes=none.",
+  "output_sha": "1ee3741497c583cbebc3083b06b42cb0745c0c4f5c97acdf7e2caa33c3108209",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-close-evidence/v1",
+  "source_generation_sha": "d39f3a1341e92d16072079a5552c6d3023f879abb10d16dcb9828549c94ff0a3",
+  "started_at": "2026-08-18T08:04:20.140311+00:00",
+  "step": "graph",
+  "task": "close",
+  "topic": "page-packer"
+}

@@ -1,0 +1,14 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "request_id": "4707d248-cbb3-4876-a007-0d74a10ce3a2",
+  "pipeline": "binder",
+  "topic": "cluster-gbdt",
+  "task": "binder_amend",
+  "track": "poc",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "5f61c5c2cf5c428f325043cc609c1f4636550110423ad7cd34b6e9b8fbfe7669",
+  "context_plan_sha": "ec26c9543a6ea49761ae30007edee9efbdc6fa5cb23c5f241351ed52ec9987e0",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "4707d248-cbb3-4876-a007-0d74a10ce3a2",
+  "message": "Binder.amend complete for topic facet. changed_files=['poc/cluster-gbdt/ndf/TOPIC.md'] changed_sections=['topic_runtime_headers'] added `> selected_decision: reject` (runtime header, outside topic_contract). Contract slice sha unchanged 0062d705ccf241ff7b0a700188fce2d6dc1a90dd0c7075b0478ded16cc100d91. status/active_hypothesis/open_decision untouched. MCP chat_send timed out after the file write; reply recovered from chat_history."
+}

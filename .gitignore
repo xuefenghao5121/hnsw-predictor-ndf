@@ -10,24 +10,26 @@ output/
 output2/
 
 # 日志
-logs/
+# logs/
 
 # POC文档
-poc/
+# poc/
 
 # spec文档 NDF迭代记录
-spec/
+# spec/
 
 # AI 工具相关
-.claude/
-.openclaw/
-.cursor/
-skills/
-AGENTS.md
-MEMORY.md
-tmp/
-packages/
-bento/
+# .claude/
+# .openclaw/
+# .cursor/
+# skills/
+# AGENTS.md
+# MEMORY.md
+# tmp/
+# .ndf/replay/
+# packages/
+spec/meta/cockpit/node_modules/
+spec/meta/cockpit/dist/
 
 # 目标文件
 *.o
