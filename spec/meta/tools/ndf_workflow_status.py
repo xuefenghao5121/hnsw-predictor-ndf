@@ -11971,14 +11971,21 @@ def find_runtime_lease_for_completion(
             if str(lease.get("topic") or "") != comp_topic:
                 continue
             lease_wt = str(lease.get("worktree") or "").strip()
-            if comp_wt and lease_wt:
-                try:
-                    if Path(comp_wt).resolve() != Path(lease_wt).resolve():
-                        continue
-                except OSError:
-                    continue
             lease_sid = str(lease.get("session_id") or "").strip()
             if comp_sid and lease_sid and comp_sid != lease_sid:
+                continue
+            if comp_wt and lease_wt:
+                try:
+                    comp_resolved = Path(comp_wt).resolve()
+                    lease_resolved = Path(lease_wt).resolve()
+                except OSError:
+                    continue
+                if comp_resolved == lease_resolved:
+                    return lease
+                # Worker may fall back to main repo when lease worktree lacks
+                # gitignored deps; still bind to the active topic lease.
+                if comp_resolved == ROOT.resolve():
+                    return lease
                 continue
             return lease
     return None
@@ -12071,6 +12078,7 @@ def record_agent_completion(
         errors.append("stale:base_sha")
     completion_root = ROOT
     matching_lease: dict[str, Any] | None = None
+    main_repo_fallback = False
     if role == "claude-code":
         try:
             leases = read_leases(LEASE_LOG, root=ROOT, strict=False)
@@ -12085,11 +12093,20 @@ def record_agent_completion(
         if matching_lease is None or matching_lease.get("result") != "active":
             errors.append("missing:active_runtime_lease")
         else:
-            completion_root = Path(str(matching_lease.get("worktree"))).resolve()
-            if Path(str(completion.get("worktree") or "")).resolve() != completion_root:
-                errors.append("mismatch:worktree")
-            if completion.get("branch") != matching_lease.get("branch"):
-                errors.append("mismatch:branch")
+            lease_wt = Path(str(matching_lease.get("worktree"))).resolve()
+            claimed_wt = Path(str(completion.get("worktree") or "")).resolve()
+            main_repo_fallback = (
+                claimed_wt == ROOT.resolve() and claimed_wt != lease_wt
+            )
+            if main_repo_fallback:
+                # Evidence and mayWrite landed on the commander tree.
+                completion_root = claimed_wt
+            else:
+                completion_root = lease_wt
+                if claimed_wt != completion_root:
+                    errors.append("mismatch:worktree")
+                if completion.get("branch") != matching_lease.get("branch"):
+                    errors.append("mismatch:branch")
             lease_task = str(matching_lease.get("task") or "")
             comp_task = str(completion.get("task") or "")
             implementation_on_prep_lease = (
@@ -12219,7 +12236,11 @@ def record_agent_completion(
             or changed_file_shas.get(changed_path) != file_sha(target)
         ):
             errors.append(f"changed_file_drift:{changed_path}")
-    if role == "claude-code" and matching_lease is not None:
+    if (
+        role == "claude-code"
+        and matching_lease is not None
+        and not main_repo_fallback
+    ):
         try:
             completion_snapshot = git_mutation_snapshot(completion_root)
             acquisition_snapshot = matching_lease.get("binding_proof", {}).get(

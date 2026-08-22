@@ -47,4 +47,5 @@ PERF Numbers（比较/决策 SoT）或原始 evidence（审计/复现证据）�
 
 | round | date | bind unchanged? | feature notes | hotspot notes | conclusion |
 |-------|------|-----------------|---------------|---------------|------------|
-| R0 | pending | yes | not run | not run | pending |
+| R0 | 2026-08-22 | yes | baseline (Trunk, no D1): pqDistance scalar 4-way | agg QPS=2221.4 steady(R15)=2679.3 recall=96.59% RSS=332MB | **baseline measured** |
+| R1 | 2026-08-22 | yes | D1 SIMD pqAdcDistance (AVX2 gather 8-lane) in poc src | agg QPS=2280.5 steady(R15)=2733.9 recall=96.59% RSS=332MB; vs R0 **+2.66% agg / +2.04% steady**, recall unchanged | **D1 positive: QPS +2.66%, recall unchanged ✅** |
