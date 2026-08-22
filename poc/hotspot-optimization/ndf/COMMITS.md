@@ -6,7 +6,6 @@ Ledger skeleton ([[DEF-023]]). Append when this topic's code or measure scripts 
 |------|-------------|------------|-----------|---------|----------|------|
 | 2026-08-20 | 4f7a4b5adc1aabb4c4e48ef77af774b168cb1e16 | 4f7a4b5adc1aabb4c4e48ef77af774b168cb1e16 | spec/open/proposal-poc-hotspot-optimization.md | META-007 META-011 BEH-018 | none (baseline copy only) | `poc-prepare-baseline`: Trunk对照拷贝入 `src/`（disk_hnsw + simd*）；无 D1 改动、无 Numbers |
 | 2026-08-18 | — (withdrawn) | — | spec/open/proposal-poc-hotspot-optimization.md | CHR-006 (recall unchanged) | none (no valid Numbers) | D1 AVX2 gather **WITHDRAWN** — Cursor self-execute, unbound writes; code ledger empty (src/ Makefile build/ removed). equiv 20000/20000 NOT treated as Numbers |
-| 2026-08-21 | f7901cc18dd5ac707303b656a6a284918821f13c (measured) | f7901cc18dd5ac707303b656a6a284918821f13c | spec/open/proposal-poc-hotspot-optimization.md | CON-SLA-014 CON-SLA-019 CON-SLA-020 META-007 | CON-SLA-020 sustained | R0 baseline measured under ACP lease `ep-93fcfbef-fce3-4d37-8f7e-eabc349cc4ac`: agg QPS=2221.4 steady(R15)=2679.3 recall@10=96.59% RSS=332MB; evidence `ndf/evidence/r0-measurement-20260821.md` |
 
 ## 说明
 
