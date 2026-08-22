@@ -229,8 +229,10 @@ Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。
 gateway `health` 可达 ≠ session 可派发：配置 key 须在 `openclaw sessions` 中可匹配（或本身为 UUID）。
 `dispatch-send` 对 routing key 走 gateway `sessionKey`；非法/缺失才
 `openclaw_session_invalid` fail-closed。面板只读诊断，MUST NOT 用 Canvas 改本行。
-OpenClaw 等待用心跳续等（`NDF_OPENCLAW_PING_SEC` / `STALL_SEC` / `MAX_SEC`），
-有会话进展就继续等，勿把长 hop 当固定 15 分钟超时杀掉。
+OpenClaw 与 Claude Code ACP 等待都用心跳续等（`NDF_OPENCLAW_*` / `NDF_ACP_PING_SEC` /
+`STALL_SEC` / `MAX_SEC`），有会话或磁盘回执进展就继续等，勿把长 hop 当固定墙钟杀掉。
+在途 hop 本聊天「进展如何」→ `dispatch-probe`（探活，不再派发）。「派发」/「继续」
+只确认发出 ready pack。`action-commit` 仅 succeeded 任务可跑。
 
 **宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读

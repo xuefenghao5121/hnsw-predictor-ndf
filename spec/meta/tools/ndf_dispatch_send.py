@@ -5,7 +5,8 @@ Command Agent builds pack JSON, waits for human 「派发」, then runs this mod
   1. sends when safe_to_dispatch (or lease-only prepare)
   2. waits for worker stdout notify (ndf-dispatch-notify/v1)
   3. reads pack.completion_receipt_path from disk
-  4. records that disk completion → action-commit → action-finish → snapshot
+  4. records disk completion → action-commit only if succeeded →
+     action-finish → write last.json → snapshot
 
 stdout completion JSON and transport acknowledgement MUST NOT count as
 validated success. Must not rely on Cursor afterShellExecution to auto-send.
@@ -30,6 +31,82 @@ DEFAULT_TIMEOUT_SEC = 900
 DEFAULT_OPENCLAW_PING_SEC = 60
 DEFAULT_OPENCLAW_STALL_SEC = 900
 DEFAULT_OPENCLAW_MAX_SEC = 14400
+DEFAULT_ACP_PING_SEC = 60
+DEFAULT_ACP_STALL_SEC = 900
+DEFAULT_ACP_MAX_SEC = 14400
+LEASE_STUB_SUMMARIES = frozenset({"lease_only_no_implementation_start"})
+
+
+def _is_lease_stub_summary(summary: str) -> bool:
+    text = str(summary or "").strip()
+    return text in LEASE_STUB_SUMMARIES or text.endswith("_no_implementation_start")
+
+
+def _verify_lease_only_outcome(
+    pack: Mapping[str, Any],
+    send_result: Mapping[str, Any],
+) -> tuple[bool, list[str], str]:
+    """Fail closed unless an active isolated lease row exists for this pack."""
+    import ndf_workflow_status as workflow
+
+    blockers: list[str] = []
+    run_id = str(send_result.get("run_id") or "").strip()
+    worktree = str(send_result.get("worktree") or "").strip()
+    topic = str(pack.get("topic") or "").strip()
+    episode_id = str(pack.get("episode_id") or "").strip()
+    base_sha = str(pack.get("base_sha") or "").strip()
+    summary = str(send_result.get("response_text") or "")
+
+    if _is_lease_stub_summary(summary):
+        blockers.append("lease_stub_summary")
+    if not run_id:
+        blockers.append("missing_lease_run_id")
+    if not worktree:
+        blockers.append("missing_lease_worktree")
+    lease = workflow.topic_active_lease(topic) if topic else None
+    if not lease:
+        blockers.append("missing:active_runtime_lease")
+    else:
+        if run_id and str(lease.get("run_id") or "") != run_id:
+            blockers.append("lease_run_id_mismatch")
+        if worktree and str(lease.get("worktree") or "") != worktree:
+            blockers.append("lease_worktree_mismatch")
+        if episode_id and str(lease.get("episode_id") or "") != episode_id:
+            blockers.append("lease_episode_mismatch")
+        if base_sha and str(lease.get("base_sha") or "") != base_sha:
+            blockers.append("lease_base_sha_mismatch")
+        if str(lease.get("result") or "") != "active":
+            blockers.append("lease_not_active")
+    ok = not blockers
+    out_summary = (
+        summary if ok else ("lease_verification_failed:" + ",".join(blockers[:6]))
+    )[:240]
+    return ok, blockers, out_summary
+
+
+def _verify_lease_only_artifact(pack: Mapping[str, Any]) -> tuple[bool, list[str]]:
+    """Closeout gate: active lease row must exist on disk for this pack."""
+    import ndf_workflow_status as workflow
+
+    blockers: list[str] = []
+    topic = str(pack.get("topic") or "").strip()
+    episode_id = str(pack.get("episode_id") or "").strip()
+    base_sha = str(pack.get("base_sha") or "").strip()
+    lease = workflow.topic_active_lease(topic) if topic else None
+    if not lease:
+        blockers.append("missing:active_runtime_lease")
+    else:
+        if episode_id and str(lease.get("episode_id") or "") != episode_id:
+            blockers.append("lease_episode_mismatch")
+        if base_sha and str(lease.get("base_sha") or "") != base_sha:
+            blockers.append("lease_base_sha_mismatch")
+        if str(lease.get("result") or "") != "active":
+            blockers.append("lease_not_active")
+        if not str(lease.get("worktree") or "").strip():
+            blockers.append("missing_lease_worktree")
+        if not str(lease.get("run_id") or "").strip():
+            blockers.append("missing_lease_run_id")
+    return not blockers, blockers
 
 
 def _write_last(payload: Mapping[str, Any]) -> None:
@@ -225,11 +302,21 @@ def _build_worker_message(pack: Mapping[str, Any]) -> str:
         "Host sudo is passwordless.",
     ]
     if provider == "claude-code-acp":
-        lines.append(
-            "ACP: first lease-record (or continue the active lease for this attempt). "
+        lines.extend([
+            "ACP steps (strict order):",
+            "1) lease-record — isolated worktree under repo_root, same run_id/session_id/episode_id;",
+            "2) implement only under allowed_write_root;",
+            "3) run post_checks (ndf_poc_isolation.py, ndf_perf_baseline.py as required);",
+            "4) write full disk receipt to completion_receipt_path;",
+            "5) stdout ONLY ndf-dispatch-notify/v1.",
             "Disk receipt MUST include worktree, branch, run_id, session_id "
-            "(session_id MUST equal this resume id). Dispatcher will not invent them."
-        )
+            "(session_id MUST equal this resume id).",
+            "If COMMITS.md or ndf/evidence/* changed: changed_sections[] required "
+            "(e.g. commits_append, evidence).",
+            "post_check_receipts MUST be an array of objects with command, result, verifier "
+            "(see tmp/cluster-gbdt-completion.json). MUST NOT use a summary object.",
+            "evidence_bundle_sha MUST match evidence_paths hashed at completion worktree root.",
+        ])
     lines.extend([
         "BEGIN NDF_PACK_JSON",
         json.dumps(pack, ensure_ascii=False, sort_keys=True, default=str),
@@ -488,12 +575,10 @@ def _task_outcome_from_transport(
         err = str(send_result.get("error") or send_result.get("state") or "transport_failed")
         return "failed", [err], err, None
     if lease_only:
-        return (
-            "succeeded",
-            [],
-            str(text or "lease_only_no_implementation_start")[:240],
-            None,
-        )
+        ok, blockers, summary = _verify_lease_only_outcome(pack, send_result)
+        if ok:
+            return "succeeded", [], summary, None
+        return "failed", blockers, summary, None
     notify, parse_errors = extract_dispatch_notify(
         text if isinstance(text, str) else None
     )
@@ -587,6 +672,13 @@ def _already_sent(pack_sha: str, request_id: str | None) -> dict[str, Any] | Non
     }:
         if request_id and prior.get("request_id") and prior.get("request_id") != request_id:
             return None
+        send = prior.get("send")
+        lease_hop = isinstance(send, Mapping) and send.get("lease_only")
+        if prior.get("state") == "succeeded" and (
+            _is_lease_stub_summary(str(prior.get("result_summary") or ""))
+            or (lease_hop and not str(prior.get("run_id") or send.get("run_id") or "").strip())
+        ):
+            return None
         return {**prior, "idempotent": True}
     return None
 
@@ -616,6 +708,20 @@ def _openclaw_wait_budgets(
     max_sec = float(
         os.environ.get("NDF_OPENCLAW_MAX_SEC")
         or max(DEFAULT_OPENCLAW_MAX_SEC, legacy)
+    )
+    ping = max(5.0, ping)
+    stall = max(ping, stall)
+    max_sec = max(stall, max_sec)
+    return ping, stall, max_sec
+
+
+def _acp_wait_budgets(timeout_sec: int | None = None) -> tuple[float, float, float]:
+    """Return (ping_sec, stall_sec, max_sec) for ACP heartbeat wait."""
+    ping = float(os.environ.get("NDF_ACP_PING_SEC") or DEFAULT_ACP_PING_SEC)
+    stall = float(os.environ.get("NDF_ACP_STALL_SEC") or DEFAULT_ACP_STALL_SEC)
+    legacy = float(timeout_sec or DEFAULT_TIMEOUT_SEC)
+    max_sec = float(
+        os.environ.get("NDF_ACP_MAX_SEC") or max(DEFAULT_ACP_MAX_SEC, legacy)
     )
     ping = max(5.0, ping)
     stall = max(ping, stall)
@@ -702,13 +808,30 @@ def _disk_completion_present(pack: Mapping[str, Any]) -> bool:
     return isinstance(data, dict) and data.get("schema") == "ndf-agent-completion/v1"
 
 
-def _write_openclaw_heartbeat(
+def _acp_resume_signature(session_id: str | None) -> tuple[Any, Any]:
+    if not session_id:
+        return (None, None)
+    try:
+        import ndf_workflow_status as workflow
+
+        path = workflow.claude_acp_resume_path(session_id)
+        if not path.is_file():
+            return (None, None)
+        stat = path.stat()
+        return (stat.st_mtime_ns, stat.st_size)
+    except Exception:
+        return (None, None)
+
+
+def _write_heartbeat(
     *,
     pack_sha: str,
     request_id: str,
     provider: str,
     started_at: float,
     heartbeat: Mapping[str, Any],
+    key: str,
+    summary: str,
 ) -> None:
     prior: dict[str, Any] = {}
     if DISPATCH_LAST.is_file():
@@ -723,16 +846,35 @@ def _write_openclaw_heartbeat(
         "schema": "ndf-dispatch-send/v1",
         "state": "sent",
         "dispatch_state": "awaiting_result",
-        "delegate_to": provider or prior.get("delegate_to") or "openclaw",
+        "delegate_to": provider or prior.get("delegate_to") or "claude-code-acp",
         "pack_sha": pack_sha or prior.get("pack_sha"),
         "request_id": request_id or prior.get("request_id"),
         "sent": True,
         "started_at": started_at or prior.get("started_at"),
-        "result_summary": "已发出，心跳等待 OpenClaw",
-        "openclaw_heartbeat": dict(heartbeat),
+        "result_summary": summary,
+        key: dict(heartbeat),
         "heartbeat_at": time.time(),
     }
     _write_last(payload)
+
+
+def _write_openclaw_heartbeat(
+    *,
+    pack_sha: str,
+    request_id: str,
+    provider: str,
+    started_at: float,
+    heartbeat: Mapping[str, Any],
+) -> None:
+    _write_heartbeat(
+        pack_sha=pack_sha,
+        request_id=request_id,
+        provider=provider,
+        started_at=started_at,
+        heartbeat=heartbeat,
+        key="openclaw_heartbeat",
+        summary="已发出，心跳等待 OpenClaw",
+    )
 
 
 def _send_openclaw(
@@ -1069,6 +1211,154 @@ def _acp_argv(
     return cmd
 
 
+def _prepare_isolated_lease(
+    pack: Mapping[str, Any],
+    *,
+    session_id: str,
+) -> dict[str, Any]:
+    """Create an isolated worktree and record the runtime lease. No implementation."""
+    from types import SimpleNamespace
+
+    import ndf_workflow_status as workflow
+
+    topic = str(pack.get("topic") or "").strip()
+    episode_id = str(pack.get("episode_id") or "").strip()
+    base_sha = str(pack.get("base_sha") or "").strip()
+    allowed = str(pack.get("allowed_write_root") or "").strip()
+    repo_root = Path(str((pack.get("workspace") or {}).get("repo_root") or ROOT))
+    missing = [
+        name
+        for name, value in (
+            ("topic", topic),
+            ("episode_id", episode_id),
+            ("base_sha", base_sha),
+            ("allowed_write_root", allowed),
+        )
+        if not value
+    ]
+    if missing:
+        return {
+            "ok": False,
+            "transport_ok": False,
+            "state": "failed",
+            "error": "lease_pack_incomplete:" + ",".join(missing),
+            "session_id": session_id,
+            "response_text": None,
+        }
+    command_branch = subprocess.check_output(
+        ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+        text=True,
+        stderr=subprocess.DEVNULL,
+    ).strip()
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    branch = f"poc/{topic}-lease-{stamp}"
+    worktree = repo_root / ".worktrees" / f"{topic}-lease-{stamp}"
+    run_id = f"run-lease-prep-{topic}-{stamp}"
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    added = False
+    try:
+        proc = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo_root),
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                branch,
+                str(worktree),
+                base_sha,
+            ],
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if proc.returncode != 0:
+            return {
+                "ok": False,
+                "transport_ok": False,
+                "state": "failed",
+                "error": f"worktree_add_failed:{(proc.stderr or proc.stdout or '').strip()[:240]}",
+                "session_id": session_id,
+                "response_text": None,
+            }
+        added = True
+        after = subprocess.check_output(
+            ["git", "-C", str(repo_root), "rev-parse", "--abbrev-ref", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        if after != command_branch:
+            raise RuntimeError(f"command_branch_replaced:{after}")
+        args = SimpleNamespace(
+            file=None,
+            task=str(pack.get("task") or "poc_implementation"),
+            topic=topic,
+            mode=str(pack.get("track") or "poc"),
+            step="start",
+            run_id=run_id,
+            session_id=session_id,
+            base_sha=base_sha,
+            worktree=str(worktree),
+            branch=branch,
+            allowed_write_root=allowed,
+            result="active",
+            command_text="runtime lease",
+            started_at=None,
+            evidence_path=[],
+            blocker=[],
+            episode=episode_id,
+            action_id=str(pack.get("action_id") or pack.get("attempt_id") or "") or None,
+        )
+        lease = workflow.record_runtime_lease(args)
+        return {
+            "ok": True,
+            "transport_ok": True,
+            "state": "succeeded",
+            "lease_only": True,
+            "session_id": session_id,
+            "run_id": run_id,
+            "worktree": str(worktree),
+            "branch": branch,
+            "episode_id": episode_id,
+            "action_id": args.action_id,
+            "lease_result": lease.get("result"),
+            "response_text": "lease_recorded_no_implementation_start",
+        }
+    except Exception as exc:  # noqa: BLE001 — lease-prep must fail closed
+        if added:
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo_root),
+                    "worktree",
+                    "remove",
+                    "--force",
+                    str(worktree),
+                ],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo_root), "branch", "-D", branch],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        return {
+            "ok": False,
+            "transport_ok": False,
+            "state": "failed",
+            "error": f"lease_record_failed:{type(exc).__name__}:{exc}",
+            "session_id": session_id,
+            "response_text": None,
+        }
+
+
 def _send_acp(
     pack: Mapping[str, Any],
     *,
@@ -1094,15 +1384,7 @@ def _send_acp(
             "response_text": None,
         }
     if lease_only:
-        # Lease prepare: do not start implementation; record a dry handshake stub.
-        return {
-            "ok": True,
-            "transport_ok": True,
-            "state": "succeeded",
-            "lease_only": True,
-            "session_id": session_id,
-            "response_text": "lease_only_no_implementation_start",
-        }
+        return _prepare_isolated_lease(pack, session_id=session_id)
     cmd = _acp_argv(pack, session_id=session_id, message=message)
     if not cmd:
         return {
@@ -1112,26 +1394,40 @@ def _send_acp(
             "error": "claude_cli_missing",
             "response_text": None,
         }
+    return _wait_acp_with_heartbeat(
+        pack,
+        cmd=cmd,
+        session_id=session_id,
+        timeout_sec=timeout_sec,
+    )
+
+
+def _wait_acp_with_heartbeat(
+    pack: Mapping[str, Any],
+    *,
+    cmd: list[str],
+    session_id: str,
+    timeout_sec: int,
+) -> dict[str, Any]:
+    """Wait for ACP without a hard wall-clock subprocess timeout."""
+    ping_sec, stall_sec, max_sec = _acp_wait_budgets(timeout_sec)
+    pack_sha = _pack_sha(pack)
+    request_id = str(pack.get("request_id") or f"req-{pack_sha[:16]}")
+    provider = str(pack.get("provider") or "claude-code-acp")
+    started = time.time()
+    hard_deadline = started + max_sec
+    last_progress_at = started
+    last_sig = _acp_resume_signature(session_id)
+    ping_count = 0
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            check=False,
-            timeout=timeout_sec,
-            env={**os.environ, "NDF_PACK_SHA": _pack_sha(pack)},
+            env={**os.environ, "NDF_PACK_SHA": pack_sha},
         )
-    except subprocess.TimeoutExpired as exc:
-        return {
-            "ok": False,
-            "transport_ok": False,
-            "state": "delivery_unknown",
-            "error": "acp_timeout",
-            "detail": str(exc),
-            "response_text": None,
-        }
     except OSError as exc:
         return {
             "ok": False,
@@ -1140,26 +1436,158 @@ def _send_acp(
             "error": "acp_spawn_failed",
             "detail": str(exc),
             "response_text": None,
+            "session_id": session_id,
         }
-    text = proc.stdout or ""
-    if proc.returncode != 0:
+
+    chunks: list[str] = []
+    assert proc.stdout is not None
+    last_ping_at = 0.0
+    try:
+        while True:
+            ready, _, _ = select.select([proc.stdout], [], [], min(ping_sec, 1.0))
+            if ready:
+                line = proc.stdout.readline()
+                if line:
+                    chunks.append(line)
+                    last_progress_at = time.time()
+            rc = proc.poll()
+            now = time.time()
+            text = "".join(chunks)
+            if rc is not None:
+                rest = proc.stdout.read() or ""
+                if rest:
+                    chunks.append(rest)
+                text = "".join(chunks)
+                heartbeat = {
+                    "pings": ping_count,
+                    "elapsed_sec": round(now - started, 1),
+                    "stall_sec": stall_sec,
+                    "max_sec": max_sec,
+                    "session_id": session_id,
+                }
+                if rc != 0:
+                    return {
+                        "ok": False,
+                        "transport_ok": False,
+                        "state": "failed",
+                        "error": "acp_nonzero_exit",
+                        "exit_code": rc,
+                        "session_id": session_id,
+                        "response_text": text[-8000:],
+                        "acp_heartbeat": heartbeat,
+                    }
+                return {
+                    "ok": True,
+                    "transport_ok": True,
+                    "state": "transport_acknowledged",
+                    "exit_code": 0,
+                    "session_id": session_id,
+                    "response_text": text[-8000:],
+                    "acp_heartbeat": {**heartbeat, "finished": "cli_exit"},
+                }
+
+            if now - last_ping_at >= ping_sec:
+                last_ping_at = now
+                ping_count += 1
+                sig = _acp_resume_signature(session_id)
+                progressed = sig != last_sig and sig != (None, None)
+                disk_done = _disk_completion_present(pack)
+                notify, _ = extract_dispatch_notify(text if text else None)
+                if progressed:
+                    last_sig = sig
+                    last_progress_at = now
+                if disk_done or notify is not None:
+                    last_progress_at = now
+                heartbeat = {
+                    "pings": ping_count,
+                    "elapsed_sec": round(now - started, 1),
+                    "seconds_since_progress": round(now - last_progress_at, 1),
+                    "stall_sec": stall_sec,
+                    "max_sec": max_sec,
+                    "session_id": session_id,
+                    "progressed": progressed,
+                    "disk_completion_present": disk_done,
+                    "notify_present": notify is not None,
+                }
+                _write_heartbeat(
+                    pack_sha=pack_sha,
+                    request_id=request_id,
+                    provider=provider,
+                    started_at=started,
+                    heartbeat=heartbeat,
+                    key="acp_heartbeat",
+                    summary="已发出，心跳等待 Claude Code ACP",
+                )
+                if disk_done or notify is not None:
+                    if rc is None:
+                        try:
+                            proc.wait(timeout=5)
+                        except Exception:
+                            proc.kill()
+                            try:
+                                proc.wait(timeout=5)
+                            except Exception:
+                                pass
+                        rest = proc.stdout.read() or ""
+                        if rest:
+                            chunks.append(rest)
+                    return {
+                        "ok": True,
+                        "transport_ok": True,
+                        "state": "transport_acknowledged",
+                        "session_id": session_id,
+                        "response_text": "".join(chunks)[-8000:],
+                        "acp_heartbeat": {**heartbeat, "finished": "disk_or_notify"},
+                    }
+                if now - last_progress_at >= stall_sec:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=10)
+                    except Exception:
+                        pass
+                    return {
+                        "ok": False,
+                        "transport_ok": False,
+                        "state": "failed",
+                        "error": "acp_stalled",
+                        "detail": (
+                            f"no resume/disk/stdout progress for {stall_sec:.0f}s "
+                            f"(pings={ping_count})"
+                        ),
+                        "session_id": session_id,
+                        "response_text": "".join(chunks)[-8000:],
+                        "acp_heartbeat": heartbeat,
+                    }
+                if now >= hard_deadline:
+                    proc.kill()
+                    try:
+                        proc.wait(timeout=10)
+                    except Exception:
+                        pass
+                    return {
+                        "ok": False,
+                        "transport_ok": False,
+                        "state": "failed",
+                        "error": "acp_max_exceeded",
+                        "detail": f"absolute max_sec={max_sec:.0f} exceeded",
+                        "session_id": session_id,
+                        "response_text": "".join(chunks)[-8000:],
+                        "acp_heartbeat": heartbeat,
+                    }
+    except Exception as exc:
+        try:
+            proc.kill()
+        except Exception:
+            pass
         return {
             "ok": False,
             "transport_ok": False,
-            "state": "failed",
-            "error": "acp_nonzero_exit",
-            "exit_code": proc.returncode,
+            "state": "delivery_unknown",
+            "error": "acp_heartbeat_error",
+            "detail": str(exc),
             "session_id": session_id,
-            "response_text": text[-8000:],  # notify-sized; disk receipt is authoritative
+            "response_text": "".join(chunks)[-8000:] if chunks else None,
         }
-    return {
-        "ok": True,
-        "transport_ok": True,
-        "state": "transport_acknowledged",
-        "session_id": session_id,
-        "exit_code": 0,
-        "response_text": text[-8000:],  # notify-sized; disk receipt is authoritative
-    }
 
 
 def _closeout(
@@ -1246,7 +1674,32 @@ def _closeout(
     )
     steps["completion"] = {"path": "tmp/ndf-dispatch-completion.json", **completion}
 
-    if action_id and catalog_action_id:
+    lease_only = False
+    if isinstance(pack, Mapping):
+        lease_only = str(pack.get("task") or "") in {"prepare_acp_lease"}
+    if catalog_action_id == "prepare-acp-lease":
+        lease_only = True
+    if result == "succeeded" and lease_only:
+        if _is_lease_stub_summary(result_summary):
+            result = "failed"
+            if "lease_stub_summary" not in blockers:
+                blockers.append("lease_stub_summary")
+            completion["result"] = result
+            completion["blockers"] = blockers
+        elif isinstance(pack, Mapping):
+            ok, lease_blockers = _verify_lease_only_artifact(pack)
+            if not ok:
+                result = "failed"
+                for item in lease_blockers:
+                    if item not in blockers:
+                        blockers.append(item)
+                completion["result"] = result
+                completion["blockers"] = blockers
+    validated = (
+        isinstance(agent_completion, Mapping)
+        and agent_completion.get("schema") == "ndf-agent-completion/v1"
+    )
+    if result == "succeeded" and action_id and catalog_action_id and (lease_only or validated):
         prompt_rel = ndf_actions.action_prompt_relpath(catalog_action_id)
         commit_cmd = [
             "python3",
@@ -1272,6 +1725,16 @@ def _closeout(
             "exit_code": commit.returncode,
             "stdout": (commit.stdout or "")[-4000:],
             "stderr": (commit.stderr or "")[-2000:],
+        }
+    elif action_id and catalog_action_id:
+        steps["action_commit"] = {
+            "skipped": True,
+            "skip_reason": (
+                "dispatch_not_succeeded"
+                if result != "succeeded"
+                else "missing_validated_completion"
+            ),
+            "result": result,
         }
     if action_id:
         finish_result = _finish_result(result, blockers)
@@ -1302,6 +1765,11 @@ def _closeout(
             "exit_code": finish.returncode,
             "stdout": (finish.stdout or "")[-2000:],
         }
+    steps["final_result"] = result
+    return steps
+
+
+def _run_snapshot(pack: Mapping[str, Any] | None) -> dict[str, Any]:
     snap_cmd = [
         "python3",
         "spec/meta/tools/ndf_workflow_status.py",
@@ -1323,24 +1791,11 @@ def _closeout(
         stderr=subprocess.PIPE,
         check=False,
     )
-    steps["snapshot"] = {
+    return {
         "exit_code": snap.returncode,
         "stdout": (snap.stdout or "")[-2000:],
         "stderr": (snap.stderr or "")[-1000:],
     }
-    # Task success + projection failure → distinct state; do not wipe task result.
-    if result == "succeeded" and snap.returncode != 0:
-        result = "succeeded_projection_stale"
-        blockers.append("projection_publish_failed")
-        completion["result"] = result
-        completion["blockers"] = blockers
-        completion_path.write_text(
-            json.dumps(completion, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        steps["completion"] = {"path": "tmp/ndf-dispatch-completion.json", **completion}
-    steps["final_result"] = result
-    return steps
 
 
 def dispatch_send(
@@ -1394,6 +1849,9 @@ def dispatch_send(
             result_summary=payload["result_summary"],
             pack=pack,
         )
+        payload["closeout"] = close
+        _write_last(payload)
+        close["snapshot"] = _run_snapshot(pack)
         payload["closeout"] = close
         _write_last(payload)
         return payload, 1
@@ -1477,7 +1935,9 @@ def dispatch_send(
         payload["run_id"] = run_id
     if send_result.get("session_id"):
         payload["session_id"] = send_result.get("session_id")
-    # Closeout order is fixed: completion → action-commit → snapshot.
+    # Closeout: completion → optional action-commit → action-finish.
+    # Write the final dispatch state before snapshot so the projection is not
+    # stuck on awaiting_result.
     payload["closeout"] = _closeout(
         catalog_action_id=catalog_action_id,
         action_id=action_id,
@@ -1497,7 +1957,112 @@ def dispatch_send(
         )
         task_result = close_final
     _write_last(payload)
+    snap = _run_snapshot(pack)
+    payload["closeout"]["snapshot"] = snap
+    if task_result == "succeeded" and snap.get("exit_code") != 0:
+        task_result = "succeeded_projection_stale"
+        payload["state"] = task_result
+        payload["dispatch_state"] = task_result
+        payload["blockers"] = list(payload.get("blockers") or []) + [
+            "projection_publish_failed"
+        ]
+        payload["closeout"]["final_result"] = task_result
+    _write_last(payload)
     code = 0 if task_result == "succeeded" else 1
+    return payload, code
+
+
+def dispatch_probe(*, probed_by: str = "human_progress") -> tuple[dict[str, Any], int]:
+    """Human 「进展如何」: probe ACP / OpenClaw liveness without a second send."""
+    last: dict[str, Any] = {}
+    if DISPATCH_LAST.is_file():
+        try:
+            loaded = json.loads(DISPATCH_LAST.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                last = loaded
+        except json.JSONDecodeError:
+            last = {}
+    pack: dict[str, Any] | None = None
+    pack_path = ROOT / "tmp" / "ndf-dispatch-last-pack.json"
+    if pack_path.is_file():
+        try:
+            loaded = json.loads(pack_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                pack = loaded
+        except json.JSONDecodeError:
+            pack = None
+    state = str(last.get("dispatch_state") or last.get("state") or "")
+    in_flight = state in {"sent", "awaiting_result", "running"}
+
+    import ndf_workflow_status as workflow
+
+    session_id = workflow.configured_acp_session_id()
+    acp_probe = workflow.probe_claude_acp_light(refresh=True)
+    resume_sig = _acp_resume_signature(session_id)
+    acp = {
+        "session_id": session_id,
+        "alive": bool(acp_probe.get("reachable")),
+        "resume_available": bool(acp_probe.get("resume_available")),
+        "error": acp_probe.get("error"),
+        "resume_signature": list(resume_sig),
+    }
+    oc_key = ""
+    try:
+        oc_key = workflow.openclaw_session_key()
+    except Exception:
+        oc_key = ""
+    oc_row = _openclaw_session_progress(oc_key) if oc_key else None
+    openclaw = {
+        "session_key": oc_key or None,
+        "alive": bool(oc_row and oc_row.get("updatedAt")),
+        "session": oc_row,
+    }
+    disk_done = _disk_completion_present(pack) if pack else False
+    now = time.time()
+    heartbeat = {
+        "probed_by": probed_by,
+        "probed_at": now,
+        "in_flight": in_flight,
+        "disk_completion_present": disk_done,
+        "acp": acp,
+        "openclaw": openclaw,
+    }
+    if in_flight and (acp["alive"] or openclaw["alive"] or disk_done):
+        last["last_progress_at"] = now
+        last["result_summary"] = "在途；人探活：worker 仍可达。回执齐后才会 closeout。"
+    last["acp_heartbeat"] = {**(last.get("acp_heartbeat") or {}), **heartbeat}
+    last["openclaw_heartbeat"] = {**(last.get("openclaw_heartbeat") or {}), **heartbeat}
+    last["probed_by"] = probed_by
+    last["heartbeat_at"] = now
+    if not last.get("schema"):
+        last["schema"] = "ndf-dispatch-send/v1"
+    if not last.get("dispatch_state"):
+        last["dispatch_state"] = state or "not_dispatched"
+    _write_last(last)
+
+    payload = {
+        "schema": "ndf-dispatch-probe/v1",
+        "dispatch_state": last.get("dispatch_state"),
+        "in_flight": in_flight,
+        "disk_completion_present": disk_done,
+        "acp": acp,
+        "openclaw": openclaw,
+        "probed_by": probed_by,
+        "hint": (
+            "回执已齐：可 closeout"
+            if disk_done
+            else (
+                "在途且可达；继续等待，不要对同一 pack 再 dispatch-send"
+                if in_flight and (acp["alive"] or openclaw["alive"])
+                else (
+                    "尚未发出；「继续」才是 dispatch-send"
+                    if not in_flight and state not in {"failed", "succeeded", "blocked"}
+                    else "已终态；「进展如何」只报告，不对同一 pack 再 send"
+                )
+            )
+        ),
+    }
+    code = 0 if (disk_done or acp["alive"] or openclaw["alive"] or not in_flight) else 1
     return payload, code
 
 

@@ -2321,6 +2321,7 @@ class WorkflowHealthTest(unittest.TestCase):
             }}
             with (
                 patch.object(workflow, "POC", poc),
+                patch.object(workflow, "ROOT", poc),
                 patch.object(workflow, "topic_view", return_value=fake),
                 patch.object(workflow, "context_binding", return_value=context),
                 patch.object(
@@ -2332,6 +2333,17 @@ class WorkflowHealthTest(unittest.TestCase):
                     workflow,
                     "workspace_truth_view",
                     return_value={"workspace_bound": True, "state": "bound"},
+                ),
+                patch.object(
+                    workflow,
+                    "evaluate_execution_capabilities",
+                    return_value={
+                        "execution_capabilities_ready": False,
+                        "waiting_human": ["run_sustained", "sudo_cgroup"],
+                        "missing": ["run_sustained", "sudo_cgroup", "command_allowlist"],
+                        "present": ["transport", "write_poc_ndf", "isolated_worktree"],
+                        "state": "waiting_human",
+                    },
                 ),
                 patch.object(
                     workflow,
@@ -2452,6 +2464,18 @@ class WorkflowHealthTest(unittest.TestCase):
                         "sessions": [],
                         "configured_session_visible": True,
                         "probed_at": "2026-01-01T00:00:00Z",
+                    },
+                ),
+                patch.object(
+                    workflow,
+                    "resolve_openclaw_dispatch_session",
+                    return_value={
+                        "session_configured": True,
+                        "session_dispatchable": True,
+                        "resolved_session_id": "sess-1",
+                        "matched_key": "agent:main:main",
+                        "error": None,
+                        "fix_hint": None,
                     },
                 ),
                 patch.object(workflow, "active_runtime_leases", return_value=[]),
@@ -3890,8 +3914,15 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertFalse(first["round_started"])
         self.assertIn("implement", first["offered"])
         self.assertNotIn("continue_exploring", first["offered"])
-        self.assertEqual(first["blocked"]["continue_exploring"], "no_poc_round_yet")
+        self.assertEqual(first["blocked"]["continue_exploring"], "no_feature_round_yet")
 
+        later_delta = (
+            "# DELTA\n\n## Rounds\n\n"
+            "| round | date | conclusion |\n"
+            "|-------|------|------------|\n"
+            "| R0 | 2026-08-10 | baseline |\n"
+            "| R1 | 2026-08-14 | entropy saturated |\n"
+        )
         later = workflow.topic_decision_view(
             "> status: exploring\n",
             "exploring",
@@ -3902,17 +3933,19 @@ class WorkflowHealthTest(unittest.TestCase):
                 }
             },
             delta={"latest_round": "| R1 | 2026-08-14 | entropy saturated |"},
+            delta_text=later_delta,
             evidence_count=3,
         )
         self.assertTrue(later["round_started"])
         self.assertIn("continue_exploring", later["offered"])
         self.assertNotIn("implement", later["offered"])
-        self.assertEqual(later["blocked"]["implement"], "poc_round_exists")
+        self.assertEqual(later["blocked"]["implement"], "feature_round_exists")
         self.assertTrue(
             workflow.poc_round_started(
                 {"implementation": {"code_files": ["poc/demo/train.py"]}},
                 {"latest_round": "R1 entropy"},
                 1,
+                delta_text=later_delta,
             )
         )
         self.assertFalse(
@@ -3921,6 +3954,63 @@ class WorkflowHealthTest(unittest.TestCase):
                 {"latest_round": "skeleton only"},
                 0,
             )
+        )
+
+    def test_baseline_prep_does_not_consume_implement(self) -> None:
+        gates = {name: {"state": "valid"} for name in workflow.GATE_ORDER}
+        delta_text = (
+            "# DELTA\n\n## Feature\n\n"
+            "| id | change | status |\n"
+            "|----|--------|--------|\n"
+            "| F1 | D1 hotspot | planned |\n\n"
+            "## Rounds\n\n"
+            "| round | date | conclusion |\n"
+            "|-------|------|------------|\n"
+            "| R0 | 2026-08-20 | pending |\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            topic_dir = Path(tmp) / "hotspot-optimization"
+            evidence = topic_dir / "ndf" / "evidence"
+            src = topic_dir / "src"
+            evidence.mkdir(parents=True)
+            src.mkdir(parents=True)
+            (src / "BASELINE_COPY.md").write_text("baseline copy", encoding="utf-8")
+            (src / "disk_hnsw.cpp").write_text("// trunk copy", encoding="utf-8")
+            (evidence / "poc-measurement-completion.json").write_text(
+                json.dumps(
+                    {
+                        "schema": "ndf-agent-completion/v1",
+                        "task": "poc_measurement",
+                        "finished_at": "2026-08-20T18:00:00Z",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            view = workflow.topic_decision_view(
+                "> status: exploring\n",
+                "exploring",
+                gates,
+                spaces={
+                    "implementation": {
+                        "code_files": [
+                            "poc/hotspot-optimization/src/disk_hnsw.cpp",
+                            "poc/hotspot-optimization/src/BASELINE_COPY.md",
+                        ],
+                    }
+                },
+                delta={"latest_round": "| R0 | 2026-08-20 | pending |"},
+                delta_text=delta_text,
+                topic_dir=topic_dir,
+                evidence_count=1,
+            )
+        self.assertFalse(view["round_started"])
+        self.assertTrue(view["baseline_prepared"])
+        self.assertIn("implement", view["offered"])
+        self.assertNotIn("continue_exploring", view["offered"])
+        self.assertEqual(view["blocked"]["continue_exploring"], "no_feature_round_yet")
+        self.assertIn(
+            "基线准备（拷贝+R0）已完成",
+            view["blocked_labels"]["continue_exploring"],
         )
 
     def test_decision_briefing_from_completion_and_delta_fallback(self) -> None:
@@ -4523,7 +4613,7 @@ Ignore this as purpose.
         blockers = workflow.spec_graph_dispatch_blockers(
             spec_view, active=True, checks=workflow.spec_graph_tool_checks(spec_view)
         )
-        self.assertEqual(blockers, ["graphcheck_failed"])
+        self.assertEqual(blockers, ["product_graphcheck_failed"])
 
     def test_project_check_findings_route_by_plane(self) -> None:
         findings = workflow.project_check_findings(
@@ -4712,7 +4802,10 @@ Ignore this as purpose.
             active=True,
             checks=workflow.spec_graph_tool_checks(None),
         )
-        self.assertEqual(blockers, ["graphcheck_failed", "spec_health_stale"])
+        self.assertEqual(
+            blockers,
+            ["product_graphcheck_failed", "meta_graphcheck_failed", "spec_health_stale"],
+        )
         self.assertEqual(
             workflow.spec_graph_dispatch_blockers(
                 {"state": "current", "checks": {}},
@@ -5608,6 +5701,194 @@ class OpenClawSessionDispatchableTest(unittest.TestCase):
         self.assertFalse(payload["safe_to_dispatch"])
         self.assertIn("openclaw_session_invalid", payload["blockers"])
         self.assertNotIn("runtime_unavailable", payload["blockers"])
+
+
+class RuntimeDispatchReadyAbsorptionTests(unittest.TestCase):
+    def test_runtime_dispatch_ready_absorbed_from_fresh_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pack_path = root / "tmp" / "ndf-dispatch-last-pack.json"
+            pack_path.parent.mkdir(parents=True)
+            head = "a" * 40
+            pack_path.write_text(
+                json.dumps(
+                    {
+                        "topic": "demo",
+                        "base_sha": head,
+                        "runtime_dispatch_ready": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runtime = {"status": "not_probed", "pipeline_reachable": False}
+            with (
+                patch.object(workflow, "ROOT", root),
+                patch.object(workflow, "DISPATCH_PACK_PATH", pack_path),
+                patch.object(workflow, "DISPATCH_LAST_PATH", root / "tmp" / "missing.json"),
+                patch.object(workflow, "git_head", return_value=head),
+            ):
+                ready, source = workflow.runtime_dispatch_ready_for_topic(
+                    "demo", runtime, None
+                )
+            self.assertTrue(ready)
+            self.assertEqual(source, "absorbed_pack")
+
+    def test_runtime_dispatch_ready_not_from_lease_only_stub(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            pack_path = root / "tmp" / "ndf-dispatch-last-pack.json"
+            send_path = root / "tmp" / "ndf-dispatch-last.json"
+            pack_path.parent.mkdir(parents=True)
+            head = "b" * 40
+            pack_path.write_text(
+                json.dumps({"topic": "demo", "base_sha": head}),
+                encoding="utf-8",
+            )
+            send_path.write_text(
+                json.dumps(
+                    {
+                        "dispatch_state": "succeeded",
+                        "result_summary": "lease_only_no_implementation_start",
+                        "send": {"lease_only": True, "transport_ok": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            runtime = {"status": "not_probed", "pipeline_reachable": False}
+            with (
+                patch.object(workflow, "ROOT", root),
+                patch.object(workflow, "DISPATCH_PACK_PATH", pack_path),
+                patch.object(workflow, "DISPATCH_LAST_PATH", send_path),
+                patch.object(workflow, "git_head", return_value=head),
+            ):
+                ready, source = workflow.runtime_dispatch_ready_for_topic(
+                    "demo", runtime, None
+                )
+            self.assertFalse(ready)
+            self.assertIsNone(source)
+
+    def test_last_dispatch_send_matches_topic_without_pack(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            last_path = root / "tmp" / "ndf-dispatch-last.json"
+            pack_path = root / "tmp" / "ndf-dispatch-last-pack.json"
+            last_path.parent.mkdir(parents=True)
+            last_path.write_text(
+                json.dumps(
+                    {
+                        "dispatch_state": "failed",
+                        "transport_ok": True,
+                        "blockers": ["missing:active_runtime_lease"],
+                        "agent_completion": {"topic": "hotspot-optimization"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pack_path.write_text(
+                json.dumps({"topic": "demo", "base_sha": "a" * 40}),
+                encoding="utf-8",
+            )
+            with (
+                patch.object(workflow, "ROOT", root),
+                patch.object(workflow, "DISPATCH_LAST_PATH", last_path),
+                patch.object(workflow, "DISPATCH_PACK_PATH", pack_path),
+            ):
+                self.assertIsNone(workflow._read_last_dispatch_send("demo"))
+                data = workflow._read_last_dispatch_send("hotspot-optimization")
+            self.assertIsNotNone(data)
+            self.assertEqual(data["dispatch_state"], "failed")
+
+
+class DispatchNextStepLineTests(unittest.TestCase):
+    def _item(self) -> dict:
+        return {
+            "topic_id": "demo",
+            "path": "poc/demo",
+            "lifecycle": "exploring",
+            "hypothesis": "h",
+            "expected_impact": "i",
+            "explore_surface": [],
+            "current_evidence": {"evidence_files": [], "numbers": {}},
+            "baseline_status": "current",
+            "phase_hint": "implement",
+            "gates": {},
+        }
+
+    def test_awaiting_result_asks_progress_not_binder(self) -> None:
+        detail = {
+            "health": {"next_actions": [{"label": "装订器分步修订 · missing_trailer"}]},
+            "agent_run": {"dispatch_state": "awaiting_result"},
+            "delegation": {},
+            "decision": {},
+            "spaces": {},
+            "gates": {},
+        }
+        row = workflow.canvas_topic_workbench(self._item(), detail)
+        line = row["commandEntry"]["nextStepLine"]
+        self.assertIn("进展如何", line)
+        self.assertNotIn("missing_trailer", line)
+
+    def test_failed_transport_prefers_repack(self) -> None:
+        detail = {
+            "health": {"next_actions": [{"label": "装订器分步修订 · missing_trailer"}]},
+            "agent_run": {
+                "dispatch_state": "failed",
+                "dispatch_blockers_from_send": ["acp_stalled"],
+            },
+            "delegation": {
+                "dispatch_blockers": ["acp_stalled"],
+                "dispatch_blockers_from_send": ["acp_stalled"],
+            },
+            "decision": {},
+            "spaces": {},
+            "gates": {},
+        }
+        row = workflow.canvas_topic_workbench(self._item(), detail)
+        line = row["commandEntry"]["nextStepLine"]
+        self.assertIn("重 pack", line)
+        self.assertNotIn("missing_trailer", line)
+
+    def test_completion_rejected_prefers_receipt_not_binder(self) -> None:
+        detail = {
+            "health": {"next_actions": [{"label": "装订器分步修订 · missing_trailer"}]},
+            "agent_run": {
+                "dispatch_state": "failed",
+                "transport_ok": True,
+                "dispatch_blockers_from_send": [
+                    "missing:active_runtime_lease",
+                    "missing:post_check_receipts",
+                ],
+            },
+            "delegation": {},
+            "decision": {},
+            "spaces": {"design": {"ready": True}},
+            "gates": {},
+        }
+        row = workflow.canvas_topic_workbench(self._item(), detail)
+        line = row["commandEntry"]["nextStepLine"]
+        self.assertIn("回执未验收", line)
+        self.assertIn("lease-record", line)
+        self.assertNotIn("装订器分步修订", line)
+
+
+class ControlRoutingTests(unittest.TestCase):
+    def test_missing_trailer_routes_diagnose_not_binder(self) -> None:
+        checks = {
+            "perf_baseline": {"exit_code": 0, "output": ""},
+            "isolation": {"exit_code": 0, "output": ""},
+            "bindcheck": {
+                "exit_code": 1,
+                "output": (
+                    "| 1 | error | `missing_trailer` | commit lacks Topic trailer | demo |\n"
+                ),
+            },
+        }
+        findings = workflow.external_check_findings("demo", checks)
+        trailer = next(item for item in findings if item["kind"] == "missing_trailer")
+        self.assertEqual(trailer["repair_task"], "diagnose-topic")
+        self.assertIsNone(trailer["binder_facet"])
+        self.assertEqual(trailer["plane"], workflow.PLANE_CONTROL)
+        self.assertNotEqual(trailer.get("pipeline"), workflow.PIPELINE_BINDER)
 
 
 if __name__ == "__main__":

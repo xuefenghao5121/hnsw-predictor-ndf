@@ -39,9 +39,10 @@ fix `AGENTS.md` then refresh probe — Canvas MUST NOT write `AGENTS.md`.
 3. If not safe_to_dispatch: action-finish cancelled + snapshot --out; stop.
 4. If safe: STOP for human 「派发」/「继续」 in this chat.
 5. After confirm: dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json
-   (sends via OpenClaw CLI/gateway, waits for ndf-dispatch-notify/v1, reads
+   (sends via OpenClaw CLI/gateway, waits with heartbeat, reads
    pack.completion_receipt_path from disk, then completion-record →
-   action-commit → action-finish → snapshot).
+   action-commit only if succeeded → action-finish → last.json → snapshot).
+   In-flight 「进展如何」 → dispatch-probe; do not re-send.
 6. Gate: record waiting_human when next_human_phrase returns. Binder: continue only POC NDF /
    workflow preparation. Never dispatch Claude Code here.
 7. Success requires disk ndf-agent-completion/v1 + succeeded closeout; Composer

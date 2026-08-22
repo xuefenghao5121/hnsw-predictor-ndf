@@ -187,7 +187,8 @@ export async function dispatchAction(request: ActionRequest): Promise<ActionResp
   });
   const payload = (await response.json()) as ActionResponse;
   if (!response.ok && !payload.prompt && !payload.path) {
-    throw new Error(payload.error || `action HTTP ${response.status}`);
+    const reason = payload.reason ? `: ${payload.reason}` : "";
+    throw new Error(`${payload.error || `action HTTP ${response.status}`}${reason}`);
   }
   return payload;
 }

@@ -1,7 +1,8 @@
 # NDF commander
 
-React+D3 projection host for DiskHNSW NDF. Not SoT. Every visible control is an
-id in [`action-registry.json`](action-registry.json). Enablement comes from
+React+D3 projection host for DiskHNSW NDF (**v3.1**: Overview + TOPIC Workbench).
+Not SoT. Every visible control is an id in
+[`action-registry.json`](action-registry.json). Enablement comes from
 snapshot `enabledActions` (see [[META-011]]).
 
 ```bash
@@ -33,6 +34,12 @@ xdg-open docs/ndf-commander.html
 # Or serve on localhost / an intranet host
 python3 -m http.server 8766 --directory docs
 # open http://127.0.0.1:8766/ndf-commander.html
+```
+
+E2E against the standalone build (Playwright + chromium):
+
+```bash
+python3 docs/ndf-frontend-handoff/verify5.py
 ```
 
 The current public preview uses GitHub Raw + HTMLPreview only as one hosting

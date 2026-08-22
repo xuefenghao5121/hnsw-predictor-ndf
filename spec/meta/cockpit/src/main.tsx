@@ -10,42 +10,171 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { ActionButton } from "./ActionButton";
+import { ActionCard, HumanPhraseCard } from "./ActionCard";
+import { CloseDecisionChips } from "./CloseDecisionChips";
 import { dispatchAction, isStandaloneCommander, loadSnapshot, watchLiveSnapshot } from "./api";
 import { GoldenPerformance } from "./charts/GoldenPerformance";
 import { TopicOverview } from "./charts/TopicOverview";
 import { requireAction } from "./catalog";
-import type { EnabledAction, ReplayAgentLens, Snapshot, TabId } from "./types";
+import {
+  ACTION_PHASE,
+  GLOBAL_SIDEBAR_ACTIONS,
+  HERO_ACTION_ID,
+  PHASES,
+  providerKind,
+  providerLabel,
+  sidebarActionsForPhase,
+  type PhaseId,
+} from "./phaseMap";
+import {
+  activePhaseFromStates,
+  buildReadiness,
+  derivePhaseStates,
+  exploreTrackPhases,
+  type ReadyCheck,
+} from "./readiness";
+import { buildOverviewProposalPrompt, colorizePrompt } from "./promptColor";
+import type {
+  EnabledAction,
+  FocusedTopic,
+  ModuleId,
+  ProjPlane,
+  ReplayAgentLens,
+  Snapshot,
+} from "./types";
 import "./styles.css";
-
-const TAB_ACTIONS: Record<TabId, string> = {
-  product: "tab-product",
-  topics: "tab-topics",
-  control: "tab-control",
-  agents: "tab-agents",
-  replay: "tab-replay",
-};
 
 function enabledOf(snapshot: Snapshot | null, id: string): EnabledAction | undefined {
   return snapshot?.enabledActions?.[id];
 }
 
-function pipelineStateLabel(state?: string): string {
-  const labels: Record<string, string> = {
-    not_dispatched: "尚未派发",
-    preparing: "正在准备",
-    requested: "正在准备",
-    sent: "已发出，等待结果",
-    awaiting_result: "已发出，等待结果",
-    acknowledged: "已接收，执行中",
-    waiting_human: "等待人口令",
-    running: "执行中",
-    in_progress: "执行中",
-    blocked: "失败 / 阻塞",
-    failed: "失败",
-    delivery_unknown: "发出状态未知",
-    succeeded: "成功",
-  };
-  return labels[state || ""] || state || "尚未派发";
+const ACTION_WHY: Record<string, string> = {
+  "design-prepare": "把已冻结提案展开为 DESIGN contract",
+  "poc-prepare-baseline": "建立隔离 worktree 与基线工作区",
+  "binder-pipeline": "补齐六面：TOPIC/DESIGN/PERF/DELTA/INTERFACE/COMMITS",
+  "binder-amend": "不改变既有假设的增量装订修订",
+  "gate-pipeline": "推进三闸审计（不替代人工口令）",
+  "delegate-poc": "实现已批准的 DESIGN/INTERFACE，作为 POC 轮",
+  "poc-measurement": "同 TOPIC/DESIGN 再开一轮 DELTA（continue_exploring）",
+  "poc-isolation-repair": "修复 POC 写入隔离检查的缺口",
+  "diagnose-topic": "inspect → repair → refresh 的检查入口",
+  "open-delta": "在本地编辑器查看变化账本",
+  "prepare-acp-lease": "准备 ACP 租约 / 探测实现管道",
+  "generate-next-step": "用决策芯片生成下一跳（非自由意图）",
+  "next-close-hop": "推进 closing → promoted 编排",
+  "align-golden": "重跑 Golden 矩阵并绑定新 Trunk SHA",
+  "refresh-snapshot": "重建工作流投影数据",
+  "refresh-topic": "刷新当前 TOPIC 投影",
+  "command-replay-run": "重放一次历史 hop",
+  "command-replay-compare": "对照回放结果",
+};
+
+const DECISION_LABELS: Record<string, string> = {
+  implement: "首次按设计实现",
+  continue_exploring: "同契约再开一轮",
+  amend: "修订装订",
+  promote: "晋升合入",
+  partial: "部分晋升",
+  reject: "负结果关闭",
+};
+
+const EXECUTE_DECISION_ORDER = ["implement", "continue_exploring", "amend"] as const;
+
+const INLINE_HERO_FIXES = new Set([
+  "prepare-acp-lease",
+  "diagnose-topic",
+  "refresh-topic",
+  "poc-isolation-repair",
+  "open-delta",
+]);
+
+function isLeaseStubHop(agentRun: FocusedTopic["agentRun"] | null | undefined): boolean {
+  if (!agentRun) return false;
+  const summary = String(agentRun.result_summary || "");
+  if (
+    summary === "lease_only_no_implementation_start" ||
+    summary.endsWith("_no_implementation_start")
+  ) {
+    return true;
+  }
+  return agentRun.dispatch_state === "succeeded" && !agentRun.worktree;
+}
+
+function hopStatusLine(agentRun: FocusedTopic["agentRun"] | null | undefined): string {
+  if (agentRun?.completion_rejected) {
+    return "运输已送达，回执未验收";
+  }
+  if (["sent", "awaiting_result"].includes(agentRun?.dispatch_state || "")) {
+    return "在途 · 本聊天回「进展如何」";
+  }
+  if (agentRun?.dispatch_state === "failed") {
+    return "上次 hop 失败";
+  }
+  if (agentRun?.dispatch_state === "succeeded") {
+    if (isLeaseStubHop(agentRun)) {
+      return "运输结束，租约未落地";
+    }
+    return "上次 hop 已验收";
+  }
+  return "未发出";
+}
+
+function humanFixBlockedReason(actionId: string, reason: string | null | undefined): string {
+  const r = reason || "disabled";
+  if (r.includes("selectedImplementOrExplore")) {
+    return "须先选探索决策芯片（implement 或 continue_exploring），再准备 ACP 租约";
+  }
+  if (r.includes("fresh")) {
+    return "快照过期，请先刷新 snapshot";
+  }
+  if (actionId === "prepare-acp-lease" && r.includes("runtimeNotReady")) {
+    return "运行时已就绪，无需准备租约";
+  }
+  if (actionId === "prepare-acp-lease" && r.includes("missingActiveLease")) {
+    return "已有活跃隔离租约，无需再准备";
+  }
+  return r;
+}
+
+function workbenchComposeBody(
+  phase: PhaseId,
+  selectedActionId: string,
+  focused: FocusedTopic,
+  selectedAction: { clauseRefs?: string[] } | null,
+  snapshot: Snapshot | null,
+): string {
+  if (
+    phase === "execute" &&
+    selectedActionId === HERO_ACTION_ID &&
+    focused.commandEntry?.nextStepLine
+  ) {
+    return [
+      "# 下一步",
+      focused.commandEntry.nextStepLine,
+      "",
+      "## 冻结契约（摘要）",
+      `topic: ${focused.id}`,
+      `scope: poc/${focused.id}/`,
+      `clauses: ${(selectedAction?.clauseRefs || []).map((c) => `[[${c}]]`).join(" ")}`,
+      `HEAD: ${snapshot?.repoHead || ""}`,
+      "",
+      "派发 Prompt 仅在点击底部「派发」时弹出；此处不重复 Command Agent 全文。",
+    ].join("\n");
+  }
+  return [
+    "# 任务契约（已冻结）",
+    `topic: ${focused.id}`,
+    `action: ${selectedActionId || "—"}`,
+    `scope: poc/${focused.id}/`,
+    `DESIGN §2 / INTERFACE — 见装订器`,
+    `clauses: ${(selectedAction?.clauseRefs || []).map((c) => `[[${c}]]`).join(" ")}`,
+    `HEAD: ${snapshot?.repoHead || ""}`,
+    "",
+    "## 说明",
+    focused.commandEntry?.nextStepLine || "从左侧选择动作；契约由装订器机械编译。",
+    "",
+    "Composer Prompt 仅在点击派发时弹出，不在工作台常驻全文。",
+  ].join("\n");
 }
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
@@ -61,33 +190,31 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { message: string
 
   render() {
     if (this.state.message) {
-      return (
-        <div className="banner">
-          页面加载出错：{this.state.message}
-        </div>
-      );
+      return <div className="banner">页面加载出错：{this.state.message}</div>;
     }
     return this.props.children;
   }
 }
 
+function shortSha(sha?: string | null, n = 7): string {
+  return sha ? sha.slice(0, n) : "—";
+}
+
 function App() {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<TabId>("product");
+  const [module, setModule] = useState<ModuleId>("overview");
+  const [plane, setPlane] = useState<ProjPlane>("product");
+  const [phase, setPhase] = useState<PhaseId>("execute");
+  const [selectedActionId, setSelectedActionId] = useState<string>(HERO_ACTION_ID);
+  const [humanZoneFocus, setHumanZoneFocus] = useState(false);
   const [productIntent, setProductIntent] = useState("");
-  const [metaIntent, setMetaIntent] = useState("");
-  const [decisionText, setDecisionText] = useState("");
+  const [intentWarn, setIntentWarn] = useState(false);
+  const [proposalPrompt, setProposalPrompt] = useState<string | null>(null);
+  const [showActs, setShowActs] = useState(false);
+  const [showProj, setShowProj] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<string>("");
   const [selectedHop, setSelectedHop] = useState<string>("");
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    foundation: true,
-    workflow: true,
-    mechanical: true,
-    genesis: true,
-    kernelMap: false,
-    controlHealth: false,
-  });
   const [dialog, setDialog] = useState<{
     title: string;
     body: string;
@@ -95,13 +222,17 @@ function App() {
     kind?: "composer" | "openFile";
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [remoteName, setRemoteName] = useState("origin");
   const [remoteUrl, setRemoteUrl] = useState("");
   const [remoteBranch, setRemoteBranch] = useState("");
+  const [composePrompt, setComposePrompt] = useState<string>("");
+  const [promptActionId, setPromptActionId] = useState<string>("");
   const live = !isStandaloneCommander();
   const snapshotRef = useRef<Snapshot | null>(null);
   const gitRef = useRef({ remoteName, remoteUrl, remoteBranch });
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   snapshotRef.current = snapshot;
   gitRef.current = { remoteName, remoteUrl, remoteBranch };
 
@@ -132,7 +263,7 @@ function App() {
       }
     }
     if (data.business?.identity?.charterExists === false) {
-      setTab("control");
+      setPlane("control");
     }
     const focused = data.business?.focusedTopicId;
     if (focused) setSelectedTopic(focused);
@@ -140,30 +271,34 @@ function App() {
     if (hop) setSelectedHop(hop);
   }, []);
 
-  const refresh = useCallback(async (mode: "full" | "live" = "full") => {
-    try {
-      const data = await loadSnapshot();
-      applySnapshot(data, mode);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [applySnapshot]);
+  const refresh = useCallback(
+    async (mode: "full" | "live" = "full") => {
+      try {
+        const data = await loadSnapshot();
+        applySnapshot(data, mode);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [applySnapshot],
+  );
 
   useEffect(() => {
     void refresh("full");
   }, [refresh]);
 
   useEffect(() => {
-    if (!live) {
-      return undefined;
-    }
+    if (!live) return undefined;
     return watchLiveSnapshot((sha) => {
-      if (snapshotRef.current?.payloadSha === sha) {
-        return;
-      }
+      if (snapshotRef.current?.payloadSha === sha) return;
       void refresh("live");
     });
   }, [live, refresh]);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 2400);
+  }, []);
 
   const run = useCallback(
     async (
@@ -177,9 +312,7 @@ function App() {
       },
     ) => {
       const action = requireAction(id);
-      if (action.dispatch === "projection_only") {
-        return;
-      }
+      if (action.dispatch === "projection_only") return;
       setBusyAction(id);
       try {
         const result = await dispatchAction({
@@ -187,6 +320,7 @@ function App() {
           remote: remoteName,
           remoteUrl,
           branch: remoteBranch,
+          topic: extra?.topic || selectedTopic || undefined,
           ...extra,
         });
         if (result.snapshot) {
@@ -195,31 +329,21 @@ function App() {
         }
         if (result.prompt) {
           setCopied(false);
+          setComposePrompt(result.prompt);
+          setPromptActionId(id);
+          const kind = providerKind(action);
           const delegateHint =
-            id === "poc-prepare-baseline" ||
-            id === "poc-isolation-repair" ||
-            id === "poc-measurement" ||
-            id === "delegate-poc" ||
-            id === "prepare-acp-lease"
-              ? "将委派 Claude Code ACP"
-              : id === "new-proposal" ||
-                  id === "gate-pipeline" ||
-                  id === "binder-pipeline" ||
-                  id === "binder-amend" ||
-                  id === "design-prepare" ||
-                  id === "repair-kernel" ||
-                  id === "submit-process-improvement" ||
-                  id === "land-confirm" ||
-                  id === "land-review" ||
-                  id === "new-genesis"
-                ? "将委派 OpenClaw"
+            kind === "claude-code"
+              ? "将委派 Claude Code ACP（独立 worktree/branch）"
+              : kind === "openclaw"
+                ? "将委派 OpenClaw Control"
                 : "本按钮不自动委派工作者";
           setDialog({
             title: `复制委派 Prompt · 不自动执行 · ${action.label} · ${remoteName}/${remoteBranch || "unspecified-branch"}`,
             hint:
               `${delegateHint}。粘贴到 Command Agent 后只组 pack；` +
               `safe_to_dispatch 时 afterShellExecution hook 发出并等到回执后 action-commit + snapshot。` +
-              `按钮本身不派工；sent/acknowledged 不是成功。`,
+              `按钮本身不派工；sent/acknowledged 不是 validated completion。`,
             body: result.prompt,
             kind: "composer",
           });
@@ -231,6 +355,8 @@ function App() {
             body: result.path,
             kind: "openFile",
           });
+        } else if (result.humanPhrase) {
+          showToast(`人口令投影：${result.humanPhrase}`);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -238,45 +364,1458 @@ function App() {
         setBusyAction(null);
       }
     },
-    [remoteBranch, remoteName, remoteUrl],
+    [remoteBranch, remoteName, remoteUrl, selectedTopic, showToast],
   );
 
   const topics = snapshot?.business?.topics || [];
   const hops = snapshot?.replay?.episodes || [];
   const focused = snapshot?.business?.focusedTopic;
   const freshness = snapshot?.projectionFreshness?.state || "unknown";
-  const focusedAction = snapshot?.replay?.focused;
-  const controlChecks = snapshot?.control?.metaGraph?.checks || {};
-  const controlFindings = snapshot?.control?.metaGraph?.findings || [];
-  const controlBlockers = controlFindings.filter((item) => item.severity === "error").length;
-  const controlWarnings = controlFindings.filter((item) => item.severity !== "error").length;
-  const controlPassed = Object.values(controlChecks).filter((item) => item.state === "passed").length;
-  const agentCards: Array<{
-    id: ReplayAgentLens;
-    name: string;
-    role: string;
-    provider: string;
-    status: string;
-    session: string;
-    workspace: string;
-    boundaries: string;
-    note: string;
-  }> = [
+  const readiness = useMemo(() => buildReadiness(focused), [focused]);
+  const phaseStates = useMemo(() => derivePhaseStates(focused), [focused]);
+
+  useEffect(() => {
+    if (module !== "workbench" || !focused) return;
+    setPhase(activePhaseFromStates(phaseStates));
+  }, [focused?.id, module]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (module !== "workbench") return;
+    setComposePrompt("");
+    setPromptActionId("");
+  }, [phase, selectedActionId, humanZoneFocus, module]);
+
+  useEffect(() => {
+    if (module !== "workbench") return;
+    if (phase === "execute") {
+      setSelectedActionId(HERO_ACTION_ID);
+      setHumanZoneFocus(false);
+      return;
+    }
+    if (phase === "gate") {
+      setSelectedActionId("gate-pipeline");
+      setHumanZoneFocus(false);
+      return;
+    }
+    if (phase === "explore") {
+      setSelectedActionId("");
+      setHumanZoneFocus(false);
+      return;
+    }
+    const first = sidebarActionsForPhase(phase)[0];
+    if (first) {
+      setSelectedActionId(first);
+      setHumanZoneFocus(false);
+    } else {
+      setSelectedActionId("");
+    }
+  }, [phase, module]);
+
+  const enterWorkbench = useCallback(
+    async (topicId: string) => {
+      setSelectedTopic(topicId);
+      setModule("workbench");
+      setShowActs(false);
+      setShowProj(false);
+      setPlane("product");
+      const needFocus = snapshot?.business?.focusedTopicId !== topicId;
+      // Already focused: pure UI navigation — do not emit snapshot Prompt dialog.
+      if (!needFocus) return;
+      await run("open-workbench", { topic: topicId });
+    },
+    [run, snapshot?.business?.focusedTopicId],
+  );
+
+  const jumpTo = useCallback(
+    (fix: string, fixPhase?: PhaseId | null) => {
+      if (fixPhase) setPhase(fixPhase);
+      if (fix === "human-phrase") {
+        setHumanZoneFocus(true);
+        setSelectedActionId("gate-pipeline");
+        setPhase("gate");
+        return;
+      }
+      setHumanZoneFocus(false);
+      setSelectedActionId(fix);
+      const mapped = ACTION_PHASE[fix];
+      if (mapped && mapped !== "_all") setPhase(mapped);
+    },
+    [],
+  );
+
+  const handleReadyFix = useCallback(
+    (check: ReadyCheck) => {
+      if (!check.fix) return;
+      if (check.fixInline || INLINE_HERO_FIXES.has(check.fix)) {
+        const en = enabledOf(snapshot, check.fix);
+        if (en?.enabled !== true) {
+          showToast(
+            `fail-closed：${humanFixBlockedReason(check.fix, en?.reason)}`,
+          );
+          return;
+        }
+        void run(check.fix);
+        return;
+      }
+      jumpTo(check.fix, check.fixPhase);
+    },
+    [jumpTo, run, showToast, snapshot],
+  );
+
+  const copyText = useCallback(
+    async (text: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        showToast("已复制到剪贴板");
+      } catch {
+        setError("clipboard write failed");
+      }
+    },
+    [showToast],
+  );
+
+  const genProposal = useCallback(() => {
+    const intent = productIntent.trim();
+    if (!intent) {
+      setIntentWarn(true);
+      setProposalPrompt(null);
+      return;
+    }
+    setIntentWarn(false);
+    setProposalPrompt(buildOverviewProposalPrompt(intent, snapshot?.repoHead));
+  }, [productIntent, snapshot?.repoHead]);
+
+  const dispatchSelected = useCallback(async () => {
+    if (humanZoneFocus) {
+      showToast("人口令须由人在会话中发出；请复制下方口令，不要用 Agent 代写");
+      return;
+    }
+    const id = selectedActionId;
+    const action = requireAction(id);
+    const en = enabledOf(snapshot, id);
+    if (en?.enabled !== true) {
+      showToast(`fail-closed：${id} 不可用（${en?.reason || "disabled"}）`);
+      return;
+    }
+    if (action.requiresIntent) {
+      showToast("该动作需要决策芯片，请先点选 Decision 芯片");
+      return;
+    }
+    await run(id);
+  }, [humanZoneFocus, run, selectedActionId, showToast, snapshot]);
+
+  useEffect(() => {
+    if (!dialog) return;
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setDialog(null);
+    };
+    window.addEventListener("keydown", onKey);
+    dialogRef.current?.querySelector<HTMLElement>("button, [href], textarea")?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialog]);
+
+  const exploringTopics = topics.filter(
+    (t) => t.lifecycle === "exploring" || t.lifecycle === "closing",
+  );
+  const promoteRows = (snapshot?.business?.roadmap || []).slice(0, 6);
+  const gateChecklist = focused?.controlPipelines?.gate?.checklist || [];
+  const awaitingGates = gateChecklist.filter((g) => g.state !== "valid");
+  const selectedAction = selectedActionId ? requireAction(selectedActionId) : null;
+  const selectedEnabled = enabledOf(snapshot, selectedActionId);
+  const heroEnabled =
+    selectedActionId === HERO_ACTION_ID
+      ? enabledOf(snapshot, HERO_ACTION_ID)?.enabled === true && readiness.safe
+      : selectedEnabled?.enabled === true && !humanZoneFocus;
+
+  const hasIsolationFinding = (focused?.health?.findings || []).some((f) => {
+    const kind = String(f.kind || "");
+    return kind.includes("isolation") || kind === "trunk_write" || kind === "poc_isolation";
+  });
+
+  const globalSidebarActions = GLOBAL_SIDEBAR_ACTIONS.filter(
+    (id) => requireAction(id).commanderSurface !== false,
+  );
+  const phaseSidebarActions = sidebarActionsForPhase(phase);
+  const sidebarActionCount =
+    (phase === "execute" ? 1 : phaseSidebarActions.length) + globalSidebarActions.length;
+
+  const agentCards = useMemo(() => buildAgentCards(snapshot, focused, freshness), [snapshot, focused, freshness]);
+
+  const rootClass = [
+    "app-root",
+    module === "overview" ? "mod-overview" : "mod-workbench",
+    showActs ? "show-acts" : "",
+    showProj ? "show-proj" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return (
+    <div className={rootClass}>
+      <header className="topbar">
+        <div className="brand">
+          NDF Commander <span className="v">v3.1</span>
+        </div>
+        <div className="planes" role="group" aria-label="模块切换" id="modSwitch">
+          <button
+            type="button"
+            data-module="overview"
+            data-ndf-action="mod-overview"
+            aria-pressed={module === "overview"}
+            onClick={() => setModule("overview")}
+          >
+            Overview · 全局
+          </button>
+          <button
+            type="button"
+            data-module="workbench"
+            data-ndf-action="mod-workbench"
+            aria-pressed={module === "workbench"}
+            onClick={() => {
+              if (selectedTopic) void enterWorkbench(selectedTopic);
+              else setModule("workbench");
+            }}
+          >
+            TOPIC 工作台
+          </button>
+        </div>
+        {module === "workbench" && (
+          <div className="topic-pick" id="topicPickWrap">
+            Topic
+            <select
+              id="topicPick"
+              aria-label="切换聚焦 Topic"
+              value={selectedTopic}
+              onChange={(ev) => void enterWorkbench(ev.target.value)}
+            >
+              {topics.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.id}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {module === "workbench" && (
+          <div className="planes" role="group" aria-label="平面切换" id="planeSwitch">
+            {(
+              [
+                ["product", "业务平面"],
+                ["control", "Control"],
+                ["runtime", "Runtime"],
+                ["replay", "Replay"],
+              ] as Array<[ProjPlane, string]>
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                data-plane={id === "product" ? "business" : id}
+                data-ndf-action={`plane-${id}`}
+                aria-pressed={plane === id}
+                onClick={() => {
+                  setPlane(id);
+                  setShowProj(true);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="grow" />
+        <span className="meta-chip baseline">
+          <span className="dot" aria-hidden="true" />
+          HEAD <code>{shortSha(snapshot?.repoHead)}</code>
+        </span>
+        <span className="meta-chip">
+          <span className="dot" aria-hidden="true" />
+          快照 {freshness}
+        </span>
+        <span className="sot-flag" title="META-011：工作台是树/图/git 的派生投影，不是第五 SoT">
+          投影 · 非SoT
+        </span>
+        <button
+          type="button"
+          className="btn-ghost btn-acts"
+          id="btnActs"
+          data-ndf-action="btn-acts"
+          onClick={() => setShowActs((v) => !v)}
+        >
+          ☰ 动作
+        </button>
+        <button
+          type="button"
+          className="btn-ghost btn-proj"
+          id="btnProj"
+          data-ndf-action="btn-proj"
+          onClick={() => setShowProj((v) => !v)}
+        >
+          ◧ 投影
+        </button>
+        <ActionButton
+          actionId="refresh-snapshot"
+          enabled={enabledOf(snapshot, "refresh-snapshot")}
+          onClick={() => void refresh()}
+        />
+      </header>
+
+      {error && <div className="banner">{error}</div>}
+
+      {module === "overview" && (
+        <section className="overview" id="overviewView">
+          <div className="ov-scroll">
+            <div className="ov-hero">
+              <div>
+                <div className="eyebrow">Product · 全局把控</div>
+                <h1>
+                  {snapshot?.business?.identity?.name || "hnsw-predictor"}{" "}
+                  <span className="ov-sub">
+                    {snapshot?.business?.identity?.goal || "DiskHNSW · NDF 双轨工作流"}
+                  </span>
+                </h1>
+                <p className="lede">
+                  探索轨上的每个 POC 都由一次产品意图蒸馏而来：意图 → 产品提案（spec/open/）→ 人工评审 →
+                  冻结契约 → TOPIC。本页是全局唯一的意图入口与双轨总览；单个 TOPIC 的执行请进入工作台。
+                </p>
+              </div>
+              <div className="ov-chips">
+                <span className="meta-chip">
+                  <span className="dot" />
+                  金标 <code>{snapshot?.business?.performance?.baselineId || "—"}</code>
+                </span>
+                <span className="meta-chip">
+                  <span className="dot" />
+                  提案 {(snapshot?.business?.proposals || []).length} · TOPIC {topics.length}
+                </span>
+              </div>
+            </div>
+
+            <div className="kpi-row" id="kpiRow">
+              <div className="kpi">
+                <div className="k">探索中 TOPIC</div>
+                <div className="v">{exploringTopics.length}</div>
+                <div className="n">exploring / closing</div>
+              </div>
+              <div className="kpi">
+                <div className="k">产品提案</div>
+                <div className="v">{(snapshot?.business?.proposals || []).length}</div>
+                <div className="n">spec/open/</div>
+              </div>
+              <div className="kpi">
+                <div className="k">金标 QPS</div>
+                <div className="v">
+                  {(snapshot?.business?.performance?.aggQps || [])[0]?.toFixed?.(0) ||
+                    snapshot?.business?.performance?.goldenHeadStatus ||
+                    "—"}
+                </div>
+                <div className="n">{shortSha(snapshot?.business?.performance?.goldenSha)}</div>
+              </div>
+              <div className="kpi">
+                <div className="k">Control 阻断</div>
+                <div className="v">
+                  {(snapshot?.control?.metaGraph?.findings || []).filter((f) => f.severity === "error")
+                    .length}
+                </div>
+                <div className="n">{snapshot?.control?.maturity || "—"}</div>
+              </div>
+            </div>
+
+            <div className="ov-card intent-card">
+              <div className="eyebrow">意图入口 · 全局唯一</div>
+              <h2>新产品意图 → 产品提案</h2>
+              <p className="sub">
+                生成的是 <code>spec/open/</code> 产品提案工单（track=poc|promote|…），不是 process proposal，也不归入
+                NDF Control。工作台内禁止自由意图输入。
+              </p>
+              <textarea
+                id="productIntent"
+                className={intentWarn ? "warn-empty" : undefined}
+                value={productIntent}
+                placeholder="描述产品意图，例如：验证热点路径预测缓存对 QPS 与 recall 的影响…"
+                onChange={(ev) => {
+                  setProductIntent(ev.target.value);
+                  if (intentWarn) setIntentWarn(false);
+                }}
+              />
+              <div className="row">
+                <button
+                  type="button"
+                  className="btn"
+                  id="btnPreviewProposal"
+                  data-ndf-action="copy-prompt"
+                  onClick={() => genProposal()}
+                >
+                  预览产品提案工单
+                </button>
+                <button
+                  type="button"
+                  className="btn primary"
+                  id="btnGenProposal"
+                  data-ndf-action="new-proposal"
+                  onClick={() => {
+                    genProposal();
+                    if (productIntent.trim()) void run("new-proposal", { intent: productIntent.trim() });
+                  }}
+                >
+                  生成并组 pack
+                </button>
+                <span className="hint2">空意图拒绝 · 四色提示词（含黄意图）仅出现在 Overview</span>
+              </div>
+              <div className="freeze-flow">
+                <span className="ff hi">意图</span>
+                <span className="arr">→</span>
+                <span className="ff">产品提案</span>
+                <span className="arr">→</span>
+                <span className="ff">已确认 / 已审核</span>
+                <span className="arr">→</span>
+                <span className="ff">冻结契约</span>
+                <span className="arr">→</span>
+                <span className="ff">TOPIC 工作台</span>
+              </div>
+              {proposalPrompt && (
+                <div id="proposalComposer">
+                  <div className="legend">
+                    <i>
+                      <span className="sw" style={{ background: "var(--warn)" }} /> 用户意图
+                    </i>
+                    <i>
+                      <span className="sw" style={{ background: "var(--accent)" }} /> 条款铆钉
+                    </i>
+                    <i>
+                      <span className="sw" style={{ background: "var(--ctx)" }} /> git/快照
+                    </i>
+                  </div>
+                  <pre id="proposalView" className="prompt-view">
+                    {colorizePrompt(proposalPrompt, "overview")}
+                  </pre>
+                  <div className="row" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="btn"
+                      id="btnCopyProposal"
+                      data-ndf-action="copy-prompt"
+                      onClick={() => void copyText(proposalPrompt)}
+                    >
+                      复制提案提示词
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="ov-tracks">
+              <div className="ov-card" id="exploreTrack">
+                <h2>
+                  探索轨 <span className="tag">poc/</span>
+                </h2>
+                <p className="sub">exploring / closing TOPIC · 进入工作台做机械执行</p>
+                {exploringTopics.length === 0 && <p className="sub">当前无 exploring TOPIC</p>}
+                {exploringTopics.map((row) => {
+                  const isFocused = focused?.id === row.id;
+                  const phases = exploreTrackPhases(isFocused ? focused : null, row.baseline);
+                  const gaps = isFocused
+                    ? readiness.checks.filter((c) => !c.ok).length
+                    : row.blockers?.length || 0;
+                  const safe = isFocused ? readiness.safe : gaps === 0;
+                  return (
+                    <div className={`topic-row${safe ? " safe" : ""}`} key={row.id}>
+                      <div className="tr-main">
+                        <div className="tr-head">
+                          <span className="tr-name">{row.id}</span>
+                          <span className="tr-title">{row.hypothesis || row.lifecycle}</span>
+                          {safe ? (
+                            <span className="badge-safe">safe_to_dispatch</span>
+                          ) : (
+                            <span className="badge-bad">{gaps || "?"} 缺口</span>
+                          )}
+                        </div>
+                        <div className="tr-meta">
+                          baseline {row.baseline || "—"} · surface {(row.surface || []).join(",") || "—"}
+                        </div>
+                        <div className="mini-phases">
+                          {phases.map((p) => (
+                            <span className="mp" data-st={p.st} key={p.id}>
+                              {p.id}
+                            </span>
+                          ))}
+                        </div>
+                        {isFocused && (
+                          <div className="tr-faces">
+                            {readiness.faces.map((f) => (
+                              <span
+                                className={`tr-face ${f.present ? "present" : "missing"}`}
+                                key={f.id}
+                              >
+                                <span className="fd" />
+                                {f.label.replace(".md", "")}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-enter"
+                        data-topic={row.id}
+                        data-ndf-action="enter-workbench"
+                        onClick={() => void enterWorkbench(row.id)}
+                      >
+                        进入工作台
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="ov-card">
+                <h2>
+                  晋升轨 / 路线图 <span className="tag">Trunk</span>
+                </h2>
+                <p className="sub">路线图条目（真实 snapshot）· 晋升动作在工作台 promote 阶段</p>
+                {promoteRows.map((row) => (
+                  <div className="trunk-row" key={row[0]}>
+                    <span className="tt">{row[0]}</span>
+                    <span className="td2">{row[3]}</span>
+                    <span className="tm">
+                      {row[1]} · {row[2]} · <b>{row[4]}</b>
+                    </span>
+                  </div>
+                ))}
+                {(snapshot?.business?.proposals || []).slice(0, 3).map((p) => (
+                  <div className="trunk-row" key={p[0]}>
+                    <span className="tt">{p[0].slice(0, 48)}</span>
+                    <span className="td2">{p[1]}</span>
+                    <span className="tm">
+                      status <b>{p[2]}</b>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {snapshot?.business?.performance && (
+              <div className="ov-card">
+                <h2>金标性能投影</h2>
+                <GoldenPerformance
+                  scenes={snapshot.business.performance.scenes || []}
+                  qps={snapshot.business.performance.aggQps || []}
+                  recall={snapshot.business.performance.recall || []}
+                />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {module === "workbench" && (
+        <>
+          <div className="phasebar" id="phasebar">
+            <div className="topic-id">
+              <span className="k">TOPIC</span>
+              <span className="v">{focused?.id || selectedTopic || "—"}</span>
+              <span className="l">{focused?.lifecycle || "unfocused"}</span>
+            </div>
+            <div className="stepper" role="tablist" aria-label="五阶段">
+              {PHASES.map((p, idx) => (
+                <div key={p.id} style={{ display: "contents" }}>
+                  {idx > 0 && <span className="ph-arrow">→</span>}
+                  <button
+                    type="button"
+                    className="ph-node"
+                    data-phase={p.id}
+                    data-state={phaseStates[p.id]}
+                    data-ndf-action={`phase-${p.id}`}
+                    aria-current={phase === p.id}
+                    onClick={() => setPhase(p.id)}
+                  >
+                    <span className="pn">
+                      {p.label}
+                      <span className="ph-state">{phaseStates[p.id]}</span>
+                    </span>
+                    <span className="ps">{p.short}</span>
+                    <span className="pd">{p.desc}</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="layout" id="workbenchView">
+            <aside className="pane pane-actions" aria-label="阶段动作">
+              <div className="pane-head">
+                动作
+                <span className="sub" id="actCount">
+                  {sidebarActionCount} · 免意图优先
+                </span>
+              </div>
+              {phase === "execute" && (
+                <div className="act-group">
+                  <h3>
+                    主行动 · Dispatch
+                    <span className="g-line" />
+                  </h3>
+                  <ActionCard
+                    actionId={HERO_ACTION_ID}
+                    enabled={enabledOf(snapshot, HERO_ACTION_ID)}
+                    selected={!humanZoneFocus && selectedActionId === HERO_ACTION_ID}
+                    busy={busyAction === HERO_ACTION_ID}
+                    why={ACTION_WHY[HERO_ACTION_ID]}
+                    onSelect={(aid) => {
+                      setHumanZoneFocus(false);
+                      setSelectedActionId(aid);
+                    }}
+                  />
+                </div>
+              )}
+              {phase === "promote" && (
+                <>
+                  <div className="act-group">
+                    <h3>
+                      Trunk 金标
+                      <span className="g-line" />
+                    </h3>
+                    <ActionCard
+                      actionId="align-golden"
+                      enabled={enabledOf(snapshot, "align-golden")}
+                      selected={!humanZoneFocus && selectedActionId === "align-golden"}
+                      busy={busyAction === "align-golden"}
+                      why={ACTION_WHY["align-golden"]}
+                      onSelect={(aid) => {
+                        setHumanZoneFocus(false);
+                        setSelectedActionId(aid);
+                      }}
+                    />
+                  </div>
+                  <div className="act-group">
+                    <h3>
+                      主题收口
+                      <span className="g-line" />
+                    </h3>
+                    {focused ? (
+                      <CloseDecisionChips
+                        focused={focused}
+                        busy={busyAction !== null}
+                        onSelect={(intent) => void run("generate-next-step", { intent })}
+                      />
+                    ) : null}
+                    <ActionCard
+                      actionId="next-close-hop"
+                      enabled={enabledOf(snapshot, "next-close-hop")}
+                      selected={!humanZoneFocus && selectedActionId === "next-close-hop"}
+                      busy={busyAction === "next-close-hop"}
+                      why={ACTION_WHY["next-close-hop"]}
+                      onSelect={(aid) => {
+                        setHumanZoneFocus(false);
+                        setSelectedActionId(aid);
+                      }}
+                    />
+                  </div>
+                </>
+              )}
+              {phase !== "execute" && phase !== "promote" && (
+                <div className="act-group">
+                  <h3>
+                    {PHASES.find((p) => p.id === phase)?.label}
+                    <span className="g-line" />
+                  </h3>
+                  {phase === "explore" ? (
+                    <p className="act-empty">
+                      本阶段无工作台动作。假设 / 提案 / 设计在 Overview 完成；契约修改请回全局意图入口。
+                    </p>
+                  ) : null}
+                  {phase === "gate" && (
+                    <HumanPhraseCard
+                      selected={humanZoneFocus}
+                      phrases={gateChecklist.map((g) => g.phrase || g.id || "").filter(Boolean)}
+                      onSelect={() => {
+                        setHumanZoneFocus(true);
+                        setSelectedActionId("gate-pipeline");
+                      }}
+                    />
+                  )}
+                  {phaseSidebarActions.map((id) => (
+                    <ActionCard
+                      key={id}
+                      actionId={id}
+                      enabled={enabledOf(snapshot, id)}
+                      selected={!humanZoneFocus && selectedActionId === id}
+                      busy={busyAction === id}
+                      why={ACTION_WHY[id]}
+                      onSelect={(aid) => {
+                        setHumanZoneFocus(false);
+                        setSelectedActionId(aid);
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="act-group">
+                <h3>
+                  通用 · Any
+                  <span className="g-line" />
+                </h3>
+                {globalSidebarActions.map((id) => (
+                  <ActionCard
+                    key={id}
+                    actionId={id}
+                    enabled={enabledOf(snapshot, id)}
+                    selected={!humanZoneFocus && selectedActionId === id}
+                    busy={busyAction === id}
+                    why={ACTION_WHY[id]}
+                    onSelect={(aid) => {
+                      setHumanZoneFocus(false);
+                      setSelectedActionId(aid);
+                    }}
+                  />
+                ))}
+              </div>
+            </aside>
+
+            <main className="pane pane-compose" aria-label="冻结契约工单">
+              <div className="compose-scroll" id="composeScroll">
+                {!focused ? (
+                  <div className="empty-state">
+                    <div className="big">∅</div>
+                    <h2>未聚焦 TOPIC</h2>
+                    <p>从 Overview 探索轨进入，或用顶栏 Topic 选择器聚焦。</p>
+                  </div>
+                ) : phase === "explore" ? (
+                  <div className="empty-state">
+                    <div className="big">⬡</div>
+                    <h2>探索阶段 · 已完成态</h2>
+                    <p>
+                      假设 / 提案 / 设计在 Overview 意图入口完成。工作台探索节点无左侧动作；契约修改请回 Overview
+                      发起新提案。
+                    </p>
+                  </div>
+                ) : !selectedActionId && !humanZoneFocus ? (
+                  <div className="empty-state">
+                    <div className="big">⬡</div>
+                    <h2>{PHASES.find((p) => p.id === phase)?.label}阶段</h2>
+                    <p>从左侧选择一个工作流动作。工单由「基线 + 条款 + 冻结契约」机械编译。</p>
+                  </div>
+                ) : phase === "bind" &&
+                  phaseStates.bind === "active" &&
+                  readiness.faces.some((f) => !f.present) &&
+                  selectedActionId === "binder-pipeline" ? (
+                  <div className="empty-state">
+                    <div className="big">▦</div>
+                    <h2>装订阶段 · 有面缺失</h2>
+                    <p>选择「启动装订器」或「基线准备」，生成 OpenClaw 装订 Prompt。不在此输入意图。</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="c-head">
+                      <h2>
+                        {humanZoneFocus ? "人工口令" : selectedAction?.label || "动作"}
+                        {selectedActionId === HERO_ACTION_ID && !humanZoneFocus && (
+                          <span className="tag tag-cl">主行动</span>
+                        )}
+                      </h2>
+                      <p className="lede">
+                        {humanZoneFocus
+                          ? "门禁回执只能由人发出；工作台只投影口令与闸状态。"
+                          : ACTION_WHY[selectedActionId] || selectedAction?.clauseRefs.join(" ")}
+                      </p>
+                      {selectedAction && (
+                        <div className="owner-strip">
+                          <span className="tag">{providerLabel(providerKind(selectedAction))}</span>
+                          {selectedAction.skill && (
+                            <span className="tag tag-tool">{selectedAction.skill.split("/").pop()}</span>
+                          )}
+                          {selectedAction.packTask && (
+                            <span className="tag tag-cl">{selectedAction.packTask}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {selectedActionId === HERO_ACTION_ID && (
+                      <div className={`ready-panel ${readiness.safe ? "safe" : "unsafe"}`}>
+                        <div className="rp-head">
+                          <span className="rp-badge">
+                            {readiness.safe ? "可派发" : "暂不可派发"}
+                          </span>
+                          <span className="rp-title">AI hop</span>
+                          <span className="rp-sub">{hopStatusLine(focused.agentRun)}</span>
+                        </div>
+                        {focused.agentRun?.completion_blockers_human?.length ? (
+                          <ul className="rp-hop-blockers">
+                            {focused.agentRun.completion_blockers_human.map((line) => (
+                              <li key={line}>{line}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        <div className="rp-checks">
+                          {readiness.checks.map((c) => (
+                            <div className={`rp-check ${c.ok ? "ok" : "bad"}`} key={c.id}>
+                              <span className="ic">{c.ok ? "✓" : "✗"}</span>
+                              <div>
+                                <div className="lb">{c.label}</div>
+                                <div className="dt">{c.detail}</div>
+                                {!c.ok && c.fix && (
+                                  <button
+                                    type="button"
+                                    className="fx"
+                                    data-jump={c.fix}
+                                    data-ndf-action={c.fix}
+                                    onClick={() => handleReadyFix(c)}
+                                  >
+                                    修复 · {c.fix === "prepare-acp-lease" ? "准备 ACP 租约" : c.fix}
+                                  </button>
+                                )}
+                                {!c.ok && !c.fix && c.hint ? (
+                                  <p className="fx-hint">{c.hint}</p>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="rp-faces">
+                          {readiness.faces.map((f) => (
+                            <span
+                              className={`rp-face ${f.present ? "present" : "missing"}`}
+                              key={f.id}
+                            >
+                              <span className="fd" />
+                              {f.label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="rp-foot">
+                          未知 / stale / 缺 capability / 缺 receipt → 全部 fail closed。按钮点击不是人口令。
+                        </div>
+                        <div className="rp-aux">
+                          <span className="rp-aux-label">辅助（不切换主行动）</span>
+                          <button
+                            type="button"
+                            className="btn ghost btn-sm"
+                            data-ndf-action="open-delta"
+                            disabled={busyAction !== null}
+                            onClick={() => void run("open-delta")}
+                          >
+                            打开 DELTA
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost btn-sm"
+                            data-ndf-action="diagnose-topic"
+                            disabled={busyAction !== null}
+                            onClick={() => void run("diagnose-topic")}
+                          >
+                            主题诊断
+                          </button>
+                          {hasIsolationFinding ? (
+                            <button
+                              type="button"
+                              className="btn ghost btn-sm"
+                              data-ndf-action="poc-isolation-repair"
+                              disabled={busyAction !== null}
+                              onClick={() => void run("poc-isolation-repair")}
+                            >
+                              修复隔离
+                            </button>
+                          ) : null}
+                          {["sent", "awaiting_result"].includes(
+                            focused.agentRun?.dispatch_state || "",
+                          ) ? (
+                            <button
+                              type="button"
+                              className="btn ghost btn-sm"
+                              data-ndf-action="dispatch-probe"
+                              disabled={busyAction !== null}
+                              onClick={() => {
+                                const body = [
+                                  "# 检查 worker 存活（不派发）",
+                                  `topic: ${focused.id}`,
+                                  `dispatch_state: ${focused.agentRun?.dispatch_state}`,
+                                  "",
+                                  "本聊天回「进展如何」。Command Agent 跑：",
+                                  "python3 spec/meta/tools/ndf_workflow_status.py dispatch-probe --json",
+                                  "",
+                                  "MUST NOT 对同一 pack 再 dispatch-send。「派发」/「继续」只确认发出。",
+                                ].join("\n");
+                                setCopied(false);
+                                setComposePrompt(body);
+                                setPromptActionId("dispatch-probe");
+                                showToast("已组 dispatch-probe Prompt；复制后在本聊天回「进展如何」");
+                              }}
+                            >
+                              检查 worker 存活
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    )}
+
+                    {(humanZoneFocus || phase === "gate") && (
+                      <div className="human-zone">
+                        <h3>人工口令区 · Human only</h3>
+                        <p>
+                          三闸口令由人在指挥会话发出；不实现未经本仓合同证明的 <code>ndf gate approve</code>{" "}
+                          CLI。可先点「启动门禁」生成 OpenClaw 审计 Prompt。
+                        </p>
+                        {gateChecklist.map((g) => (
+                          <div key={g.id}>
+                            <pre className="phrase">
+                              {focused.id} · {g.phrase}
+                            </pre>
+                          </div>
+                        ))}
+                        <div className="row">
+                          <ActionButton
+                            actionId="gate-pipeline"
+                            enabled={enabledOf(snapshot, "gate-pipeline")}
+                            onClick={() => void run("gate-pipeline")}
+                          />
+                          <span>
+                            待口令闸：{awaitingGates.map((g) => g.phrase).join(" / ") || "无"}
+                          </span>
+                        </div>
+                        <div className="gates" style={{ marginTop: 12 }}>
+                          {gateChecklist.map((g) => {
+                            const st =
+                              g.state === "valid"
+                                ? "approved"
+                                : g.state === "invalidated"
+                                  ? "invalidated"
+                                  : "awaiting";
+                            return (
+                              <div className="gate" data-st={st} key={g.id}>
+                                <span className="g-dot" />
+                                <div>
+                                  <div className="g-name">{g.phrase}</div>
+                                  <div className="g-binds">{g.id}</div>
+                                </div>
+                                <span className="g-st">{st}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="wo">
+                      <div className="wo-head">
+                        <span className="no">1</span>
+                        绑定上下文
+                        <span className="wh">git / snapshot</span>
+                      </div>
+                      <div className="wo-body">
+                        <div className="b-line">
+                          <span className="b-chip">
+                            <span className="k">remote</span>
+                            <span className="v">{remoteName}</span>
+                          </span>
+                          <span className="b-chip">
+                            <span className="k">branch</span>
+                            <span className="v">{remoteBranch || "—"}</span>
+                          </span>
+                          <span className="b-chip">
+                            <span className="k">HEAD</span>
+                            <span className="v">{shortSha(snapshot?.repoHead)}</span>
+                          </span>
+                          <span className="b-chip">
+                            <span className="k">payload</span>
+                            <span className="v">{shortSha(snapshot?.payloadSha, 12)}</span>
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="wo">
+                      <div className="wo-head">
+                        <span className="no">2</span>
+                        任务契约（已冻结）
+                        <span className="wh">TOPIC → DESIGN → INTERFACE</span>
+                      </div>
+                      <div className="wo-body contract-block">
+                        <div className="ct-row">
+                          <span className="k">scope</span>
+                          <span className="v mono">poc/{focused.id}/</span>
+                        </div>
+                        <div className="ct-row">
+                          <span className="k">hypothesis</span>
+                          <span className="v">
+                            {focused.topicOverview?.hypothesis || focused.hypothesis || "—"}
+                          </span>
+                        </div>
+                        <div className="ct-row">
+                          <span className="k">surface</span>
+                          <span className="v mono">
+                            {(focused.topicOverview?.explore_surface || focused.surface || []).join(
+                              ", ",
+                            ) || "—"}
+                          </span>
+                        </div>
+                        <div className="ct-row">
+                          <span className="k">next</span>
+                          <span className="v">{focused.commandEntry?.nextStepLine || "—"}</span>
+                        </div>
+                        <div className="prov">
+                          <span className="pv-step">
+                            <b>提案</b> {(focused.topicOverview?.idea_sources?.proposal_paths || [])[0] || "—"}
+                          </span>
+                          <span className="arr">→</span>
+                          {gateChecklist.map((g) => (
+                            <span className="pv-step" key={g.id}>
+                              <b>{g.id}</b>{" "}
+                              <span className={g.state === "valid" ? "ok" : "wait"}>
+                                {g.state === "valid" ? "✓" : "…"} {g.phrase}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {phase === "execute" && focused.decision?.decision_required && (
+                      <div className="wo">
+                        <div className="wo-head">
+                          <span className="no">3</span>
+                          探索决策芯片（非自由意图）
+                          <span className="wh">generate-next-step</span>
+                        </div>
+                        <div className="wo-body">
+                          <div className="b-line decision-chips">
+                            {EXECUTE_DECISION_ORDER.filter(
+                              (chip) =>
+                                (focused.decision?.offered || []).includes(chip) ||
+                                focused.decision?.blocked?.[chip],
+                            ).map((chip) => {
+                              const offered = (focused.decision?.offered || []).includes(chip);
+                              const blockLabel =
+                                focused.decision?.blocked_labels?.[chip] ||
+                                focused.decision?.blocked?.[chip] ||
+                                "";
+                              return (
+                                <button
+                                  key={chip}
+                                  type="button"
+                                  className={`btn decision-chip${offered ? "" : " is-off"}`}
+                                  data-ndf-action="decision-prefill"
+                                  disabled={!offered}
+                                  title={
+                                    offered
+                                      ? focused.decision?.meanings?.[chip] || chip
+                                      : blockLabel || chip
+                                  }
+                                  onClick={() =>
+                                    offered ? void run("generate-next-step", { intent: chip }) : undefined
+                                  }
+                                >
+                                  <span className="decision-chip-label">
+                                    {DECISION_LABELS[chip] || chip}
+                                  </span>
+                                  <span className="decision-chip-id">{chip}</span>
+                                  {!offered && blockLabel ? (
+                                    <span className="decision-chip-block">{blockLabel}</span>
+                                  ) : null}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {focused.decision?.baseline_prepared && !focused.decision?.round_started ? (
+                            <p className="wo-note ok-note">
+                              基线准备（拷贝+R0）已完成；下一步建议选择 implement（首次按设计实现）。
+                            </p>
+                          ) : null}
+                          <p className="wo-note">
+                            工作台禁止 textarea 意图；决策芯片直接作为 generate-next-step 的受控 intent。
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="legend">
+                      <i>
+                        <span className="sw" style={{ background: "var(--accent)" }} /> 条款铆钉
+                      </i>
+                      <i>
+                        <span className="sw" style={{ background: "var(--ctx)" }} /> git/快照
+                      </i>
+                      <i>
+                        <span className="sw" style={{ background: "var(--ok)" }} /> 冻结契约
+                      </i>
+                    </div>
+                    <pre id="promptView" className="prompt-view">
+                      {colorizePrompt(
+                        workbenchComposeBody(
+                          phase,
+                          humanZoneFocus ? "human-phrase" : selectedActionId,
+                          focused,
+                          selectedAction,
+                          snapshot,
+                        ),
+                        "workbench",
+                      )}
+                    </pre>
+                  </>
+                )}
+              </div>
+
+              <div className="action-bar">
+                <button
+                  type="button"
+                  className="btn primary hero"
+                  id="btnCopy"
+                  data-ndf-action={humanZoneFocus ? "jump-human-phrase" : selectedActionId}
+                  disabled={
+                    humanZoneFocus
+                      ? false
+                      : phase === "explore" ||
+                        !selectedActionId ||
+                        busyAction !== null ||
+                        selectedEnabled?.enabled !== true ||
+                        (selectedActionId === HERO_ACTION_ID && !readiness.safe)
+                  }
+                  onClick={() => void dispatchSelected()}
+                >
+                  {humanZoneFocus
+                    ? "复制人口令说明"
+                    : selectedActionId === HERO_ACTION_ID
+                      ? "派发探索任务"
+                      : selectedAction?.label || "派发"}
+                </button>
+                <button
+                  type="button"
+                  className="btn ghost"
+                  data-ndf-action="copy-prompt"
+                  disabled={!composePrompt && !dialog}
+                  onClick={() => void copyText(composePrompt || dialog?.body || "")}
+                >
+                  {copied
+                    ? "已复制"
+                    : composePrompt && promptActionId && promptActionId !== selectedActionId
+                      ? "复制上次 Prompt"
+                      : "复制 Prompt"}
+                </button>
+                <span className="action-note">
+                  {phase === "explore"
+                    ? "探索阶段无工作台派发；请回 Overview"
+                    : heroEnabled || humanZoneFocus
+                      ? "两步派发：本按钮只组 pack / 出 Prompt；validated completion 看磁盘回执"
+                      : "fail closed — 先点修复入口"}
+                </span>
+              </div>
+            </main>
+
+            <aside className="pane pane-proj" aria-label="投影">
+              <div className="pv-tabs" role="tablist">
+                {(
+                  [
+                    ["product", "三空间"],
+                    ["control", "Control"],
+                    ["runtime", "Runtime"],
+                    ["replay", "Replay"],
+                  ] as Array<[ProjPlane, string]>
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    aria-selected={plane === id}
+                    data-ndf-action={`plane-${id}`}
+                    onClick={() => setPlane(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="pv-body" id="pvBody">
+                {plane === "product" && focused && (
+                  <>
+                    {(["design", "implementation", "test"] as const).map((key) => {
+                      const space = focused.spaces?.[key];
+                      const ready = space?.ready === true;
+                      return (
+                        <div className="space" key={key}>
+                          <div className="sp-head">
+                            <span className="sp-name">{key}</span>
+                            <span className={`sp-st ${ready ? "ready" : "gap"}`}>
+                              {ready ? "ready" : "gap"}
+                            </span>
+                            <span className="sp-q">{space?.purpose || ""}</span>
+                          </div>
+                          {ready ? (
+                            <div className="sp-ok">无缺口</div>
+                          ) : (
+                            (space?.repairs || space?.gaps || []).map((item, idx) => {
+                              if (typeof item === "string") {
+                                return (
+                                  <div className="gap-item" key={item}>
+                                    <div className="why">{item}</div>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div className="gap-item" key={`${item.kind}-${idx}`}>
+                                  <div className="why">{item.why || item.kind}</div>
+                                  <div className="how">{item.fix || item.label}</div>
+                                  {item.actionId && (
+                                    <button
+                                      type="button"
+                                      className="gap-fix"
+                                      data-ndf-action={item.actionId}
+                                      onClick={() => jumpTo(item.actionId!, ACTION_PHASE[item.actionId!] === "_all" ? phase : (ACTION_PHASE[item.actionId!] as PhaseId))}
+                                    >
+                                      修复 · {item.label || item.actionId}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      );
+                    })}
+                    <div className="h-block">
+                      <h4>TOPIC 概览</h4>
+                      <TopicOverview
+                        topics={topics}
+                        focusedId={focused.id}
+                        onOpenWorkbench={(id) => void enterWorkbench(id)}
+                      />
+                    </div>
+                  </>
+                )}
+                {plane === "control" && (
+                  <>
+                    <div className="h-block">
+                      <h4>
+                        Genesis
+                        <span className="v">
+                          {snapshot?.control?.genesis?.project_maturity || "—"}
+                        </span>
+                      </h4>
+                      <p className="pv-note">
+                        {snapshot?.control?.genesis?.accepted
+                          ? "内核已绑定；日常指挥走 Overview / Workbench。"
+                          : "流程内核待安装。"}
+                      </p>
+                      <ActionButton
+                        actionId="new-genesis"
+                        enabled={enabledOf(snapshot, "new-genesis")}
+                        onClick={() => void run("new-genesis")}
+                      />
+                    </div>
+                    <div className="h-block">
+                      <h4>
+                        Meta checks
+                        <span className="v">
+                          {Object.keys(snapshot?.control?.metaGraph?.checks || {}).length}
+                        </span>
+                      </h4>
+                      {Object.entries(snapshot?.control?.metaGraph?.checks || {}).map(([name, st]) => (
+                        <div className="h-row" key={name}>
+                          {name}
+                          <b className={st.state === "passed" ? "" : "hl"}>{st.state}</b>
+                        </div>
+                      ))}
+                      <div className="b-line" style={{ marginTop: 8 }}>
+                        <ActionButton
+                          actionId="run-ndf-control-check"
+                          enabled={enabledOf(snapshot, "run-ndf-control-check")}
+                          onClick={() => void run("run-ndf-control-check")}
+                        />
+                        <ActionButton
+                          actionId="diagnose-advisor"
+                          enabled={enabledOf(snapshot, "diagnose-advisor")}
+                          onClick={() => void run("diagnose-advisor")}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+                {plane === "runtime" && (
+                  <>
+                    {agentCards.map((agent) => (
+                      <div
+                        className="agent"
+                        data-run={
+                          agent.status.includes("running")
+                            ? "running"
+                            : agent.status.includes("unavail") || agent.status === "offline"
+                              ? "offline"
+                              : "idle"
+                        }
+                        key={agent.id}
+                      >
+                        <div className="ag-head">
+                          <span className="ag-dot" />
+                          <span className="ag-name">{agent.name}</span>
+                          <span className="ag-role">{agent.role}</span>
+                        </div>
+                        <div className="ag-detail">
+                          {agent.provider} · {agent.status}
+                          <br />
+                          {agent.session}
+                          <br />
+                          {agent.workspace}
+                        </div>
+                        <div className="ag-3layer">
+                          <b>边界</b> {agent.boundaries}
+                          <br />
+                          {agent.note}
+                        </div>
+                      </div>
+                    ))}
+                    <ActionButton
+                      actionId="refresh-snapshot"
+                      enabled={enabledOf(snapshot, "refresh-snapshot")}
+                      onClick={() => void run("refresh-snapshot", { probeMode: "light" })}
+                    />
+                  </>
+                )}
+                {plane === "replay" && (
+                  <>
+                    <p className="pv-note">
+                      回放是投影；{hops.length} episodes
+                      {snapshot?.replay?.omittedCount
+                        ? ` · omitted ${snapshot.replay.omittedCount}`
+                        : ""}
+                    </p>
+                    {hops.slice(0, 12).map((ep) => (
+                      <div
+                        className="ep"
+                        data-plane={ep.plane}
+                        data-status={ep.replayStatus}
+                        key={ep.id}
+                        onClick={() => {
+                          setSelectedHop(ep.id);
+                          void run("inspect-ledger", { episode: ep.id });
+                        }}
+                      >
+                        <div className="ep-head">
+                          <span className="ep-dot" />
+                          <span className="ep-title">{ep.title || ep.label || ep.id}</span>
+                          <span className="ep-lv">{ep.lenses?.[0] || ep.agent || ""}</span>
+                        </div>
+                        <div className="ep-meta">
+                          <span>{ep.task}</span>
+                          <span>{ep.happenedAt}</span>
+                        </div>
+                        {selectedHop === ep.id && (
+                          <div className="ep-detail">
+                            {ep.resultLine || ep.prompt?.slice(0, 160) || "—"}
+                            <div className="b-line" style={{ marginTop: 8 }}>
+                              <ActionButton
+                                actionId="command-replay-run"
+                                enabled={enabledOf(snapshot, "command-replay-run")}
+                                onClick={() => void run("command-replay-run", { episode: ep.id })}
+                              />
+                              <ActionButton
+                                actionId="command-replay-compare"
+                                enabled={enabledOf(snapshot, "command-replay-compare")}
+                                onClick={() => void run("command-replay-compare", { episode: ep.id })}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
+            </aside>
+          </div>
+        </>
+      )}
+
+      <footer className="statusbar">
+        <span>
+          {remoteName}/{remoteBranch || "—"} @ {shortSha(snapshot?.repoHead)}
+        </span>
+        <span className="grow" />
+        {!readiness.safe && module === "workbench" && (
+          <span className="gate-warn">fail closed · 见就绪面板修复入口</span>
+        )}
+        <span>payload {shortSha(snapshot?.payloadSha, 10)}</span>
+      </footer>
+
+      {toast && <div className={`toast show`}>{toast}</div>}
+
+      {dialog && (
+        <div
+          className="modal open"
+          role="dialog"
+          aria-modal="true"
+          aria-label={dialog.title}
+          onClick={(ev) => {
+            if (ev.target === ev.currentTarget) setDialog(null);
+          }}
+        >
+          <div className="modal-card" ref={dialogRef}>
+            <button
+              type="button"
+              className="modal-close"
+              data-ndf-action="collapse-section"
+              onClick={() => setDialog(null)}
+            >
+              关闭
+            </button>
+            <h2>{dialog.title}</h2>
+            {dialog.hint && <p className="pv-note">{dialog.hint}</p>}
+            <pre className="prompt-view" style={{ maxHeight: "50vh", overflow: "auto" }}>
+              {colorizePrompt(dialog.body, module === "overview" ? "overview" : "workbench")}
+            </pre>
+            <div className="row" style={{ marginTop: 12, display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className="btn primary"
+                data-ndf-action="copy-prompt"
+                onClick={() => void copyText(dialog.body)}
+              >
+                {copied ? "已复制" : "复制"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                data-ndf-action="collapse-section"
+                onClick={() => setDialog(null)}
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function buildAgentCards(
+  snapshot: Snapshot | null,
+  focused: FocusedTopic | null | undefined,
+  freshness: string,
+): Array<{
+  id: ReplayAgentLens;
+  name: string;
+  role: string;
+  provider: string;
+  status: string;
+  session: string;
+  workspace: string;
+  boundaries: string;
+  note: string;
+}> {
+  return [
     {
       id: "command-agent",
       name: "Command Agent",
-      role: "Human-facing Composer orchestration and closed-catalog dispatch",
+      role: "Human-facing Composer orchestration",
       provider: "Cursor Commander",
       status: freshness,
       session: snapshot?.absorbedActionId || "no absorbed action",
-      workspace: `HEAD ${snapshot?.repoHead || "—"} · payload ${snapshot?.payloadSha?.slice(0, 12) || "—"}`,
-      boundaries: "Prompt dispatch only; never writes .openclaw/state.json",
-      note: String(snapshot?.projectionFreshness?.latest_action?.operation || "No latest operation"),
+      workspace: `HEAD ${shortSha(snapshot?.repoHead)}`,
+      boundaries: "Prompt / pack only；目标分支不另建 — worker 可用隔离 worktree",
+      note: String(snapshot?.projectionFreshness?.latest_action?.operation || "—"),
     },
     {
       id: "openclaw",
       name: "OpenClaw",
-      role: "Control plane: gate, binder, proposals, process evolution",
+      role: "Control: gate / binder / 产品提案编排",
       provider: snapshot?.runtime?.control?.provider || "openclaw",
       status:
         snapshot?.runtime?.control?.reachable === true
@@ -286,956 +1825,45 @@ function App() {
           : snapshot?.runtime?.control?.reachable === false
             ? "unavailable"
             : "not_probed",
-      session: snapshot?.runtime?.control?.defaultSessionKey || "no configured session",
-      workspace: `${snapshot?.runtime?.control?.workspace?.state || "unknown"} · match ${String(snapshot?.runtime?.control?.workspace?.match)}`,
-      boundaries: "Writes focused Control roots; gate and binder ownership stay separate",
-      note: [
-        snapshot?.runtime?.control?.probeError
-          ? `probe: ${snapshot.runtime.control.probeError}`
-          : null,
-        snapshot?.runtime?.control?.sessionConfigured === false
-          ? "session_configured=false — set AGENTS.md OpenClaw session_key"
-          : snapshot?.runtime?.control?.sessionDispatchable === false
-            ? `session_dispatchable=false (${snapshot.runtime.control.sessionError || "openclaw_session_invalid"})`
-            : snapshot?.runtime?.control?.sessionDispatchable === true
-              ? "session_dispatchable=true"
-              : null,
-        snapshot?.runtime?.control?.sessionFixHint
-          ? String(snapshot.runtime.control.sessionFixHint)
-          : snapshot?.runtime?.control?.configuredSessionVisible === false
-            ? "Configured session not visible"
-            : snapshot?.runtime?.control?.reachable == null
-              ? "Click 探测运行时 (light) on this page"
-              : snapshot?.runtime?.control?.sessionDispatchable === false
-                ? null
-                : "Gateway probed",
-        snapshot?.runtime?.control?.workspace?.state === "unbound"
-          ? "workspace unbound (active_topic empty — note only)"
-          : null,
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      session: snapshot?.runtime?.control?.defaultSessionKey || "—",
+      workspace: `${snapshot?.runtime?.control?.workspace?.state || "unknown"}`,
+      boundaries: "不写 src/；不代写人口令；不做 Golden 重跑",
+      note: snapshot?.runtime?.control?.sessionFixHint || snapshot?.runtime?.control?.probeError || "—",
     },
     {
       id: "claude-code",
       name: "Claude Code",
-      role: "Implementation/Test: POC code, measurement, Numbers, DELTA",
+      role: "Implementation/Test: POC · 测量 · DELTA",
       provider: snapshot?.runtime?.implementation?.provider || "claude-code-acp",
-      // Prefer pipeline probe status — never treat "no lease" as unavailable.
-      status: snapshot?.runtime?.implementation?.status || "not_probed",
-      session:
-        snapshot?.runtime?.implementation?.defaultSession ||
-        focused?.agentRun?.session_id ||
-        "no session",
-      workspace:
-        focused?.agentRun?.worktree ||
-        snapshot?.runtime?.implementation?.workspace?.state ||
-        "unbound",
-      boundaries: "Writes only delegated POC roots; Trunk requires close integration",
-      note: [
-        `lease ${focused?.agentRun?.status || "idle"}`,
-        `${snapshot?.runtime?.implementation?.activeRuns?.length || 0} active runs`,
-        snapshot?.runtime?.implementation?.cliAvailable === false
-          ? "cli missing"
-          : snapshot?.runtime?.implementation?.cliAvailable
-            ? "cli ok"
-            : null,
-        snapshot?.runtime?.implementation?.resumeAvailable === false
-          ? "resume missing"
-          : snapshot?.runtime?.implementation?.resumeAvailable
-            ? "resume ok"
-            : null,
-        snapshot?.runtime?.implementation?.probeError
-          ? `probe: ${snapshot.runtime.implementation.probeError}`
-          : null,
-        ...(focused?.delegation?.dispatch_blockers || []).slice(0, 3),
-      ]
-        .filter(Boolean)
-        .join(" · "),
+      status:
+        snapshot?.runtime?.implementation?.status === "reachable" &&
+        !focused?.agentRun?.worktree
+          ? "reachable_no_lease"
+          : snapshot?.runtime?.implementation?.status || "not_probed",
+      session: focused?.agentRun?.session_id || snapshot?.runtime?.implementation?.defaultSession || "—",
+      workspace: focused?.agentRun?.worktree || snapshot?.runtime?.implementation?.workspace?.state || "—",
+      boundaries: "MUST 独立 worktree/branch；禁止改 Trunk 于 poc track",
+      note: focused?.agentRun?.worktree
+        ? `lease ${focused?.agentRun?.status || "idle"}`
+        : snapshot?.runtime?.implementation?.status === "reachable"
+          ? "ACP 可达但无隔离租约"
+          : `lease ${focused?.agentRun?.status || "idle"}`,
     },
     {
       id: "context-compiler",
-      name: "context-compiler",
-      role: "Manifest, ordered reads, clause seeds, role-plan verification (local ndf_context)",
-      provider: "ndf_context",
-      status: !focused?.delegation?.context_verify
-        ? "not_compiled"
-        : focused.delegation.context_verify.valid
-          ? "verified"
-          : focused.delegation.context_plan
-            ? "failed"
-            : "not_compiled",
-      session: focused?.delegation?.context_plan?.plan_sha?.slice(0, 12) || "no plan",
-      workspace: focused?.delegation?.context_plan?.role || "no focused role",
-      boundaries: "Read/compile only; no product or runtime state writes",
-      note:
-        focused?.delegation?.context_verify?.errors
-          ?.map((item) => item.kind || item.message)
-          .filter(Boolean)
-          .slice(0, 6)
-          .join(", ") ||
-        (focused?.delegation?.context_verify?.valid
-          ? "Context plan current"
-          : "No focused topic context yet"),
+      name: "Context Compiler",
+      role: "ndf_context manifest / role-plan",
+      provider: "local tools",
+      status: focused?.delegation?.context_verify?.valid ? "valid" : "check",
+      session: focused?.delegation?.context_plan?.plan_sha?.slice(0, 12) || "—",
+      workspace: "mechanical context",
+      boundaries: "只读装订；不派工",
+      note: `${focused?.delegation?.context_plan?.read_count ?? "—"} reads`,
     },
   ];
-
-  const defaultTab = useMemo<TabId>(() => {
-    if (snapshot?.business?.identity?.charterExists === false) return "control";
-    return "product";
-  }, [snapshot]);
-
-  useEffect(() => {
-    if (!snapshot) return;
-    setTab((current) => current || defaultTab);
-  }, [snapshot, defaultTab]);
-
-  useEffect(() => {
-    if (hops.length === 0) {
-      setSelectedHop("");
-      return;
-    }
-    setSelectedHop((current) =>
-      hops.some((hop) => hop.id === current) ? current : hops[0].id,
-    );
-  }, [hops]);
-
-  return (
-    <>
-      <header className="app-header">
-        <h1>{snapshot?.business?.identity?.name || "NDF commander"}</h1>
-        <p className="muted">{snapshot?.business?.identity?.goal}</p>
-        <div className="row muted">
-          <span>SHA {snapshot?.repoHead}</span>
-          <span>{snapshot?.generatedAt}</span>
-          <span>payload {snapshot?.payloadSha?.slice(0, 12)}</span>
-          <span className={freshness === "fresh" ? "ok" : "danger"}>{freshness}</span>
-          <span className={live ? "ok" : "muted"}>{live ? "自动刷新已开" : "静态页，无自动刷新"}</span>
-        </div>
-        <div className="git-inputs">
-          <label>
-            远程仓库
-            <input
-              value={remoteUrl}
-              onChange={(event) => setRemoteUrl(event.target.value)}
-              placeholder="https://github.com/org/repo.git"
-              spellCheck={false}
-            />
-          </label>
-          <label>
-            远程名
-            <input
-              value={remoteName}
-              onChange={(event) => setRemoteName(event.target.value)}
-              placeholder="origin"
-              spellCheck={false}
-            />
-          </label>
-          <label>
-            远程分支
-            <input
-              value={remoteBranch}
-              onChange={(event) => setRemoteBranch(event.target.value)}
-              placeholder="cursor/existing-branch"
-              spellCheck={false}
-            />
-          </label>
-        </div>
-        <p className="muted">
-          复制 Prompt 时会把上面的远程仓库和分支作为 `BEGIN NDF GIT INPUT` 输入块写入。
-          本地 Agent 必须 checkout 该已有远程分支，不得另建替代 feature branch。
-        </p>
-        {freshness !== "fresh" && (
-          <div className="banner">
-            Write CTAs are fail-closed until projection freshness is fresh
-            {freshness ? ` (now: ${freshness}` : ""}
-            {snapshot?.projectionFreshness?.in_progress?.length
-              ? `; in_progress: ${snapshot.projectionFreshness.in_progress.join(", ")}`
-              : ""}
-            {freshness ? ")" : ""}.
-            {freshness === "refresh_in_progress"
-              ? " Close or finish the started action, then Refresh snapshot."
-              : freshness === "stale_after_action"
-                ? " Click Refresh snapshot to absorb the latest action."
-                : ""}
-          </div>
-        )}
-        <div className="pills">
-          <ActionButton
-            actionId="refresh-snapshot"
-            enabled={enabledOf(snapshot, "refresh-snapshot")}
-            busy={busyAction === "refresh-snapshot"}
-            onClick={() => run("refresh-snapshot")}
-            className="primary"
-          />
-        </div>
-        <p className="muted">
-          Now {snapshot?.business?.nowNextBlocked?.now || "—"} · Next {snapshot?.business?.nowNextBlocked?.next || "—"} · Blocked {snapshot?.business?.nowNextBlocked?.blocked ?? 0}
-        </p>
-      </header>
-      <nav className="tabs">
-        {(Object.keys(TAB_ACTIONS) as TabId[]).map((id) => (
-          <button
-            key={id}
-            type="button"
-            data-ndf-action={TAB_ACTIONS[id]}
-            aria-current={tab === id ? "page" : undefined}
-            onClick={() => setTab(id)}
-          >
-            {requireAction(TAB_ACTIONS[id]).label}
-          </button>
-        ))}
-      </nav>
-      {error && (
-        <div className="banner">
-          页面加载出错：{error}
-          <button type="button" data-ndf-action="refresh-snapshot" onClick={() => void refresh()}>
-            {requireAction("refresh-snapshot").label}
-          </button>
-        </div>
-      )}
-      {!snapshot && !error && <p className="muted">Loading snapshot…</p>}
-      <main>
-        {tab === "product" && (
-          <section className="page-stack">
-            <div className="hero card">
-              <div>
-                <p className="eyebrow">Business Project · {snapshot?.business?.identity?.phase}</p>
-                <h2>{snapshot?.business?.identity?.name}</h2>
-                <p>{snapshot?.business?.identity?.goal}</p>
-              </div>
-              <div className="scale-strip">
-                {(snapshot?.business?.identity?.scales || []).map(([scale, state]) => (
-                  <span className={`status-chip ${state}`} key={scale}>{scale} · {state}</span>
-                ))}
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="section-heading">
-                <div>
-                  <p className="eyebrow">Golden / SLA</p>
-                  <h3>{snapshot?.business?.performance?.baselineId}</h3>
-                </div>
-                <span className={`status-chip ${snapshot?.business?.performance?.goldenHeadStatus}`}>
-                  {snapshot?.business?.performance?.goldenHeadStatus}
-                </span>
-              </div>
-              {snapshot?.business?.performance?.warning && <p className="danger">{snapshot.business.performance.warning}</p>}
-              <GoldenPerformance
-                scenes={snapshot?.business?.performance?.scenes || []}
-                qps={snapshot?.business?.performance?.aggQps || []}
-                recall={snapshot?.business?.performance?.recall || []}
-              />
-              <div className="pills">
-                <ActionButton actionId="open-charter" enabled={enabledOf(snapshot, "open-charter")} onClick={() => run("open-charter")} />
-                <ActionButton actionId="open-golden" enabled={enabledOf(snapshot, "open-golden")} onClick={() => run("open-golden")} />
-                <ActionButton actionId="align-golden" enabled={enabledOf(snapshot, "align-golden")} onClick={() => run("align-golden")} />
-              </div>
-            </div>
-
-            <div className="card command-card">
-              <h3>New product proposal</h3>
-              <label className="muted">描述要探索或变更的产品想法</label>
-              <textarea value={productIntent} onChange={(event) => setProductIntent(event.target.value)} />
-              <ActionButton
-                actionId="new-proposal"
-                enabled={enabledOf(snapshot, "new-proposal")}
-                intent={productIntent}
-                onClick={() => run("new-proposal", { intent: productIntent })}
-              />
-            </div>
-
-            <div className="card">
-              <h3>Capability portfolio</h3>
-              <table>
-                <thead><tr><th>Capability</th><th>Stable</th><th>Draft</th><th>Open</th><th>Trunk surface</th></tr></thead>
-                <tbody>
-                  {(snapshot?.business?.capabilities || []).map(([name, stable, draft, open, path]) => (
-                    <tr key={name}><td>{name}</td><td>{stable}</td><td>{draft}</td><td>{open}</td><td className="muted">{path}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="card">
-              <h3>Active business topics</h3>
-              <TopicOverview
-                topics={topics}
-                focusedId={snapshot?.business?.focusedTopicId}
-                onOpenWorkbench={(id) => {
-                  setSelectedTopic(id);
-                  void run("open-workbench", { topic: id }).then(() => setTab("topics"));
-                }}
-              />
-              <table>
-                <thead><tr><th>Topic</th><th>Lifecycle</th><th>Hypothesis</th><th>Surface</th><th>Baseline</th><th>Blockers</th></tr></thead>
-                <tbody>
-                  {topics.map((row) => (
-                    <tr key={row.id}>
-                      <td>{row.id}</td><td>{row.lifecycle}</td><td>{row.hypothesis}</td>
-                      <td>{row.surface?.join(", ")}</td><td>{row.baseline}</td><td>{row.blockers?.join(", ") || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="grid-2">
-              <div className="card">
-                <h3>Product proposals</h3>
-                <table>
-                  <thead><tr><th>Proposal</th><th>Track</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {(snapshot?.business?.proposals || []).map(([title, track, status]) => (
-                      <tr key={title}><td>{title}</td><td>{track}</td><td>{status}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="card">
-                <h3>Roadmap</h3>
-                <table>
-                  <thead><tr><th>Phase</th><th>Work</th><th>Impact</th><th>Status</th><th>Evidence</th></tr></thead>
-                  <tbody>
-                    {(snapshot?.business?.roadmap || []).map(([phase, work, impact, status, evidence]) => (
-                      <tr key={phase}><td>{phase}</td><td>{work}</td><td>{impact}</td><td>{status}</td><td>{evidence}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="card">
-              <h3>Business risks</h3>
-              <div className="risk-list">
-                {(snapshot?.business?.risks || []).map((risk) => (
-                  <div className={`risk ${risk.severity || "info"}`} key={risk.kind}>
-                    <strong>{risk.kind}</strong><span>{risk.message}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {tab === "topics" && (
-          <section className="page-stack">
-            <div className="card topic-selector">
-              <div>
-                <p className="eyebrow">Topics directory</p>
-                <h2>{selectedTopic || "Select a topic"}</h2>
-              </div>
-              <select value={selectedTopic} onChange={(event) => setSelectedTopic(event.target.value)}>
-                {topics.map((row) => <option key={row.id} value={row.id}>{row.id} · {row.lifecycle}</option>)}
-              </select>
-              {selectedTopic && selectedTopic !== snapshot?.business?.focusedTopicId && (
-                <ActionButton
-                  actionId="open-workbench"
-                  enabled={enabledOf(snapshot, "open-workbench")}
-                  onClick={() => run("open-workbench", { topic: selectedTopic })}
-                />
-              )}
-            </div>
-            {focused && selectedTopic === snapshot?.business?.focusedTopicId && (
-              <>
-                <div className="card">
-                  <div className="section-heading">
-                    <div><p className="eyebrow">1 · Read only</p><h3>TOPIC 总览</h3></div>
-                    <span className={`status-chip ${focused.lifecycle}`}>{focused.lifecycle}</span>
-                  </div>
-                  <p className="topic-summary">{focused.topicOverview?.summary || focused.topicOverview?.purpose || focused.hypothesis}</p>
-                  <ActionButton actionId="open-topic" enabled={enabledOf(snapshot, "open-topic")} onClick={() => run("open-topic")} />
-                </div>
-
-                <div>
-                  <p className="eyebrow">2 · Three-space reliability</p>
-                  <div className="grid-3">
-                    {(["design", "implementation", "test"] as const).map((space) => {
-                      const value = focused.spaces?.[space];
-                      const repairs = value?.repairs || [];
-                      return (
-                        <div className="card space-card" key={space}>
-                          <div className="section-heading">
-                            <h3>{space[0].toUpperCase() + space.slice(1)}</h3>
-                            <span className={`status-chip ${value?.ready ? "ready" : "blocked"}`}>{value?.ready ? "ready" : "blocked"}</span>
-                          </div>
-                          <p className="muted">{value?.purpose}</p>
-                          {repairs.length === 0 ? (
-                            <p><strong>Gaps</strong> none</p>
-                          ) : repairs.map((repair) => (
-                            <div className="gap-recipe" key={repair.kind}>
-                              <p><strong>{repair.kind}</strong></p>
-                              <p>{repair.why}</p>
-                              <p className="fix-line">{repair.fix}</p>
-                              <p className="muted">{repair.owner} · {repair.writeRoot}</p>
-                            </div>
-                          ))}
-                          <p className="muted">{value?.clause_refs?.map((item) => item.id).join(" · ")}</p>
-                          {space === "design" && (
-                            <div className="pills">
-                              <ActionButton actionId="design-prepare" enabled={enabledOf(snapshot, "design-prepare")} onClick={() => run("design-prepare")} />
-                            </div>
-                          )}
-                          {space === "implementation" && (
-                            <div className="pills">
-                              <ActionButton actionId="poc-prepare-baseline" enabled={enabledOf(snapshot, "poc-prepare-baseline")} onClick={() => run("poc-prepare-baseline")} />
-                              <ActionButton actionId="poc-isolation-repair" enabled={enabledOf(snapshot, "poc-isolation-repair")} onClick={() => run("poc-isolation-repair")} />
-                            </div>
-                          )}
-                          {space === "test" && (
-                            <div className="pills">
-                              <ActionButton actionId="open-delta" enabled={enabledOf(snapshot, "open-delta")} onClick={() => run("open-delta")} />
-                              <ActionButton actionId="poc-measurement" enabled={enabledOf(snapshot, "poc-measurement")} onClick={() => run("poc-measurement")} />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="card">
-                  <div className="section-heading">
-                    <div><p className="eyebrow">3 · Evidence routed</p><h3>阻塞与修复</h3></div>
-                    <div className="pills">
-                      <ActionButton actionId="refresh-topic" enabled={enabledOf(snapshot, "refresh-topic")} onClick={() => run("refresh-topic", { topic: focused.id })} />
-                      <ActionButton actionId="diagnose-topic" enabled={enabledOf(snapshot, "diagnose-topic")} onClick={() => run("diagnose-topic")} />
-                    </div>
-                  </div>
-                  <div className="check-strip">
-                    {Object.entries(focused.health?.checks || {}).map(([name, check]) => (
-                      <span className={`status-chip ${check.state}`} key={name}>{name} · {check.state}</span>
-                    ))}
-                  </div>
-                  <table>
-                    <thead><tr><th>Kind</th><th>Space</th><th>NDF 依据</th><th>Why blocked</th><th>Owner / write root</th></tr></thead>
-                    <tbody>
-                      {(focused.health?.findings || []).map((item, index) => (
-                        <tr key={`${item.kind}-${index}`}>
-                          <td>{item.kind}</td><td>{item.space}</td>
-                          <td>{item.clause_refs?.map((ref) => ref.id).join(", ")}</td>
-                          <td>{item.why_blocked}</td>
-                          <td>{item.repair_owner} · {item.allowed_write_root}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="card disclosure">
-                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, foundation: !s.foundation }))}>
-                    4 · NDF 基础追溯 · clauses {focused.ndfFoundation?.clause_count || 0}
-                  </button>
-                  {!collapsed.foundation && (
-                    <div>
-                      <p className="muted">Stable summary: {JSON.stringify(focused.ndfFoundation?.stable_summary || {})}</p>
-                      <table>
-                        <thead><tr><th>Goal / clause</th><th>Design</th><th>Code / commit</th><th>Verification</th></tr></thead>
-                        <tbody>
-                          {(focused.traceability || []).map((row) => (
-                            <tr key={row.goal_or_clause}><td>{row.goal_or_clause}</td><td>{row.design}</td><td>{row.code_or_commit}</td><td>{row.verification}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card disclosure">
-                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, workflow: !s.workflow }))}>
-                    5 · NDF 工作流 / Meta · {focused.workflowMeta?.spec_health_state}
-                  </button>
-                  {!collapsed.workflow && (
-                    <div>
-                      <p>{focused.workflowMeta?.note}</p>
-                      <div className="check-strip">
-                        {Object.entries(focused.workflowMeta?.spec_health_checks || {}).map(([name, state]) => (
-                          <span className={`status-chip ${state}`} key={name}>{name} · {state}</span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card disclosure">
-                  <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, mechanical: !s.mechanical }))}>
-                    6 · 机械上下文 · {focused.delegation?.context_plan?.role || "plan unavailable"}
-                  </button>
-                  {!collapsed.mechanical && (
-                    <div className="metadata-grid">
-                      <span><strong>Plan SHA</strong>{focused.delegation?.context_plan?.plan_sha?.slice(0, 12) || "—"}</span>
-                      <span><strong>Context verify</strong>{String(focused.delegation?.context_verify?.valid)}</span>
-                      <span><strong>Static preflight</strong>{String(focused.delegation?.static_preflight_passed)}</span>
-                      <span><strong>Runtime ready</strong>{String(focused.delegation?.runtime_dispatch_ready)}</span>
-                      <span><strong>Dispatch blockers</strong>{focused.delegation?.dispatch_blockers?.join(", ") || "none"}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card command-card">
-                  <div className="section-heading">
-                    <div><p className="eyebrow">7 · Sole full-topic command surface</p><h3>本轮决策与实现委派</h3></div>
-                    <span className={`status-chip ${focused.decision?.state}`}>{focused.decision?.state}</span>
-                  </div>
-                  <div className="command-entry">
-                    <strong>命令入口</strong>
-                    <span>{focused.commandEntry?.nextStepLine || "Review the current NDF state before dispatch."}</span>
-                  </div>
-                  <div className="control-pipeline-grid">
-                    <div className="pipeline-panel">
-                      <div className="section-heading">
-                        <div><p className="eyebrow">OpenClaw Control</p><h4>人工门禁 · 3 闸</h4></div>
-                        <span className={`status-chip ${focused.controlPipelines?.gate?.dispatch?.state}`}>
-                          {pipelineStateLabel(focused.controlPipelines?.gate?.dispatch?.state)}
-                        </span>
-                      </div>
-                      <p className="muted">
-                        Gate only writes GATES.md. Click is not TOPIC已审核 / DESIGN已审核 / 可以开始实现.
-                      </p>
-                      <ol className="pipeline-checklist">
-                        {(focused.controlPipelines?.gate?.checklist || []).map((item) => (
-                          <li key={item.id}>
-                            <strong>{item.phrase}</strong>
-                            <span className={`status-chip ${item.state}`}>{item.state || "unknown"}</span>
-                          </li>
-                        ))}
-                      </ol>
-                      <p className="muted">
-                        {focused.controlPipelines?.gate?.needed
-                          ? "有闸缺口：点击生成门禁流水线 Prompt。"
-                          : "三闸当前有效。点击仍可复检并生成指挥 Prompt。"}
-                      </p>
-                      {focused.controlPipelines?.gate?.handoff && (
-                        <p className="danger">
-                          {focused.controlPipelines.gate.handoff.blocked_gate} blocked by binder · next {focused.controlPipelines.gate.handoff.next_binder_label}
-                        </p>
-                      )}
-                      <ActionButton actionId="gate-pipeline" enabled={enabledOf(snapshot, "gate-pipeline")} onClick={() => run("gate-pipeline")} />
-                    </div>
-                    <div className="pipeline-panel">
-                      <div className="section-heading">
-                        <div><p className="eyebrow">OpenClaw Control</p><h4>装订器修订 · 6 面</h4></div>
-                        <span className={`status-chip ${focused.controlPipelines?.binder?.dispatch?.state}`}>
-                          {pipelineStateLabel(focused.controlPipelines?.binder?.dispatch?.state)}
-                        </span>
-                      </div>
-                      <p className="muted">Binder writes only the focused facet and never approves a gate.</p>
-                      <ol className="pipeline-checklist">
-                        {(focused.controlPipelines?.binder?.checklist || []).map((item) => (
-                          <li key={item.id}>
-                            <strong>{item.label}</strong>
-                            <span className={`status-chip ${item.exists ? "ready" : "blocked"}`}>
-                              {item.exists ? "present" : "missing"}
-                            </span>
-                          </li>
-                        ))}
-                      </ol>
-                      <p className="muted">
-                        {focused.controlPipelines?.binder?.needed
-                          ? "有装订器缺口：点击生成装订器流水线 Prompt。"
-                          : "六面当前无缺口。点击仍可复检 / 做同假设修订。"}
-                      </p>
-                      <div className="pills">
-                        <ActionButton actionId="binder-pipeline" enabled={enabledOf(snapshot, "binder-pipeline")} onClick={() => run("binder-pipeline")} />
-                        <ActionButton actionId="binder-amend" enabled={enabledOf(snapshot, "binder-amend")} onClick={() => run("binder-amend")} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="next-actions">
-                    {(focused.health?.next_actions || []).map((action, index) => (
-                      <div key={`${action.task}-${index}`}>
-                        <strong>{action.label}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="muted">
-                    Latest {focused.decision?.briefing?.latest_round} · verdict {focused.decision?.briefing?.verdict}
-                  </p>
-                  <div className="pills">
-                    {(focused.decision?.offered || []).map((chip) => (
-                      <button key={chip} type="button" data-ndf-action="decision-prefill" onClick={() => setDecisionText(chip)}>{chip}</button>
-                    ))}
-                  </div>
-                  {Object.entries(focused.decision?.blocked || {}).map(([mode, reason]) => (
-                    <p className="danger" key={mode}>{mode} blocked: {reason}</p>
-                  ))}
-                  <textarea value={decisionText} onChange={(event) => setDecisionText(event.target.value)} placeholder="写下本轮决策；空文本不会派发" />
-                  <p className="eyebrow">Claude Code implementation</p>
-                  <div className="section-heading" style={{ marginBottom: "0.5rem" }}>
-                    <span className={`status-chip ${focused.agentRun?.status || "not_dispatched"}`}>
-                      {pipelineStateLabel(focused.agentRun?.status)}
-                    </span>
-                    <span className="muted">
-                      {focused.agentRun?.provider || "claude-code-acp"}
-                    </span>
-                  </div>
-                  {focused.agentRun?.run_id && (
-                    <p className="muted">run {focused.agentRun.run_id}</p>
-                  )}
-                  {(focused.delegation?.dispatch_blockers || []).length > 0 && (
-                    <p className="danger">
-                      {(focused.delegation?.dispatch_blockers || []).join(", ")}
-                    </p>
-                  )}
-                  <div className="pills">
-                    <ActionButton
-                      actionId="generate-next-step"
-                      enabled={enabledOf(snapshot, "generate-next-step")}
-                      intent={decisionText}
-                      onClick={() => run("generate-next-step", { intent: decisionText })}
-                    />
-                    <ActionButton actionId="delegate-poc" enabled={enabledOf(snapshot, "delegate-poc")} onClick={() => run("delegate-poc")} />
-                    <ActionButton actionId="prepare-acp-lease" enabled={enabledOf(snapshot, "prepare-acp-lease")} onClick={() => run("prepare-acp-lease")} />
-                    <ActionButton actionId="next-close-hop" enabled={enabledOf(snapshot, "next-close-hop")} onClick={() => run("next-close-hop")} />
-                  </div>
-                  <p className="muted">Click is not 已确认 / TOPIC已审核 / 可以开始实现.</p>
-                </div>
-              </>
-            )}
-          </section>
-        )}
-
-        {tab === "control" && (
-          <section className="page-stack">
-            <div className="hero card">
-              <div>
-                <p className="eyebrow">Meta kernel command plane</p>
-                <h2>NDF Control</h2>
-                <p>流程内核能否安全指挥 Product、Topics 与 Agent Runtime。</p>
-              </div>
-              <div className="control-kpis">
-                <span><strong>{controlBlockers}</strong>阻断</span>
-                <span><strong>{controlWarnings}</strong>告警</span>
-                <span><strong>{controlPassed}</strong>通过</span>
-              </div>
-            </div>
-
-            <div className="card disclosure">
-              <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, genesis: !s.genesis }))}>
-                Genesis · {snapshot?.control?.genesis?.project_maturity} · {snapshot?.control?.genesis?.accepted ? "内核已绑定" : "待安装"}
-              </button>
-              {!collapsed.genesis && (
-                <div className="page-stack">
-                  <p>
-                    {snapshot?.control?.genesis?.accepted
-                      ? "内核已绑定；日常指挥走 Product / Topics，不必重跑 Genesis。"
-                      : "把流程内核装进本仓；按 G0→G3 完成人工验收。"}
-                  </p>
-                  <div className="genesis-grid">
-                    <span><strong>G0</strong>契约来源</span>
-                    <span><strong>G1</strong>双轨边界</span>
-                    <span><strong>G2</strong>写入边界</span>
-                    <span><strong>G3</strong>验收口径</span>
-                  </div>
-                  <p className="muted">Binding SHA {snapshot?.control?.genesis?.genesis_trunk_sha || "—"}</p>
-                  <ActionButton actionId="new-genesis" enabled={enabledOf(snapshot, "new-genesis")} onClick={() => run("new-genesis")} />
-                </div>
-              )}
-            </div>
-
-            <div className="card disclosure">
-              <div className="section-heading">
-                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, kernelMap: !s.kernelMap }))}>
-                  NDF 内核地图 · 种子 {snapshot?.control?.kernelMap?.seeds?.length || 0} · 缺 {(snapshot?.control?.kernelMap?.missing_seeds || []).length}
-                </button>
-                <div className="pills">
-                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
-                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
-                </div>
-              </div>
-              {!collapsed.kernelMap && (
-                <div>
-                  <p className="eyebrow">Process profile IR</p>
-                  <table>
-                    <thead><tr><th>Clause</th><th>Title</th><th>Status</th><th>Role</th><th>Scope</th></tr></thead>
-                    <tbody>
-                      {(snapshot?.control?.kernelMap?.seeds || []).map((seed) => (
-                        <tr key={seed.id}><td>{seed.id}</td><td>{seed.title}</td><td>{seed.status}</td><td>{seed.role}</td><td>{seed.scope}</td></tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {(snapshot?.control?.kernelMap?.missing_seeds || []).length > 0 && (
-                    <p className="danger">Missing: {snapshot?.control?.kernelMap?.missing_seeds?.join(", ")}</p>
-                  )}
-                  <div className="pills">
-                    <ActionButton actionId="open-language-md" enabled={enabledOf(snapshot, "open-language-md")} onClick={() => run("open-language-md")} />
-                    <ActionButton actionId="open-process-md" enabled={enabledOf(snapshot, "open-process-md")} onClick={() => run("open-process-md")} />
-                    <ActionButton actionId="open-meta-readme" enabled={enabledOf(snapshot, "open-meta-readme")} onClick={() => run("open-meta-readme")} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="card disclosure">
-              <div className="section-heading">
-                <button type="button" data-ndf-action="collapse-section" onClick={() => setCollapsed((s) => ({ ...s, controlHealth: !s.controlHealth }))}>
-                  内核自洽性 · 阻断 {controlBlockers} · 告警 {controlWarnings} · 通过 {controlPassed}
-                </button>
-                <div className="pills">
-                  <ActionButton actionId="run-ndf-control-check" enabled={enabledOf(snapshot, "run-ndf-control-check")} onClick={() => run("run-ndf-control-check")} />
-                  <ActionButton actionId="diagnose-advisor" enabled={enabledOf(snapshot, "diagnose-advisor")} onClick={() => run("diagnose-advisor")} />
-                </div>
-              </div>
-              {!collapsed.controlHealth && (
-                <div>
-                  <p className="eyebrow">Plane-routed checks</p>
-                  <table>
-                    <thead><tr><th>Check / finding</th><th>State</th><th>Why blocked</th><th>Plane / repair</th></tr></thead>
-                    <tbody>
-                      {Object.entries(controlChecks).map(([name, check]) => (
-                        <tr key={name}><td>{name}</td><td><span className={`status-chip ${check.state}`}>{check.state}</span></td><td>{check.summary}</td><td>inspection</td></tr>
-                      ))}
-                      {controlFindings.map((finding, index) => (
-                        <tr key={`${finding.kind}-${index}`}>
-                          <td>{finding.kind}</td><td>{finding.severity}</td><td>{finding.why_blocked}</td>
-                          <td>{finding.plane || finding.space || "route by check"} · {finding.repair_task}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <div className="pills">
-                    <ActionButton actionId="repair-kernel" enabled={enabledOf(snapshot, "repair-kernel")} onClick={() => run("repair-kernel")} />
-                    <ActionButton actionId="go-product" enabled={enabledOf(snapshot, "go-product")} onClick={() => setTab("product")} />
-                    <ActionButton actionId="go-topics" enabled={enabledOf(snapshot, "go-topics")} onClick={() => setTab("topics")} />
-                  </div>
-                  {(snapshot?.control?.nextActions || []).length > 0 && (
-                    <div className="next-actions">
-                      {(snapshot?.control?.nextActions || []).map((action, index) => (
-                        <div key={`${action.kind}-${index}`}><strong>{action.label || action.kind}</strong><span>{action.owner} · {action.space} · {action.allowed_write_root}</span></div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="card command-card">
-              <div className="section-heading">
-                <div><p className="eyebrow">spec/meta only</p><h3>工作流演进</h3></div>
-                <span className={`status-chip ${snapshot?.control?.processHop ? "warning" : "passed"}`}>
-                  {snapshot?.control?.processHop ? snapshot.control.processHop.hop : "无强制演进"}
-                </span>
-              </div>
-              {snapshot?.control?.processHop && (
-                <div className="command-entry">
-                  <strong>{snapshot.control.processHop.title}</strong>
-                  <span>Next human phrase: {snapshot.control.processHop.nextHumanPhrase}</span>
-                </div>
-              )}
-              <div className="pills">
-                <ActionButton actionId="land-confirm" enabled={enabledOf(snapshot, "land-confirm")} onClick={() => run("land-confirm")} />
-                <ActionButton actionId="land-review" enabled={enabledOf(snapshot, "land-review")} onClick={() => run("land-review")} />
-              </div>
-              <table>
-                <thead><tr><th>Process proposal</th><th>Hop / status</th><th>Path</th></tr></thead>
-                <tbody>
-                  {(snapshot?.control?.processProposals || []).map(([title, status, path]) => (
-                    <tr key={path}><td>{title}</td><td>{status}</td><td>{path}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="muted">Archived process proposals: {snapshot?.control?.processProposalArchivedCount || 0}</p>
-              <label className="muted">描述要改进的 META 工作流</label>
-              <textarea value={metaIntent} onChange={(event) => setMetaIntent(event.target.value)} />
-              <ActionButton
-                actionId="submit-process-improvement"
-                enabled={enabledOf(snapshot, "submit-process-improvement")}
-                intent={metaIntent}
-                onClick={() => run("submit-process-improvement", { intent: metaIntent })}
-              />
-            </div>
-
-            <div className="card">
-              <h3>执行面卫生</h3>
-              <div className="control-kpis">
-                <span><strong>{snapshot?.control?.legacyUnknownTopics?.length || 0}</strong>legacy unknown topics</span>
-                <span><strong>{snapshot?.control?.invalidatedReceipts?.length || 0}</strong>invalidated receipts</span>
-                <span><strong>{snapshot?.control?.proposalPlaneWarnings?.length || 0}</strong>proposal-plane warnings</span>
-              </div>
-              {(snapshot?.control?.proposalPlaneWarnings || []).map(([path, track, message]) => (
-                <div className="risk warning" key={path}><strong>{path}</strong><span>{track} · {message}</span></div>
-              ))}
-              {(snapshot?.control?.draftMapWarnings || []).map(([clause, path, message]) => (
-                <div className="risk info" key={`${clause}-${path}`}><strong>{clause}</strong><span>{path} · {message}</span></div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {tab === "agents" && (
-          <section className="page-stack">
-            <div className="hero card">
-              <div>
-                <p className="eyebrow">Agent Runtime</p>
-                <h2>Agents</h2>
-                <p>身份、会话、工作区绑定与当前阻塞。context-compiler 是本地 ndf_context，不是远端 Agent。</p>
-              </div>
-              <div className="pills">
-                <button
-                  type="button"
-                  data-ndf-action="refresh-snapshot"
-                  disabled={busyAction === "refresh-snapshot"}
-                  onClick={() => void run("refresh-snapshot", { probeMode: "light" })}
-                >
-                  {busyAction === "refresh-snapshot" ? "探测中…" : "探测运行时 (light)"}
-                </button>
-                <span className="status-chip muted">
-                  Product 顶栏 Refresh 默认不探；此处 light = OpenClaw health + Claude CLI/resume（无 doctor）
-                </span>
-              </div>
-            </div>
-            <div className="agent-grid">
-              {agentCards.map((agent) => (
-                <div className="card agent-card" key={agent.id}>
-                  <div className="section-heading">
-                    <div><p className="eyebrow">{agent.provider}</p><h3>{agent.name}</h3></div>
-                    <span className={`status-chip ${agent.status}`}>{agent.status}</span>
-                  </div>
-                  <p>{agent.role}</p>
-                  <div className="agent-facts">
-                    <span><strong>Session / plan</strong>{agent.session}</span>
-                    <span><strong>Workspace</strong>{agent.workspace}</span>
-                    <span><strong>Boundary</strong>{agent.boundaries}</span>
-                    <span><strong>Current note</strong>{agent.note}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {tab === "replay" && (
-          <section className="page-stack">
-            <div className="hero card">
-              <div>
-                <p className="eyebrow">Button action</p>
-                <h2>Replay</h2>
-                <p>回放前端按钮动作：左列从 git 基线 A 重跑，右列对照主线下一 SHA B。</p>
-              </div>
-              <span className="status-chip">{hops.length} actions</span>
-            </div>
-            {hops.length === 0 ? (
-              <div className="card">
-                <p>尚无带 git A/B 的按钮动作。旧 Canvas 账本已归档，不在此列出。</p>
-                {snapshot?.replay?.archivedNote && (
-                  <p className="muted">{snapshot.replay.archivedNote}</p>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="card">
-                  <label>
-                    按钮动作
-                    <select
-                      data-ndf-action="d3-zoom-filter"
-                      value={selectedHop}
-                      onChange={(event) => {
-                        const id = event.target.value;
-                        setSelectedHop(id);
-                        if (id && id !== snapshot?.replay?.focused?.id) {
-                          void run("inspect-ledger", { episode: id });
-                        }
-                      }}
-                    >
-                      {hops.map((hop) => (
-                        <option key={hop.id} value={hop.id}>
-                          {hop.title || hop.label || hop.actionId || hop.id}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {focusedAction && selectedHop === focusedAction.id && (
-                    <p className="muted">
-                      {focusedAction.actionId || focusedAction.label}
-                      {" · "}
-                      A={(focusedAction.baselineSha || "").slice(0, 12)}
-                      {" → "}
-                      B={(focusedAction.resultSha || "").slice(0, 12)}
-                    </p>
-                  )}
-                </div>
-                {focusedAction && selectedHop === focusedAction.id && (
-                  <div className="replay-compare-grid">
-                    <div className="card replay-pane">
-                      <p className="eyebrow">重跑</p>
-                      <h3>执行回放</h3>
-                      <p className="muted">从基线 A 开隔离分支，拷贝原按钮 Prompt 重跑（instructions，不宣称已回放）。</p>
-                      <ActionButton
-                        actionId="command-replay-run"
-                        enabled={enabledOf(snapshot, "command-replay-run")}
-                        onClick={() => run("command-replay-run", { episode: focusedAction.id })}
-                      />
-                      <div className="replay-status">
-                        <p className="eyebrow">回放后 git 状态</p>
-                        {focusedAction.left?.status === "pending" || !focusedAction.left?.head ? (
-                          <p>待回放</p>
-                        ) : (
-                          <pre>
-                            {`HEAD ${focusedAction.left.head}\n${focusedAction.left.diffStat || ""}`}
-                          </pre>
-                        )}
-                      </div>
-                    </div>
-                    <div className="card replay-pane">
-                      <p className="eyebrow">原结果</p>
-                      <h3>主线对照</h3>
-                      <p className="muted">对照主线 A 的下一 SHA B（不重跑 skill）。</p>
-                      <ActionButton
-                        actionId="command-replay-compare"
-                        enabled={enabledOf(snapshot, "command-replay-compare")}
-                        onClick={() => run("command-replay-compare", { episode: focusedAction.id })}
-                      />
-                      <div className="replay-status">
-                        <p className="eyebrow">B 的 git 状态</p>
-                        <pre>
-                          {(focusedAction.right?.showStat || focusedAction.originalShowStat || "")
-                            + (focusedAction.right?.diffStat || focusedAction.originalDiffStat
-                              ? `\n\n${focusedAction.right?.diffStat || focusedAction.originalDiffStat}`
-                              : "")
-                            || "—"}
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        )}
-      </main>
-      {dialog && (
-        <div className="modal" role="dialog">
-          <div className="card">
-            <h3>{dialog.title}</h3>
-            {dialog.hint && <p className="muted">{dialog.hint}</p>}
-            <pre>{dialog.body}</pre>
-            <div className="pills">
-              {dialog.kind !== "openFile" && (
-                <button
-                  type="button"
-                  data-ndf-action="copy-prompt"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(dialog.body).then(() => setCopied(true));
-                  }}
-                >
-                  {copied ? "已复制" : "复制 Prompt"}
-                </button>
-              )}
-              <button type="button" data-ndf-action="collapse-section" onClick={() => setDialog(null)}>Dismiss</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  );
 }
 
-const root = document.getElementById("root");
-if (!root) {
-  throw new Error("NDF commander #root missing");
-}
-createRoot(root).render(
+createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
     <App />
   </ErrorBoundary>,

@@ -17,9 +17,11 @@ lease-eligible dispatch `pack_sha` (`safe_to_dispatch` **or** static-ready
 `safe_to_delegate` / `static_preflight_passed`); file-imported leases are revalidated against that pack, manifest,
 plan, base SHA, worktree and allowed root. The Episode also records `acp.start`,
 `lease.acquired|released` and `refs/runs/<run-id>`.
-If static preflight is true but runtime readiness is false, only
-prepare this lease, write the bound lease receipt, refresh the official projection, and do not
-start implementation.
+If static preflight is true but there is no active isolated lease, only
+prepare this lease: create a worktree under `repo_root`, `lease-record` into
+`tmp/ndf-workflow-leases.jsonl`, refresh the official projection, and do not
+start implementation. ACP reachable is not a lease. A lease_only stub without
+`run_id` / `worktree` MUST NOT count as acquired.
 
 ## bootstrap
 
@@ -77,9 +79,13 @@ python3 spec/meta/tools/ndf_workflow_status.py dispatch-send \
   --catalog-action-id <id> --action-id <uuid> --json
 ```
 
-`dispatch-send` sends the pack to Claude Code ACP, waits for
-`ndf-dispatch-notify/v1`, reads `pack.completion_receipt_path` from disk, then
-`completion-record` → `action-commit` → `action-finish` → `snapshot --out`.
+`dispatch-send` sends the pack to Claude Code ACP and waits with heartbeat
+(`NDF_ACP_PING_SEC` / `STALL_SEC` / `MAX_SEC`) on resume artifacts, disk
+completion, and stdout notify — not a single 900s wall timeout. Then
+`completion-record` → (`action-commit` only if succeeded) → `action-finish`
+→ write last.json → `snapshot --out`.
+In-flight, human 「进展如何」 runs `dispatch-probe` (liveness / refresh stall /
+closeout if receipt landed). Do not `dispatch-send` the same pack again.
 Stdout is notify-only; the disk file MUST include handshake
 (`worktree` / `branch` / `run_id` / `session_id`) plus `changed_files` and
 `reproduce_commands`. MUST NOT treat stdout `ndf-agent-completion/v1` as the

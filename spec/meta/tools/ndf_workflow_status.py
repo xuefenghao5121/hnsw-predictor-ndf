@@ -64,6 +64,7 @@ from ndf_workflow_evidence import (  # noqa: E402
 
 ACTION_LOG = ROOT / "tmp" / "ndf-workflow-actions.jsonl"
 DISPATCH_PACK_PATH = ROOT / "tmp" / "ndf-dispatch-last-pack.json"
+DISPATCH_LAST_PATH = ROOT / "tmp" / "ndf-dispatch-last.json"
 HEALTH_DIR = ROOT / "tmp" / "ndf-workflow-health"
 PIPELINE_EPISODE_DIR = ROOT / "tmp" / "ndf-control-pipelines"
 CONTROL_DISPATCH_LOG = ROOT / "tmp" / "ndf-control-dispatch.jsonl"
@@ -185,7 +186,19 @@ POC_DECISION_MEANINGS = {
     "partial": "Close a verified subset; leave the topic exploring.",
     "reject": "Close the topic as a negative result.",
 }
-ROUND_TOKEN_RE = re.compile(r"\bR\d+\b", re.I)
+ROUND_TOKEN_RE = re.compile(r"\bR(\d+)\b", re.I)
+FEATURE_IMPLEMENTED_STATUSES = frozenset(
+    {"implemented", "in_progress", "done", "landed"}
+)
+POC_IMPLEMENTATION_TASKS = frozenset({"poc_implementation", "implement"})
+BASELINE_PREP_TASKS = frozenset({"poc_prepare_baseline", "poc_measurement"})
+DECISION_BLOCK_LABELS: dict[str, str] = {
+    "gates_not_valid": "三闸未全部有效",
+    "no_poc_round_yet": "尚无 DESIGN 功能实现轮，请先选择 implement",
+    "no_feature_round_yet": "尚无 DESIGN 功能实现轮，请先选择 implement",
+    "poc_round_exists": "DESIGN 功能实现轮已开始，请选 continue_exploring",
+    "feature_round_exists": "DESIGN 功能实现轮已开始，请选 continue_exploring",
+}
 MEASUREMENT_FINDING_KINDS = frozenset(
     {
         "unverified_measurement_claim",
@@ -196,6 +209,58 @@ MEASUREMENT_FINDING_KINDS = frozenset(
         "vs_unmentioned",
     }
 )
+PLANE_BUSINESS = "Business"
+PLANE_CONTROL = "NDF Control"
+PLANE_RUNTIME = "Runtime"
+# Bindcheck / closeout provenance — Control plane; MUST NOT default to binder_amend.
+CONTROL_BINDCHECK_KINDS = frozenset(
+    {
+        "missing_trailer",
+        "bad_ledger_sha",
+        "clause_unbound",
+        "orphan_commit",
+        "wrong_topic",
+        "wrong_proposals",
+        "wrong_clauses",
+        "stale_ledger",
+        "duplicate_ledger",
+    }
+)
+CONTROL_ONLY_REPAIR_TASKS = frozenset(
+    {
+        "diagnose-topic",
+        "dispatch_recover",
+        "control_proposal",
+        "legacy_gate_audit",
+        "gate_sha_audit",
+        "gate_receipt_draft",
+        "proposal_plane_repair",
+        "ndf_improvement_proposal",
+    }
+)
+COMPLETION_BLOCKER_PREFIXES = (
+    "missing:",
+    "mismatch:",
+    "invalid:",
+    "stale:",
+    "runtime_lease:",
+)
+COMPLETION_BLOCKER_HUMAN: dict[str, str] = {
+    "missing:active_runtime_lease": (
+        "ACP 租约未写入 jsonl；实现前先 lease-record（隔离 worktree + run_id）"
+    ),
+    "missing:changed_sections": (
+        "回执缺 changed_sections（改了 COMMITS.md 或 ndf/evidence/* 时必填）"
+    ),
+    "missing:post_check_receipts": (
+        "post_check_receipts 必须是数组（每项含 command、result、verifier）"
+    ),
+    "mismatch:evidence_bundle_sha": (
+        "evidence_bundle_sha 与 evidence_paths 重算不一致"
+    ),
+    "mismatch:worktree": "worktree 与 active lease 不一致",
+    "mismatch:branch": "branch 与 active lease 不一致",
+}
 # Non-blocking advisories: keep on health.findings, exclude from forced next_actions /
 # binder pipeline steps (ok if own R0 table).
 ADVISORY_FINDING_KINDS = frozenset(
@@ -480,12 +545,67 @@ def binder_facet_meta(kind: str | None) -> tuple[str | None, int | None, str | N
         return None, None, None
     facet = KIND_TO_BINDER_FACET.get(kind)
     if facet is None:
-        return kind, None, kind
+        return None, None, None
     return (
         facet,
         BINDER_FACET_ORDER.index(facet) + 1,
         BINDER_FACET_LABELS[facet],
     )
+
+
+def default_finding_plane(
+    kind: str,
+    *,
+    repair_task: str,
+    gate: str | None = None,
+    check_name: str | None = None,
+) -> str:
+    if gate or str(kind).startswith("gate_"):
+        return PLANE_CONTROL
+    if repair_task in CONTROL_ONLY_REPAIR_TASKS:
+        return PLANE_CONTROL
+    if check_name == "bindcheck" or kind in CONTROL_BINDCHECK_KINDS:
+        return PLANE_CONTROL
+    if kind in KIND_TO_BINDER_FACET and repair_task == "binder_amend":
+        return PLANE_BUSINESS
+    if kind in MEASUREMENT_FINDING_KINDS:
+        return PLANE_BUSINESS
+    if repair_task == "binder_amend":
+        return PLANE_CONTROL
+    return PLANE_CONTROL
+
+
+def finding_pollutes_business_space(item: Mapping[str, Any]) -> bool:
+    if str(item.get("severity") or "") != "error":
+        return False
+    plane = item.get("plane")
+    if plane in {PLANE_CONTROL, PLANE_RUNTIME}:
+        return False
+    if item.get("repair_task") in CONTROL_ONLY_REPAIR_TASKS:
+        return False
+    if (
+        item.get("repair_task") == "binder_amend"
+        and item.get("kind") not in KIND_TO_BINDER_FACET
+    ):
+        return False
+    if item.get("kind") in CONTROL_BINDCHECK_KINDS:
+        return False
+    return True
+
+
+def completion_record_blockers(blockers: Sequence[str]) -> list[str]:
+    return [
+        str(item)
+        for item in blockers
+        if any(str(item).startswith(prefix) for prefix in COMPLETION_BLOCKER_PREFIXES)
+    ]
+
+
+def humanize_completion_blockers(blockers: Sequence[str]) -> list[str]:
+    lines: list[str] = []
+    for item in completion_record_blockers(blockers):
+        lines.append(COMPLETION_BLOCKER_HUMAN.get(str(item), str(item)))
+    return lines
 
 
 def finding_route(kind: str, *, check_name: str, topic: str) -> dict[str, str]:
@@ -494,17 +614,34 @@ def finding_route(kind: str, *, check_name: str, topic: str) -> dict[str, str]:
             "repair_owner": "claude-code",
             "repair_task": "poc_measurement",
             "allowed_write_root": f"poc/{topic}/",
+            "plane": PLANE_BUSINESS,
         }
     if check_name == "isolation":
         return {
             "repair_owner": "claude-code",
             "repair_task": "poc_isolation_repair",
             "allowed_write_root": f"poc/{topic}/",
+            "plane": PLANE_CONTROL,
+        }
+    if check_name == "bindcheck" or kind in CONTROL_BINDCHECK_KINDS:
+        return {
+            "repair_owner": "openclaw",
+            "repair_task": "diagnose-topic",
+            "allowed_write_root": f"poc/{topic}/ndf/",
+            "plane": PLANE_CONTROL,
+        }
+    if kind in KIND_TO_BINDER_FACET:
+        return {
+            "repair_owner": "openclaw",
+            "repair_task": "binder_amend",
+            "allowed_write_root": f"poc/{topic}/ndf/",
+            "plane": PLANE_BUSINESS,
         }
     return {
         "repair_owner": "openclaw",
-        "repair_task": "binder_amend",
+        "repair_task": "diagnose-topic",
         "allowed_write_root": f"poc/{topic}/ndf/",
+        "plane": PLANE_CONTROL,
     }
 
 
@@ -1216,6 +1353,7 @@ def finding(
     human_gate: str | None = None,
     gate: str | None = None,
     plane: str | None = None,
+    check_name: str | None = None,
 ) -> dict[str, Any]:
     binder_facet = binder_order = binder_label = None
     if repair_task == "binder_amend":
@@ -1223,13 +1361,16 @@ def finding(
     pipeline = pipeline_for_task(
         repair_task, gate=gate, binder_facet=binder_facet
     )
+    resolved_plane = plane or default_finding_plane(
+        kind, repair_task=repair_task, gate=gate, check_name=check_name
+    )
     return {
         "scope": scope,
         "space": space,
         "kind": kind,
         "severity": severity,
         "evidence": evidence,
-        "plane": plane,
+        "plane": resolved_plane,
         "repair_owner": repair_owner,
         "repair_task": repair_task,
         "allowed_write_root": allowed_write_root,
@@ -2146,6 +2287,26 @@ def topic_active_lease(topic: str | None) -> dict[str, Any] | None:
     )
 
 
+def active_isolated_lease_for_topic(
+    topic_id: str,
+) -> tuple[bool, dict[str, Any] | None]:
+    """True when topic has active lease at current HEAD with run_id + worktree."""
+    lease = topic_active_lease(topic_id)
+    if not lease:
+        return False, None
+    head = git_head()
+    lease_head = str(lease.get("base_sha") or lease.get("repo_head") or "")
+    if not (lease_head and head and lease_head == head):
+        return False, lease
+    if not str(lease.get("run_id") or "").strip():
+        return False, lease
+    if not str(lease.get("worktree") or "").strip():
+        return False, lease
+    if str(lease.get("result") or "") != "active":
+        return False, lease
+    return True, lease
+
+
 def read_action_receipts() -> list[dict[str, Any]]:
     receipts, malformed = parse_action_receipts()
     if malformed:
@@ -2514,6 +2675,47 @@ def _may_write_pathspecs(action: Mapping[str, Any] | None) -> list[str]:
     return specs or defaults
 
 
+def _gitignored_maywrite_paths(action: Mapping[str, Any] | None) -> list[Path]:
+    paths: list[Path] = []
+    for item in (action or {}).get("mayWrite") or []:
+        text = str(item).strip()
+        if not text:
+            continue
+        token = text.split()[0].rstrip("/")
+        if token.startswith("tmp/") or token in {"tmp"}:
+            paths.append(ROOT / token)
+    return paths
+
+
+def _verify_maywrite_artifacts(
+    action: Mapping[str, Any] | None,
+    start: Mapping[str, Any] | None,
+    catalog_id: str,
+) -> tuple[bool, str | None]:
+    """When git has nothing staged, verify disk artifacts for gitignored mayWrite."""
+    if str((action or {}).get("closeoutPolicy") or "") != "transactional":
+        return True, None
+    artifact_paths = _gitignored_maywrite_paths(action)
+    if not artifact_paths and (action or {}).get("id") != "prepare-acp-lease":
+        return True, None
+    catalog_key = str((action or {}).get("id") or catalog_id)
+    if catalog_key == "prepare-acp-lease":
+        topic = str((start or {}).get("topic") or "")
+        episode_id = str((start or {}).get("episode_id") or "")
+        ok, lease = (
+            active_isolated_lease_for_topic(topic) if topic else (False, None)
+        )
+        if not ok:
+            return False, "missing:active_runtime_lease"
+        if episode_id and str((lease or {}).get("episode_id") or "") != episode_id:
+            return False, "lease_episode_mismatch"
+        return True, "lease_artifact_verified"
+    for path in artifact_paths:
+        if path.suffix == ".jsonl" and (not path.is_file() or path.stat().st_size == 0):
+            return False, f"missing_artifact:{rel(path)}"
+    return True, "artifact_verified"
+
+
 def action_commit(
     action_id: str,
     *,
@@ -2656,7 +2858,12 @@ def action_commit(
             )
         committed = True
     else:
-        skip_reason = "clean_worktree"
+        verified, artifact_reason = _verify_maywrite_artifacts(action, start, catalog_id)
+        if not verified:
+            raise ValueError(
+                f"action-commit requires mayWrite artifact: {artifact_reason}"
+            )
+        skip_reason = artifact_reason or "clean_worktree"
 
     result_sha = git_head() or baseline
     diff = subprocess.run(
@@ -3119,6 +3326,8 @@ def external_check_findings(
                     repair_owner=route["repair_owner"],
                     repair_task=route["repair_task"],
                     allowed_write_root=route["allowed_write_root"],
+                    plane=route.get("plane"),
+                    check_name=name,
                     human_gate="人工确认 destructive git disposition"
                     if name == "isolation" and severity == "error"
                     else None,
@@ -3151,6 +3360,7 @@ def gate_findings(topic: str, gates: dict[str, Any]) -> list[dict[str, Any]]:
                 allowed_write_root=f"poc/{topic}/ndf/",
                 human_gate=GATE_PHRASES.get(name),
                 gate=name,
+                plane=PLANE_CONTROL,
             )
         )
     return findings
@@ -3180,9 +3390,6 @@ def latest_topic_health(
 def readiness(topic_dir: Path, gates: dict[str, Any], perf: dict[str, Any]) -> dict[str, Any]:
     ndf = topic_dir / "ndf"
     design_gaps = [name for name in ("DESIGN.md", "INTERFACE.md") if not (ndf / name).is_file()]
-    for gate in ("topic_review", "design_review"):
-        if gates[gate]["state"] != "valid":
-            design_gaps.append(f"gate:{gate}:{gates[gate]['state']}")
     impl_files = implementation_files(topic_dir)
     impl_gaps: list[str] = []
     if gates["implementation_approval"]["state"] != "valid":
@@ -3536,19 +3743,122 @@ def phase_hint_for_decision(
     return "close_ready"
 
 
+def list_poc_completions(topic_dir: Path | None) -> list[dict[str, Any]]:
+    if topic_dir is None:
+        return []
+    evidence = topic_dir / "ndf" / "evidence"
+    if not evidence.is_dir():
+        return []
+    rows: list[dict[str, Any]] = []
+    for path in evidence.glob("*.json"):
+        data = read_json_artifact(path)
+        if not data or data.get("schema") != "ndf-agent-completion/v1":
+            continue
+        rows.append(dict(data))
+    rows.sort(key=lambda item: str(item.get("finished_at") or item.get("started_at") or ""))
+    return rows
+
+
+def has_baseline_copy_marker(topic_dir: Path | None) -> bool:
+    if topic_dir is None or not topic_dir.is_dir():
+        return False
+    for path in topic_dir.rglob("BASELINE_COPY.md"):
+        if "ndf" in path.relative_to(topic_dir).parts:
+            continue
+        return True
+    return False
+
+
+def baseline_prepared(
+    topic_dir: Path | None = None,
+    *,
+    spaces: Mapping[str, Any] | None = None,
+    completions: Sequence[Mapping[str, Any]] | None = None,
+) -> bool:
+    """Baseline prep = trunk copy workspace and/or first R0 measurement — not implement."""
+    code = (spaces or {}).get("implementation", {}).get("code_files") or []
+    if code:
+        return True
+    if has_baseline_copy_marker(topic_dir):
+        return True
+    for item in completions or []:
+        if str(item.get("task") or "") in BASELINE_PREP_TASKS:
+            return True
+    return False
+
+
+def delta_feature_implementation_started(delta_text: str) -> bool:
+    body = section(delta_text, "Feature delta") or section(delta_text, "Feature")
+    for line in body.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        first = cells[0].lower().replace(" ", "")
+        if first in {"id", ""} or set(cells[0]) <= {"-", " "} or cells[0].startswith("-"):
+            continue
+        status = cells[-1].lower().strip()
+        if status in FEATURE_IMPLEMENTED_STATUSES:
+            return True
+    return False
+
+
+def delta_round_beyond_r0(delta_text: str) -> bool:
+    latest = latest_delta_round(delta_text)
+    round_id = str(latest.get("round") or "")
+    match = ROUND_TOKEN_RE.search(round_id)
+    if not match:
+        return False
+    return int(match.group(1)) >= 1
+
+
+def poc_feature_round_started(
+    topic_dir: Path | None = None,
+    *,
+    spaces: Mapping[str, Any] | None = None,
+    delta: Mapping[str, Any] | None = None,
+    delta_text: str = "",
+    completions: Sequence[Mapping[str, Any]] | None = None,
+    evidence_count: int = 0,
+) -> bool:
+    """True when a DESIGN feature implementation round has started (not baseline prep)."""
+    del evidence_count  # baseline/measurement evidence MUST NOT start feature rounds
+    for item in completions or []:
+        if str(item.get("task") or "") in POC_IMPLEMENTATION_TASKS:
+            return True
+    text = delta_text or ""
+    if text and delta_feature_implementation_started(text):
+        return True
+    if text and delta_round_beyond_r0(text):
+        return True
+    # Legacy fallback: explicit R1+ token in projected latest_round snippet only
+    latest = str((delta or {}).get("latest_round") or "")
+    match = ROUND_TOKEN_RE.search(latest)
+    if match and int(match.group(1)) >= 1:
+        return True
+    return False
+
+
 def poc_round_started(
     spaces: Mapping[str, Any] | None = None,
     delta: Mapping[str, Any] | None = None,
     evidence_count: int = 0,
+    *,
+    topic_dir: Path | None = None,
+    delta_text: str = "",
+    completions: Sequence[Mapping[str, Any]] | None = None,
 ) -> bool:
-    """True when this topic already has a POC implementation or recorded round."""
-    code = (spaces or {}).get("implementation", {}).get("code_files") or []
-    if code:
-        return True
-    if evidence_count > 0:
-        return True
-    latest = str((delta or {}).get("latest_round") or "")
-    return bool(ROUND_TOKEN_RE.search(latest))
+    """Backward-compatible alias for feature-round detection."""
+    return poc_feature_round_started(
+        topic_dir,
+        spaces=spaces,
+        delta=delta,
+        delta_text=delta_text,
+        completions=completions,
+        evidence_count=evidence_count,
+    )
 
 
 def markdown_section_bullets(text: str, title: str) -> list[str]:
@@ -3812,6 +4122,8 @@ def topic_decision_view(
     *,
     spaces: Mapping[str, Any] | None = None,
     delta: Mapping[str, Any] | None = None,
+    delta_text: str = "",
+    topic_dir: Path | None = None,
     evidence_count: int = 0,
 ) -> dict[str, Any]:
     selected = first_token(header(text, "selected_decision"))
@@ -3821,7 +4133,20 @@ def topic_decision_view(
     gates_valid = all(
         gates.get(name, {}).get("state") == "valid" for name in GATE_ORDER
     )
-    round_started = poc_round_started(spaces, delta, evidence_count)
+    completions = list_poc_completions(topic_dir) if topic_dir else []
+    round_started = poc_feature_round_started(
+        topic_dir,
+        spaces=spaces,
+        delta=delta,
+        delta_text=delta_text,
+        completions=completions,
+        evidence_count=evidence_count,
+    )
+    baseline_ready = baseline_prepared(
+        topic_dir,
+        spaces=spaces,
+        completions=completions,
+    )
     blocked: dict[str, str] = {}
     active = lifecycle in {"exploring", "blocked"}
     if active and not gates_valid:
@@ -3836,9 +4161,9 @@ def topic_decision_view(
             blocked[mode] = "gates_not_valid"
     elif gates_valid and active:
         if round_started:
-            blocked["implement"] = "poc_round_exists"
+            blocked["implement"] = "feature_round_exists"
         else:
-            blocked["continue_exploring"] = "no_poc_round_yet"
+            blocked["continue_exploring"] = "no_feature_round_yet"
     offered = [mode for mode in sorted(POC_DECISIONS) if mode not in blocked]
     if lifecycle in {"promoted", "rejected", "closed"}:
         state = "closed"
@@ -3849,6 +4174,16 @@ def topic_decision_view(
     else:
         state = "not_ready"
     early_close_allowed = bool(active and state == "not_ready")
+    blocked_labels = {
+        mode: DECISION_BLOCK_LABELS.get(code, code) for mode, code in blocked.items()
+    }
+    if (
+        blocked.get("continue_exploring") == "no_feature_round_yet"
+        and baseline_ready
+    ):
+        blocked_labels["continue_exploring"] = (
+            "基线准备（拷贝+R0）已完成，尚未按 DESIGN 实现"
+        )
     return {
         "state": state,
         "selected": selected,
@@ -3861,7 +4196,9 @@ def topic_decision_view(
         "allowed": sorted(POC_DECISIONS),
         "offered": offered,
         "blocked": blocked,
+        "blocked_labels": blocked_labels,
         "round_started": round_started,
+        "baseline_prepared": baseline_ready,
         "meanings": dict(POC_DECISION_MEANINGS),
         "source": "TOPIC.md:selected_decision" if selected else None,
     }
@@ -3956,7 +4293,7 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
         )
 
     for item in findings:
-        if item["severity"] != "error":
+        if not finding_pollutes_business_space(item):
             continue
         target = {
             "Design": spaces["design"],
@@ -3987,6 +4324,8 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
         gates,
         spaces=spaces,
         delta=delta,
+        delta_text=delta_text,
+        topic_dir=topic_dir,
         evidence_count=int((binder.get("evidence") or {}).get("count") or 0),
     )
     decision["briefing"] = decision_briefing(topic_dir, delta_text=delta_text)
@@ -4018,10 +4357,12 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     )
     perf_passed = checks["perf_baseline"]["exit_code"] == 0
     isolation_passed = checks["isolation"]["exit_code"] == 0
+    bindcheck_passed = checks.get("bindcheck", {}).get("exit_code") == 0
     graph_blockers = spec_graph_dispatch_blockers(
         spec_health_view, active=active, checks=checks
     )
-    graphcheck_passed = "graphcheck_failed" not in graph_blockers
+    product_graph_passed = "product_graphcheck_failed" not in graph_blockers
+    meta_graph_passed = "meta_graphcheck_failed" not in graph_blockers
     spec_health_current = "spec_health_stale" not in graph_blockers
     if mode == "full":
         context = context_binding(
@@ -4035,25 +4376,32 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     else:
         context = empty_context_binding(topic_id)
     context_valid = bool(context["context_verify"].get("valid"))
-    static_preflight_passed = (
+    contract_preflight_passed = (
         active
-        and
-        gates["implementation_approval"]["state"] == "valid"
+        and gates["implementation_approval"]["state"] == "valid"
         and baseline_status != "stale"
         and spaces["implementation"]["ready"]
         and perf_passed
         and isolation_passed
         and context_valid
-        and graphcheck_passed
-        and spec_health_current
+    )
+    provenance_preflight_passed = bindcheck_passed
+    static_preflight_passed = (
+        contract_preflight_passed
+        and provenance_preflight_passed
+        and product_graph_passed
     )
     lease = topic_active_lease(topic_id)
+    active_lease_ok, _active_lease = active_isolated_lease_for_topic(topic_id)
     runtime = runtime_status(False)["implementation"]
     # Default snapshot does not probe ACP. not_probed MUST NOT look like
     # runtime_unavailable (transport plane unprobed ≠ pipeline down).
     runtime_probed = str(runtime.get("status") or "") != "not_probed"
-    runtime_dispatch_ready = bool(runtime["pipeline_reachable"] and not lease)
-    safe_to_dispatch = static_preflight_passed and runtime_dispatch_ready
+    runtime_dispatch_ready, runtime_ready_source = runtime_dispatch_ready_for_topic(
+        topic_id, runtime, lease
+    )
+    workspace_bound = bool(workspace_truth_view(topic_id).get("workspace_bound"))
+    safe_to_dispatch = static_preflight_passed and active_lease_ok and workspace_bound
     dispatch_blockers = [
         reason
         for reason in (
@@ -4070,14 +4418,27 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             else "missing_baseline_workspace",
             None if perf_passed else "perf_check_failed",
             None if isolation_passed else "isolation_check_failed",
-            *graph_blockers,
+            None if bindcheck_passed else "bindcheck_failed",
+            None if product_graph_passed else "product_graphcheck_failed",
+            None if meta_graph_passed else "meta_graphcheck_failed",
+            None if spec_health_current else "spec_health_stale",
             None if context_valid else "context_verify_failed",
+            None if active_lease_ok else "missing_active_isolated_lease",
+            None if workspace_bound else "workspace_unbound",
             (
                 "runtime_unavailable"
                 if runtime_probed and not runtime["pipeline_reachable"]
                 else None
             ),
-            "topic_active_lease" if lease else None,
+            (
+                "topic_active_lease"
+                if lease
+                and not (
+                    str(lease.get("base_sha") or lease.get("repo_head") or "")
+                    == str(git_head() or "")
+                )
+                else None
+            ),
         )
         if reason
     ]
@@ -4090,6 +4451,10 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     foundation, workflow_meta = split_context_graph(
         context, overview["explore_surface"]
     )
+    impl_view = _implementation_dispatch_view(topic_id)
+    for extra in impl_view.get("dispatch_blockers_from_send") or []:
+        if extra not in dispatch_blockers:
+            dispatch_blockers.append(str(extra))
     return {
         "topic_id": topic_id,
         "path": rel(topic_dir),
@@ -4135,12 +4500,16 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             "base_sha": lease.get("base_sha") if lease else None,
             "worktree": lease.get("worktree") if lease else None,
             "lease": lease,
-            **_implementation_dispatch_view(topic_id),
+            **impl_view,
         },
         "delegation": {
             "safe_to_dispatch": safe_to_dispatch,
+            "contract_preflight_passed": contract_preflight_passed,
+            "provenance_preflight_passed": provenance_preflight_passed,
             "static_preflight_passed": static_preflight_passed,
+            "active_isolated_lease": active_lease_ok,
             "runtime_dispatch_ready": runtime_dispatch_ready,
+            "runtime_dispatch_ready_source": runtime_ready_source,
             "safe_to_delegate_control": not any(
                 value["state"] == "invalidated" for value in gates.values()
             ),
@@ -4149,7 +4518,7 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             **context,
             "dispatch_blockers": dispatch_blockers,
             "evaluated_at": now_iso(),
-            **_implementation_dispatch_view(topic_id),
+            **impl_view,
         },
         "traceability": [
             {
@@ -6080,49 +6449,134 @@ def control_runtime_dispatch_blockers(control: Mapping[str, Any] | None) -> list
 def implementation_dispatch_runtime(
     topic: str | None = None,
 ) -> tuple[dict[str, Any], bool, dict[str, Any] | None]:
-    """Probe ACP and return (runtime, dispatch_ready, active_lease)."""
+    """Probe ACP and return (runtime, pipeline_reachable, active_lease_row)."""
     runtime = runtime_status(True)["implementation"]
     lease = topic_active_lease(topic) if topic is not None else None
-    ready = bool(runtime.get("pipeline_reachable") and not lease)
+    ready = bool(runtime.get("pipeline_reachable"))
     return runtime, ready, lease
+
+
+def _read_last_dispatch_pack(topic: str | None) -> dict[str, Any] | None:
+    if not topic or not DISPATCH_PACK_PATH.is_file():
+        return None
+    try:
+        data = json.loads(DISPATCH_PACK_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if str(data.get("topic") or "") != str(topic):
+        return None
+    return data
+
+
+def _dispatch_send_topic(data: Mapping[str, Any]) -> str | None:
+    topic = data.get("topic")
+    if isinstance(topic, str) and topic.strip():
+        return topic.strip()
+    completion = data.get("agent_completion")
+    if isinstance(completion, Mapping):
+        nested = completion.get("topic")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    closeout = data.get("closeout")
+    if isinstance(closeout, Mapping):
+        pack = closeout.get("pack")
+        if isinstance(pack, Mapping):
+            nested = pack.get("topic")
+            if isinstance(nested, str) and nested.strip():
+                return nested.strip()
+    return None
+
+
+def _read_last_dispatch_send(topic: str | None = None) -> dict[str, Any] | None:
+    if not DISPATCH_LAST_PATH.is_file():
+        return None
+    try:
+        data = json.loads(DISPATCH_LAST_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    if topic:
+        send_topic = _dispatch_send_topic(data)
+        if send_topic and send_topic != str(topic):
+            return None
+    return data
+
+
+def _dispatch_pack_head_matches(pack: Mapping[str, Any], head: str) -> bool:
+    base = str(pack.get("base_sha") or "")
+    workspace_head = str((pack.get("workspace") or {}).get("repo_head") or "")
+    return bool(head) and (base == head or workspace_head == head)
+
+
+def runtime_dispatch_ready_for_topic(
+    topic_id: str,
+    runtime: Mapping[str, Any],
+    lease: Mapping[str, Any] | None,
+) -> tuple[bool, str | None]:
+    """ACP pipeline reachable (live probe or absorbed pack); not active lease."""
+    head = git_head()
+    probed = str(runtime.get("status") or "") != "not_probed"
+    if probed:
+        if runtime.get("pipeline_reachable"):
+            return True, "live_probe"
+        return False, None
+    pack = _read_last_dispatch_pack(topic_id)
+    if pack and _dispatch_pack_head_matches(pack, head):
+        if pack.get("runtime_dispatch_ready") is True:
+            return True, "absorbed_pack"
+    return False, None
+
+
+def _is_dispatch_stub_success(agent_run: Mapping[str, Any]) -> bool:
+    state = str(agent_run.get("dispatch_state") or agent_run.get("state") or "")
+    if state != "succeeded":
+        return False
+    summary = str(agent_run.get("result_summary") or "")
+    if summary == "lease_only_no_implementation_start" or summary.endswith(
+        "_no_implementation_start"
+    ):
+        return True
+    if not str(agent_run.get("worktree") or "").strip():
+        send = agent_run.get("send")
+        if isinstance(send, Mapping) and send.get("lease_only"):
+            return True
+    return False
 
 
 def _implementation_dispatch_view(topic: str | None = None) -> dict[str, Any]:
     """Project latest dispatch-send receipt onto the commander surface."""
-    path = ROOT / "tmp" / "ndf-dispatch-last.json"
     empty = {
         "delegate_to": "claude-code-acp",
         "dispatch_state": "not_dispatched",
         "result_summary": None,
         "dispatch_blockers_from_send": [],
+        "transport_ok": False,
+        "completion_rejected": False,
+        "completion_blockers_human": [],
     }
-    if not path.is_file():
-        return empty
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return empty
-    if not isinstance(data, dict):
-        return empty
-    pack_topic = None
-    pack_path = ROOT / "tmp" / "ndf-dispatch-last-pack.json"
-    if pack_path.is_file():
-        try:
-            pack = json.loads(pack_path.read_text(encoding="utf-8"))
-            if isinstance(pack, dict):
-                pack_topic = pack.get("topic")
-        except (OSError, json.JSONDecodeError):
-            pack_topic = None
-    if topic and pack_topic and str(pack_topic) != str(topic):
+    data = _read_last_dispatch_send(topic)
+    if not data:
         return empty
     state = str(data.get("dispatch_state") or data.get("state") or "not_dispatched")
+    blockers = list(data.get("blockers") or [])
+    completion_human = humanize_completion_blockers(blockers)
+    transport_ok = bool(data.get("transport_ok"))
+    completion_rejected = bool(
+        state == "failed" and transport_ok and completion_human
+    )
     return {
         "delegate_to": data.get("delegate_to") or "claude-code-acp",
         "dispatch_state": state,
         "result_summary": data.get("result_summary"),
-        "dispatch_blockers_from_send": list(data.get("blockers") or []),
+        "dispatch_blockers_from_send": blockers,
         "dispatch_request_id": data.get("request_id"),
         "dispatch_pack_sha": data.get("pack_sha"),
+        "transport_ok": transport_ok,
+        "completion_rejected": completion_rejected,
+        "completion_blockers_human": completion_human,
     }
 
 
@@ -6683,10 +7137,43 @@ def spec_graph_dispatch_blockers(
             return 1
         return int(check["exit_code"])
 
-    if exit_code(meta) != 0 or exit_code(product) != 0:
-        blockers.append("graphcheck_failed")
+    if exit_code(product) != 0:
+        blockers.append("product_graphcheck_failed")
+    if exit_code(meta) != 0:
+        blockers.append("meta_graphcheck_failed")
     if not (spec_health_view and spec_health_view.get("state") == "current"):
         blockers.append("spec_health_stale")
+    return blockers
+
+
+def contract_preflight_blockers(
+    *,
+    active: bool,
+    gates: Mapping[str, Any],
+    baseline_status: str,
+    spaces: Mapping[str, Any],
+    perf_passed: bool,
+    isolation_passed: bool,
+    context_valid: bool,
+) -> list[str]:
+    if not active:
+        return ["topic_lifecycle_closed"]
+    blockers: list[str] = []
+    if gates["implementation_approval"]["state"] != "valid":
+        blockers.append(
+            f"implementation_gate:{gates['implementation_approval']['state']}"
+        )
+    if baseline_status == "stale":
+        blockers.append("baseline_stale")
+    impl_gaps = spaces.get("implementation", {}).get("gaps") or []
+    if "missing_baseline_workspace" in impl_gaps or "no_topic_code" in impl_gaps:
+        blockers.append("missing_baseline_workspace")
+    if not perf_passed:
+        blockers.append("perf_check_failed")
+    if not isolation_passed:
+        blockers.append("isolation_check_failed")
+    if not context_valid:
+        blockers.append("context_verify_failed")
     return blockers
 
 
@@ -7089,17 +7576,138 @@ def canvas_topic_workbench(
         pipelines["binder"] = binder_pipe
     gate_handoff = ((pipelines.get("gate") or {}).get("handoff") or {})
     next_actions = ((detail.get("health") or {}).get("next_actions") or [])
+    dispatch_state = str((detail.get("agent_run") or {}).get("dispatch_state") or "")
+    send_blockers = list(
+        (detail.get("delegation") or {}).get("dispatch_blockers_from_send")
+        or (detail.get("agent_run") or {}).get("dispatch_blockers_from_send")
+        or []
+    )
     if gate_handoff:
         next_step_line = (
             f"{gate_handoff.get('blocked_gate')} blocked by binder; "
             f"next {gate_handoff.get('next_binder_label') or gate_handoff.get('next_binder_facet')}"
         )
+    elif dispatch_state in {"sent", "awaiting_result"}:
+        next_step_line = (
+            "已发出；本聊天回「进展如何」查看 OpenClaw / Claude Code 执行情况。"
+            "「继续」只用于确认派发，不要对同一 pack 再 send。"
+        )
+    elif dispatch_state == "failed" and any(
+        item in {"acp_timeout", "acp_stalled", "acp_max_exceeded", "openclaw_stalled", "openclaw_timeout"}
+        or str(item).startswith("acp_")
+        for item in send_blockers
+        + list((detail.get("delegation") or {}).get("dispatch_blockers") or [])
+    ):
+        next_step_line = (
+            "上次派发未完成（运输超时/停滞），D1 未落地。"
+            "确认 ACP 会话可 resume 后重 pack，再 Delegate POC。"
+            "不要把失败 closeout 的 git commit 当成实现完成。"
+        )
+    elif dispatch_state == "failed":
+        completion_hits = humanize_completion_blockers(
+            send_blockers
+            + list((detail.get("delegation") or {}).get("dispatch_blockers") or [])
+        )
+        transport_ok = bool((detail.get("agent_run") or {}).get("transport_ok"))
+        if completion_hits:
+            reasons = "；".join(completion_hits[:3])
+            next_step_line = (
+                "运输已送达，回执未验收。"
+                f"{reasons}。"
+                "先 lease-record 或按金样改回执，再重 pack / Delegate POC；不是去修装订器。"
+            )
+        elif transport_ok:
+            next_step_line = (
+                "运输已送达但任务未验收；查看执行面 blockers，"
+                "先补 lease-record 或修正磁盘回执，不要当 D1 完成。"
+            )
+        elif any(
+            kind in CONTROL_BINDCHECK_KINDS
+            for kind in [
+                str((item or {}).get("kind") or "")
+                for item in ((detail.get("health") or {}).get("next_actions") or [])
+            ]
+        ) or "bindcheck_failed" in (
+            (detail.get("delegation") or {}).get("dispatch_blockers") or []
+        ):
+            next_step_line = (
+                "溯源/closeout 未通过（如缺 trailer）；"
+                "先 revert/ledger 登记，再重 pack 派发；不是 binder-amend。"
+            )
+        elif next_actions:
+            action = next_actions[0] or {}
+            if action.get("repair_task") == "binder_amend" and action.get("kind") not in KIND_TO_BINDER_FACET:
+                next_step_line = (
+                    "执行面 Control 债待处理；用 diagnose-topic / 重 pack，"
+                    "不要默认去修装订器。"
+                )
+            else:
+                next_step_line = str(action.get("label") or "Review next action")
+        else:
+            next_step_line = "上次派发失败；重 pack 后再 Delegate POC。"
     elif next_actions:
-        next_step_line = str((next_actions[0] or {}).get("label") or "Review next action")
-    elif (detail.get("decision") or {}).get("decision_required"):
-        next_step_line = "需要人选择本轮决策；按钮点击不是人口令"
+        action = next_actions[0] or {}
+        if action.get("repair_task") == "binder_amend" and action.get("kind") not in KIND_TO_BINDER_FACET:
+            next_step_line = (
+                "Control 诊断待处理；不要默认 binder-amend。"
+            )
+        else:
+            next_step_line = str(action.get("label") or "Review next action")
     else:
-        next_step_line = "No mandatory next hop"
+        decision = detail.get("decision") or {}
+        delegation = detail.get("delegation") or {}
+        selected = decision.get("selected")
+        agent_run = detail.get("agent_run") or {}
+        topic_token = str(detail.get("topic_id") or item.get("topic_id") or row.get("id") or "")
+        if (
+            selected in {"implement", "continue_exploring"}
+            and delegation.get("static_preflight_passed")
+            and delegation.get("active_isolated_lease")
+            and agent_run.get("dispatch_state") != "awaiting_result"
+        ):
+            if selected == "implement" and not decision.get("round_started"):
+                next_step_line = (
+                    f"ACP 管道已就绪；点击「派发探索任务」按 DESIGN 开 D1"
+                    f"（只写 poc/{topic_token}/）。本步不发明人口令。"
+                )
+            elif selected == "continue_exploring":
+                next_step_line = (
+                    f"ACP 管道已就绪；点击「派发探索任务」继续 POC 轮"
+                    f"（只写 poc/{topic_token}/）。"
+                )
+            else:
+                next_step_line = (
+                    "ACP 隔离租约已就绪；点击「派发探索任务」委派 Claude Code。"
+                )
+        elif (
+            selected in {"implement", "continue_exploring"}
+            and delegation.get("static_preflight_passed")
+            and delegation.get("runtime_dispatch_ready")
+            and not delegation.get("active_isolated_lease")
+            and agent_run.get("dispatch_state") != "awaiting_result"
+        ):
+            next_step_line = (
+                "ACP 可达但无隔离租约；先 Prepare ACP lease，再 Delegate POC。"
+            )
+        elif dispatch_state == "succeeded" and _is_dispatch_stub_success(
+            detail.get("agent_run") or {}
+        ):
+            next_step_line = (
+                "上次 hop 运输结束但租约未落地；重跑 Prepare ACP lease。"
+            )
+        elif (detail.get("decision") or {}).get("decision_required"):
+            decision = detail.get("decision") or {}
+            offered = decision.get("offered") or []
+            if "implement" in offered and decision.get("baseline_prepared"):
+                next_step_line = (
+                    "基线准备已完成；下一步：选择 implement（首次按设计实现）"
+                )
+            elif "implement" in offered:
+                next_step_line = "需要人选择本轮决策；建议 implement（首次按设计实现）"
+            else:
+                next_step_line = "需要人选择本轮决策；按钮点击不是人口令"
+        else:
+            next_step_line = "No mandatory next hop"
     row.update(
         {
             "spaces": spaces,
@@ -9184,21 +9792,40 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
     approval = view["gates"]["implementation_approval"]
     static_ready = view["delegation"]["static_preflight_passed"]
     runtime, runtime_ready, lease = implementation_dispatch_runtime(topic)
+    active_lease_ok, _active_lease = active_isolated_lease_for_topic(topic)
     truth = workspace_truth_view(topic)
     workspace_bound = bool(truth.get("workspace_bound"))
     safe_to_delegate = static_ready
-    safe_to_dispatch = static_ready and runtime_ready and workspace_bound
+    safe_to_dispatch = static_ready and active_lease_ok and workspace_bound
     static_blockers = [
         reason
         for reason in (view["delegation"].get("dispatch_blockers") or [])
         if reason
-        not in {"runtime_unavailable", "topic_active_lease", "runtime_not_probed"}
+        not in {
+            "runtime_unavailable",
+            "topic_active_lease",
+            "runtime_not_probed",
+            "missing_active_isolated_lease",
+        }
     ]
     blockers = [
         *([] if static_ready else static_blockers),
         *(["workspace_unbound"] if not workspace_bound else []),
-        *(["runtime_unavailable"] if not runtime["pipeline_reachable"] else []),
-        *(["topic_active_lease"] if lease else []),
+        *([] if active_lease_ok else ["missing_active_isolated_lease"]),
+        *(
+            ["runtime_unavailable"]
+            if not runtime_ready and not lease
+            else []
+        ),
+        *(
+            ["topic_active_lease"]
+            if lease
+            and not (
+                str(lease.get("base_sha") or lease.get("repo_head") or "")
+                == str(git_head() or "")
+            )
+            else []
+        ),
     ]
     payload = {
         "schema": "ndf-workflow-pack/v2",
@@ -9236,6 +9863,8 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
         "manifest_sha": view["delegation"]["manifest_sha"],
         "plan_sha": view["delegation"]["plan_sha"],
         "static_preflight_passed": static_ready,
+        "contract_preflight_passed": view["delegation"].get("contract_preflight_passed"),
+        "active_isolated_lease": active_lease_ok,
         "runtime_dispatch_ready": runtime_ready,
         "next_action": view["phase_hint"],
         "safe_to_delegate": safe_to_delegate,
@@ -9253,6 +9882,58 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
     return bind_pack_to_episode(
         _with_completion_receipt_path(payload), episode_id=episode_id
     ), 0 if safe_to_dispatch else 1
+
+
+def pack_prepare_acp_lease(
+    topic: str, episode_id: str | None = None
+) -> tuple[dict[str, Any], int]:
+    """Lease-prep pack: contract preflight only; does not require active lease."""
+    topic_dir = POC / topic
+    if not (topic_dir / "ndf" / "TOPIC.md").is_file():
+        raise FileNotFoundError(f"unknown topic: {topic}")
+    ensure_spec_health()
+    view = topic_view(topic_dir)
+    truth = workspace_truth_view(topic)
+    workspace_bound = bool(truth.get("workspace_bound"))
+    contract_ready = bool(view["delegation"].get("contract_preflight_passed"))
+    active_lease_ok, _active_lease = active_isolated_lease_for_topic(topic)
+    runtime, runtime_ready, _lease = implementation_dispatch_runtime(topic)
+    blockers = [
+        reason
+        for reason in (
+            None if contract_ready else "contract_preflight_failed",
+            None if workspace_bound else "workspace_unbound",
+            "topic_active_lease" if active_lease_ok else None,
+        )
+        if reason
+    ]
+    safe_to_dispatch = contract_ready and workspace_bound and not active_lease_ok
+    payload = {
+        "schema": "ndf-workflow-pack/v2",
+        "compatibility": {"legacy_schema": "ndf-workflow-pack/v1"},
+        "generated_at": now_iso(),
+        "topic": view["topic_id"],
+        "track": "poc",
+        "task": "prepare_acp_lease",
+        "provider": "claude-code-acp",
+        "base_sha": git_head(),
+        "workspace": workspace_binding(topic),
+        "workspace_truth": truth,
+        "allowed_write_root": f"poc/{topic}/",
+        "contract_preflight_passed": contract_ready,
+        "active_isolated_lease": active_lease_ok,
+        "runtime_dispatch_ready": runtime_ready,
+        "safe_to_delegate": contract_ready,
+        "safe_to_dispatch": safe_to_dispatch,
+        "blockers": blockers,
+        "required_handshake": [
+            "base_sha",
+            "repo_root",
+            "allowed_write_root",
+            "episode_id",
+        ],
+    }
+    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if safe_to_dispatch else 1
 
 
 def _with_completion_receipt_path(payload: dict[str, Any]) -> dict[str, Any]:
@@ -10711,6 +11392,9 @@ def record_runtime_lease(args: argparse.Namespace) -> dict[str, Any]:
             "pack_sha": pack_sha,
             "episode_id": episode_id,
         }
+        action_id = getattr(args, "action_id", None)
+        if action_id:
+            lease["action_id"] = str(action_id)
     episode_id = str(lease.get("episode_id") or "")
     try:
         lease_history = read_leases(LEASE_LOG, root=ROOT, strict=False)
@@ -11820,9 +12504,20 @@ def main() -> int:
     dispatch_send_parser.add_argument("--dry-run", action="store_true")
     dispatch_send_parser.add_argument("--json", action="store_true")
 
+    dispatch_probe_parser = sub.add_parser(
+        "dispatch-probe",
+        help="Human 「进展如何」: probe ACP/OpenClaw liveness without a second send",
+    )
+    dispatch_probe_parser.add_argument("--json", action="store_true")
+
     pack_parser = sub.add_parser("pack")
     pack_parser.add_argument("--topic", required=True)
     pack_parser.add_argument("--episode")
+    pack_parser.add_argument(
+        "--task",
+        choices=["poc_implementation", "prepare_acp_lease"],
+        default="poc_implementation",
+    )
     pack_parser.add_argument("--json", action="store_true")
 
     repair_pack_parser = sub.add_parser("repair-pack")
@@ -11972,6 +12667,7 @@ def main() -> int:
     lease_parser.add_argument("--evidence-path", action="append", default=[])
     lease_parser.add_argument("--blocker", action="append", default=[])
     lease_parser.add_argument("--episode")
+    lease_parser.add_argument("--action-id")
     lease_parser.add_argument("--json", action="store_true")
 
     close_verify_parser = sub.add_parser("close-receipt-verify")
@@ -12171,8 +12867,17 @@ def main() -> int:
             )
             emit(payload)
             return code
+        if args.command == "dispatch-probe":
+            import ndf_dispatch_send
+
+            payload, code = ndf_dispatch_send.dispatch_probe()
+            emit(payload)
+            return code
         if args.command == "pack":
-            payload, code = pack_topic(args.topic, args.episode)
+            if getattr(args, "task", "poc_implementation") == "prepare_acp_lease":
+                payload, code = pack_prepare_acp_lease(args.topic, args.episode)
+            else:
+                payload, code = pack_topic(args.topic, args.episode)
             persist_dispatch_pack(payload)
             emit(payload)
             return code

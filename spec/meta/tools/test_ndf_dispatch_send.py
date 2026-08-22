@@ -48,6 +48,18 @@ class ProposalPathsGateShaTests(unittest.TestCase):
 
 
 class DispatchSendTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._snap_patch = mock.patch.object(
+            dispatch, "_run_snapshot", return_value={"exit_code": 0}
+        )
+        self._snap_patch.start()
+        self.addCleanup(self._snap_patch.stop)
+        self._last_patch = mock.patch.object(
+            dispatch, "DISPATCH_LAST", Path(tempfile.mkdtemp()) / "last.json"
+        )
+        self._last_patch.start()
+        self.addCleanup(self._last_patch.stop)
+
     def test_blocked_pack_does_not_send(self) -> None:
         pack = {
             "schema": "ndf-implementation-repair-pack/v2",
@@ -773,6 +785,435 @@ class DispatchSendTests(unittest.TestCase):
         self.assertTrue(result.get("transport_ok"))
         self.assertEqual(result.get("error"), None)
         proc.kill.assert_not_called()
+
+
+class CloseoutCommitGateTests(unittest.TestCase):
+    def _run_closeout(self, **kwargs):
+        runs: list[list[str]] = []
+
+        def fake_run(cmd, **_kw):
+            runs.append(list(cmd))
+            return mock.Mock(returncode=0, stdout="{}", stderr="")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "tmp").mkdir()
+            with (
+                mock.patch.object(dispatch, "ROOT", root),
+                mock.patch.object(dispatch.subprocess, "run", side_effect=fake_run),
+            ):
+                steps = dispatch._closeout(
+                    catalog_action_id=kwargs.get("catalog_action_id", "delegate-poc"),
+                    action_id=kwargs.get("action_id", "act-1"),
+                    result=kwargs["result"],
+                    blockers=list(kwargs.get("blockers") or []),
+                    result_summary=kwargs.get("result_summary", "test"),
+                    agent_completion=kwargs.get("agent_completion"),
+                    pack=kwargs.get("pack") or {"task": "poc_implementation"},
+                )
+        return steps, runs
+
+    def test_failed_skips_action_commit(self) -> None:
+        steps, runs = self._run_closeout(
+            result="failed",
+            blockers=["acp_stalled"],
+            result_summary="acp_stalled",
+        )
+        self.assertTrue(steps["action_commit"]["skipped"])
+        self.assertEqual(steps["action_commit"]["skip_reason"], "dispatch_not_succeeded")
+        self.assertFalse(any("action-commit" in cmd for cmd in runs))
+        self.assertTrue(any("action-finish" in cmd for cmd in runs))
+
+    def test_cancelled_skips_action_commit(self) -> None:
+        steps, runs = self._run_closeout(result="cancelled", blockers=["waiting_human"])
+        self.assertTrue(steps["action_commit"]["skipped"])
+        self.assertFalse(any("action-commit" in cmd for cmd in runs))
+
+    def test_succeeded_without_completion_skips_commit(self) -> None:
+        steps, runs = self._run_closeout(result="succeeded", agent_completion=None)
+        self.assertTrue(steps["action_commit"]["skipped"])
+        self.assertEqual(
+            steps["action_commit"]["skip_reason"], "missing_validated_completion"
+        )
+        self.assertFalse(any("action-commit" in cmd for cmd in runs))
+
+    def test_succeeded_with_validated_completion_commits(self) -> None:
+        completion = {
+            "schema": "ndf-agent-completion/v1",
+            "result": "success",
+            "changed_files": ["poc/demo/ndf/DELTA.md"],
+        }
+        steps, runs = self._run_closeout(
+            result="succeeded",
+            agent_completion=completion,
+        )
+        self.assertFalse(steps["action_commit"].get("skipped"))
+        self.assertTrue(any("action-commit" in cmd for cmd in runs))
+
+
+class SnapshotOrderTests(unittest.TestCase):
+    def test_final_state_written_before_snapshot(self) -> None:
+        pack = {
+            "schema": "ndf-implementation-repair-pack/v2",
+            "provider": "claude-code-acp",
+            "task": "poc_implementation",
+            "topic": "demo",
+            "safe_to_dispatch": True,
+            "pack_sha": "s" * 64,
+            "base_sha": "1" * 40,
+            "workspace": {"repo_root": "/tmp/repo"},
+            "allowed_write_root": "poc/demo/",
+            "workspace_truth": {"workspace_bound": True},
+        }
+        writes: list[str] = []
+        snap_saw: list[str] = []
+
+        def fake_write(payload):
+            writes.append(str(payload.get("state") or payload.get("dispatch_state") or ""))
+
+        def fake_snap(_pack):
+            snap_saw.append(writes[-1] if writes else "")
+            return {"exit_code": 0}
+
+        send_result = {
+            "ok": False,
+            "transport_ok": False,
+            "state": "failed",
+            "error": "acp_stalled",
+            "response_text": None,
+        }
+        with (
+            mock.patch.object(dispatch, "_send_acp", return_value=send_result),
+            mock.patch.object(
+                dispatch, "_closeout", return_value={"final_result": "failed"}
+            ),
+            mock.patch.object(dispatch, "_write_last", side_effect=fake_write),
+            mock.patch.object(dispatch, "_run_snapshot", side_effect=fake_snap),
+        ):
+            payload, code = dispatch.dispatch_send(
+                pack, catalog_action_id="delegate-poc", action_id="act-1"
+            )
+        self.assertEqual(code, 1)
+        self.assertEqual(payload["state"], "failed")
+        self.assertIn("failed", snap_saw)
+        self.assertEqual(snap_saw[0], "failed")
+        self.assertIn("sent", writes)
+
+
+class AcpHeartbeatTests(unittest.TestCase):
+    def _proc(self) -> mock.Mock:
+        stdout = mock.Mock()
+        stdout.readline.return_value = ""
+        stdout.read.return_value = ""
+        proc = mock.Mock()
+        proc.stdout = stdout
+        proc.poll.return_value = None
+        return proc
+
+    def test_acp_heartbeat_stalls_without_progress(self) -> None:
+        pack = {
+            "provider": "claude-code-acp",
+            "pack_sha": "d" * 64,
+            "request_id": "req-acp-stall",
+            "completion_receipt_path": "poc/demo/ndf/evidence/x.json",
+        }
+        proc = self._proc()
+        frozen = {"t": 1000.0}
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NDF_ACP_PING_SEC": "1",
+                "NDF_ACP_STALL_SEC": "3",
+                "NDF_ACP_MAX_SEC": "100",
+            },
+            clear=False,
+        ):
+            with mock.patch.object(dispatch.subprocess, "Popen", return_value=proc):
+                with mock.patch.object(dispatch.time, "time", side_effect=lambda: frozen["t"]):
+                    with mock.patch.object(
+                        dispatch.select,
+                        "select",
+                        side_effect=lambda *a, **k: (
+                            frozen.__setitem__("t", frozen["t"] + 1.0) or ([], [], [])
+                        ),
+                    ):
+                        with mock.patch.object(
+                            dispatch, "_acp_resume_signature", return_value=(None, None)
+                        ):
+                            with mock.patch.object(
+                                dispatch, "_disk_completion_present", return_value=False
+                            ):
+                                with mock.patch.object(dispatch, "_write_heartbeat"):
+                                    result = dispatch._wait_acp_with_heartbeat(
+                                        pack,
+                                        cmd=["claude", "--resume", "sess"],
+                                        session_id="sess",
+                                        timeout_sec=5,
+                                    )
+        self.assertEqual(result.get("error"), "acp_stalled")
+        self.assertFalse(result.get("transport_ok"))
+        proc.kill.assert_called()
+        self.assertLess(
+            result.get("acp_heartbeat", {}).get("elapsed_sec", 999),
+            100,
+        )
+
+    def test_disk_completion_finishes_before_max(self) -> None:
+        pack = {
+            "provider": "claude-code-acp",
+            "pack_sha": "e" * 64,
+            "request_id": "req-acp-disk",
+        }
+        proc = self._proc()
+        frozen = {"t": 1000.0}
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NDF_ACP_PING_SEC": "1",
+                "NDF_ACP_STALL_SEC": "3",
+                "NDF_ACP_MAX_SEC": "100",
+            },
+            clear=False,
+        ):
+            with mock.patch.object(dispatch.subprocess, "Popen", return_value=proc):
+                with mock.patch.object(dispatch.time, "time", side_effect=lambda: frozen["t"]):
+                    with mock.patch.object(
+                        dispatch.select,
+                        "select",
+                        side_effect=lambda *a, **k: (
+                            frozen.__setitem__("t", frozen["t"] + 1.0) or ([], [], [])
+                        ),
+                    ):
+                        with mock.patch.object(
+                            dispatch, "_acp_resume_signature", return_value=(None, None)
+                        ):
+                            with mock.patch.object(
+                                dispatch, "_disk_completion_present", return_value=True
+                            ):
+                                with mock.patch.object(dispatch, "_write_heartbeat"):
+                                    result = dispatch._wait_acp_with_heartbeat(
+                                        pack,
+                                        cmd=["claude", "--resume", "sess"],
+                                        session_id="sess",
+                                        timeout_sec=5,
+                                    )
+        self.assertTrue(result.get("transport_ok"))
+        self.assertEqual(result.get("acp_heartbeat", {}).get("finished"), "disk_or_notify")
+        self.assertNotEqual(result.get("error"), "acp_timeout")
+
+    def test_stdout_fragments_refresh_stall(self) -> None:
+        pack = {
+            "provider": "claude-code-acp",
+            "pack_sha": "f" * 64,
+            "request_id": "req-acp-stdout",
+        }
+        stdout = mock.Mock()
+        stdout.readline.side_effect = ["chunk\n"] * 8 + [""] * 20
+        stdout.read.return_value = ""
+        proc = mock.Mock()
+        proc.stdout = stdout
+        proc.poll.return_value = None
+        frozen = {"t": 1000.0}
+        selects = {"n": 0}
+
+        def fake_select(*_a, **_k):
+            frozen["t"] += 1.0
+            selects["n"] += 1
+            # First 8 loops have stdout; afterwards stall.
+            return ([proc.stdout], [], []) if selects["n"] <= 8 else ([], [], [])
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "NDF_ACP_PING_SEC": "1",
+                "NDF_ACP_STALL_SEC": "3",
+                "NDF_ACP_MAX_SEC": "100",
+            },
+            clear=False,
+        ):
+            with mock.patch.object(dispatch.subprocess, "Popen", return_value=proc):
+                with mock.patch.object(dispatch.time, "time", side_effect=lambda: frozen["t"]):
+                    with mock.patch.object(dispatch.select, "select", side_effect=fake_select):
+                        with mock.patch.object(
+                            dispatch, "_acp_resume_signature", return_value=(None, None)
+                        ):
+                            with mock.patch.object(
+                                dispatch, "_disk_completion_present", return_value=False
+                            ):
+                                with mock.patch.object(dispatch, "_write_heartbeat"):
+                                    result = dispatch._wait_acp_with_heartbeat(
+                                        pack,
+                                        cmd=["claude", "--resume", "sess"],
+                                        session_id="sess",
+                                        timeout_sec=5,
+                                    )
+        self.assertEqual(result.get("error"), "acp_stalled")
+        self.assertGreaterEqual(result.get("acp_heartbeat", {}).get("elapsed_sec", 0), 8)
+
+
+class DispatchProbeTests(unittest.TestCase):
+    def test_in_flight_probe_refreshes_stall_without_send(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            last = root / "tmp" / "ndf-dispatch-last.json"
+            pack_path = root / "tmp" / "ndf-dispatch-last-pack.json"
+            last.parent.mkdir(parents=True)
+            last.write_text(
+                json.dumps(
+                    {
+                        "schema": "ndf-dispatch-send/v1",
+                        "dispatch_state": "awaiting_result",
+                        "state": "sent",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pack_path.write_text(json.dumps({"topic": "demo"}), encoding="utf-8")
+            send_called = {"n": 0}
+
+            def boom(*_a, **_k):
+                send_called["n"] += 1
+                raise AssertionError("dispatch_send must not run from probe")
+
+            with (
+                mock.patch.object(dispatch, "ROOT", root),
+                mock.patch.object(dispatch, "DISPATCH_LAST", last),
+                mock.patch.object(dispatch, "dispatch_send", side_effect=boom),
+                mock.patch(
+                    "ndf_workflow_status.configured_acp_session_id",
+                    return_value="sess-1",
+                ),
+                mock.patch(
+                    "ndf_workflow_status.probe_claude_acp_light",
+                    return_value={"reachable": True, "resume_available": True},
+                ),
+                mock.patch.object(
+                    dispatch, "_acp_resume_signature", return_value=(1, 2)
+                ),
+                mock.patch.object(
+                    dispatch, "_openclaw_session_progress", return_value=None
+                ),
+                mock.patch.object(
+                    dispatch, "_disk_completion_present", return_value=False
+                ),
+            ):
+                payload, code = dispatch.dispatch_probe(probed_by="human_progress")
+            self.assertEqual(code, 0)
+            self.assertEqual(payload["schema"], "ndf-dispatch-probe/v1")
+            self.assertTrue(payload["in_flight"])
+            self.assertTrue(payload["acp"]["alive"])
+            self.assertEqual(payload["probed_by"], "human_progress")
+            self.assertEqual(send_called["n"], 0)
+            stored = json.loads(last.read_text(encoding="utf-8"))
+            self.assertIn("last_progress_at", stored)
+            self.assertEqual(stored["dispatch_state"], "awaiting_result")
+
+    def test_send_acp_lease_only_records_isolated_lease(self) -> None:
+        pack = {
+            "topic": "demo",
+            "task": "poc_implementation",
+            "episode_id": "ep-demo",
+            "base_sha": "a" * 40,
+            "allowed_write_root": "poc/demo/",
+            "workspace": {"repo_root": "/repo"},
+        }
+        prepared = {
+            "ok": True,
+            "transport_ok": True,
+            "state": "succeeded",
+            "lease_only": True,
+            "session_id": "sess-1",
+            "run_id": "run-lease-prep-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+            "response_text": "lease_recorded_no_implementation_start",
+        }
+        with (
+            mock.patch(
+                "ndf_workflow_status.configured_acp_session_id",
+                return_value="sess-1",
+            ),
+            mock.patch.object(
+                dispatch, "_prepare_isolated_lease", return_value=prepared
+            ) as prep,
+        ):
+            result = dispatch._send_acp(
+                pack, message="m", timeout_sec=1, lease_only=True
+            )
+        prep.assert_called_once()
+        self.assertEqual(result["run_id"], "run-lease-prep-demo")
+        self.assertEqual(result["worktree"], "/repo/.worktrees/demo-lease")
+        self.assertNotEqual(result.get("response_text"), "lease_only_no_implementation_start")
+
+    def test_prepare_isolated_lease_requires_pack_fields(self) -> None:
+        result = dispatch._prepare_isolated_lease(
+            {"workspace": {"repo_root": "/repo"}},
+            session_id="sess-1",
+        )
+        self.assertFalse(result["ok"])
+        self.assertIn("lease_pack_incomplete", result["error"])
+
+    def test_lease_only_transport_fails_without_jsonl(self) -> None:
+        pack = {
+            "topic": "demo",
+            "task": "prepare_acp_lease",
+            "episode_id": "ep-demo",
+            "base_sha": "a" * 40,
+            "allowed_write_root": "poc/demo/",
+        }
+        send_result = {
+            "transport_ok": True,
+            "run_id": "run-lease-prep-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+            "response_text": "lease_recorded_no_implementation_start",
+        }
+        with mock.patch.object(
+            dispatch,
+            "_verify_lease_only_outcome",
+            return_value=(False, ["missing:active_runtime_lease"], "lease_verification_failed"),
+        ):
+            result, blockers, summary, completion = dispatch._task_outcome_from_transport(
+                send_result, pack=pack, lease_only=True
+            )
+        self.assertEqual(result, "failed")
+        self.assertIn("missing:active_runtime_lease", blockers)
+        self.assertIsNone(completion)
+
+    def test_already_sent_rejects_lease_stub_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            last = root / "tmp" / "ndf-dispatch-last.json"
+            last.parent.mkdir(parents=True)
+            last.write_text(
+                json.dumps(
+                    {
+                        "pack_sha": "abc",
+                        "state": "succeeded",
+                        "result_summary": "lease_only_no_implementation_start",
+                        "send": {"lease_only": True, "transport_ok": True},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(dispatch, "DISPATCH_LAST", last):
+                prior = dispatch._already_sent("abc", None)
+            self.assertIsNone(prior)
+
+    def test_closeout_lease_only_fails_without_artifact(self) -> None:
+        steps, runs = CloseoutCommitGateTests()._run_closeout(
+            catalog_action_id="prepare-acp-lease",
+            result="succeeded",
+            result_summary="lease_recorded_no_implementation_start",
+            pack={
+                "task": "prepare_acp_lease",
+                "topic": "demo",
+                "episode_id": "ep-demo",
+                "base_sha": "a" * 40,
+            },
+        )
+        self.assertEqual(steps["final_result"], "failed")
+        self.assertTrue(steps["action_commit"].get("skipped"))
 
 
 if __name__ == "__main__":

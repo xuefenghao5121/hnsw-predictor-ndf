@@ -422,6 +422,16 @@ def _delegation(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     return data if isinstance(data, Mapping) else {}
 
 
+def _has_active_isolated_lease(payload: Mapping[str, Any]) -> bool:
+    focused = _focused(payload)
+    if not focused:
+        return False
+    run = focused.get("agentRun") or focused.get("agent_run") or {}
+    if not isinstance(run, Mapping):
+        return False
+    return bool(str(run.get("run_id") or "").strip() and str(run.get("worktree") or "").strip())
+
+
 def _process_hop(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     control = payload.get("control") or {}
     hop = control.get("processHop") or control.get("process_hop")
@@ -475,6 +485,10 @@ PREDICATES = {
         _delegation(payload).get("static_preflight_passed")
         or _delegation(payload).get("staticPreflightPassed")
     ),
+    "contractPreflight": lambda payload, ctx: bool(
+        _delegation(payload).get("contract_preflight_passed")
+        or _delegation(payload).get("contractPreflightPassed")
+    ),
     "runtimeDispatchReady": lambda payload, ctx: bool(
         _delegation(payload).get("runtime_dispatch_ready")
         or _delegation(payload).get("runtimeDispatchReady")
@@ -483,6 +497,8 @@ PREDICATES = {
         _delegation(payload).get("runtime_dispatch_ready")
         or _delegation(payload).get("runtimeDispatchReady")
     ),
+    "activeIsolatedLease": lambda payload, ctx: _has_active_isolated_lease(payload),
+    "missingActiveLease": lambda payload, ctx: not _has_active_isolated_lease(payload),
     "closeSelected": lambda payload, ctx: _selected_decision(payload)
     in {"reject", "promote", "partial"},
     "genesisNotAccepted": lambda payload, ctx: not bool(
@@ -1035,7 +1051,7 @@ def composer_prompt(
             )
         )
         lines.append(
-            "Require static_preflight_passed, runtime_dispatch_ready, and "
+            "Require static_preflight_passed, active isolated lease, and "
             "execution_capabilities_ready. Report pack summary; wait for human "
             "「派发」 then dispatch-send. See acp-delegate.md#poc."
         )
@@ -1043,7 +1059,7 @@ def composer_prompt(
     elif action_id == "prepare-acp-lease":
         lines.append(
             _pack_cli_with_episode(
-                f"python3 spec/meta/tools/ndf_workflow_status.py pack --topic {topic_token} --json",
+                f"python3 spec/meta/tools/ndf_workflow_status.py pack --task prepare_acp_lease --topic {topic_token} --json",
                 episode_token,
             )
         )
@@ -1179,6 +1195,16 @@ def composer_prompt(
             f"--topic {topic_token} --json"
         )
         lines.append("Do not repair. Route findings to space cards or page-bottom decision.")
+    elif action_id == "dispatch-probe":
+        lines.append(
+            "python3 spec/meta/tools/ndf_workflow_status.py dispatch-probe --json"
+        )
+        lines.append(
+            "Human asked 「进展如何」. Probe in-flight hop only; MUST NOT dispatch-send again."
+        )
+        lines.append(
+            "Transport ack ≠ validated completion; read disk receipt + completion-record."
+        )
     elif action_id == "diagnose-advisor":
         lines.append("python3 spec/meta/tools/ndf_workflow_status.py spec-health --json")
         lines.append("python3 spec/meta/tools/ndf_advise.py plan --surface graph --low-hanging-fruit")

@@ -294,7 +294,9 @@ Command Agent MUST NOT 后台残留 `--serve`；日常刷新只写 `--out`。Clo
 上的磁盘 `ndf-agent-completion/v1`（ACP 与 OpenClaw 同一合同），且
 `result=success`（并经 `completion-record` 绑 Episode 时）才可投影 succeeded。
 stdout 中的 `ndf-agent-completion/v1` MUST NOT 作为 `completion-record` 输入。
-`prepare-acp-lease` 保持 lease_only，不要求磁盘 completion。
+`prepare-acp-lease` 保持 lease_only，不要求磁盘 completion；lease_only MUST
+写入隔离 worktree 与 `tmp/ndf-workflow-leases.jsonl`（`lease-record`），MUST NOT
+用空 stub 冒充租约落地。ACP 可达 ≠ 活跃隔离租约。
 `workspace_truth.workspace_bound=false` 时 pack MUST NOT `safe_to_dispatch`。
 身份绑定与执行 HEAD 绑定 MUST 分离：仅身份失配构成 `workspace_unbound`；HEAD
 漂移单独投影为 `execution_binding_stale`。OpenClaw gateway 健康与 Claude ACP 可达正交，MUST NOT 用其一清另一侧 blocker。
@@ -313,6 +315,16 @@ OpenClaw Control 探测 MUST 再分三态：`gateway_reachable`（health）、
 `updatedAt`/`totalTokens` 或磁盘 completion）：有进展则刷新 stall 时钟；连续无进展
 达 stall 阈值才 `openclaw_stalled`；绝对上限才 `openclaw_timeout`。MUST NOT 仅靠
 单次固定 gateway `--timeout` 把仍在工作的长 hop 判死。
+Claude Code ACP 实现 hop MUST 同样用心跳（`NDF_ACP_PING_SEC` / `STALL_SEC` /
+`MAX_SEC`）检测 resume 工件、磁盘 completion 与 stdout notify；MUST NOT 仅用
+固定墙钟 `subprocess` timeout 判死长任务。无进展达 stall → `acp_stalled`；
+绝对上限 → `acp_max_exceeded`。在途 hop 本聊天「进展如何」MUST 跑
+`dispatch-probe`（探活 / 刷新 stall / 回执齐则收口），MUST NOT 对同一 pack
+再 `dispatch-send`。「派发」/「继续」仍只表示确认发出。MUST NOT 新增
+GATES.md / [[META-010]] 口令。`action-commit` MUST 仅在任务 `succeeded` 且
+（lease_only 或 validated `ndf-agent-completion`）时提交 `mayWrite`；
+`acp_stalled` / `acp_max_exceeded` / `acp_timeout` MUST NOT 把派发前脏树
+提交为任务成功，也 MUST NOT 投影为 succeeded。
 
 Snapshot MUST 投影生成该指挥面的 Git remote URL、remote 名与命名分支。所有
 Composer / snapshot Prompt MUST 以 `BEGIN NDF GIT INPUT` / `END NDF GIT INPUT`
@@ -530,6 +542,13 @@ binder.TOPIC → gate.topic_review
    ```text
    implement | continue_exploring | amend | promote | partial | reject
    ```
+
+   **基线准备与 implement 正交**：对照 Trunk 拷贝（`poc-prepare-baseline`）与首次 R0
+   测量（`poc_measurement`）属于基线准备，**MUST NOT** 消耗 `implement`。
+   `implement` 表示 Human 选择第一次按已批 DESIGN/INTERFACE 委派 POC 功能实现；
+   `continue_exploring` 仅在该实现轮已开始之后 offered（同契约再测/再改）。
+   投影 `round_started` MUST 只反映 DESIGN 实现轮；`baseline_prepared` MAY 单独
+   表示拷贝或 R0 已完成。
 
 3. `close_eligible` MUST 由结构化当前事实推导：lifecycle、显式选择、适用的
    proposal/DEC、close-plan 与验证回执。DESIGN/GATES/NOTES 中的「建议关闭」

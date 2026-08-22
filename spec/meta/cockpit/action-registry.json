@@ -1008,6 +1008,39 @@
       "commanderSurface": true
     },
     {
+      "id": "dispatch-probe",
+      "label": "Dispatch probe",
+      "tab": "topics",
+      "module": "decision",
+      "clauseRefs": [
+        "META-011"
+      ],
+      "dispatch": "composer",
+      "operation": "dispatch-probe",
+      "enableWhen": [
+        "focusedTopic"
+      ],
+      "humanPhrase": "进展如何",
+      "requiresIntent": false,
+      "failClosed": "disable",
+      "mayWrite": [],
+      "mustNotWrite": [
+        "poc/",
+        "src/",
+        "spec/"
+      ],
+      "command": "/ndf-dispatch-probe",
+      "skill": ".cursor/skills/ndf-workflow-canvas/acp-delegate.md",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py dispatch-probe --json",
+      "provider": "none",
+      "episodePolicy": "none",
+      "requireFresh": false,
+      "requiredCapabilities": [],
+      "closeoutPolicy": "local",
+      "attemptBinding": "none",
+      "commanderSurface": true
+    },
+    {
       "id": "generate-next-step",
       "label": "生成下一步",
       "tab": "topics",
@@ -1059,7 +1092,7 @@
         "focusedTopic",
         "selectedImplementOrExplore",
         "staticPreflight",
-        "runtimeDispatchReady"
+        "activeIsolatedLease"
       ],
       "humanPhrase": "可以开始实现",
       "requiresIntent": false,
@@ -1104,8 +1137,8 @@
         "fresh",
         "focusedTopic",
         "selectedImplementOrExplore",
-        "staticPreflight",
-        "runtimeNotReady"
+        "contractPreflight",
+        "missingActiveLease"
       ],
       "humanPhrase": null,
       "requiresIntent": false,
@@ -1119,7 +1152,7 @@
       ],
       "command": "/ndf-poc-delegate",
       "skill": ".cursor/skills/ndf-workflow-canvas/workflows/poc-delegate.md",
-      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack --json",
+      "tool": "python3 spec/meta/tools/ndf_workflow_status.py pack --task prepare_acp_lease --json",
       "provider": "claude-code-acp",
       "episodePolicy": "required",
       "requireFresh": true,

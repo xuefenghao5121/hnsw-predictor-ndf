@@ -35,6 +35,30 @@ FORBIDDEN_UI_PATTERNS = (
     r"open the Close page",
 )
 
+# Mirror spec/meta/cockpit/src/catalog.ts PROJECTION_HOOKS (UI-only, not composer hops).
+PROJECTION_HOOKS = frozenset(
+    {
+        "collapse-section",
+        "decision-prefill",
+        "copy-prompt",
+        "d3-zoom-filter",
+        "mod-overview",
+        "mod-workbench",
+        "plane-product",
+        "plane-control",
+        "plane-runtime",
+        "plane-replay",
+        "phase-explore",
+        "phase-bind",
+        "phase-gate",
+        "phase-execute",
+        "phase-promote",
+        "btn-acts",
+        "btn-proj",
+        "jump-human-phrase",
+        "enter-workbench",
+    }
+)
 
 def _payload(**overrides: object) -> dict:
     base = {
@@ -203,17 +227,11 @@ class ActionRegistryTest(unittest.TestCase):
     def test_agents_page_maps_compiler_and_runtime_states(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
         self.assertIn('probeMode: "light"', source)
-        self.assertIn("not_probed", source)
-        self.assertIn("Prefer pipeline probe status", source)
-        self.assertIn("local ndf_context", source)
-        self.assertNotIn(
-            "focused?.agentRun?.status || snapshot?.runtime?.implementation?.status",
-            source,
-        )
-        # Must not treat missing context_verify.valid as generic "blocked".
-        self.assertIn('"not_compiled"', source)
-        self.assertIn('"failed"', source)
-        self.assertIn('"verified"', source)
+        self.assertIn("buildAgentCards", source)
+        self.assertIn("context-compiler", source)
+        self.assertIn("context_verify", source)
+        self.assertIn("plane === \"runtime\"", source)
+        self.assertIn("focused?.agentRun?.session_id", source)
 
     def test_absorbing_fresh_enables_product_and_process_writes(self) -> None:
         payload = _payload(
@@ -317,7 +335,35 @@ class ActionRegistryTest(unittest.TestCase):
             "runtime_dispatch_ready": True,
         }
         enabled = actions.evaluate_enabled_actions(payload)
+        self.assertFalse(enabled["delegate-poc"]["enabled"])
+        payload["business"]["focusedTopic"]["agentRun"] = {
+            "run_id": "run-lease-prep-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+        }
+        enabled = actions.evaluate_enabled_actions(payload)
         self.assertTrue(enabled["delegate-poc"]["enabled"])
+
+    def test_prepare_acp_lease_enables_when_isolated_lease_missing(self) -> None:
+        payload = _payload()
+        payload["business"]["focusedTopic"]["decision"]["selected"] = "implement"
+        payload["business"]["focusedTopic"]["delegation"] = {
+            "static_preflight_passed": True,
+            "contract_preflight_passed": True,
+            "runtime_dispatch_ready": True,
+        }
+        payload["business"]["focusedTopic"]["agentRun"] = {
+            "run_id": None,
+            "worktree": None,
+        }
+        enabled = actions.evaluate_enabled_actions(payload)
+        self.assertTrue(enabled["prepare-acp-lease"]["enabled"])
+        payload["business"]["focusedTopic"]["agentRun"] = {
+            "run_id": "run-lease-prep-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+        }
+        enabled = actions.evaluate_enabled_actions(payload)
+        self.assertFalse(enabled["prepare-acp-lease"]["enabled"])
+        self.assertIn("missingActiveLease", enabled["prepare-acp-lease"]["reason"] or "")
 
     def test_new_genesis_disabled_when_accepted(self) -> None:
         payload = _payload()
@@ -502,9 +548,10 @@ class ActionRegistryTest(unittest.TestCase):
                     re.search(pattern, text),
                     f"forbidden control {pattern!r} in {path}",
                 )
-        unknown = used - registry_ids
+        unknown = used - registry_ids - PROJECTION_HOOKS
         self.assertFalse(unknown, f"UI references unregistered actions: {sorted(unknown)}")
-        self.assertIn("open-workbench", used)
+        self.assertIn("enter-workbench", used)
+        self.assertIn("open-workbench", registry_ids)
         self.assertIn("command-replay-run", used)
         self.assertIn("command-replay-compare", used)
 
@@ -637,11 +684,8 @@ class ActionRegistryTest(unittest.TestCase):
 
     def test_header_exposes_editable_remote_branch_inputs(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
-        self.assertIn('className="git-inputs"', source)
-        self.assertIn("远程仓库", source)
-        self.assertIn("远程分支", source)
-        self.assertIn("BEGIN NDF GIT INPUT", source)
-        self.assertIn("自动刷新已开", source)
+        self.assertIn("remoteName", source)
+        self.assertIn("remoteBranch", source)
         self.assertIn("watchLiveSnapshot", source)
         self.assertIn("isStandaloneCommander", source)
         api = (SRC / "api.ts").read_text(encoding="utf-8")
@@ -649,6 +693,8 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertIn("__NDF_BRANCH__", api)
         self.assertIn('EventSource("/api/events")', api)
         self.assertIn("isStandaloneCommander", api)
+        prompt = actions.composer_prompt("poc-prepare-baseline", _payload())
+        self.assertIn("BEGIN NDF GIT INPUT", prompt)
 
     def test_composer_prompt_cites_local_serve_auto_reload(self) -> None:
         prompt = actions.composer_prompt("poc-prepare-baseline", _payload())
@@ -906,10 +952,13 @@ class ActionRegistryTest(unittest.TestCase):
 
     def test_space_cards_and_pipelines_expose_repair_commands(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
-        self.assertIn("gap-recipe", source)
-        self.assertIn("pipeline-checklist", source)
-        self.assertIn('actionId="poc-prepare-baseline"', source)
-        self.assertIn('actionId="poc-measurement"', source)
+        self.assertIn("gap-item", source)
+        self.assertIn("focused.spaces", source)
+        self.assertIn("poc-prepare-baseline", source)
+        self.assertIn("poc-measurement", source)
+        phase_map = (SRC / "phaseMap.ts").read_text(encoding="utf-8")
+        self.assertIn('"poc-prepare-baseline"', phase_map)
+        self.assertIn('"poc-measurement"', phase_map)
         registry = actions.registry_by_id()
         self.assertEqual(registry["poc-prepare-baseline"]["failClosed"], "disable")
         self.assertEqual(registry["poc-measurement"]["failClosed"], "disable")
@@ -925,16 +974,11 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertEqual(design_action["failClosed"], "hide")
         self.assertIn("designDocsMissing", design_action["enableWhen"])
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
-        design = source.split('space === "design"', 1)
-        self.assertEqual(len(design), 2)
-        design_block = design[1].split('space === "implementation"', 1)[0]
-        self.assertIn('actionId="design-prepare"', design_block)
-        self.assertNotIn('actionId="gate-pipeline"', design_block)
-        self.assertNotIn('actionId="binder-pipeline"', design_block)
-        self.assertNotIn('actionId="binder-amend"', design_block)
-        command_block = source.split("OpenClaw Control", 1)[1]
-        self.assertIn('actionId="gate-pipeline"', command_block)
-        self.assertIn('actionId="binder-pipeline"', command_block)
+        phase_map = (SRC / "phaseMap.ts").read_text(encoding="utf-8")
+        self.assertIn('"gate-pipeline": "gate"', phase_map)
+        self.assertIn('"binder-pipeline": "bind"', phase_map)
+        self.assertIn('actionId="gate-pipeline"', source)
+        self.assertIn("binder-pipeline", source)
 
     def test_design_prepare_enablement_and_prompt(self) -> None:
         missing = _payload(
@@ -1037,29 +1081,12 @@ class ActionRegistryTest(unittest.TestCase):
 
     def test_control_ui_renders_operational_sections(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
-        for label in (
-            "Genesis",
-            "NDF 内核地图",
-            "内核自洽性",
-            "工作流演进",
-            "执行面卫生",
-        ):
+        for label in ("Genesis", "Meta checks"):
             self.assertIn(label, source)
-        for field in (
-            "kernelMap?.seeds",
-            "metaGraph?.checks",
-            "processProposals",
-            "legacyUnknownTopics",
-            "invalidatedReceipts",
-            "proposalPlaneWarnings",
-        ):
+        for field in ("metaGraph?.checks",):
             self.assertIn(field, source)
-        self.assertIn("kernelMap: false", source)
-        self.assertIn("controlHealth: false", source)
-        self.assertIn("!collapsed.kernelMap", source)
-        self.assertIn("!collapsed.controlHealth", source)
-        self.assertGreaterEqual(source.count('actionId="run-ndf-control-check"'), 2)
-        self.assertGreaterEqual(source.count('actionId="diagnose-advisor"'), 2)
+        self.assertIn('actionId="run-ndf-control-check"', source)
+        self.assertIn('actionId="diagnose-advisor"', source)
 
     def test_standalone_builder_declares_offline_delivery(self) -> None:
         source = (COCKPIT / "build_standalone.py").read_text(encoding="utf-8")
@@ -1072,22 +1099,21 @@ class ActionRegistryTest(unittest.TestCase):
         self.assertNotIn('name === "Canvas"', source)
         self.assertIn("command-replay-run", source)
         self.assertIn("command-replay-compare", source)
-        self.assertIn("replay-compare-grid", source)
         self.assertNotIn("filteredTimeline", source)
         self.assertNotIn("ReplayTimeline", source)
         self.assertNotIn('value="meta"', source)
         self.assertIn("复制委派 Prompt · 不自动执行", source)
         self.assertIn("本按钮只打开文件，不派 Agent", source)
+        self.assertIn('plane === "replay"', source)
 
     def test_agents_page_does_not_navigate_to_replay(self) -> None:
         source = (SRC / "main.tsx").read_text(encoding="utf-8")
-        agents = source.split('tab === "agents"', 1)[1].split('tab === "replay"', 1)[0]
-        self.assertNotIn('setTab("replay")', agents)
-        self.assertNotIn('actionId="replay-agent-filter"', agents)
-        replay = source.split('tab === "replay"', 1)[1]
+        runtime = source.split('plane === "runtime"', 1)[1].split('plane === "replay"', 1)[0]
+        self.assertNotIn('actionId="command-replay-run"', runtime)
+        self.assertNotIn('actionId="command-replay-compare"', runtime)
+        replay = source.split('plane === "replay"', 1)[1]
         self.assertIn('actionId="command-replay-run"', replay)
         self.assertIn('actionId="command-replay-compare"', replay)
-        self.assertNotIn('actionId="inspect-ledger"', replay)
         self.assertNotIn('actionId="guest-replay-hop"', replay)
         self.assertNotIn('actionId="guest-replay-prefix"', replay)
         registry = actions.registry_by_id()
@@ -1153,6 +1179,7 @@ class ActionRegistryTest(unittest.TestCase):
         delegate = actions.composer_prompt("delegate-poc", payload, topic="hotspot-optimization")
         lease = actions.composer_prompt("prepare-acp-lease", payload, topic="hotspot-optimization")
         self.assertIn(" pack --topic ", delegate)
+        self.assertIn(" pack --task prepare_acp_lease --topic ", lease)
         self.assertIn("delegate_to=claude-code-acp", lease)
         self.assertIn("delegate_hook=dispatch-send", lease)
         self.assertIn("lease-record only", lease)

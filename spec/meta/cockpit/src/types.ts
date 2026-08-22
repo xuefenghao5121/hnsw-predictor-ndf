@@ -193,7 +193,11 @@ export type FocusedTopic = TopicRow & {
     selected?: string | null;
     offered?: string[];
     state?: string;
+    decision_required?: boolean;
     blocked?: Record<string, string>;
+    blocked_labels?: Record<string, string>;
+    round_started?: boolean;
+    baseline_prepared?: boolean;
     meanings?: Record<string, string>;
     briefing?: { verdict?: string; latest_round?: string; latest_round_row?: string };
   };
@@ -237,8 +241,11 @@ export type FocusedTopic = TopicRow & {
   }>;
   delegation?: {
     safe_to_dispatch?: boolean;
+    contract_preflight_passed?: boolean;
     static_preflight_passed?: boolean;
+    active_isolated_lease?: boolean;
     runtime_dispatch_ready?: boolean;
+    runtime_dispatch_ready_source?: string | null;
     context_plan?: { role?: string; plan_sha?: string; read_count?: number };
     context_verify?: {
       valid?: boolean;
@@ -272,6 +279,11 @@ export type FocusedTopic = TopicRow & {
     session_id?: string | null;
     base_sha?: string | null;
     worktree?: string | null;
+    dispatch_state?: string;
+    result_summary?: string | null;
+    transport_ok?: boolean;
+    completion_rejected?: boolean;
+    completion_blockers_human?: string[];
   };
   commandEntry?: { nextStepLine?: string; decisionRequired?: boolean };
 };
@@ -336,7 +348,10 @@ export type FocusedHop = HopRow & {
   };
 };
 
+/** @deprecated v3.1 uses ModuleId + ProjPlane; kept for registry tab field. */
 export type TabId = "product" | "topics" | "control" | "agents" | "replay";
+export type ModuleId = "overview" | "workbench";
+export type ProjPlane = "product" | "control" | "runtime" | "replay";
 export type ReplayPlane = "all" | "project" | "meta";
 export type ReplayAgentLens = "all" | "command-agent" | "openclaw" | "claude-code" | "context-compiler";
 
