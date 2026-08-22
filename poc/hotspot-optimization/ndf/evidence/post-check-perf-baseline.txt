@@ -1,0 +1,16 @@
+topic: hotspot-optimization
+  TOPIC baseline_trunk_sha: a14339234133cc6c5a2348464954f744c6465efb
+  TOPIC baseline_status:    n/a
+  TOPIC perf_baseline:      ndf/PERF_BASELINE.md
+  card: poc/hotspot-optimization/ndf/PERF_BASELINE.md
+  bind vs:        bl-trunk-golden-7ee4ee2
+  bind config_id: cfg-m24-ef60
+  bind measure:   scripts/run_sustained.sh
+  trunk_sha:  a14339234133cc6c5a2348464954f744c6465efb
+  protocol:   CON-SLA-014 strict cgroup + CON-SLA-019 禁预热 + CON-SLA-020 sustained
+  status:     pending
+  measure_binary: (none)
+  measure_source: card
+  DELTA.md:   yes
+  numbers:    Pending R0. This mutable section may only be written from verified measurement evidence joined to a Claude Code run/lease/completion. No QPS / recall figures are claimed yet.
+

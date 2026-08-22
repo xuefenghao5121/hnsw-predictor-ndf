@@ -6,6 +6,7 @@ Ledger skeleton ([[DEF-023]]). Append when this topic's code or measure scripts 
 |------|-------------|------------|-----------|---------|----------|------|
 | 2026-08-20 | 4f7a4b5adc1aabb4c4e48ef77af774b168cb1e16 | 4f7a4b5adc1aabb4c4e48ef77af774b168cb1e16 | spec/open/proposal-poc-hotspot-optimization.md | META-007 META-011 BEH-018 | none (baseline copy only) | `poc-prepare-baseline`: Trunk对照拷贝入 `src/`（disk_hnsw + simd*）；无 D1 改动、无 Numbers |
 | 2026-08-18 | — (withdrawn) | — | spec/open/proposal-poc-hotspot-optimization.md | CHR-006 (recall unchanged) | none (no valid Numbers) | D1 AVX2 gather **WITHDRAWN** — Cursor self-execute, unbound writes; code ledger empty (src/ Makefile build/ removed). equiv 20000/20000 NOT treated as Numbers |
+| 2026-08-22 | 948f789709e5397275f29696b867491646470753 (lease base) | 948f789709e5397275f29696b867491646470753 | spec/open/proposal-poc-hotspot-optimization.md | META-011 BEH-018 BEH-025 CHR-006 (recall unchanged) | none (no Numbers yet) | D1 SIMD pqAdcDistance gather (AVX2 `_mm256_i32gather_ps`, 8-lane) landed in poc src: simd_{x86,arm,scalar}.h ADD pqAdcDistance only (Trunk headers still provide pqBuildTable_dsub4/SIMD_PREFETCH); disk_hnsw.cpp pqDistance fast path calls pqAdcDistance. compile OK, M=32 bit-identical vs scalar; Numbers pending (separate poc_measurement) |
 
 ## 说明
 
