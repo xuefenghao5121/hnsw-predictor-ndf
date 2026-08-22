@@ -312,7 +312,9 @@ def _build_worker_message(pack: Mapping[str, Any]) -> str:
     if provider == "claude-code-acp":
         lines.extend([
             "ACP steps (strict order):",
-            "1) lease-record — isolated worktree under repo_root, same run_id/session_id/episode_id;",
+            "1) lease-record — isolated worktree under repo_root, same run_id/session_id/episode_id; "
+            "lease-prep auto-symlinks gitignored local deps (hnswlib/output/ignored data/*) "
+            "from the main repo and ensures build/ + results/ exist;",
             "2) implement only under allowed_write_root;",
             "3) run post_checks (ndf_poc_isolation.py, ndf_perf_baseline.py as required);",
             "4) write full disk receipt to completion_receipt_path;",
@@ -1326,6 +1328,102 @@ def _acp_argv(
     return cmd
 
 
+# Top-level paths that measurement/build need but are usually gitignored
+# (or only partially tracked). Processed after `git worktree add`.
+DEFAULT_LEASE_LOCAL_DEPS: tuple[str, ...] = (
+    "hnswlib",
+    "output",
+    "data",
+)
+
+
+def _lease_local_dep_roots() -> tuple[str, ...]:
+    raw = str(os.environ.get("NDF_LEASE_LOCAL_DEPS") or "").strip()
+    if not raw:
+        return DEFAULT_LEASE_LOCAL_DEPS
+    parts = [item.strip().strip("/") for item in raw.split(",") if item.strip()]
+    return tuple(parts) or DEFAULT_LEASE_LOCAL_DEPS
+
+
+def _path_is_gitignored(repo_root: Path, rel: str) -> bool:
+    proc = subprocess.run(
+        ["git", "-C", str(repo_root), "check-ignore", "-q", "--", rel],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return proc.returncode == 0
+
+
+def _symlink_lease_path(src: Path, dst: Path) -> str | None:
+    """Create absolute symlink dst → src. Returns rel note or None if skipped."""
+    if not src.exists():
+        return None
+    if dst.is_symlink():
+        try:
+            if dst.resolve() == src.resolve():
+                return None
+        except OSError:
+            pass
+        dst.unlink()
+    elif dst.exists():
+        return None
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    os.symlink(src.resolve(), dst)
+    return str(dst)
+
+
+def link_lease_worktree_local_deps(
+    repo_root: Path,
+    worktree: Path,
+    *,
+    roots: tuple[str, ...] | None = None,
+) -> list[str]:
+    """Symlink gitignored (or missing) local deps from main repo into a lease worktree.
+
+    - Top-level roots such as ``hnswlib`` / ``output``: symlink the whole tree when
+      absent in the worktree.
+    - Partially tracked roots such as ``data/``: keep tracked files, symlink only
+      missing children that are gitignored on the main tree.
+    - Always ensure empty writable ``build/`` and ``results/`` directories exist.
+    """
+    linked: list[str] = []
+    repo_root = repo_root.resolve()
+    worktree = worktree.resolve()
+    for root_name in roots or _lease_local_dep_roots():
+        src_root = repo_root / root_name
+        dst_root = worktree / root_name
+        if not src_root.exists():
+            continue
+        if not dst_root.exists() and not dst_root.is_symlink():
+            # Whole-tree link when the worktree has no entry yet.
+            if _path_is_gitignored(repo_root, root_name) or root_name in {
+                "hnswlib",
+                "output",
+            }:
+                note = _symlink_lease_path(src_root, dst_root)
+                if note:
+                    linked.append(f"{root_name}->{root_name}")
+                continue
+        if src_root.is_dir() and (dst_root.is_dir() or not dst_root.exists()):
+            dst_root.mkdir(parents=True, exist_ok=True)
+            for child in sorted(src_root.iterdir()):
+                rel = f"{root_name}/{child.name}"
+                if not _path_is_gitignored(repo_root, rel):
+                    # Tracked (or unignored) — leave worktree git checkout alone.
+                    continue
+                dst_child = dst_root / child.name
+                note = _symlink_lease_path(child, dst_child)
+                if note:
+                    linked.append(rel)
+    for writable in ("build", "results"):
+        target = worktree / writable
+        if not target.exists() and not target.is_symlink():
+            target.mkdir(parents=True, exist_ok=True)
+            linked.append(f"{writable}/")
+    return linked
+
+
 def _prepare_isolated_lease(
     pack: Mapping[str, Any],
     *,
@@ -1407,6 +1505,7 @@ def _prepare_isolated_lease(
         ).strip()
         if after != command_branch:
             raise RuntimeError(f"command_branch_replaced:{after}")
+        local_links = link_lease_worktree_local_deps(repo_root, worktree)
         args = SimpleNamespace(
             file=None,
             task=str(pack.get("task") or "poc_implementation"),
@@ -1440,6 +1539,7 @@ def _prepare_isolated_lease(
             "episode_id": episode_id,
             "action_id": args.action_id,
             "lease_result": lease.get("result"),
+            "local_deps_linked": local_links,
             "response_text": "lease_recorded_no_implementation_start",
         }
     except Exception as exc:  # noqa: BLE001 — lease-prep must fail closed

@@ -23,6 +23,16 @@ prepare this lease: create a worktree under `repo_root`, `lease-record` into
 start implementation. ACP reachable is not a lease. A lease_only stub without
 `run_id` / `worktree` MUST NOT count as acquired.
 
+After `git worktree add`, the lease-prep path (`dispatch-send` /
+`_prepare_isolated_lease`) MUST symlink main-repo **gitignored local deps** the
+worktree needs for build/measure (default: `hnswlib`, `output`, and ignored
+children under `data/` such as `*.fvecs` / `*.bin`). Tracked files under `data/`
+stay as the worktree checkout; do not replace them. Ensure empty writable
+`build/` and `results/` exist. Override roots with env `NDF_LEASE_LOCAL_DEPS`
+(comma-separated). MUST NOT copy large blobs; MUST NOT commit those links.
+Workers MUST use the lease worktree paths (follow the symlinks) rather than
+falling back to the commander tree.
+
 ## bootstrap
 
 ```text

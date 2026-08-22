@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -1215,6 +1216,58 @@ class DispatchProbeTests(unittest.TestCase):
         )
         self.assertEqual(steps["final_result"], "failed")
         self.assertTrue(steps["action_commit"].get("skipped"))
+
+
+class LeaseLocalDepsLinkTests(unittest.TestCase):
+    def test_link_lease_worktree_local_deps_symlinks_ignored_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            worktree = Path(tmp) / "wt"
+            root.mkdir()
+            worktree.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / ".gitignore").write_text(
+                "hnswlib/\noutput/\ndata/*.fvecs\n",
+                encoding="utf-8",
+            )
+            (root / "README").write_text("x\n", encoding="utf-8")
+            (root / "data").mkdir()
+            (root / "data" / "tracked.txt").write_text("keep\n", encoding="utf-8")
+            (root / "data" / "sift_base.fvecs").write_text("vecs\n", encoding="utf-8")
+            (root / "hnswlib").mkdir()
+            (root / "hnswlib" / "hnswlib.h").write_text("//h\n", encoding="utf-8")
+            (root / "output").mkdir()
+            (root / "output" / "graph.bin").write_text("bin\n", encoding="utf-8")
+            subprocess.run(
+                ["git", "add", ".gitignore", "README", "data/tracked.txt"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "commit", "-qm", "init"],
+                cwd=root,
+                check=True,
+                env={
+                    **os.environ,
+                    "GIT_AUTHOR_NAME": "t",
+                    "GIT_AUTHOR_EMAIL": "t@e",
+                    "GIT_COMMITTER_NAME": "t",
+                    "GIT_COMMITTER_EMAIL": "t@e",
+                },
+            )
+            # Simulate worktree checkout of tracked data/.
+            (worktree / "data").mkdir()
+            (worktree / "data" / "tracked.txt").write_text("keep\n", encoding="utf-8")
+
+            linked = dispatch.link_lease_worktree_local_deps(root, worktree)
+            self.assertTrue((worktree / "hnswlib").is_symlink())
+            self.assertTrue((worktree / "output").is_symlink())
+            self.assertTrue((worktree / "data" / "sift_base.fvecs").is_symlink())
+            self.assertFalse((worktree / "data" / "tracked.txt").is_symlink())
+            self.assertTrue((worktree / "build").is_dir())
+            self.assertTrue((worktree / "results").is_dir())
+            self.assertIn("hnswlib->hnswlib", linked)
+            self.assertIn("data/sift_base.fvecs", linked)
 
 
 class DiskReceiptWorktreeTests(unittest.TestCase):
