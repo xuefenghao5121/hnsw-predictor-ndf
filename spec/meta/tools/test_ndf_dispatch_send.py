@@ -801,6 +801,7 @@ class CloseoutCommitGateTests(unittest.TestCase):
             with (
                 mock.patch.object(dispatch, "ROOT", root),
                 mock.patch.object(dispatch.subprocess, "run", side_effect=fake_run),
+                mock.patch.object(dispatch, "_action_has_started", return_value=True),
             ):
                 steps = dispatch._closeout(
                     catalog_action_id=kwargs.get("catalog_action_id", "delegate-poc"),
@@ -1214,6 +1215,91 @@ class DispatchProbeTests(unittest.TestCase):
         )
         self.assertEqual(steps["final_result"], "failed")
         self.assertTrue(steps["action_commit"].get("skipped"))
+
+
+class DiskReceiptWorktreeTests(unittest.TestCase):
+    def test_load_disk_completion_from_lease_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            worktree = root / "wt"
+            worktree.mkdir()
+            rel = "poc/demo/ndf/evidence/poc_implementation-completion.json"
+            receipt = worktree / rel
+            receipt.parent.mkdir(parents=True)
+            completion = {
+                "schema": "ndf-agent-completion/v1",
+                "result": "success",
+                "topic": "demo",
+                "task": "poc_implementation",
+                "episode_id": "ep-demo",
+                "attempt_id": "act-demo",
+                "base_sha": "b" * 40,
+            }
+            receipt.write_text(json.dumps(completion), encoding="utf-8")
+            pack = {
+                "topic": "demo",
+                "task": "poc_implementation",
+                "episode_id": "ep-demo",
+                "action_id": "act-demo",
+                "attempt_id": "act-demo",
+                "base_sha": "b" * 40,
+                "allowed_write_root": "poc/demo/",
+                "workspace": {"repo_root": str(root)},
+                "completion_receipt_path": rel,
+            }
+            notify = {"receipt_path": rel}
+            with mock.patch(
+                "ndf_workflow_status.active_isolated_lease_for_topic",
+                return_value=(
+                    True,
+                    {
+                        "worktree": str(worktree),
+                        "result": "active",
+                        "topic": "demo",
+                    },
+                ),
+            ):
+                data, errors = dispatch.load_disk_agent_completion(pack, notify)
+            self.assertIsNotNone(data)
+            self.assertEqual(errors, [])
+            mirrored = root / rel
+            self.assertTrue(mirrored.is_file())
+
+    def test_disk_completion_present_rejects_stale_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rel = "poc/demo/ndf/evidence/poc_implementation-completion.json"
+            path = root / rel
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                json.dumps(
+                    {
+                        "schema": "ndf-agent-completion/v1",
+                        "result": "success",
+                        "topic": "demo",
+                        "task": "poc_implementation",
+                        "episode_id": "ep-old",
+                        "attempt_id": "old-attempt",
+                        "base_sha": "b" * 40,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            pack = {
+                "topic": "demo",
+                "task": "poc_implementation",
+                "episode_id": "ep-new",
+                "action_id": "new-attempt",
+                "base_sha": "b" * 40,
+                "workspace": {"repo_root": str(root)},
+                "completion_receipt_path": rel,
+            }
+            with mock.patch.object(
+                dispatch,
+                "_pack_evidence_roots",
+                return_value=[root],
+            ):
+                self.assertFalse(dispatch._disk_completion_present(pack))
 
 
 if __name__ == "__main__":

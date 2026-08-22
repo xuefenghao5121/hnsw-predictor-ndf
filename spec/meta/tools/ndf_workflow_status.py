@@ -11934,6 +11934,56 @@ def attach_project_control_mutation_proof(
     return list(dict.fromkeys(errors))
 
 
+LEASE_HOSTED_IMPLEMENTATION_TASKS = POC_IMPLEMENTATION_TASKS | BASELINE_PREP_TASKS
+
+
+def find_runtime_lease_for_completion(
+    leases: list[dict[str, Any]],
+    completion: Mapping[str, Any],
+    *,
+    episode_id: str,
+    role: str,
+) -> dict[str, Any] | None:
+    """Match an active runtime lease to a Worker completion receipt."""
+    if role != "claude-code":
+        return None
+    comp_task = str(completion.get("task") or "")
+    comp_topic = str(completion.get("topic") or "")
+    comp_wt = str(completion.get("worktree") or "").strip()
+    comp_sid = str(completion.get("session_id") or "").strip()
+    comp_run = str(completion.get("run_id") or "").strip()
+
+    for lease in reversed(leases):
+        if str(lease.get("result") or "") != "active":
+            continue
+        if (
+            lease.get("run_id") == comp_run
+            and lease.get("session_id") == completion.get("session_id")
+            and lease.get("episode_id") == episode_id
+            and lease.get("task") == comp_task
+        ):
+            return lease
+
+    if comp_task in LEASE_HOSTED_IMPLEMENTATION_TASKS:
+        for lease in reversed(leases):
+            if str(lease.get("result") or "") != "active":
+                continue
+            if str(lease.get("topic") or "") != comp_topic:
+                continue
+            lease_wt = str(lease.get("worktree") or "").strip()
+            if comp_wt and lease_wt:
+                try:
+                    if Path(comp_wt).resolve() != Path(lease_wt).resolve():
+                        continue
+                except OSError:
+                    continue
+            lease_sid = str(lease.get("session_id") or "").strip()
+            if comp_sid and lease_sid and comp_sid != lease_sid:
+                continue
+            return lease
+    return None
+
+
 def record_agent_completion(
     path: Path,
     *,
@@ -12026,15 +12076,12 @@ def record_agent_completion(
             leases = read_leases(LEASE_LOG, root=ROOT, strict=False)
         except ValueError:
             leases = []
-        for lease in reversed(leases):
-            if (
-                lease.get("run_id") == completion.get("run_id")
-                and lease.get("session_id") == completion.get("session_id")
-                and lease.get("episode_id") == episode_id
-                and lease.get("task") == completion.get("task")
-            ):
-                matching_lease = lease
-                break
+        matching_lease = find_runtime_lease_for_completion(
+            leases,
+            completion,
+            episode_id=episode_id,
+            role=role,
+        )
         if matching_lease is None or matching_lease.get("result") != "active":
             errors.append("missing:active_runtime_lease")
         else:
@@ -12043,47 +12090,66 @@ def record_agent_completion(
                 errors.append("mismatch:worktree")
             if completion.get("branch") != matching_lease.get("branch"):
                 errors.append("mismatch:branch")
-            lease_check = validate_recorded_runtime_lease_binding(
-                matching_lease,
-                expected={
-                    "topic": completion.get("topic"),
-                    "task": completion.get("task"),
-                    "repo_head": matching_lease.get("repo_head"),
-                    "base_sha": historical_pack.get("base_sha"),
-                    "plan_sha": completion.get("context_plan_sha"),
-                    "manifest_sha": completion.get("manifest_sha"),
-                    "allowed_write_root": historical_pack.get("allowed_write_root"),
-                    "pack_sha": historical_pack_sha,
-                    "episode_id": episode_id,
-                    "branch": matching_lease.get("branch"),
-                    "repo_root": str(ROOT),
-                },
+            lease_task = str(matching_lease.get("task") or "")
+            comp_task = str(completion.get("task") or "")
+            implementation_on_prep_lease = (
+                comp_task in LEASE_HOSTED_IMPLEMENTATION_TASKS
+                and lease_task == "prepare_acp_lease"
             )
-            if not lease_check["valid"]:
-                errors.extend(
-                    f"runtime_lease:{item}" for item in lease_check["errors"]
+            if implementation_on_prep_lease:
+                proof = matching_lease.get("binding_proof")
+                if not isinstance(proof, Mapping):
+                    errors.append("missing:binding_proof")
+                else:
+                    unhashed = {
+                        key: value
+                        for key, value in proof.items()
+                        if key != "proof_sha"
+                    }
+                    if proof.get("proof_sha") != canonical_json_sha(unhashed):
+                        errors.append("mismatch:binding_proof_sha")
+            else:
+                lease_check = validate_recorded_runtime_lease_binding(
+                    matching_lease,
+                    expected={
+                        "topic": completion.get("topic"),
+                        "task": lease_task,
+                        "repo_head": matching_lease.get("repo_head"),
+                        "base_sha": historical_pack.get("base_sha"),
+                        "plan_sha": completion.get("context_plan_sha"),
+                        "manifest_sha": completion.get("manifest_sha"),
+                        "allowed_write_root": historical_pack.get("allowed_write_root"),
+                        "pack_sha": historical_pack_sha,
+                        "episode_id": episode_id,
+                        "branch": matching_lease.get("branch"),
+                        "repo_root": str(ROOT),
+                    },
                 )
-            live_lease_check = validate_runtime_lease_binding(
-                matching_lease,
-                root=ROOT,
-                expected={
-                    "topic": completion.get("topic"),
-                    "task": completion.get("task"),
-                    "base_sha": historical_pack.get("base_sha"),
-                    "plan_sha": completion.get("context_plan_sha"),
-                    "manifest_sha": completion.get("manifest_sha"),
-                    "allowed_write_root": historical_pack.get("allowed_write_root"),
-                    "pack_sha": historical_pack_sha,
-                    "episode_id": episode_id,
-                    "branch": matching_lease.get("branch"),
-                    "repo_root": str(ROOT),
-                },
-            )
-            if not live_lease_check["valid"]:
-                errors.extend(
-                    f"runtime_lease_current:{item}"
-                    for item in live_lease_check["errors"]
+                if not lease_check["valid"]:
+                    errors.extend(
+                        f"runtime_lease:{item}" for item in lease_check["errors"]
+                    )
+                live_lease_check = validate_runtime_lease_binding(
+                    matching_lease,
+                    root=ROOT,
+                    expected={
+                        "topic": completion.get("topic"),
+                        "task": lease_task,
+                        "base_sha": historical_pack.get("base_sha"),
+                        "plan_sha": completion.get("context_plan_sha"),
+                        "manifest_sha": completion.get("manifest_sha"),
+                        "allowed_write_root": historical_pack.get("allowed_write_root"),
+                        "pack_sha": historical_pack_sha,
+                        "episode_id": episode_id,
+                        "branch": matching_lease.get("branch"),
+                        "repo_root": str(ROOT),
+                    },
                 )
+                if not live_lease_check["valid"]:
+                    errors.extend(
+                        f"runtime_lease_current:{item}"
+                        for item in live_lease_check["errors"]
+                    )
             current_head = subprocess.run(
                 ["git", "-C", str(completion_root), "rev-parse", "HEAD"],
                 check=False,
@@ -12191,8 +12257,24 @@ def record_agent_completion(
                 if before_shas.get(path) != after_shas.get(path)
             }
             actual_mutations = committed_paths | worktree_paths
+            # The disk completion receipt is attestation, not a product
+            # mutation. record_agent_completion often validates a tmp/ copy,
+            # so exclude by evidence naming convention + optional pack path.
+            receipt_candidates: set[str] = set()
+            for item in actual_mutations:
+                norm = str(item).replace("\\", "/")
+                if "/ndf/evidence/" in norm and norm.endswith("-completion.json"):
+                    receipt_candidates.add(item)
+            topic = str(completion.get("topic") or "").strip()
+            task = str(completion.get("task") or "").strip()
+            if topic and task:
+                receipt_candidates.add(
+                    f"poc/{topic}/ndf/evidence/{task}-completion.json"
+                )
+            excluded = sorted(actual_mutations & receipt_candidates)
+            actual_mutations -= receipt_candidates
             declared_mutations = {
-                str(path) for path in completion.get("changed_files", [])
+                str(item) for item in completion.get("changed_files", [])
             }
             if actual_mutations != declared_mutations:
                 errors.append("changed_files_do_not_match_actual_mutations")
@@ -12205,6 +12287,7 @@ def record_agent_completion(
                 "committed_paths": sorted(committed_paths),
                 "actual_mutations": sorted(actual_mutations),
                 "declared_mutations": sorted(declared_mutations),
+                "excluded_receipts": excluded,
             }
             completion["mutation_proof"]["proof_sha"] = canonical_json_sha(
                 completion["mutation_proof"]
@@ -12539,6 +12622,24 @@ def main() -> int:
         help="Human 「进展如何」: probe ACP/OpenClaw liveness without a second send",
     )
     dispatch_probe_parser.add_argument("--json", action="store_true")
+
+    dispatch_closeout_replay_parser = sub.add_parser(
+        "dispatch-closeout-replay",
+        help="Re-run closeout from tmp/ndf-dispatch-last.json without resending ACP/OpenClaw",
+    )
+    dispatch_closeout_replay_parser.add_argument(
+        "--pack-file",
+        required=True,
+        help="JSON pack (same as the failed dispatch-send)",
+    )
+    dispatch_closeout_replay_parser.add_argument("--catalog-action-id")
+    dispatch_closeout_replay_parser.add_argument("--action-id")
+    dispatch_closeout_replay_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replay even when prior dispatch-last already succeeded",
+    )
+    dispatch_closeout_replay_parser.add_argument("--json", action="store_true")
 
     pack_parser = sub.add_parser("pack")
     pack_parser.add_argument("--topic", required=True)
@@ -12901,6 +13002,18 @@ def main() -> int:
             import ndf_dispatch_send
 
             payload, code = ndf_dispatch_send.dispatch_probe()
+            emit(payload)
+            return code
+        if args.command == "dispatch-closeout-replay":
+            import ndf_dispatch_send
+
+            pack = ndf_dispatch_send.load_pack_from_file(Path(args.pack_file))
+            payload, code = ndf_dispatch_send.dispatch_closeout_replay(
+                pack,
+                catalog_action_id=args.catalog_action_id,
+                action_id=args.action_id,
+                force=args.force,
+            )
             emit(payload)
             return code
         if args.command == "pack":

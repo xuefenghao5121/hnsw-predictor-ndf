@@ -465,6 +465,47 @@ def _pack_repo_root(pack: Mapping[str, Any]) -> Path:
     return Path(raw)
 
 
+LEASE_HOSTED_IMPLEMENTATION_TASKS = frozenset(
+    {
+        "poc_implementation",
+        "implement",
+        "poc_measurement",
+        "poc_prepare_baseline",
+    }
+)
+
+
+def _pack_evidence_roots(pack: Mapping[str, Any]) -> list[Path]:
+    """Repo roots where Worker may write completion_receipt_path (main + lease worktree)."""
+    roots: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(path: Path) -> None:
+        try:
+            key = str(path.resolve())
+        except OSError:
+            key = str(path)
+        if key in seen:
+            return
+        seen.add(key)
+        roots.append(path)
+
+    _add(_pack_repo_root(pack))
+    topic = str(pack.get("topic") or "").strip()
+    if topic:
+        try:
+            import ndf_workflow_status as workflow
+
+            ok, lease = workflow.active_isolated_lease_for_topic(topic)
+            if ok and lease:
+                wt = str(lease.get("worktree") or "").strip()
+                if wt:
+                    _add(Path(wt))
+        except Exception:
+            pass
+    return roots
+
+
 def completion_receipt_path_for_pack(pack: Mapping[str, Any]) -> str:
     """Pack-pinned relative path for the disk ndf-agent-completion/v1."""
     declared = _normalize_relpath(str(pack.get("completion_receipt_path") or ""))
@@ -510,13 +551,67 @@ def _resolve_disk_receipt_path(
     write_root = _first_write_root(pack)
     if write_root and not _under_write_root(rel, write_root):
         return None, ["receipt_path_outside_write_root"]
-    root = _pack_repo_root(pack)
-    full = (root / rel)
+    for root in _pack_evidence_roots(pack):
+        full = root / rel
+        try:
+            full.resolve().relative_to(root.resolve())
+        except (ValueError, OSError):
+            continue
+        if full.is_file():
+            return full, []
+    return None, ["missing_disk_receipt"]
+
+
+def _mirror_disk_receipt_to_repo_root(
+    pack: Mapping[str, Any],
+    source: Path,
+    rel: str,
+) -> None:
+    """Copy a worktree-only completion receipt beside the main repo for projection."""
+    repo = _pack_repo_root(pack)
+    dest = repo / rel
     try:
-        full.resolve().relative_to(root.resolve())
-    except (ValueError, OSError):
-        return None, ["receipt_path_outside_repo"]
-    return full, []
+        if source.resolve() == dest.resolve():
+            return
+    except OSError:
+        return
+    if dest.is_file():
+        return
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+    except OSError:
+        return
+
+
+def _completion_identity_errors(
+    pack: Mapping[str, Any],
+    data: Mapping[str, Any],
+) -> list[str]:
+    errors: list[str] = []
+    pack_topic = str(pack.get("topic") or "")
+    data_topic = str(data.get("topic") or "")
+    if pack_topic and data_topic and data_topic != pack_topic:
+        errors.append("completion_topic_mismatch")
+    pack_task = str(pack.get("task") or "")
+    data_task = str(data.get("task") or "")
+    if pack_task and data_task and pack_task != data_task:
+        errors.append("completion_task_mismatch")
+    pack_episode = _pack_episode_id(pack)
+    data_episode = str(data.get("episode_id") or "")
+    if pack_episode and data_episode and pack_episode != data_episode:
+        errors.append("completion_episode_mismatch")
+    pack_attempt = str(
+        pack.get("attempt_id") or pack.get("action_id") or ""
+    ).strip()
+    data_attempt = str(data.get("attempt_id") or "").strip()
+    if pack_attempt and data_attempt and pack_attempt != data_attempt:
+        errors.append("completion_attempt_mismatch")
+    pack_base = str(pack.get("base_sha") or "").strip()
+    data_base = str(data.get("base_sha") or "").strip()
+    if pack_base and data_base and pack_base != data_base:
+        errors.append("completion_base_sha_mismatch")
+    return errors
 
 
 def load_disk_agent_completion(
@@ -528,8 +623,7 @@ def load_disk_agent_completion(
     path, errors = _resolve_disk_receipt_path(pack, receipt_path)
     if path is None:
         return None, errors or ["illegal_receipt_path"]
-    if not path.is_file():
-        return None, ["missing_disk_receipt"]
+    rel = _normalize_relpath(receipt_path)
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -537,9 +631,14 @@ def load_disk_agent_completion(
     if not isinstance(data, dict) or data.get("schema") != "ndf-agent-completion/v1":
         return None, ["invalid_disk_receipt_schema"]
     result = str(data.get("result") or data.get("status") or "").lower()
-    extra: list[str] = []
+    extra: list[str] = list(errors)
+    for item in _completion_identity_errors(pack, data):
+        if item not in extra:
+            extra.append(item)
     if result not in {"success", "succeeded", "failed", "cancelled", "blocked"}:
         extra.append("invalid_agent_completion_result")
+    if not extra:
+        _mirror_disk_receipt_to_repo_root(pack, path, rel)
     return data, extra
 
 
@@ -805,15 +904,23 @@ def _progress_signature(row: Mapping[str, Any] | None) -> tuple[Any, Any]:
 def _disk_completion_present(pack: Mapping[str, Any]) -> bool:
     rel = str(pack.get("completion_receipt_path") or "").strip()
     if not rel:
+        rel = completion_receipt_path_for_pack(pack)
+    if not rel:
         return False
-    path = _pack_repo_root(pack) / rel
-    if not path.is_file():
-        return False
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return False
-    return isinstance(data, dict) and data.get("schema") == "ndf-agent-completion/v1"
+    for root in _pack_evidence_roots(pack):
+        path = root / rel
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict) or data.get("schema") != "ndf-agent-completion/v1":
+            continue
+        if _completion_identity_errors(pack, data):
+            continue
+        return True
+    return False
 
 
 def _acp_resume_signature(session_id: str | None) -> tuple[Any, Any]:
@@ -1745,36 +1852,56 @@ def _closeout(
             "result": result,
         }
     if action_id:
-        finish_result = _finish_result(result, blockers)
-        finish_cmd = [
-            "python3",
-            "spec/meta/tools/ndf_workflow_status.py",
-            "action-finish",
-            "--action-id",
-            action_id,
-            "--result",
-            finish_result,
-            "--json",
-        ]
-        episode_id = _pack_episode_id(pack) if isinstance(pack, Mapping) else ""
-        if episode_id:
-            finish_cmd.extend(["--episode", episode_id])
-        for blocker in blockers:
-            finish_cmd.extend(["--blocker", str(blocker)[:200]])
-        finish = subprocess.run(
-            finish_cmd,
-            cwd=ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-        )
-        steps["action_finish"] = {
-            "exit_code": finish.returncode,
-            "stdout": (finish.stdout or "")[-2000:],
-        }
+        has_started = _action_has_started(action_id)
+        if not has_started:
+            steps["action_finish"] = {
+                "skipped": True,
+                "skip_reason": "no_started_receipt",
+            }
+        else:
+            finish_result = _finish_result(result, blockers)
+            finish_cmd = [
+                "python3",
+                "spec/meta/tools/ndf_workflow_status.py",
+                "action-finish",
+                "--action-id",
+                action_id,
+                "--result",
+                finish_result,
+                "--json",
+            ]
+            episode_id = _pack_episode_id(pack) if isinstance(pack, Mapping) else ""
+            if episode_id:
+                finish_cmd.extend(["--episode", episode_id])
+            for blocker in blockers:
+                finish_cmd.extend(["--blocker", str(blocker)[:200]])
+            finish = subprocess.run(
+                finish_cmd,
+                cwd=ROOT,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+            )
+            steps["action_finish"] = {
+                "exit_code": finish.returncode,
+                "stdout": (finish.stdout or "")[-2000:],
+            }
     steps["final_result"] = result
     return steps
+
+
+def _action_has_started(action_id: str) -> bool:
+    try:
+        import ndf_workflow_status as workflow
+
+        receipts = workflow.read_action_receipts()
+    except Exception:
+        return False
+    return any(
+        receipt.get("action_id") == action_id and receipt.get("status") == "started"
+        for receipt in receipts
+    )
 
 
 def _run_snapshot(pack: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -2071,6 +2198,95 @@ def dispatch_probe(*, probed_by: str = "human_progress") -> tuple[dict[str, Any]
         ),
     }
     code = 0 if (disk_done or acp["alive"] or openclaw["alive"] or not in_flight) else 1
+    return payload, code
+
+
+def dispatch_closeout_replay(
+    pack: Mapping[str, Any],
+    *,
+    catalog_action_id: str | None = None,
+    action_id: str | None = None,
+    force: bool = False,
+) -> tuple[dict[str, Any], int]:
+    """Re-run transport outcome + closeout from tmp/ndf-dispatch-last.json without resending."""
+    pack_sha = _pack_sha(pack)
+    request_id = str(pack.get("request_id") or f"req-{pack_sha[:16]}")
+    prior: dict[str, Any] = {}
+    if DISPATCH_LAST.is_file():
+        try:
+            loaded = json.loads(DISPATCH_LAST.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                prior = loaded
+        except json.JSONDecodeError:
+            prior = {}
+    if (
+        not force
+        and prior.get("pack_sha") == pack_sha
+        and prior.get("state") == "succeeded"
+    ):
+        return {**prior, "schema": "ndf-dispatch-send/v1", "replay": True}, 0
+    send = prior.get("send") if isinstance(prior.get("send"), Mapping) else {}
+    send_result: dict[str, Any] = {
+        "transport_ok": bool(
+            prior.get("transport_ok")
+            or send.get("transport_ok")
+            or send.get("ok")
+        ),
+        "ok": bool(send.get("ok") or prior.get("transport_ok")),
+        "state": str(send.get("state") or prior.get("state") or "transport_acknowledged"),
+        "session_id": str(
+            prior.get("session_id") or send.get("session_id") or ""
+        ).strip()
+        or None,
+        "response_text": str(
+            prior.get("response_excerpt")
+            or send.get("response_text")
+            or ""
+        ),
+    }
+    task = str(pack.get("task") or "")
+    lease_only = task in {"prepare_acp_lease"} or catalog_action_id == "prepare-acp-lease"
+    working = dict(pack)
+    if action_id:
+        working.setdefault("action_id", action_id)
+        working.setdefault("attempt_id", action_id)
+    working["completion_receipt_path"] = completion_receipt_path_for_pack(working)
+    pack = working
+    task_result, blockers, summary, agent_completion = _task_outcome_from_transport(
+        send_result, pack=pack, lease_only=lease_only
+    )
+    close = _closeout(
+        catalog_action_id=catalog_action_id,
+        action_id=action_id or str(pack.get("action_id") or ""),
+        result=task_result,
+        blockers=blockers,
+        result_summary=summary,
+        agent_completion=agent_completion,
+        pack=pack,
+    )
+    final_result = str(close.get("final_result") or task_result)
+    close["snapshot"] = _run_snapshot(pack)
+    payload = {
+        "schema": "ndf-dispatch-send/v1",
+        "state": final_result,
+        "dispatch_state": final_result,
+        "delegate_to": str(pack.get("provider") or ""),
+        "pack_sha": pack_sha,
+        "request_id": request_id,
+        "blockers": blockers,
+        "result_summary": summary,
+        "sent": bool(prior.get("sent")),
+        "transport_ok": send_result.get("transport_ok"),
+        "send": send,
+        "session_id": send_result.get("session_id"),
+        "response_excerpt": send_result.get("response_text"),
+        "agent_completion": agent_completion,
+        "closeout": close,
+        "replay": True,
+        "finished_at": time.time(),
+    }
+    _write_last(payload)
+    code = 0 if final_result == "succeeded" else 1
     return payload, code
 
 
