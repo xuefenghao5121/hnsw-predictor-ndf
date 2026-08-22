@@ -34,12 +34,20 @@ DEFAULT_OPENCLAW_MAX_SEC = 14400
 DEFAULT_ACP_PING_SEC = 60
 DEFAULT_ACP_STALL_SEC = 900
 DEFAULT_ACP_MAX_SEC = 14400
-LEASE_STUB_SUMMARIES = frozenset({"lease_only_no_implementation_start"})
+LEASE_STUB_SUMMARIES = frozenset()
+LEASE_SUCCESS_SUMMARIES = frozenset(
+    {
+        "lease_only_no_implementation_start",
+        "lease_recorded_no_implementation_start",
+    }
+)
 
 
 def _is_lease_stub_summary(summary: str) -> bool:
     text = str(summary or "").strip()
-    return text in LEASE_STUB_SUMMARIES or text.endswith("_no_implementation_start")
+    if text in LEASE_SUCCESS_SUMMARIES:
+        return False
+    return text in LEASE_STUB_SUMMARIES
 
 
 def _verify_lease_only_outcome(

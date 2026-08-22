@@ -1959,7 +1959,8 @@ def bind_pack_to_episode(
         if writable:
             raise ValueError("writable pack requires explicit Replay Episode")
         return payload
-    if writable and (
+    lease_only_pack = str(payload.get("task") or "") in {"prepare_acp_lease"}
+    if writable and not lease_only_pack and (
         not isinstance(payload.get("task_manifest"), Mapping)
         or not payload.get("manifest_sha")
         or not isinstance(payload.get("context_plan"), Mapping)
@@ -2243,10 +2244,28 @@ def active_runtime_leases() -> list[dict[str, Any]]:
         run_id = record.get("run_id")
         if not run_id:
             continue
+        task = str(record.get("task") or "implement")
+        if task == "prepare_acp_lease":
+            semantic = validate_runtime_lease_binding(
+                record,
+                root=ROOT,
+                expected={
+                    "topic": record.get("topic"),
+                    "task": task,
+                    "base_sha": record.get("base_sha"),
+                    "episode_id": record.get("episode_id"),
+                    "branch": record.get("branch"),
+                    "repo_root": str(ROOT),
+                    "allowed_write_root": record.get("allowed_write_root"),
+                },
+            )
+            if semantic["valid"]:
+                latest[str(run_id)] = record
+            continue
         context = context_binding(
             topic=record.get("topic"),
             role="claude-code",
-            task=str(record.get("task") or "implement"),
+            task=task,
             track=str(record.get("mode") or "poc"),
         )
         try:
@@ -2296,8 +2315,17 @@ def active_isolated_lease_for_topic(
         return False, None
     head = git_head()
     lease_head = str(lease.get("base_sha") or lease.get("repo_head") or "")
-    if not (lease_head and head and lease_head == head):
+    if not lease_head:
         return False, lease
+    if head != lease_head:
+        anc = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", lease_head, head],
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        if anc.returncode != 0:
+            return False, lease
     if not str(lease.get("run_id") or "").strip():
         return False, lease
     if not str(lease.get("worktree") or "").strip():
