@@ -305,16 +305,8 @@ float DiskHNSW::pqDistance(const float* query, uint32_t node_id_new) const {
         const uint32_t M = pq_params_.M;
         const uint32_t ksub = pq_params_.ksub;
         const float* t = pq_dist_table_.data();
-        float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
-        uint32_t m = 0;
-        for (; m + 4 <= M; m += 4) {
-            s0 += t[(size_t)(m + 0) * ksub + code[m + 0]];
-            s1 += t[(size_t)(m + 1) * ksub + code[m + 1]];
-            s2 += t[(size_t)(m + 2) * ksub + code[m + 2]];
-            s3 += t[(size_t)(m + 3) * ksub + code[m + 3]];
-        }
-        for (; m < M; m++) s0 += t[(size_t)m * ksub + code[m]];
-        return (s0 + s1) + (s2 + s3);
+        // D1: SIMD 批量 gather 查表 (AVX2 x86 / 标量 NEON+fallback)
+        return pqAdcDistance(code, t, M, ksub);
     }
 
     // ADC fallback: 直接计算

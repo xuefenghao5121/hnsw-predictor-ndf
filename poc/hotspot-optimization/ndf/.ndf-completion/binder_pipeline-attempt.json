@@ -1,0 +1,44 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "status": "blocked",
+  "result": "blocked",
+  "topic": "hotspot-optimization",
+  "task": "binder_pipeline",
+  "track": "poc",
+  "base_sha": "f7901cc18dd5ac707303b656a6a284918821f13c",
+  "repo_head": "f7901cc18dd5ac707303b656a6a284918821f13c",
+  "episode_id": "ep-8691aa3f-3b5d-49f7-8a2e-d08f7632b30e",
+  "attempt_id": "36f2676b-f88e-4612-974c-b44f7b6e48e6",
+  "manifest_sha": "3e82c0d15000de895e61e9db82daf2cb9dba103f7f803dc9046f8cce63d6e068",
+  "context_plan_sha": "021462ef471de7d9c98930f69cfe26b9bc22f3bf61b6513c4f5f5df5bfeae2b0",
+  "changed_files": [],
+  "changed_file_shas": {},
+  "changed_sections": [],
+  "evidence_paths": [
+    "poc/hotspot-optimization/ndf/evidence/poc-measurement-completion.json",
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt",
+    "poc/hotspot-optimization/ndf/evidence/post-check-topic-health.json",
+    "poc/hotspot-optimization/ndf/evidence/r0-measurement-20260821.md"
+  ],
+  "evidence_bundle_sha": "",
+  "reproduce_commands": [
+    "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic hotspot-optimization --json"
+  ],
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic hotspot-optimization --json",
+      "exit_code": 0,
+      "state": "completed",
+      "summary": "lifecycle=exploring phase_hint=decision_required; findings: [warning] vs_unmentioned (Numbers does not mention vs bl-trunk-golden-7ee4ee2; ok if own R0 table)"
+    }
+  ],
+  "blockers": [
+    {
+      "kind": "cross_role_section_write",
+      "detail": "vs_unmentioned repair requires editing perf_numbers (## Numbers section of PERF_BASELINE.md), which is forbidden for the openclaw/binder role (forbidden_sections includes perf_numbers). The vs-reference fix belongs to claude-code (poc_measurement)."
+    }
+  ],
+  "summary": "binder_pipeline audit of all 6 facets complete: topic/design/delta/interface/commits clean; perf_baseline has a single non-blocking WARNING vs_unmentioned ('Numbers does not mention vs bl-trunk-golden-7ee4ee2'; ok if own R0 table). binder.audit and binder.recheck recorded for perf_baseline. binder.amend could not be recorded: the only fix (add vs reference to ## Numbers) targets perf_numbers, which is cross-role for openclaw (tool rejected cross_role_section_write; empty changed_files rejected as 'requires changed_files'). No contract slices changed. The vs_unmentioned warning is non-blocking and deferred to claude-code poc_measurement.",
+  "result": "blocked"
+}
