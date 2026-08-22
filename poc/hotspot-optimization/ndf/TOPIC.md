@@ -9,6 +9,7 @@
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > perf_baseline: ndf/PERF_BASELINE.md
 > next_gate: n/a
+> selected_decision: implement
 
 Runtime/baseline/next_gate headers above are mutable navigation and sit outside the human review slice.
 
