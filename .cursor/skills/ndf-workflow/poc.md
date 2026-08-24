@@ -17,7 +17,9 @@
 人回「派发」：
 
 1. `GATES.md` 写 `bundle_dispatch`（phrase=`派发`）+ bundle SHA
-2. 执行：
+2. **同时** `persist_gate_slice_snapshot`（按 `approved_content_sha` 存 review-slice
+   基线），否则下次漂移只能报 `diff_unavailable`
+3. 执行：
 
 ```bash
 python3 spec/meta/tools/ndf_workflow_status.py poc-dispatch \
@@ -26,6 +28,10 @@ python3 spec/meta/tools/ndf_workflow_status.py poc-dispatch \
 
 `--send` 内联租约 + 送 Claude Code（硬门见 META-011）。成功只认磁盘
 `ndf-agent-completion/v1`。
+
+若被 `missing_human_dispatch` / SHA 拦住：先读 pack 的 `gate_drift_markdown` 或
+`tmp/ndf-gate-drift-<topic>.md`（slice unified diff），再请人重审后「派发」。
+**禁止**只甩两个 hex。
 
 写界：仅 `poc/<topic>/`；禁 Trunk `src/`/`include/`/`tests`、stable SLA、`spec/meta/`。
 

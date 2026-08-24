@@ -262,6 +262,28 @@ MUST NOT 指挥官直改契约切片后假装闸回执仍有效。再派 ACP 写
 `bundle_mode=legacy_whole_file`；迁移必须追加 invalidated/迁移说明并重新审核，
 旧 whole-file SHA MUST NOT 验证为 review-slice SHA。
 
+### 闸漂移解释（人审 UI）
+
+内容 SHA 仍是身份钉；人审需要的是 **相对最近一次有效回执** 的可读 diff，不是两个
+hex。当任一 POC 闸（含 `bundle_dispatch`）为 `invalidated` 或
+`approved_content_sha` ≠ 当前 `expected_content_sha` 时，指挥面与相关 CLI（至少
+`poc-dispatch`、`topic-health`）MUST 产出漂移解释，至少含：
+
+1. `gate`、`approved_content_sha`、`expected_content_sha`；
+2. `changed_slices`（`slice_id` + 相对路径）；未变切片 MUST NOT 喧宾夺主；
+3. `slice_diffs`：每个变更切片的 unified diff（或等价行级 diff），**仅**
+   `ndf:gate-slice` 内字节；
+4. `human_next`：重审后回「派发」，或先改回契约再派发。
+
+mutable 面（Numbers / Rounds / evidence / COMMITS / GATES / TOPIC 导航头）MUST NOT
+进入该 diff。无法还原批准时刻切片正文时 MUST 报 `diff_unavailable` + 原因，并仍列出
+当前 slice 指纹；MUST NOT 静默假装无变化或自动重批。
+
+为可 diff，写入有效闸回执时 MUST 保留可对比基线（按 `approved_content_sha` 索引的
+slice 快照、可 `git show` 的 `source_ref`、或 pack 内嵌副本之一）。缺基线 →
+`diff_unavailable`。解释默认落聊天；全文 MAY 写 `tmp/ndf-gate-drift-<topic>.md`，
+MUST NOT 写入 `spec/open/`。
+
 Process proposal 的 `已确认` / `已审核` 也属于人工回执，其内容束与状态机由
 [[META-014]] 定义；MUST NOT 直接套用 POC gate 推导规则，或由 proposal 文件存在
 与 Agent acknowledged 推进状态。
@@ -307,6 +329,9 @@ pack；POC「派发」仍 MUST 把 `bundle_dispatch` 回执写入 `GATES.md`（[
 6. context manifest / role plan 发送时有效；ACP 估算不超 `NDF_ACP_CONTEXT_MAX_TOKENS`。
 
 缺任一项 MUST `unsafe` / 拒绝派发。`workspace_bound=false` 时 MUST NOT `safe_to_dispatch`。
+因人工 bundle SHA 漂移而硬阻塞时，报告 MUST 满足 [[META-010]] 闸漂移解释最小合同
+（changed slices + slice diff 或 `diff_unavailable`），使人可完成重审；MUST NOT 仅输出
+不透明哈希。
 
 身份绑定与执行 HEAD 绑定 MUST 分离：仅身份失配构成 `workspace_unbound`；HEAD 漂移单独记
 `execution_binding_stale`。`execution_binding_stale` MUST NOT 挡测量或实现。pack `base_sha`

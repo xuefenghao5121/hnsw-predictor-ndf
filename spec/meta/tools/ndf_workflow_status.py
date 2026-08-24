@@ -3156,9 +3156,21 @@ def external_check_findings(
 
 def gate_findings(topic: str, gates: dict[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
+    topic_dir = POC / topic
     for name, value in gates.items():
         state = value["state"]
         if state == "valid":
+            # Keep slice snapshot while aligned so later drift can show diffs.
+            approved = value.get("approved_content_sha")
+            if approved and value.get("bundle_mode") == "review_slice":
+                try:
+                    ndf_gate_slices.persist_gate_slice_snapshot(
+                        topic_dir,
+                        name,
+                        approved_content_sha=str(approved),
+                    )
+                except OSError:
+                    pass
             continue
         if state == "legacy_unknown":
             task = "legacy_gate_audit"
@@ -3166,21 +3178,49 @@ def gate_findings(topic: str, gates: dict[str, Any]) -> list[dict[str, Any]]:
             task = "gate_sha_audit"
         else:
             task = "gate_receipt_draft"
-        findings.append(
-            finding(
-                scope="topic",
-                space="Design",
-                kind=f"gate_{name}_{state}",
-                severity="error",
-                evidence=f"{name} receipt state is {state}",
-                repair_owner="openclaw",
-                repair_task=task,
-                allowed_write_root=f"poc/{topic}/ndf/",
-                human_gate=GATE_PHRASES.get(name),
-                gate=name,
-                plane=PLANE_CONTROL,
-            )
+        evidence = f"{name} receipt state is {state}"
+        drift = None
+        if state == "invalidated":
+            try:
+                drift = ndf_gate_slices.explain_gate_drift(
+                    topic_dir,
+                    name,
+                    approved_content_sha=value.get("approved_content_sha"),
+                    expected_content_sha=value.get("expected_content_sha"),
+                    write_tmp_report=True,
+                )
+                changed = drift.get("changed_slices") or []
+                if drift.get("diff_unavailable"):
+                    evidence = (
+                        f"{evidence}; drift_explain=diff_unavailable:"
+                        f"{drift.get('diff_unavailable')}"
+                    )
+                elif changed:
+                    ids = ",".join(item.get("slice_id") or "?" for item in changed)
+                    evidence = f"{evidence}; changed_slices={ids}"
+                if drift.get("report_path"):
+                    evidence = f"{evidence}; report={drift.get('report_path')}"
+            except Exception:
+                drift = None
+        item = finding(
+            scope="topic",
+            space="Design",
+            kind=f"gate_{name}_{state}",
+            severity="error",
+            evidence=evidence,
+            repair_owner="openclaw",
+            repair_task=task,
+            allowed_write_root=f"poc/{topic}/ndf/",
+            human_gate=GATE_PHRASES.get(name),
+            gate=name,
+            plane=PLANE_CONTROL,
         )
+        if drift:
+            item["gate_drift"] = drift
+            item["gate_drift_markdown"] = ndf_gate_slices.format_gate_drift_markdown(
+                drift
+            )
+        findings.append(item)
     return findings
 
 
@@ -6970,6 +7010,11 @@ def topic_health(topic: str, persist: bool = True) -> tuple[dict[str, Any], int]
         },
         "next_actions": view["health"]["next_actions"],
         "delegation": view["delegation"],
+        "gate_drift": [
+            item.get("gate_drift")
+            for item in findings
+            if isinstance(item, dict) and item.get("gate_drift")
+        ],
         "poc_sha": (generation_layers().get("poc") or {}).get(topic),
         "state": "current",
     }

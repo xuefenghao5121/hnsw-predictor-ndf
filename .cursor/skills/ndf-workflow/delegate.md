@@ -51,10 +51,13 @@ python3 spec/meta/tools/ndf_workflow_status.py poc-dispatch \
 
 在途问进展 → `dispatch-probe`（探活，不重派）。
 
-## 硬安全门（fail-closed）
+硬安全门（fail-closed）
 
 错仓库、越界写根、缺人审 bundle、同 topic 并发写 run、上下文漂移、伪造 completion、
 ACP 预算溢出、`openclaw_session_invalid`。
+
+因 bundle SHA 漂移硬阻塞时：先展示 `gate_drift_markdown`（slice diff），再请人「派发」；
+MUST NOT 只输出不透明哈希。
 
 握手须含：`repo_root`、`run_id`/`session_id`、`base_sha`、独立 worktree/branch、
 `allowed_write_root`。OpenClaw 收到 pack 后更新 `{repo_root}/.openclaw/state.json`。

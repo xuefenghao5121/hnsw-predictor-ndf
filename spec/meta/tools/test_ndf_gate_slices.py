@@ -387,6 +387,57 @@ class GateSliceTest(unittest.TestCase):
             slices.gate_spec_content_identity(right),
         )
 
+    def test_explain_gate_drift_shows_interface_hunk(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            topic = self._topic(root)
+            specs = slices.gate_bundle_specs(topic, root=root)
+            sha = specs["bundle_dispatch"]["expected_content_sha"]
+            self.assertTrue(sha)
+            saved = slices.persist_gate_slice_snapshot(
+                topic,
+                "bundle_dispatch",
+                approved_content_sha=sha,
+                root=root,
+            )
+            self.assertTrue(saved.get("ok"))
+            iface = topic / "ndf" / "INTERFACE.md"
+            iface.write_text(
+                iface.read_text(encoding="utf-8").replace(
+                    "interface A", "interface B"
+                ),
+                encoding="utf-8",
+            )
+            # Numbers-like mutable append must not appear in slice diff path.
+            with (topic / "ndf" / "DELTA.md").open("a", encoding="utf-8") as stream:
+                stream.write("R9 numbers only\n")
+            explain = slices.explain_gate_drift(
+                topic,
+                "bundle_dispatch",
+                approved_content_sha=sha,
+                root=root,
+            )
+            self.assertTrue(explain["drift"])
+            changed_ids = {item["slice_id"] for item in explain["changed_slices"]}
+            self.assertEqual(changed_ids, {"interface_contract"})
+            blob = "\n".join(item["diff"] for item in explain["slice_diffs"])
+            self.assertIn("interface B", blob)
+            self.assertNotIn("R9 numbers only", blob)
+            self.assertIsNone(explain.get("diff_unavailable"))
+
+    def test_explain_without_snapshot_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            topic = self._topic(root)
+            explain = slices.explain_gate_drift(
+                topic,
+                "bundle_dispatch",
+                approved_content_sha="a" * 64,
+                root=root,
+            )
+            self.assertTrue(explain["drift"])
+            self.assertEqual(explain["diff_unavailable"], "missing_gate_snapshot")
+
 
 if __name__ == "__main__":
     unittest.main()

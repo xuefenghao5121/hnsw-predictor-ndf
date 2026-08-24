@@ -20,6 +20,8 @@ python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json
 ## 报告要点
 
 - `state` / blockers / SHA 是否对齐
+- 闸 `invalidated` 时 MUST 展示 `gate_drift` / `gate_drift_markdown`（或
+  `tmp/ndf-gate-drift-<topic>.md`）：changed slices + unified diff；禁止只报两个 hex
 - 是否 `safe_to_dispatch` 相关前置（装订器、闸、隔离）
 - 修复建议指向 [proposal.md](proposal.md) / [poc.md](poc.md) / 人工口令——勿静默伪造 approval
 

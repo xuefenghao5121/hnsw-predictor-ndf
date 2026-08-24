@@ -223,7 +223,43 @@ def poc_dispatch(
     ]
     bundles = wf.poc_gate_bundle_specs(topic_dir)
     gate_key = license_info.get("source") or "implementation_approval"
+    # Prefer the gate that actually failed license when explaining drift.
+    if not license_info.get("ok"):
+        for candidate in ("bundle_dispatch", "implementation_approval"):
+            g = (view.get("gates") or {}).get(candidate) or {}
+            if g.get("state") == "invalidated":
+                gate_key = candidate
+                break
+        else:
+            gate_key = "bundle_dispatch"
     gate_bundle = bundles.get(gate_key) or bundles["implementation_approval"]
+    gate_drift: dict[str, Any] | None = None
+    if any(str(b).startswith("missing_human_dispatch") for b in hard):
+        gate_state = (view.get("gates") or {}).get(gate_key) or {}
+        approved = gate_state.get("approved_content_sha") or license_info.get(
+            "approved_content_sha"
+        )
+        if gate_state.get("state") == "invalidated" or (
+            approved
+            and gate_bundle.get("expected_content_sha")
+            and approved != gate_bundle.get("expected_content_sha")
+        ):
+            gate_drift = ndf_gate_slices.explain_gate_drift(
+                topic_dir,
+                gate_key,
+                approved_content_sha=approved,
+                expected_content_sha=gate_bundle.get("expected_content_sha"),
+                root=wf.ROOT,
+                write_tmp_report=True,
+            )
+    elif license_info.get("ok") and license_info.get("approved_content_sha"):
+        # Backfill baseline while aligned so the next amend can produce slice diffs.
+        ndf_gate_slices.persist_gate_slice_snapshot(
+            topic_dir,
+            str(license_info.get("source") or gate_key),
+            approved_content_sha=str(license_info["approved_content_sha"]),
+            root=wf.ROOT,
+        )
     files = []
     for name in wf.POC_FILES:
         path = topic_dir / "ndf" / name
@@ -260,6 +296,12 @@ def poc_dispatch(
         "implementation_license": license_info,
         "approved_bundle_sha": gate_bundle.get("expected_content_sha"),
         "gate_bundle": gate_bundle,
+        "gate_drift": gate_drift,
+        "gate_drift_markdown": (
+            ndf_gate_slices.format_gate_drift_markdown(gate_drift)
+            if gate_drift
+            else None
+        ),
         "spaces": view["spaces"],
         "preflight": {
             "mode": "poc_dispatch_hard",
