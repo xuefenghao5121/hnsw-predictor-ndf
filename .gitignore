@@ -4,7 +4,7 @@ build/
 # 数据文件 (太大, 不入库)
 data/*.fvecs
 data/*.bin
-
+data/
 # 输出文件 (工具生成)
 output/
 output2/
@@ -26,8 +26,9 @@ skills/
 AGENTS.md
 MEMORY.md
 tmp/
+.ndf/replay/
 packages/
-bento/
+
 
 # 目标文件
 *.o
@@ -36,5 +37,6 @@ bento/
 __pycache__/
 
 # hnswlib 外部依赖 (如需精简可改为 submodule)
-hnswlib/
+# hnswlib/
 results/
+10K/
