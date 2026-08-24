@@ -9,8 +9,8 @@
 > baseline_protocol: CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热
 > perf_baseline: ndf/PERF_BASELINE.md
 > next_gate: n/a
-> selected_decision: continue_exploring
-> next_round_focus: D2/F2: RaBitQ 1-bit quantizer replacing PQ (rotation vs HNSW graph first)
+> selected_decision: partial
+> next_round_focus: D1 partial promote (DELTA R1 +2.66% QPS, recall unchanged); D2/F2 dropped per DEC-072 feasibility
 
 Runtime/baseline/next_gate headers above are mutable navigation and sit outside the human review slice.
 
