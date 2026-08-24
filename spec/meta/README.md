@@ -15,7 +15,6 @@
 | 产品契约 | [`../00-charter/`](../00-charter/)…`50-verification/` + 产品 [`../open/`](../open/) |
 | 审核 / harness 治理 | [`tools/GOVERNANCE.md`](tools/GOVERNANCE.md) → [`tools/HARNESS.md`](tools/HARNESS.md) → [`tools/`](tools/) → [`../INDEX.md`](../INDEX.md) |
 | 可移植包（跨 Agent Init） | [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（≥0.2.0；**可能滞后**；以本地本目录为准；禁止用包反推本地） |
-| **Workflow 特性总览** | [`../../packages/ndf-harness/docs/WORKFLOW-FEATURES.md`](../../packages/ndf-harness/docs/WORKFLOW-FEATURES.md)（从 Meta 提炼的能力索引；非条款 SoT） |
 | 探索 | [`../../poc/README.md`](../../poc/README.md) + `poc/<topic>/ndf/` |
 
 ## 本目录内容

@@ -10796,48 +10796,9 @@ def main() -> int:
     genesis_pack_parser.add_argument("--episode")
     genesis_pack_parser.add_argument("--json", action="store_true")
 
-    snapshot_parser = sub.add_parser("snapshot")
-    snapshot_parser.add_argument("--topic")
-    snapshot_parser.add_argument("--json", action="store_true")
-    snapshot_parser.add_argument(
-        "--format",
-        choices=("raw", "canvas-json"),
-        default="raw",
-    )
-    snapshot_parser.add_argument(
-        "--probe-runtime",
-        nargs="?",
-        const="full",
-        default=None,
-        choices=("light", "full"),
-        help=(
-            "Probe agent reachability. "
-            "'light' = OpenClaw health + Claude CLI/resume (Agents page; no doctor). "
-            "'full' / bare flag = doctor + resume (dispatch readiness). "
-            "Default: no probe."
-        ),
-    )
-    snapshot_parser.add_argument("--verify-embedded")
-    snapshot_parser.add_argument("--update-embedded")
-    snapshot_parser.add_argument("--episode")
-    snapshot_parser.add_argument(
-        "--replay-episode",
-        help="Canvas focused hop id loaded from .ndf/replay (not --episode record binding)",
-    )
-    snapshot_parser.add_argument(
-        "--out",
-        help="Write canvas-json commander payload (default tmp/ndf-canvas-snapshot.json with --serve)",
-    )
-    snapshot_parser.add_argument(
-        "--serve",
-        action="store_true",
-        help="Serve spec/meta/cockpit and /snapshot.json; POST /api/action for catalog hops",
-    )
-    snapshot_parser.add_argument("--port", type=int, default=8765)
-
     host_pids_parser = sub.add_parser(
         "host-pids",
-        help="Report cgroup PID/thread headroom and local NDF serve/qemu suspects",
+        help="Report cgroup PID/thread headroom and local suspects on EAGAIN",
     )
     host_pids_parser.add_argument("--json", action="store_true")
     host_pids_parser.add_argument(
@@ -10853,65 +10814,14 @@ def main() -> int:
     spec_health_parser = sub.add_parser("spec-health")
     spec_health_parser.add_argument("--json", action="store_true")
 
-    action_begin_parser = sub.add_parser("action-begin")
-    action_begin_parser.add_argument("--operation", required=True)
-    action_begin_parser.add_argument("--topic")
-    action_begin_parser.add_argument("--action-id")
-    action_begin_parser.add_argument(
-        "--catalog-action-id",
-        help="Closed catalog action id (required for reliable Replay / stop hook)",
-    )
-    action_begin_parser.add_argument("--episode")
-    action_begin_parser.add_argument("--json", action="store_true")
-
-    action_finish_parser = sub.add_parser("action-finish")
-    action_finish_parser.add_argument("--action-id", required=True)
-    action_finish_parser.add_argument(
-        "--result",
-        choices=("success", "failed", "cancelled"),
-        required=True,
-    )
-    action_finish_parser.add_argument("--blocker", action="append", default=[])
-    action_finish_parser.add_argument("--episode")
-    action_finish_parser.add_argument("--json", action="store_true")
-
-    capability_approve_parser = sub.add_parser(
-        "capability-approve",
-        help="Record human capability approval, close waiting attempts, snapshot --out",
-    )
-    capability_approve_parser.add_argument("--catalog-action-id", required=True)
-    capability_approve_parser.add_argument(
-        "--capability",
-        action="append",
-        dest="capabilities",
-        required=True,
-    )
-    capability_approve_parser.add_argument("--approved-by", default="human")
-    capability_approve_parser.add_argument("--topic")
-    capability_approve_parser.add_argument("--note")
-    capability_approve_parser.add_argument("--json", action="store_true")
-
-    action_commit_parser = sub.add_parser(
-        "action-commit",
-        help="Commit mayWrite changes and record button-action A→B before snapshot",
-    )
-    action_commit_parser.add_argument("--action-id", required=True)
-    action_commit_parser.add_argument(
-        "--catalog-action-id",
-        help="Registry action id (when --action-id is a UUID from action-begin)",
-    )
-    action_commit_parser.add_argument("--prompt-file")
-    action_commit_parser.add_argument("--label")
-    action_commit_parser.add_argument("--json", action="store_true")
-
     dispatch_send_parser = sub.add_parser(
         "dispatch-send",
-        help="Send a safe pack to OpenClaw/ACP, wait, then action-commit + snapshot",
+        help="Send a safe pack to OpenClaw/ACP and wait for disk completion",
     )
     dispatch_send_parser.add_argument(
         "--pack-file",
         required=True,
-        help="JSON pack from control-pack / repair-pack / pack",
+        help="JSON pack from control-pack / project-control-pack / genesis-pack / repair-pack",
     )
     dispatch_send_parser.add_argument("--catalog-action-id")
     dispatch_send_parser.add_argument("--action-id")
@@ -11022,57 +10932,6 @@ def main() -> int:
     )
     control_pack_parser.add_argument("--json", action="store_true")
 
-    pipeline_step_parser = sub.add_parser("pipeline-step-record")
-    pipeline_step_parser.add_argument("--topic", required=True)
-    pipeline_step_parser.add_argument(
-        "--pipeline",
-        required=True,
-        choices=[PIPELINE_GATE, PIPELINE_BINDER],
-    )
-    pipeline_step_parser.add_argument(
-        "--kind",
-        required=True,
-        choices=[
-            "gate.audit",
-            "gate.draft",
-            "gate.confirmed",
-            "control.handoff",
-            "decision.selected",
-            "binder.audit",
-            "binder.amend",
-            "binder.recheck",
-        ],
-    )
-    pipeline_step_parser.add_argument("--step-id", required=True)
-    pipeline_step_parser.add_argument("--episode", required=True)
-    pipeline_step_parser.add_argument("--actor", default="openclaw")
-    pipeline_step_parser.add_argument("--payload-json")
-    pipeline_step_parser.add_argument("--json", action="store_true")
-
-    control_dispatch_parser = sub.add_parser("control-dispatch-record")
-    control_dispatch_parser.add_argument("--topic", required=True)
-    control_dispatch_parser.add_argument(
-        "--pipeline",
-        required=True,
-        choices=[PIPELINE_GATE, PIPELINE_BINDER],
-    )
-    control_dispatch_parser.add_argument(
-        "--task",
-        required=True,
-        choices=["gate_pipeline", "binder_pipeline"],
-    )
-    control_dispatch_parser.add_argument("--episode", required=True)
-    control_dispatch_parser.add_argument("--request-id", required=True)
-    control_dispatch_parser.add_argument(
-        "--state",
-        required=True,
-        choices=sorted(CONTROL_DISPATCH_STATES),
-    )
-    control_dispatch_parser.add_argument("--manifest-sha")
-    control_dispatch_parser.add_argument("--plan-sha")
-    control_dispatch_parser.add_argument("--blocker", action="append", default=[])
-    control_dispatch_parser.add_argument("--json", action="store_true")
-
     project_control_parser = sub.add_parser("project-control-pack")
     project_control_parser.add_argument(
         "--task",
@@ -11132,41 +10991,6 @@ def main() -> int:
     close_record_parser = sub.add_parser("close-receipt-record")
     close_record_parser.add_argument("--receipt", required=True)
     close_record_parser.add_argument("--json", action="store_true")
-    completion_parser = sub.add_parser("completion-record")
-    completion_parser.add_argument("--file", required=True)
-    completion_parser.add_argument("--episode", required=True)
-    completion_parser.add_argument(
-        "--role",
-        choices=("openclaw", "claude-code"),
-        required=True,
-    )
-    completion_parser.add_argument(
-        "--coverage",
-        choices=("full_stream", "completion_only", "messages_only"),
-        required=True,
-    )
-    completion_parser.add_argument("--json", action="store_true")
-
-    message_parser = sub.add_parser("message-record")
-    message_parser.add_argument("--file", required=True)
-    message_parser.add_argument("--episode", required=True)
-    message_parser.add_argument(
-        "--role",
-        choices=("openclaw", "claude-code"),
-        required=True,
-    )
-    message_parser.add_argument(
-        "--direction",
-        choices=("request", "response"),
-        required=True,
-    )
-    message_parser.add_argument(
-        "--coverage",
-        choices=("full_stream", "completion_only", "messages_only"),
-        required=True,
-    )
-    message_parser.add_argument("--json", action="store_true")
-
     args = parser.parse_args()
     try:
         if args.command == "genesis-status":
@@ -11177,21 +11001,6 @@ def main() -> int:
             persist_dispatch_pack(payload)
             emit(payload)
             return code
-        if args.command == "snapshot":
-            # ADR-META-004: Commander/canvas snapshot retired — fail fast (no snapshot()).
-            cmd = "snapshot --serve" if args.serve else "snapshot"
-            sys.stderr.write(
-                f"{cmd} is deprecated (ADR-META-004). "
-                "Commander retired; use .cursor/skills/ndf-workflow/ + "
-                "topic-health / poc-dispatch.\n"
-            )
-            emit({
-                "schema": "ndf-commander-retired/v1",
-                "command": cmd,
-                "deprecated": True,
-                "reason": "ADR-META-004",
-            })
-            return 2
         if args.command == "host-pids":
             report = host_pids_report(kill_stale=args.kill_stale_serve)
             emit(report)
@@ -11204,29 +11013,6 @@ def main() -> int:
             payload, code = spec_health()
             emit(payload)
             return code
-        if args.command in {"action-begin", "action-finish", "action-commit"}:
-            sys.stderr.write(
-                f"{args.command} is deprecated (ADR-META-004). "
-                "ActionSpec/Commander retired; use poc-dispatch / dispatch-send.\n"
-            )
-            emit({
-                "schema": "ndf-commander-retired/v1",
-                "command": args.command,
-                "deprecated": True,
-                "reason": "ADR-META-004",
-            })
-            return 2
-        if args.command == "capability-approve":
-            sys.stderr.write(
-                "capability-approve is deprecated (ADR-META-004). "
-                "ActionSpec/Commander retired.\n"
-            )
-            emit({
-                "schema": "ndf-commander-retired/v1",
-                "command": "capability-approve",
-                "deprecated": True,
-            })
-            return 2
         if args.command == "dispatch-send":
             import ndf_dispatch_send
 
@@ -11311,32 +11097,6 @@ def main() -> int:
             persist_dispatch_pack(payload)
             emit(payload)
             return code
-        if args.command == "pipeline-step-record":
-            payload, code = record_control_pipeline_step(
-                topic=args.topic,
-                pipeline=args.pipeline,
-                kind=args.kind,
-                step_id=args.step_id,
-                episode_id=args.episode,
-                actor=args.actor,
-                payload_json=args.payload_json,
-            )
-            emit(payload)
-            return code
-        if args.command == "control-dispatch-record":
-            payload, code = record_control_dispatch(
-                topic=args.topic,
-                pipeline=args.pipeline,
-                task=args.task,
-                episode_id=args.episode,
-                request_id=args.request_id,
-                state=args.state,
-                manifest_sha=args.manifest_sha,
-                context_plan_sha=args.plan_sha,
-                blockers=args.blocker,
-            )
-            emit(payload)
-            return code
         if args.command == "project-control-pack":
             if args.task == "ndf_improvement_land":
                 if args.intent_file:
@@ -11370,25 +11130,6 @@ def main() -> int:
             return 0 if result["valid"] else 1
         if args.command == "close-receipt-record":
             result, code = record_close_receipt(Path(args.receipt))
-            emit(result)
-            return code
-        if args.command == "completion-record":
-            result, code = record_agent_completion(
-                Path(args.file),
-                episode_id=args.episode,
-                role=args.role,
-                coverage=args.coverage,
-            )
-            emit(result)
-            return code
-        if args.command == "message-record":
-            result, code = record_agent_message(
-                Path(args.file),
-                episode_id=args.episode,
-                role=args.role,
-                direction=args.direction,
-                coverage=args.coverage,
-            )
             emit(result)
             return code
         payload, code = close_plan(args.topic, args.mode, args.ids)

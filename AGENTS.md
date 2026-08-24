@@ -68,8 +68,9 @@ Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/
 是 NDF 的**文档组织视角**，不是用户必须逐项修绿的状态机。交互只编排其读写与口令，
 不替代真值。组装 Agent 上下文 MUST 先按主题装订器读序，再按 NDF 图 `depends-on`
 展开相关条款，并纳入当前 git/evidence；MUST NOT 从 SLA/NOTES 叙述偷取观测数字。
-机械上下文 MUST 由 `ndf_context.py manifest-create|role-plan|context-expand|context-verify`
-生成。OpenClaw 与 Claude Code 的 role plan MUST 引用同一 manifest SHA，不得各自拼接。
+机械上下文由 pack 路径内部的 `ndf_context`（manifest / role-plan / verify）生成；
+指挥面失败时只报 blockers（如 `context_verify_failed`），不把 Compiler 当人类合同。
+OpenClaw 与 Claude Code 的 role plan MUST 引用同一 manifest SHA，不得各自拼接。
 
 **日常路径是纯文字指挥**（[[ADR-META-003]] / [[ADR-META-004]]）：无 Commander、无
 Episode、无 Replay；不依赖面板。成功仅以磁盘 `ndf-agent-completion/v1` 为准。
@@ -88,13 +89,13 @@ Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `
 | 闸门            | 触发                                                                                           | 编排作用                 |
 | ------------- | -------------------------------------------------------------------------------------------- | -------------------- |
 | POC（文字优先）     | 产品提案审核 → 整包装订器 → 「派发」                                                                       | 契约→实现/测量             |
-| POC（legacy 三闸） | `TOPIC已审核` → `DESIGN已审核` → `可以开始实现`                                                          | 设计→绑定/DELTA→实现       |
 | Genesis       | `IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` → `VERIFICATION已审核` → `可以建立初始主线` → `GENESIS已审核` | IDEA→本地 NDF→初始 Trunk |
 | 产品/process 提案 | `已确认` → `已审核`                                                                                | 契约/流程落地              |
 | 测试            | R0 完善 Numbers；promote 触发 META-006                                                            | 测试空间收敛               |
 
 
 口令 MUST 追加到 `GATES.md`，绑定人、时间与内容 SHA（[[META-010]]）；文件存在不得推断审批。
+旧主题 MAY 仍用三闸（`TOPIC已审核` → `DESIGN已审核` → `可以开始实现`）；新主题默认只用「派发」。
 
 ### 步骤1：接收需求
 
@@ -239,14 +240,22 @@ Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `
 
 ## 5. Agent Runtime 配置
 
-日常**无面板**（无 Commander / serve / SSE / ActionSpec / Episode / Replay；
-[[ADR-META-004]]）。文字入口：`.cursor/skills/ndf-workflow/`；委派用
-`poc-dispatch` / `dispatch-send`。成功 = 磁盘 completion，不以 transport ACK /
-stdout 冒充。
+日常**无面板**（[[ADR-META-004]]）。入口：`.cursor/skills/ndf-workflow/`。
 
-### OpenClaw 指挥会话
+### 三层能力
 
-OpenClaw 指挥会话 session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35`
+| 层 | 谁 | 入口 | 写界 |
+|----|----|------|------|
+| **指挥面** | Cursor + `ndf-workflow` | 五句口令；造 pack；等人审；调 CLI | tmp / 触发回执；禁写 worker 实现/测量；禁直接 `chat_send` |
+| **委派 OpenClaw** | Control | `control-pack` / `project-control-pack` →「派发」→ `dispatch-send` | `spec/open/`、`spec/meta/open/`、`poc/<topic>/ndf/`、`.openclaw/state.json` |
+| **委派 Claude Code** | Implementation | `poc-dispatch --send`；`genesis-pack`；promote 按 close plan | POC 仅 `poc/<topic>/`；禁 L0/L1 / `spec/meta/` |
+
+成功 = 磁盘 `ndf-agent-completion/v1`，不以 transport ACK / stdout 冒充。细节见 skill
+`delegate.md`。
+
+### OpenClaw 会话
+
+OpenClaw session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35`
 
 该值是 **session_key 路由身份**（飞书等通道），不是 `openclaw agent --session-id` 的 UUID。
 gateway `health` 可达 ≠ session 可派发：配置 key 须在 `openclaw sessions` 中可匹配（或本身为 UUID）。
@@ -254,18 +263,18 @@ gateway `health` 可达 ≠ session 可派发：配置 key 须在 `openclaw sess
 `openclaw_session_invalid` fail-closed。OpenClaw 与 Claude Code ACP 等待都用心跳续等
 （`NDF_OPENCLAW_*` / `NDF_ACP_PING_SEC` / `STALL_SEC` / `MAX_SEC`），有会话或磁盘
 回执进展就继续等。在途 hop「进展如何」→ `dispatch-probe`（探活，不再派发）。
-「派发」/「继续」只确认发出 ready pack。
+「派发」/「继续」只确认发出 ready pack；POC「派发」另写 `GATES.md` `bundle_dispatch`。
 
 可写 pack 委派（[[META-011]]）：先造 pack → 本聊天等人回「派发」/「继续」→ 显式
-`dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json`。`dispatch-send` 是送
-worker + closeout 的唯一入口。MUST 读 pack `completion_receipt_path`，MUST NOT
+`dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json`（POC 日常用
+`poc-dispatch --send`）。MUST 读 pack `completion_receipt_path`，MUST NOT
 手抄 Numbers 当 success。硬安全门保留：错仓库、越界写根、缺人审 bundle、并发写
 run、上下文漂移、伪造 completion、ACP 预算溢出。
 
 **宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读
-`chromium_cgroup` / `consumers` / `advice` 再决定是否清理嫌疑进程。MUST NOT 改
-`environment=cloud` 绕开，MUST NOT 调大 TasksMax。
+`consumers` / `advice` 再决定是否清理嫌疑进程。MUST NOT 改 `environment=cloud` 绕开，
+MUST NOT 调大 TasksMax。
 
 ### Claude Code 实现管道
 
@@ -281,24 +290,25 @@ gateway session 与项目 workspace **分离**；切换项目 = 切换 `repo_roo
 
 | 委派 pack | workspace 用途 |
 |-----------|----------------|
-| `control-pack` | OpenClaw 写入 `{repo_root}/.openclaw/state.json` |
-| `pack` / `genesis-pack` | Claude Code worktree MUST 在 `repo_root` 下 |
+| `control-pack` / `project-control-pack` | OpenClaw 写入 `{repo_root}/.openclaw/state.json` |
+| `poc-dispatch` / `genesis-pack` | Claude Code worktree MUST 在 `repo_root` 下 |
 
 所有 pack MUST 含 `workspace.repo_root`。Claude Code start handshake MUST 含或可证
-`repo_root`（见 `claude-code-pipeline.md`）。
+`repo_root`。
 
 ### Control vs Implementation 委派分流
 
 
 | 平面                 | 代理              | 工具入口                                  | 必填上下文 |
 | ------------------ | --------------- | ------------------------------------- | -------- |
-| **NDF Control**    | OpenClaw        | `control-pack` + `openclaw.chat_send` | `workspace.repo_root` |
-| **Implementation** | Claude Code ACP | `pack` + ACP handshake                | `workspace.repo_root` + `allowed_write_root` |
+| **指挥面** | Cursor + `ndf-workflow` | 五句口令；造 pack；`dispatch-send` / `poc-dispatch` | `workspace.repo_root` |
+| **NDF Control**    | OpenClaw        | `control-pack` / `project-control-pack` → `dispatch-send` | `workspace.repo_root` |
+| **Implementation** | Claude Code ACP | `poc-dispatch --send`；`genesis-pack` | `workspace.repo_root` + `allowed_write_root` |
 
 
 OpenClaw Control 可写：`poc/<topic>/ndf/`、`spec/open/`、`spec/meta/open/`、
-`.openclaw/state.json`。禁止：`src/`、`include/`、`tests/`、`spec/meta/` 正文、
-静默写 `GATES.md` 的 `approved_by`。
+`.openclaw/state.json`。禁止：`src/`、`include/`、`tests/`、未人审写 `spec/meta/` 正文、
+静默写 `GATES.md` 的 `approved_by`。指挥面 MUST NOT 直接 `openclaw.chat_send`。
 
 Claude Code 写入禁区（参考 `CLAUDE.md`）：
 
@@ -621,7 +631,7 @@ Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无并发写
   产品提案 → `spec/open/`；流程/卫生 → `spec/meta/open/proposal-meta-*.md`。
 2. **确认后落地**：经用户「已确认」后由你写入对应目录；产品提案「已审核」后再委派实现。
   **poc 默认文字优先**：提案审核 → 整包装订器 →「派发」→ `poc-dispatch`（[[ADR-META-003]] /
-  [[ADR-META-004]] / [[BEH-025]]）；legacy 三闸仍可用。无 Commander/Episode/Replay。
+  [[ADR-META-004]] / [[BEH-025]]）。无面板。旧主题 MAY 仍用三闸。
 3. **双轨**：探索在 `poc/` + draft；晋升才 stable + `src/`（[[CHR-008]]，正文在 `spec/meta/`）。
 4. **先收口，再 POC，关闭后才回合**：`open/` 不堆 Implemented；探索中默认不改 stable/`src/`；
   主题 promote/reject 时才做产品 NDF + 代码回合（[[BEH-018]]…[[BEH-020]]；卫生 r2）。

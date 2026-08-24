@@ -23,4 +23,4 @@ python3 spec/meta/tools/ndf_workflow_status.py genesis-status --json
 - 是否 `safe_to_dispatch` 相关前置（装订器、闸、隔离）
 - 修复建议指向 [proposal.md](proposal.md) / [poc.md](poc.md) / 人工口令——勿静默伪造 approval
 
-无面板义务：不启 snapshot serve、不刷 Commander。
+无面板义务：不启 serve、不打开可视化宿主。

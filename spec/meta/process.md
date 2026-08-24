@@ -164,8 +164,8 @@ NDF 工作流 MUST 在日常 Proposal/POC 前支持一次性 `track=bootstrap`�
 - 已存在 accepted Project Genesis 决策的 operational 项目 MUST NOT 重跑 bootstrap；
   重建基准另走 process/refactor 提案。
 - 兼容既有健康棕地：无 Genesis 决策但已有完整 `spec/00–50`、产品代码与可运行治理门禁时，
-  工作台 MAY 标 `operational_legacy` 并提示可选 adopt；MUST NOT 因新流程阻断既有日常 POC。
-  日常指挥面是 NDF commander；Cursor Canvas 不是持续叠加 topic/hop 的承载。
+  MAY 标 `operational_legacy` 并提示可选 adopt；MUST NOT 因新流程阻断既有日常 POC。
+  日常指挥面是 Cursor 文字入口（`.cursor/skills/ndf-workflow/`）；无可视化面板义务。
 
 初始化门禁 MUST 串行：
 
@@ -209,7 +209,7 @@ approved_content_sha / source_ref / status
    `bundle_dispatch`（phrase=`派发`）代替闸 3；内容束 MUST 与
    `implementation_approval` 相同。`topic_review` / `design_review` 三闸串行对
    该路径为 legacy/可选；产品提案「已确认」/「已审核」仍为契约落地门。
-5. 口令仍由人触发；Canvas/Agent MUST NOT 静默批准或伪造 `approved_by`。
+5. 口令仍由人触发；Command Agent / 工具 MUST NOT 静默批准或伪造 `approved_by`。
 6. 本条不要求回填历史 POC；历史主题显示 `legacy/unknown`。
 
 ### POC 门禁 review slice
@@ -282,7 +282,9 @@ Idea → 产品提案「已确认」/「已审核」
 → Human「继续」修订装订器再派发，或选 close 模式
 ```
 
-日常写入口是 CLI `poc-dispatch`（内联租约）。legacy `pack` / `dispatch-send` 与闸 3「可以开始实现」仍可用。人审「派发」/「继续」是聊天确认，MUST NOT 新增 GATES.md / [[META-010]] 口令。
+日常写入口是 CLI `poc-dispatch`（内联租约）。人审「派发」/「继续」是聊天确认授权送出 ready
+pack；POC「派发」仍 MUST 把 `bundle_dispatch` 回执写入 `GATES.md`（[[META-010]]），
+聊天确认 ≠ 回执存在。legacy 三闸「可以开始实现」仅兼容旧主题。
 
 ### 成功分层（不得互相冒充）
 
@@ -291,7 +293,7 @@ Idea → 产品提案「已确认」/「已审核」
    `ndf-agent-completion/v1` 为准——`result=success` 且 topic/task/run 身份匹配。
 3. stdout `ndf-dispatch-notify/v1` 仅运输辅助；stdout 中的 completion MUST NOT 冒充磁盘回执。
 
-历史 Episode / Replay / 投影缺字段 MUST NOT 单独把实质完成判失败（[[ADR-META-004]]）。
+历史 Episode / Replay 缺字段 MUST NOT 单独把实质完成判失败（[[ADR-META-004]]）。
 
 ### 硬安全门
 
@@ -314,16 +316,18 @@ MUST 取 live `git_head()`。
 不得要求人工第二跳。lease MUST 写入隔离 worktree 与 `tmp/ndf-workflow-leases.jsonl`，
 MUST NOT 用空 stub 冒充。ACP 可达 ≠ 活跃隔离租约。
 
-### OpenClaw vs Claude Code
+### 三层能力（指挥面 / OpenClaw / Claude Code）
 
-| 平面 | 代理 | 入口 | 写界 |
-|------|------|------|------|
-| NDF Control | OpenClaw | `control-pack` | `poc/<topic>/ndf/`、`spec/open/`、`spec/meta/open/`、`.openclaw/state.json` |
-| Implementation | Claude Code ACP | `pack` / `poc-dispatch` | track 允许写根（POC 仅 `poc/<topic>/`） |
+| 层 | 代理 | 入口 | 写界 |
+|----|------|------|------|
+| 指挥面 | Cursor + `.cursor/skills/ndf-workflow/` | 五句口令；造 pack；等人审；调 CLI | tmp pack / 触发回执 CLI；MUST NOT 写 worker 实现/测量 |
+| NDF Control | OpenClaw | `control-pack` / `project-control-pack` →「派发」→ `dispatch-send` | `poc/<topic>/ndf/`、`spec/open/`、`spec/meta/open/`、`.openclaw/state.json` |
+| Implementation | Claude Code ACP | `poc-dispatch`（POC）；`genesis-pack`（初始化）；promote 按 close plan | track 允许写根（POC 仅 `poc/<topic>/`） |
 
-OpenClaw MUST NOT 写 `src/`、`include/`、`tests/`、`spec/meta/` 正文，MUST NOT 静默写
-`GATES.md` 的 `approved_by`。Claude Code MUST NOT 改 L0/L1 / `spec/meta/`。Command Agent
-MUST NOT 代写 worker 边界内的实现/测量文件。运行态从管道查询，MUST NOT 写入
+OpenClaw MUST NOT 写 `src/`、`include/`、`tests/`、`spec/meta/` 稳定正文（land 除外且须人审），
+MUST NOT 静默写 `GATES.md` 的 `approved_by`。Claude Code MUST NOT 改 L0/L1 / `spec/meta/`。
+指挥面 MUST NOT 代写 worker 边界内的实现/测量，MUST NOT 直接 `openclaw.chat_send` 绕过
+`dispatch-send`，MUST NOT 打开可视化面板。运行态从管道查询，MUST NOT 写入
 `.openclaw/state.json` 冒充装订器 must。
 
 OpenClaw Control 探测 MUST 分三态：`gateway_reachable`、`session_configured`
@@ -353,9 +357,8 @@ ACP `dispatch-send` MUST 在运输前估算 transcript 与 slim worker 预算；
 
 发现 Agent Shell `EAGAIN` / fork 失败时 MUST 先跑
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读 cgroup /
-consumers / advice。Chromium 占满时关标签；仅当 NDF/qemu 确为嫌疑才清理。MUST NOT
-改 `environment=cloud` 绕开，MUST NOT 调大 TasksMax。Command Agent MUST NOT 在
-Chromium scope 残留长驻 serve 进程。
+consumers / advice，再决定是否清理嫌疑进程。MUST NOT 改 `environment=cloud` 绕开，
+MUST NOT 调大 TasksMax。
 
 完成回执 MUST 含 changed files、commit SHA（若有）、复现命令与 evidence 路径；随后 MUST
 再跑写入隔离检查。POC 正结果关闭顺序仍为 promote 提案 → `ndf_close plan` → 集成 →
