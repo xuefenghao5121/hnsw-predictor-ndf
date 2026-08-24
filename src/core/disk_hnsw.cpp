@@ -305,6 +305,11 @@ float DiskHNSW::pqDistance(const float* query, uint32_t node_id_new) const {
         const uint32_t M = pq_params_.M;
         const uint32_t ksub = pq_params_.ksub;
         const float* t = pq_dist_table_.data();
+        // API-022: HNSW_PQ_SIMD=1 时用 SIMD gather 查表, 否则保留标量 4-way 展开
+        static const bool kPqSimd = std::getenv("HNSW_PQ_SIMD") && std::atoi(std::getenv("HNSW_PQ_SIMD")) != 0;
+        if (kPqSimd) {
+            return pqAdcDistance(code, t, M, ksub);
+        }
         float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
         uint32_t m = 0;
         for (; m + 4 <= M; m += 4) {

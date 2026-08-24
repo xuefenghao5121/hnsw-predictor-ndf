@@ -1,6 +1,7 @@
 // simd_arm.h - ARM NEON SIMD 实现
 #pragma once
 
+#include <cstdint>
 #include <arm_neon.h>
 
 // CPU 预取封装 (GCC 内建, 架构无关)
@@ -22,4 +23,18 @@ inline void pqBuildTable_dsub4(const float* q, const float* cb, float* t, uint32
         sum2 = vpadd_f32(sum2, sum2);
         t[k] = vget_lane_f32(sum2, 0);
     }
+}
+
+// PQ ADC 距离查表 (标量 4-way 展开; NEON 无高效 gather)
+inline float pqAdcDistance(const uint8_t* code, const float* t, uint32_t M, uint32_t ksub) {
+    float s0 = 0, s1 = 0, s2 = 0, s3 = 0;
+    uint32_t m = 0;
+    for (; m + 4 <= M; m += 4) {
+        s0 += t[(size_t)(m + 0) * ksub + code[m + 0]];
+        s1 += t[(size_t)(m + 1) * ksub + code[m + 1]];
+        s2 += t[(size_t)(m + 2) * ksub + code[m + 2]];
+        s3 += t[(size_t)(m + 3) * ksub + code[m + 3]];
+    }
+    for (; m < M; m++) s0 += t[(size_t)m * ksub + code[m]];
+    return (s0 + s1) + (s2 + s3);
 }
