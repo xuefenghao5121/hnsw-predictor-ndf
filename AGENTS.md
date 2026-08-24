@@ -13,8 +13,11 @@
 
 若工作区存在 `SOUL.md` / `MEMORY.md`，一并重读；**不存在则跳过，不得阻塞**。
 
-若存在 `.openclaw/state.json`，MUST 读取其中 `workspace` 绑定（`repo_root`、
+若存在 `ndf.workspace.json` 或 `.openclaw/state.json`，MUST 读取其中 `workspace` 绑定（`repo_root`、
 `active_topic`）。所有相对路径 MUST 在 `workspace.repo_root` 下解析。
+
+**三角色绑定**：Command / Control / Implementation 在初始化时写入项目 `ndf.workflow.yaml`
+（见 [[META-009]] 角色向导与「角色已配置」闸）。缺绑定 → `roles_unbound`，不得派发。
 
 **Per-Project Workspace 优先级**：
 
@@ -26,9 +29,9 @@
 
 模板见 `spec/meta/templates/openclaw/state.json.example`。
 
-**角色**：你是 OpenClaw。你依据 `spec/` 下的 NDF 规范指挥开发：新项目先走
+**角色**：你是 OpenClaw（Control 角色默认绑定）。你依据 `spec/` 下的 NDF 规范指挥开发：新项目先走
 Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/L1 层级的规范引导；
-可执行实现委托 Claude Code，在 bootstrap 隔离分支、`poc/`（探索）或 Trunk 集成路径落地。
+可执行实现委托 Implementation 角色（默认 Claude Code ACP），在 bootstrap 隔离分支、`poc/`（探索）或 Trunk 集成路径落地。
 
 **权威流程条款**（正文在 `spec/meta/`，产品树仅为 adopted 指针）：[[CHR-008]]、[[ARCH-008]]、
 [[BEH-018]]、[[BEH-019]]、[[BEH-020]]、[[BEH-025]]、[[CON-POC-001]]、[[META-004]]、
@@ -59,8 +62,9 @@ Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/
 | 同时影响两面（mixed） | 拆成两个互相引用的提案 |
 | 无法判断（ambiguous） | **先问人**；MUST NOT 默认落成 poc / 一刀切写根 |
 
-人类日常入口唯一 skill：`.cursor/skills/ndf-workflow/`（初始化项目 / 提交 Idea /
-派发 / 继续 / 关闭）。内部模块对人类不可见。
+人类日常入口：Command Agent 在当前宿主运行 ndf-workflow 五句口令（初始化项目 / 提交 Idea /
+派发 / 继续 / 关闭）。skill 路径见 `ndf.workflow.yaml` `roles.command.skill`（本仓默认
+`.cursor/skills/ndf-workflow/`）。内部模块对人类不可见。
 
 ### 三工作空间与交互编排
 
@@ -89,7 +93,7 @@ Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `
 | 闸门            | 触发                                                                                           | 编排作用                 |
 | ------------- | -------------------------------------------------------------------------------------------- | -------------------- |
 | POC（文字优先）     | 产品提案审核 → 整包装订器 → 「派发」                                                                       | 契约→实现/测量             |
-| Genesis       | `IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` → `VERIFICATION已审核` → `可以建立初始主线` → `GENESIS已审核` | IDEA→本地 NDF→初始 Trunk |
+| Genesis       | `角色已配置` → `IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` → `VERIFICATION已审核` → `可以建立初始主线` → `GENESIS已审核` | IDEA→本地 NDF→初始 Trunk |
 | 产品/process 提案 | `已确认` → `已审核`                                                                                | 契约/流程落地              |
 | 测试            | R0 完善 Numbers；promote 触发 META-006                                                            | 测试空间收敛               |
 
@@ -165,7 +169,7 @@ Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `
 
 | track                         | 已审核之后                                                                |
 | ----------------------------- | -------------------------------------------------------------------- |
-| **bootstrap**                 | Genesis 分段门禁 → Claude Code 隔离 Trunk candidate → 构建/验收 → `GENESIS已审核` |
+| **bootstrap**                 | 角色向导 → Genesis 分段门禁 → Implementation 隔离 Trunk candidate → 构建/验收 → `GENESIS已审核` |
 | **poc**                       | 产品提案审核后写齐装订器；Human「派发」后 `poc-dispatch` 委派 `poc/<topic>/`；多轮继续/关闭；**不**跑 Trunk SLA |
 | **promote**                   | 委派 Claude Code **干净合入** `src/` → 编译验证 → 性能验证                         |
 | **process**                   | 仅 `spec/meta/`** + 产品 thin 指针 + `AGENTS.md` 等；**跳过** src 委派与编译/性能    |
@@ -240,16 +244,17 @@ Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `
 
 ## 5. Agent Runtime 配置
 
-日常**无面板**（[[ADR-META-004]]）。入口：`.cursor/skills/ndf-workflow/`。
+日常**无面板**（[[ADR-META-004]]）。Command Agent 入口见 `ndf.workflow.yaml` `roles.command`。
 
-### 三层能力
+### 三层能力（Command / Control / Implementation）
 
-| 层 | 谁 | 入口 | 写界 |
-|----|----|------|------|
-| **指挥面** | Cursor + `ndf-workflow` | 五句口令；造 pack；等人审；调 CLI | tmp / 触发回执；禁写 worker 实现/测量；禁直接 `chat_send` |
-| **委派 OpenClaw** | Control | `control-pack` / `project-control-pack` →「派发」→ `dispatch-send` | `spec/open/`、`spec/meta/open/`、`poc/<topic>/ndf/`、`.openclaw/state.json` |
-| **委派 Claude Code** | Implementation | `poc-dispatch --send`；`genesis-pack`；promote 按 close plan | POC 仅 `poc/<topic>/`；禁 L0/L1 / `spec/meta/` |
+| 层 | 角色 | 默认绑定 | 入口 | 写界 |
+|----|------|----------|------|------|
+| **Command** | Command Agent（当前宿主） | 当前宿主 + `ndf-workflow` | 五句口令；造 pack；等人审；调 CLI | tmp / 触发回执；禁写 worker 实现/测量；禁直接 `chat_send` |
+| **Control** | Design agent | OpenClaw | `control-pack` / `project-control-pack` →「派发」→ `dispatch-send` | `spec/open/`、`spec/meta/open/`、`poc/<topic>/ndf/`、`.openclaw/state.json` |
+| **Implementation** | Implementation agent | Claude Code ACP | `poc-dispatch --send`；`genesis-pack`；promote 按 close plan | POC 仅 `poc/<topic>/`；禁 L0/L1 / `spec/meta/` |
 
+三角色绑定见 `ndf.workflow.yaml`；解析与 fallback 见 [[META-011]]「角色适配器解析」。
 成功 = 磁盘 `ndf-agent-completion/v1`，不以 transport ACK / stdout 冒充。细节见 skill
 `delegate.md`。
 
@@ -285,8 +290,9 @@ ACP 长连接会话 ID：`7f24709c-5c7a-41c4-ada7-44452004652a`（短寿命可�
 
 ### Per-Project Workspace
 
-每个本地仓库维护自己的 `{repo_root}/.openclaw/state.json`（gitignore）。OpenClaw
-gateway session 与项目 workspace **分离**；切换项目 = 切换 `repo_root`。
+每个本地仓库维护 `{repo_root}/ndf.workspace.json`（首选）或 `.openclaw/state.json`（兼容
+alias；gitignore）。OpenClaw gateway session 与项目 workspace **分离**；切换项目 = 切换
+`repo_root`。
 
 | 委派 pack | workspace 用途 |
 |-----------|----------------|
@@ -299,11 +305,11 @@ gateway session 与项目 workspace **分离**；切换项目 = 切换 `repo_roo
 ### Control vs Implementation 委派分流
 
 
-| 平面                 | 代理              | 工具入口                                  | 必填上下文 |
+| 平面                 | 角色              | 工具入口                                  | 必填上下文 |
 | ------------------ | --------------- | ------------------------------------- | -------- |
-| **指挥面** | Cursor + `ndf-workflow` | 五句口令；造 pack；`dispatch-send` / `poc-dispatch` | `workspace.repo_root` |
-| **NDF Control**    | OpenClaw        | `control-pack` / `project-control-pack` → `dispatch-send` | `workspace.repo_root` |
-| **Implementation** | Claude Code ACP | `poc-dispatch --send`；`genesis-pack` | `workspace.repo_root` + `allowed_write_root` |
+| **Command** | Command Agent（当前宿主） | 五句口令；造 pack；`dispatch-send` / `poc-dispatch` | `workspace.repo_root` |
+| **Control**    | Design agent（默认 OpenClaw）        | `control-pack` / `project-control-pack` → `dispatch-send` | `workspace.repo_root` |
+| **Implementation** | Implementation agent（默认 Claude Code ACP） | `poc-dispatch --send`；`genesis-pack` | `workspace.repo_root` + `allowed_write_root` |
 
 
 OpenClaw Control 可写：`poc/<topic>/ndf/`、`spec/open/`、`spec/meta/open/`、
@@ -493,18 +499,22 @@ Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无并发写
 
 对齐 [[META-009]]：
 
-1. 判定 `bootstrap_mode=greenfield|adopt`。已有 accepted Genesis 的 operational 项目
+1. **角色向导（G-1）**：首次 bootstrap 或与 G0 并行但 MUST 先完成。Command Agent 探测 CLI、
+   询问人类 Command/Control/Implementation 三角色与 model，写入 `ndf.workflow.yaml`（或
+   `python3 spec/meta/tools/ndf_role_binding.py bind …`）；等人 **角色已配置**（回执写
+   Genesis `GATES.md`，绑定 roles SHA）。`roles_unbound` → 不得进 G1 / 派发。
+2. 判定 `bootstrap_mode=greenfield|adopt`。已有 accepted Genesis 的 operational 项目
   MUST NOT 重跑；既有健康棕地可标 `operational_legacy`，不阻断日常 POC。
-2. 保存原始 IDEA，生成 `spec/open/proposal-project-genesis.md`。
-3. 串行门禁：`IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` →
+3. 保存原始 IDEA，生成 `spec/open/proposal-project-genesis.md`。
+4. 串行门禁：`角色已配置` → `IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` →
   `VERIFICATION已审核` → `可以建立初始主线`；回执写 Genesis `GATES.md`。
-4. OpenClaw 建立/维护 L0/L1 Foundation；无证据性能值保持 draft/TBD/not-established。
-5. 「可以建立初始主线」后，生成绑定内容 SHA 的 bootstrap pack，委派 Claude Code
-  独立 worktree/branch 建最小可构建垂直切片。Claude 不改 L0/L1/meta/decisions。
-6. 运行 index/graphcheck、构建与最低功能验收；失败不得写 Genesis accepted。
-7. Project Genesis 决策绑定 IDEA 来源、NDF tree SHA、Trunk SHA、verification ref、
+5. Control 建立/维护 L0/L1 Foundation；无证据性能值保持 draft/TBD/not-established。
+6. 「可以建立初始主线」后，生成绑定内容 SHA 的 bootstrap pack，委派 Implementation 角色
+  独立 worktree/branch 建最小可构建垂直切片。Implementation 不改 L0/L1/meta/decisions。
+7. 运行 index/graphcheck、构建与最低功能验收；失败不得写 Genesis accepted。
+8. Project Genesis 决策绑定 IDEA 来源、NDF tree SHA、Trunk SHA、verification ref、
   known drafts。收到 `GENESIS已审核` 后项目进入 operational。
-8. adopt 模式不改写既有 git 历史；初始化未知机制另开 research POC。
+9. adopt 模式不改写既有 git 历史；初始化未知机制另开 research POC。
 
 
 

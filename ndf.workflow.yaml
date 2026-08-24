@@ -4,7 +4,7 @@
 
 version: "1"
 harness_version: "1.0.0"
-project: "⟨TBD: project-name⟩"
+project: "hnsw-predictor-ndf"
 
 roots:
   spec: spec/
@@ -18,17 +18,16 @@ roots:
 
 roles:
   command:
+    adapter: cursor
     label: Command surface
     description: Human-facing orchestration; pack construction; gate phrases; CLI triggers
-    adapter: cursor
     entry: AGENTS.md
     skill: .cursor/skills/ndf-workflow/
   control:
-    label: Control agent
-    description: Proposals, binders, gate docs; no Trunk implementation
     adapter: openclaw
     fallback: in-host
-    model: null
+    label: Control agent
+    description: Proposals, binders, gate docs; no Trunk implementation
     writable:
       - spec/open/
       - spec/meta/open/
@@ -36,11 +35,10 @@ roles:
       - .openclaw/state.json
       - ndf.workspace.json
   implementation:
-    label: Implementation agent
-    description: Code and measurement per track write_roots
     adapter: claude-code
     fallback: in-host
-    model: null
+    label: Implementation agent
+    description: Code and measurement per track write_roots
     handshake_required:
       - workspace.repo_root
       - allowed_write_root

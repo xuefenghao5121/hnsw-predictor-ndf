@@ -46,10 +46,8 @@ python3 packages/ndf-harness/install.py verify --repo <consumer> ...
 
 ## 版本与蒸馏
 
-包版本 **1.0.0**（自包含：`tests/`、`scripts/build_manifest.py`、`MANIFEST.json`）见
+包版本 **1.0.1**（自包含：角色绑定 + in-host 备选；`tests/`、`MANIFEST.json`）见
 [`packages/ndf-harness/VERSION`](../../../packages/ndf-harness/VERSION)。  
-蒸馏源 commit：`783163a3f6eac26a871c71c1cf7492e11a987e58`（见包内 `MANIFEST.json`）。  
-**流向**：本地已验证 `spec/meta/` + `spec/meta/tools/` → 蒸馏进本包（通用化）→ 再分发。  
-**本地 SoT 仍优先**：`spec/meta/` 与 `spec/meta/tools/` 权威；禁止用包内容反推纠正本地。  
-变更摘要见包内 `CHANGELOG.md`。  
-**能力索引（非条款 SoT）**：[`docs/WORKFLOW-FEATURES.md`](../../../packages/ndf-harness/docs/WORKFLOW-FEATURES.md)。
+蒸馏源 commit：见包内 `MANIFEST.json`。  
+**流向**：本地已验证 `spec/meta/` + tools → 蒸馏进本包 → [NDF-Harness](https://github.com/xuefenghao5121/NDF-Harness)。  
+**本地 SoT 仍优先**。变更摘要见包内 `CHANGELOG.md`。

@@ -216,6 +216,15 @@ def poc_dispatch(
         isolation_passed=isolation_passed,
         license_info=license_info,
     )
+    try:
+        import ndf_role_binding as role_binding
+
+        ok_roles, role_blockers = role_binding.check_roles_for_dispatch(wf.ROOT)
+        if not ok_roles:
+            hard.extend(item for item in role_blockers if item not in hard)
+    except Exception:
+        if "roles_unbound" not in hard:
+            hard.append("roles_unbound")
     soft_warnings = [
         reason
         for reason in (view["delegation"].get("dispatch_blockers") or [])
@@ -456,3 +465,49 @@ def poc_dispatch(
         ]
     result["ok"] = True
     return result, 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description="Text-first POC dispatch safety kernel (ADR-META-003 / ADR-META-004)."
+    )
+    parser.add_argument("--topic", help="POC topic id (required unless --help)")
+    parser.add_argument(
+        "--intent",
+        choices=sorted(POC_DISPATCH_INTENTS),
+        default="implement",
+        help="dispatch intent",
+    )
+    parser.add_argument("--send", action="store_true", help="send pack after hard gates pass")
+    parser.add_argument("--dry-run", action="store_true", help="validate without transport send")
+    parser.add_argument("--episode", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--json", action="store_true", help="JSON output")
+    args = parser.parse_args(argv)
+
+    if not args.topic:
+        print("error: --topic is required for poc dispatch", file=sys.stderr)
+        return 2
+
+    payload, code = poc_dispatch(
+        args.topic,
+        intent=args.intent,
+        send=args.send,
+        episode_id=args.episode,
+        dry_run=args.dry_run,
+    )
+    if args.json:
+        print(json.dumps(payload, indent=2, ensure_ascii=False))
+    elif not payload.get("ok"):
+        blockers = payload.get("hard_blockers") or payload.get("blockers") or []
+        print(
+            f"poc-dispatch blocked: {', '.join(blockers) or 'unknown'}",
+            file=sys.stderr,
+        )
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

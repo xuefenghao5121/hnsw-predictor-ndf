@@ -14,7 +14,7 @@
 | 指挥 / 流程 | 仓库根 [`AGENTS.md`](../../AGENTS.md) → 本 README → [`language.md`](language.md) → [`process.md`](process.md) |
 | 产品契约 | [`../00-charter/`](../00-charter/)…`50-verification/` + 产品 [`../open/`](../open/) |
 | 审核 / harness 治理 | [`tools/GOVERNANCE.md`](tools/GOVERNANCE.md) → [`tools/HARNESS.md`](tools/HARNESS.md) → [`tools/`](tools/) → [`../INDEX.md`](../INDEX.md) |
-| 可移植包（跨 Agent Init） | [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（**1.0.0** 自包含；源 SHA `783163a3…`；**可能滞后**；以本地本目录为准；禁止用包反推本地） |
+| 可移植包（跨 Agent Init） | [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（**1.0.1** 角色备选；源见 `MANIFEST.json`；**可能滞后**；以本地本目录为准；禁止用包反推本地） |
 | 探索 | [`../../poc/README.md`](../../poc/README.md) + `poc/<topic>/ndf/` |
 
 ## 本目录内容
@@ -27,7 +27,7 @@
 | POC↔SLA | [`constraints.md`](constraints.md)（[[CON-POC-001]]） |
 | 术语 | [`glossary.md`](glossary.md)（[[DEF-020]]…[[DEF-023]]、[[DEF-META-ID-NS]]、DEF-NDF-*） |
 | **Harness 治理架构（参考）** | [`tools/GOVERNANCE.md`](tools/GOVERNANCE.md) |
-| **Portable Harness（分发 / Init）** | [`tools/HARNESS.md`](tools/HARNESS.md) · [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（**1.0.0** 自包含 + `MANIFEST.json`；源 SHA `783163a…`；**可能滞后**；以本地本目录为准；禁止用包反推本地） |
+| **Portable Harness（分发 / Init）** | [`tools/HARNESS.md`](tools/HARNESS.md) · [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（**1.0.1** 角色备选 + `MANIFEST.json`；**可能滞后**；以本地本目录为准；禁止用包反推本地） |
 | 卫生 ADR | [`decisions/`](decisions/)（[[ADR-META-001]]、[[ADR-META-002]]、[[ADR-META-003]]、[[ADR-META-004]]…） |
 | 流程提案 | [`open/proposal-meta-*.md`](open/)（及迁入的装订器提案） |
 | 审核 harness 命令 | [`tools/README.md`](tools/README.md) |
