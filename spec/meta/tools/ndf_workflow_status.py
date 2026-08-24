@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
-"""NDF Workflow Canvas projection, trusted dispatch, and Replay (META-009..015).
+"""NDF workflow status: packs, health, and text-first dispatch (META-009..014).
 
+Commander / canvas snapshot / ActionSpec are retired (ADR-META-004).
 This tool never approves gates, mutates NDF, starts agents, or writes
-.openclaw/state.json. Snapshot and pack commands only write explicit,
-gitignored evidence when Replay or embedded-projection verification is
-requested.
+.openclaw/state.json. Daily path: poc-dispatch, control-pack, topic-health.
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
-import atexit
 import fcntl
 import hashlib
 import json
 import os
 import re
-import select
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 from urllib.parse import urlparse, urlunparse
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,11 +35,77 @@ TOOLS = META / "tools"
 if str(TOOLS) not in sys.path:
     sys.path.insert(0, str(TOOLS))
 
-import ndf_actions  # noqa: E402
 import ndf_close  # noqa: E402
 import ndf_context  # noqa: E402
 import ndf_gate_slices  # noqa: E402
+# ndf_replay kept as library-only (CLI exits deprecated); hot path MUST NOT require it.
 import ndf_replay  # noqa: E402
+
+
+class _RetiredActionsModule:
+    """ActionSpec / Commander catalog retired (ADR-META-004).
+
+    Empty-registry stub so legacy call sites fail soft without a hard import of
+    deleted ``ndf_actions.py``. Daily path MUST NOT depend on ActionSpec.
+    """
+
+    @staticmethod
+    def registry_by_id() -> dict[str, Any]:
+        return {}
+
+    @staticmethod
+    def registry_actions() -> list[dict[str, Any]]:
+        return []
+
+    @staticmethod
+    def load_registry() -> dict[str, Any]:
+        return {"schema": "ndf-action-registry-retired/v1", "actions": []}
+
+    @staticmethod
+    def action_prompt_relpath(catalog_id: str) -> str:
+        return f"tmp/ndf-action-prompt-{catalog_id}.md"
+
+    @staticmethod
+    def canvas_launcher_snapshot(payload: Mapping[str, Any]) -> dict[str, Any]:
+        return dict(payload)
+
+    @staticmethod
+    def evaluate_enabled_actions(_payload: Mapping[str, Any]) -> list[Any]:
+        return []
+
+    @staticmethod
+    def evaluate_action(
+        _catalog: Mapping[str, Any],
+        _current: Mapping[str, Any],
+        _ctx: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        return {"enabled": False, "reason": "action_spec_retired"}
+
+    @staticmethod
+    def composer_prompt(*_a: Any, **_k: Any) -> str:
+        return "# ActionSpec retired (ADR-META-004)\n"
+
+    @staticmethod
+    def persist_action_prompt(action_id: str, prompt: str) -> Path:
+        path = ROOT / "tmp" / f"ndf-action-prompt-{action_id}.md"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(prompt, encoding="utf-8")
+        return path
+
+    @staticmethod
+    def open_file_path(_action_id: str, _current: Mapping[str, Any]) -> str | None:
+        return None
+
+    @staticmethod
+    def action_episode_policy(_catalog: Mapping[str, Any]) -> str:
+        return "none"
+
+    @staticmethod
+    def action_provider(_catalog: Mapping[str, Any]) -> str:
+        return "tool"
+
+
+ndf_actions = _RetiredActionsModule()  # noqa: N816 — keep legacy attribute name
 from ndf_workflow_evidence import (  # noqa: E402
     append_lease,
     bundle_sha as evidence_bundle_sha,
@@ -102,7 +163,21 @@ GATE_PHRASES = {
     "topic_review": "TOPIC已审核",
     "design_review": "DESIGN已审核",
     "implementation_approval": "可以开始实现",
+    # Text-first substitute for gate 3 (ADR-META-003); same bundle as implementation_approval.
+    "bundle_dispatch": "派发",
 }
+# Text-first poc-dispatch kernel lives in ndf_poc_dispatch (ADR-META-004).
+from ndf_poc_dispatch import (  # noqa: E402
+    POC_DISPATCH_INTENTS,
+    POC_DISPATCH_SOFT_REASONS,
+    _concurrent_write_run_blocker,
+    _poc_dispatch_task,
+    ensure_inline_isolated_lease,
+    poc_dispatch,
+    poc_dispatch_hard_blockers,
+    validate_poc_completion_minimal,
+)
+
 CONTROL_TASK_LABELS = {
     "legacy_gate_audit": "门禁分步审计",
     "gate_sha_audit": "门禁失效SHA审计",
@@ -110,12 +185,23 @@ CONTROL_TASK_LABELS = {
     "gate_pipeline": "启动门禁流水线",
     "binder_amend": "装订器分步修订",
     "binder_pipeline": "启动装订器流水线",
-    "control_proposal": "起草 Control 提案",
+    "control_proposal": "起草产品提案（兼容别名 → product_proposal）",
+    "product_proposal": "起草产品 / 项目提案（仅 spec/open/）",
+    "process_proposal": "起草 NDF 流程提案（仅 spec/meta/open/）",
     "poc_prepare_baseline": "准备基线工作区（INTERFACE + 拷贝对照代码）",
     "poc_isolation_repair": "修复 POC 隔离",
     "poc_measurement": "补测 / 写 DELTA",
     "ndf_improvement_proposal": "起草 NDF 改进提案",
     "ndf_improvement_land": "落地 / 审核 process 提案",
+}
+# Idea plane routing (ADR-META-004): product vs process write roots must not share.
+PRODUCT_PROPOSAL_TASKS = frozenset({"product_proposal", "control_proposal"})
+PROCESS_PROPOSAL_TASKS = frozenset(
+    {"process_proposal", "ndf_improvement_proposal", "ndf_improvement_land"}
+)
+IDEA_PLANE_ROOTS = {
+    "product": ("spec/open/",),
+    "process": ("spec/meta/open/",),
 }
 # BEH-025 binder read/write order for OpenClaw repair buttons.
 BINDER_FACET_ORDER = (
@@ -295,7 +381,9 @@ CONTROL_TASKS = frozenset(
         "gate_sha_audit",
         "gate_receipt_draft",
         "binder_amend",
-        "control_proposal",
+        "control_proposal",  # alias → product_proposal
+        "product_proposal",
+        "process_proposal",
         "gate_pipeline",
         "binder_pipeline",
     }
@@ -315,7 +403,11 @@ IMPLEMENTATION_REPAIR_TASKS = frozenset(
     }
 )
 PROJECT_CONTROL_TASKS = frozenset(
-    {"ndf_improvement_proposal", "ndf_improvement_land"}
+    {
+        "ndf_improvement_proposal",
+        "ndf_improvement_land",
+        "process_proposal",
+    }
 )
 PROJECT_CONTROL_ORIGINS = frozenset({"health_finding", "human_intent"})
 PROCESS_HOP_CONFIRM = "waiting_confirm"
@@ -1312,14 +1404,14 @@ PROJECT_CHECK_ROUTES = {
     "meta_graph": {
         "plane": "NDF Control",
         "repair_owner": "openclaw",
-        "repair_task": "control_proposal",
+        "repair_task": "process_proposal",
         "allowed_write_root": "spec/meta/open/",
         "human_gate": "已确认 → 已审核",
     },
     "product_graph": {
         "plane": "Product",
         "repair_owner": "openclaw",
-        "repair_task": "product_plane_repair",
+        "repair_task": "product_proposal",
         "allowed_write_root": "spec/open/",
         "human_gate": None,
     },
@@ -1620,7 +1712,7 @@ def _git_porcelain_lines() -> list[str]:
         "AGENTS.md",
         "spec",
         "poc",
-        ".cursor/skills/ndf-workflow-canvas",
+        ".cursor/skills/ndf-workflow",
     )
     if code != 0 or not output:
         return []
@@ -1641,7 +1733,7 @@ def _porcelain_paths(lines: Iterable[str]) -> list[str]:
 
 def _layer_for_relpath(relpath: str) -> str | None:
     if relpath == "AGENTS.md" or relpath.startswith("spec/meta/") or relpath.startswith(
-        ".cursor/skills/ndf-workflow-canvas/"
+        ".cursor/skills/ndf-workflow/"
     ):
         return "meta"
     if relpath.startswith("spec/"):
@@ -1898,7 +1990,12 @@ def empty_context_binding(topic: str | None = None) -> dict[str, Any]:
 
 
 def context_binding_for_canvas(topic: str) -> dict[str, Any]:
-    """Shallow Canvas preview. Full create_manifest stays on pack/control-pack."""
+    """Shallow Canvas preview. Full create_manifest stays on pack/control-pack.
+
+    Canvas MUST NOT compile as a write-role `poc_implementation` verify surface:
+    gate drift after documenting a dropped hypothesis would paint hero red and
+    conflate Test/close readiness with ACP dispatch readiness ([[META-011]]).
+    """
     layers = generation_layers()
     poc_sha = (layers.get("poc") or {}).get(topic)
     cached = latest_topic_health(topic, layers["root"], poc_sha=poc_sha)
@@ -1917,10 +2014,12 @@ def context_binding_for_canvas(topic: str) -> dict[str, Any]:
                     "plan_sha": delegation.get("plan_sha"),
                 }
     # Read-only canvas role: truncated graph must not hard-fail write-role verify.
+    # task=partial seeds close/decision clauses without requiring gate 3 for the
+    # projection; ACP packs still compile task=poc_implementation separately.
     return context_binding(
         topic=topic,
         role="canvas",
-        task="poc_implementation",
+        task="partial",
         track="poc",
         depth=CANVAS_CONTEXT_DEPTH,
         node_budget=CANVAS_CONTEXT_NODE_BUDGET,
@@ -1933,8 +2032,14 @@ def bind_pack_to_episode(
     payload: dict[str, Any],
     *,
     episode_id: str | None = None,
+    require_episode: bool = False,
 ) -> dict[str, Any]:
-    """Explicitly record a generated pack and its preflight in Replay."""
+    """Optionally record a pack in Replay (legacy).
+
+    Daily product/process/poc path (ADR-META-004): ``require_episode=False`` is
+    the default — return the pack unchanged and never write Episode/Replay.
+    Success is disk completion + write-root identity, not Replay DAG completeness.
+    """
     identifier = episode_id or os.environ.get("NDF_REPLAY_EPISODE")
     allowed_roots = (
         payload.get("context_plan", {})
@@ -1943,9 +2048,6 @@ def bind_pack_to_episode(
     )
     if payload.get("allowed_write_root"):
         allowed_roots = [payload.get("allowed_write_root")]
-    # Episode is required only when this pack would actually send. waiting_human /
-    # capability-blocked packs MUST still return JSON so hook closeout can finish
-    # the started attempt instead of raising "writable pack requires Episode".
     will_send = payload.get("safe_to_dispatch") is True or (
         payload.get("safe_to_delegate") is True
         and payload.get("runtime_dispatch_ready") is not False
@@ -1955,6 +2057,9 @@ def bind_pack_to_episode(
         and "waiting_human" not in (payload.get("blockers") or [])
     )
     writable = bool(allowed_roots) and bool(will_send)
+    # ADR-META-004: daily packs never bind or write Episode/Replay.
+    if not require_episode:
+        return payload
     if not identifier:
         if writable:
             raise ValueError("writable pack requires explicit Replay Episode")
@@ -2300,39 +2405,55 @@ def active_runtime_leases() -> list[dict[str, Any]]:
 
 
 def topic_active_lease(topic: str | None) -> dict[str, Any] | None:
-    return next(
-        (lease for lease in active_runtime_leases() if lease.get("topic") == topic),
-        None,
-    )
+    """Best active lease row for topic: HEAD-aligned first, else newest started_at."""
+    candidates = [
+        lease for lease in active_runtime_leases() if lease.get("topic") == topic
+    ]
+    if not candidates:
+        return None
+    head = git_head()
+    for lease in candidates:
+        lease_head = str(lease.get("base_sha") or lease.get("repo_head") or "")
+        if lease_head and head == lease_head:
+            return lease
+    return max(candidates, key=lambda row: str(row.get("started_at") or ""))
 
 
 def active_isolated_lease_for_topic(
     topic_id: str,
 ) -> tuple[bool, dict[str, Any] | None]:
     """True when topic has active lease at current HEAD with run_id + worktree."""
-    lease = topic_active_lease(topic_id)
-    if not lease:
-        return False, None
     head = git_head()
+    candidates = [
+        lease for lease in active_runtime_leases() if lease.get("topic") == topic_id
+    ]
+    for lease in candidates:
+        lease_head = str(lease.get("base_sha") or lease.get("repo_head") or "")
+        if not lease_head or head != lease_head:
+            continue
+        if not str(lease.get("run_id") or "").strip():
+            continue
+        if not str(lease.get("worktree") or "").strip():
+            continue
+        if str(lease.get("result") or "") != "active":
+            continue
+        return True, lease
+    stale = topic_active_lease(topic_id)
+    return False, stale
+
+
+def lease_stale_vs_head(
+    lease: Mapping[str, Any] | None,
+    head: str | None = None,
+) -> bool:
+    """True when jsonl lease exists but its base_sha is not the commander HEAD."""
+    if not lease:
+        return False
+    head = str(head or git_head() or "")
     lease_head = str(lease.get("base_sha") or lease.get("repo_head") or "")
-    if not lease_head:
-        return False, lease
-    if head != lease_head:
-        anc = subprocess.run(
-            ["git", "merge-base", "--is-ancestor", lease_head, head],
-            cwd=ROOT,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
-        if anc.returncode != 0:
-            return False, lease
-    if not str(lease.get("run_id") or "").strip():
-        return False, lease
-    if not str(lease.get("worktree") or "").strip():
-        return False, lease
-    if str(lease.get("result") or "") != "active":
-        return False, lease
-    return True, lease
+    if not head or not lease_head:
+        return False
+    return lease_head != head
 
 
 def read_action_receipts() -> list[dict[str, Any]]:
@@ -2513,94 +2634,18 @@ def action_begin(
     episode_id: str | None = None,
     catalog_action_id: str | None = None,
 ) -> dict[str, Any]:
-    ensure_action_pid_headroom()
-    catalog_id = (catalog_action_id or "").strip() or None
-    if catalog_id and catalog_id not in ndf_actions.registry_by_id():
-        raise ValueError(f"unknown catalog_action_id: {catalog_id}")
-    catalog = ndf_actions.registry_by_id().get(catalog_id or "") or {}
-    episode_policy = ndf_actions.action_episode_policy(catalog) if catalog else "none"
-    bound_episode = (episode_id or "").strip() or None
-    if bound_episode and ndf_replay.ReplayStore(ROOT).read_ref(
-        f"episodes/{bound_episode}/HEAD"
-    ) is None:
-        raise ValueError(f"unknown replay episode: {bound_episode}")
-    # Writable / pack-delegate actions MUST bind an Episode at action-begin.
-    if episode_policy == "required" and not bound_episode:
-        store = ndf_replay.ReplayStore(ROOT)
-        created = store.init_episode(
-            topic=topic,
-            task=str(operation),
-            role=str(ndf_actions.action_provider(catalog) or "tool"),
-            track="process",
-            manifest=None,
-            episode_id=None,
-        )
-        bound_episode = str(created.get("episode_id") or created.get("id") or "")
-        if not bound_episode:
-            raise ValueError("failed to create Replay Episode for writable action")
-    identifier = action_id or str(uuid.uuid4())
-    started_at = now_iso()
-    repo_head = git_head()
-    generation = source_generation_sha()
-    input_sha = canonical_json_sha(
-        {
-            "action_id": identifier,
-            "operation": operation,
-            "topic": topic,
-            "catalog_action_id": catalog_id,
-            "episode_id": bound_episode,
-        }
-    )
-    receipt = {
-        "schema": "ndf-workflow-action/v2",
-        "task": operation,
-        "action_id": identifier,
-        "catalog_action_id": catalog_id,
-        "topic": topic,
-        "mode": "process",
-        "step": "begin",
-        "repo_head": repo_head,
-        "source_generation_sha": generation,
-        "manifest_sha": None,
-        "context_plan_sha": None,
-        "command": operation,
-        "input_sha": input_sha,
-        "output_sha": None,
-        "evidence_paths": [],
+    """Commander ActionSpec retired (ADR-META-004). No receipts / Replay writes."""
+    return {
+        "schema": "ndf-commander-retired/v1",
+        "command": "action-begin",
+        "deprecated": True,
+        "reason": "ADR-META-004",
         "operation": operation,
-        "status": "started",
-        "started_at": started_at,
-        "finished_at": None,
-        "result": "started",
-        "blockers": [],
-        "repo_head_before": repo_head,
-        "snapshot_sha_before": generation,
-        "episode_id": bound_episode,
-        "attempt_id": identifier,
+        "topic": topic,
+        "action_id": action_id,
+        "episode_id": episode_id,
+        "catalog_action_id": catalog_action_id,
     }
-    append_action_receipt(receipt)
-    if bound_episode:
-        store = ndf_replay.ReplayStore(ROOT)
-        blob_sha = store.put_blob(receipt)
-        event = store.append_event(
-            bound_episode,
-            kind="action.begin",
-            actor="canvas",
-            payload_sha=blob_sha,
-            topic=topic,
-            task=operation,
-            track="process",
-            repo_head=receipt.get("repo_head_before"),
-            manifest_sha=None,
-            context_plan_sha=None,
-        )
-        receipt["replay"] = {
-            "episode_id": bound_episode,
-            "blob_sha": blob_sha,
-            "event_sha": event["event_sha"],
-        }
-        receipt["episode_id"] = bound_episode
-    return receipt
 
 
 def action_finish(
@@ -2609,139 +2654,17 @@ def action_finish(
     blockers: list[str],
     episode_id: str | None = None,
 ) -> dict[str, Any]:
-    receipts = read_action_receipts()
-    start = next(
-        (
-            receipt
-            for receipt in reversed(receipts)
-            if receipt.get("action_id") == action_id and receipt.get("status") == "started"
-        ),
-        None,
-    )
-    if start is None:
-        raise ValueError(f"unknown started action: {action_id}")
-    if episode_id and ndf_replay.ReplayStore(ROOT).read_ref(
-        f"episodes/{episode_id}/HEAD"
-    ) is None:
-        raise ValueError(f"unknown replay episode: {episode_id}")
-    finished_at = now_iso()
-    repo_head = git_head()
-    generation = source_generation_sha()
-    outcome = {
+    """Commander ActionSpec retired (ADR-META-004). No receipts / Replay writes."""
+    return {
+        "schema": "ndf-commander-retired/v1",
+        "command": "action-finish",
+        "deprecated": True,
+        "reason": "ADR-META-004",
         "action_id": action_id,
         "result": result,
-        "blockers": blockers,
-        "repo_head": repo_head,
-        "source_generation_sha": generation,
+        "blockers": list(blockers or []),
+        "episode_id": episode_id,
     }
-    receipt = {
-        "schema": "ndf-workflow-action/v2",
-        "task": start.get("operation"),
-        "action_id": action_id,
-        "topic": start.get("topic"),
-        "mode": "process",
-        "step": "finish",
-        "repo_head": repo_head,
-        "source_generation_sha": generation,
-        "manifest_sha": start.get("manifest_sha"),
-        "context_plan_sha": start.get("context_plan_sha"),
-        "command": start.get("command") or start.get("operation"),
-        "input_sha": start.get("input_sha"),
-        "output_sha": canonical_json_sha(outcome),
-        "evidence_paths": [],
-        "operation": start.get("operation"),
-        "status": "finished",
-        "started_at": start.get("started_at"),
-        "finished_at": finished_at,
-        "result": result,
-        "repo_head_before": start.get("repo_head_before"),
-        "repo_head_after": repo_head,
-        # Finishing an action changes evidence generation; it does not prove
-        # that a Canvas has embedded a subsequently generated projection.
-        "snapshot_sha_after": None,
-        "evidence_generation": generation,
-        "blockers": blockers,
-    }
-    append_action_receipt(receipt)
-    if episode_id:
-        store = ndf_replay.ReplayStore(ROOT)
-        blob_sha = store.put_blob(receipt)
-        event = store.append_event(
-            episode_id,
-            kind="action.finish",
-            actor="canvas",
-            payload_sha=blob_sha,
-            topic=receipt.get("topic"),
-            task=str(receipt.get("operation") or "action"),
-            track="process",
-            repo_head=receipt.get("repo_head_after"),
-            manifest_sha=None,
-            context_plan_sha=None,
-        )
-        receipt["replay"] = {
-            "episode_id": episode_id,
-            "blob_sha": blob_sha,
-            "event_sha": event["event_sha"],
-        }
-    return receipt
-
-
-def _may_write_pathspecs(action: Mapping[str, Any] | None) -> list[str]:
-    """Best-effort pathspecs from registry mayWrite; fall back to common roots."""
-    defaults = ["tmp", "spec", "poc", "docs", ".cursor", "golden-baseline.md"]
-    if not action:
-        return defaults
-    specs: list[str] = []
-    for item in action.get("mayWrite") or []:
-        text = str(item).strip()
-        if not text:
-            continue
-        # Prefer leading path-like tokens ("tmp/…", "spec/meta/open/", "poc/…").
-        token = text.split()[0].rstrip("/")
-        if "/" in token or token in {"tmp", "spec", "poc", "docs", ".cursor"}:
-            specs.append(token)
-    return specs or defaults
-
-
-def _gitignored_maywrite_paths(action: Mapping[str, Any] | None) -> list[Path]:
-    paths: list[Path] = []
-    for item in (action or {}).get("mayWrite") or []:
-        text = str(item).strip()
-        if not text:
-            continue
-        token = text.split()[0].rstrip("/")
-        if token.startswith("tmp/") or token in {"tmp"}:
-            paths.append(ROOT / token)
-    return paths
-
-
-def _verify_maywrite_artifacts(
-    action: Mapping[str, Any] | None,
-    start: Mapping[str, Any] | None,
-    catalog_id: str,
-) -> tuple[bool, str | None]:
-    """When git has nothing staged, verify disk artifacts for gitignored mayWrite."""
-    if str((action or {}).get("closeoutPolicy") or "") != "transactional":
-        return True, None
-    artifact_paths = _gitignored_maywrite_paths(action)
-    if not artifact_paths and (action or {}).get("id") != "prepare-acp-lease":
-        return True, None
-    catalog_key = str((action or {}).get("id") or catalog_id)
-    if catalog_key == "prepare-acp-lease":
-        topic = str((start or {}).get("topic") or "")
-        episode_id = str((start or {}).get("episode_id") or "")
-        ok, lease = (
-            active_isolated_lease_for_topic(topic) if topic else (False, None)
-        )
-        if not ok:
-            return False, "missing:active_runtime_lease"
-        if episode_id and str((lease or {}).get("episode_id") or "") != episode_id:
-            return False, "lease_episode_mismatch"
-        return True, "lease_artifact_verified"
-    for path in artifact_paths:
-        if path.suffix == ".jsonl" and (not path.is_file() or path.stat().st_size == 0):
-            return False, f"missing_artifact:{rel(path)}"
-    return True, "artifact_verified"
 
 
 def action_commit(
@@ -2751,188 +2674,16 @@ def action_commit(
     prompt: str | None = None,
     label: str | None = None,
 ) -> dict[str, Any]:
-    """Commit mayWrite changes before snapshot refresh; record button-action A→B.
-
-    Empty tree → skip commit but still record baseline=result=HEAD when a start
-    receipt exists. Does not amend or push. Idempotent for the same workflow
-    action_id: if a button-action already exists, return skip without rewriting.
-    """
-    receipts = read_action_receipts()
-    start = next(
-        (
-            receipt
-            for receipt in reversed(receipts)
-            if receipt.get("action_id") == action_id and receipt.get("status") == "started"
-        ),
-        None,
-    )
-    catalog_id = (
-        (catalog_action_id or "").strip()
-        or str((start or {}).get("catalog_action_id") or "").strip()
-        or action_id
-    )
-    # Prefer catalog id when action_id is a UUID from action-begin.
-    registry = ndf_actions.registry_by_id()
-    action = registry.get(catalog_id) or registry.get(action_id)
-    if action is None:
-        for item in registry.values():
-            if item.get("id") == catalog_id:
-                action = item
-                break
-    if start is None:
-        # Fall back: latest started for this catalog_action_id, then operation.
-        start = next(
-            (
-                receipt
-                for receipt in reversed(receipts)
-                if receipt.get("status") == "started"
-                and receipt.get("catalog_action_id") == catalog_id
-            ),
-            None,
-        )
-    if start is None:
-        start = next(
-            (
-                receipt
-                for receipt in reversed(receipts)
-                if receipt.get("status") == "started"
-                and (
-                    receipt.get("operation") == (action or {}).get("operation")
-                    or receipt.get("command") == (action or {}).get("operation")
-                )
-            ),
-            None,
-        )
-    workflow_id = str((start or {}).get("action_id") or action_id)
-    store = ndf_replay.ReplayStore(ROOT)
-    existing = next(
-        (
-            item
-            for item in ndf_replay.list_button_actions(store)
-            if str(item.get("workflowActionId") or "") == workflow_id
-        ),
-        None,
-    )
-    if existing:
-        return {
-            "schema": "ndf-action-commit/v1",
-            "action_id": workflow_id,
-            "catalog_action_id": catalog_id,
-            "baseline_sha": existing.get("baselineSha"),
-            "result_sha": existing.get("resultSha"),
-            "committed": False,
-            "skip_reason": "already_recorded",
-            "button_action_id": existing.get("id"),
-            "button_action_path": None,
-            "staged_files": [],
-        }
-
-    baseline = str((start or {}).get("repo_head_before") or git_head() or "").strip()
-    if not baseline:
-        raise ValueError("action-commit requires a resolvable baseline HEAD")
-
-    prompt_text = prompt
-    if prompt_text is None:
-        prompt_path = ROOT / ndf_actions.action_prompt_relpath(str(catalog_id))
-        if prompt_path.is_file():
-            prompt_text = prompt_path.read_text(encoding="utf-8")
-
-    pathspecs = _may_write_pathspecs(action)
-    # Stage allowed paths; never stage .openclaw/state.json.
-    add_cmd = ["git", "add", "--"] + pathspecs
-    subprocess.run(
-        add_cmd,
-        cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    # Unstage forbidden.
-    subprocess.run(
-        ["git", "reset", "-q", "--", ".openclaw/state.json"],
-        cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    status = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    staged = [line for line in (status.stdout or "").splitlines() if line.strip()]
-    catalog_key = str((action or {}).get("id") or catalog_id or action_id)
-    committed = False
-    skip_reason = None
-    if staged:
-        msg = f"ndf-action: {catalog_key}"
-        commit = subprocess.run(
-            ["git", "commit", "-m", msg],
-            cwd=ROOT,
-            check=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        if commit.returncode != 0:
-            raise ValueError(
-                "action-commit failed: "
-                + ((commit.stderr or commit.stdout or "").strip() or "git commit error")
-            )
-        committed = True
-    else:
-        verified, artifact_reason = _verify_maywrite_artifacts(action, start, catalog_id)
-        if not verified:
-            raise ValueError(
-                f"action-commit requires mayWrite artifact: {artifact_reason}"
-            )
-        skip_reason = artifact_reason or "clean_worktree"
-
-    result_sha = git_head() or baseline
-    diff = subprocess.run(
-        ["git", "diff", "--stat", f"{baseline}...{result_sha}"],
-        cwd=ROOT,
-        check=False,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    record_id = f"ba-{catalog_key}-{stamp}"
-    record = {
-        "id": record_id,
-        "actionId": catalog_key,
-        "label": label or (action or {}).get("label") or catalog_key,
-        "title": f"{label or (action or {}).get('label') or catalog_key} · {baseline[:12]}→{result_sha[:12]}",
-        "happenedAt": now_iso(),
-        "baselineSha": baseline,
-        "resultSha": result_sha,
-        "prompt": prompt_text or "",
-        "topic": (start or {}).get("topic"),
-        "committed": committed,
-        "skipReason": skip_reason,
-        "originalDiffStat": (diff.stdout or "").strip() or None,
-        "replayStatus": "pending",
-        "stagedFiles": staged,
-        "workflowActionId": workflow_id,
-    }
-    path = ndf_replay.write_button_action(store, record)
+    """Commander ActionSpec retired (ADR-META-004). No git commit / Replay writes."""
     return {
-        "schema": "ndf-action-commit/v1",
-        "action_id": workflow_id,
-        "catalog_action_id": catalog_key,
-        "baseline_sha": baseline,
-        "result_sha": result_sha,
-        "committed": committed,
-        "skip_reason": skip_reason,
-        "button_action_id": record_id,
-        "button_action_path": str(path.relative_to(ROOT)),
-        "staged_files": staged,
+        "schema": "ndf-commander-retired/v1",
+        "command": "action-commit",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "action_id": action_id,
+        "catalog_action_id": catalog_action_id,
+        "label": label,
+        "prompt_provided": bool(prompt),
     }
 
 
@@ -3062,16 +2813,55 @@ def poc_gate_bundles(topic_dir: Path) -> dict[str, list[Path]]:
     ndf = topic_dir / "ndf"
     topic = ndf / "TOPIC.md"
     proposals = proposal_paths(read_text(topic))
+    impl = [
+        topic,
+        ndf / "DESIGN.md",
+        ndf / "PERF_BASELINE.md",
+        ndf / "DELTA.md",
+        ndf / "INTERFACE.md",
+    ]
     return {
         "topic_review": [topic, *proposals],
         "design_review": [topic, ndf / "DESIGN.md"],
-        "implementation_approval": [
-            topic,
-            ndf / "DESIGN.md",
-            ndf / "PERF_BASELINE.md",
-            ndf / "DELTA.md",
-            ndf / "INTERFACE.md",
-        ],
+        "implementation_approval": list(impl),
+        "bundle_dispatch": list(impl),
+    }
+
+
+def implementation_license(
+    gates: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Human implement license: classic gate 3 or text-first 「派发」."""
+    impl = gates.get("implementation_approval") or {}
+    bundle = gates.get("bundle_dispatch") or {}
+    if impl.get("state") == "valid":
+        return {
+            "ok": True,
+            "source": "implementation_approval",
+            "phrase": GATE_PHRASES["implementation_approval"],
+            "gate": impl,
+            "approved_content_sha": impl.get("approved_content_sha"),
+            "expected_content_sha": impl.get("expected_content_sha"),
+        }
+    if bundle.get("state") == "valid":
+        return {
+            "ok": True,
+            "source": "bundle_dispatch",
+            "phrase": GATE_PHRASES["bundle_dispatch"],
+            "gate": bundle,
+            "approved_content_sha": bundle.get("approved_content_sha"),
+            "expected_content_sha": bundle.get("expected_content_sha"),
+        }
+    state = impl.get("state") or bundle.get("state") or "missing"
+    return {
+        "ok": False,
+        "source": None,
+        "phrase": None,
+        "gate": impl or bundle,
+        "approved_content_sha": None,
+        "expected_content_sha": impl.get("expected_content_sha")
+        or bundle.get("expected_content_sha"),
+        "state": state,
     }
 
 
@@ -4158,6 +3948,7 @@ def topic_decision_view(
     if selected not in POC_DECISIONS:
         selected = None
     open_decision = header(text, "open_decision")
+    next_round_focus = header(text, "next_round_focus") or None
     gates_valid = all(
         gates.get(name, {}).get("state") == "valid" for name in GATE_ORDER
     )
@@ -4178,13 +3969,14 @@ def topic_decision_view(
     blocked: dict[str, str] = {}
     active = lifecycle in {"exploring", "blocked"}
     if active and not gates_valid:
-        # Early close ([[BEH-020]]): reject (and same-hypothesis amend) without
-        # waiting for three-gate green. Promote / implement stay gated.
+        # Early close ([[BEH-020]]): reject / same-hypothesis amend without
+        # three-gate green. Partial close ([[BEH-019]]) is also offered when
+        # subset evidence exists — close_eligible / ndf_close plan still gate
+        # evidence. Full promote + implement + continue_exploring stay gated.
         for mode in (
             "implement",
             "continue_exploring",
             "promote",
-            "partial",
         ):
             blocked[mode] = "gates_not_valid"
     elif gates_valid and active:
@@ -4202,6 +3994,11 @@ def topic_decision_view(
     else:
         state = "not_ready"
     early_close_allowed = bool(active and state == "not_ready")
+    close_offered = bool(
+        any(mode in offered for mode in CLOSE_DECISIONS)
+        or early_close_allowed
+        or state == "decision_required"
+    )
     blocked_labels = {
         mode: DECISION_BLOCK_LABELS.get(code, code) for mode, code in blocked.items()
     }
@@ -4218,6 +4015,7 @@ def topic_decision_view(
         "open_decision": open_decision,
         "decision_required": state == "decision_required",
         "early_close_allowed": early_close_allowed,
+        "close_offered": close_offered,
         "close_requested": selected in CLOSE_DECISIONS,
         # Close projection adds proposal/plan/verification evidence.
         "close_eligible": False,
@@ -4229,6 +4027,7 @@ def topic_decision_view(
         "baseline_prepared": baseline_ready,
         "meanings": dict(POC_DECISION_MEANINGS),
         "source": "TOPIC.md:selected_decision" if selected else None,
+        "next_round_focus": next_round_focus,
     }
 
 
@@ -4422,8 +4221,8 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
     lease = topic_active_lease(topic_id)
     active_lease_ok, _active_lease = active_isolated_lease_for_topic(topic_id)
     runtime = runtime_status(False)["implementation"]
-    # Default snapshot does not probe ACP. Lease-derived status=active MUST NOT
-    # look like runtime_unavailable (transport plane unprobed ≠ pipeline down).
+    # Default snapshot does not probe ACP. Transport unprobed ≠ pipeline down;
+    # missing_active_isolated_lease is the Delegate gate, not runtime_unavailable.
     runtime_probed = bool(runtime.get("probe")) or bool(runtime.get("probe_mode"))
     runtime_dispatch_ready, runtime_ready_source = runtime_dispatch_ready_for_topic(
         topic_id, runtime, lease
@@ -4459,8 +4258,13 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
                 else None
             ),
             (
+                "lease_stale_vs_head"
+                if lease and lease_stale_vs_head(lease)
+                else None
+            ),
+            (
                 "topic_active_lease"
-                if lease and not active_lease_ok
+                if lease and not active_lease_ok and not lease_stale_vs_head(lease)
                 else None
             ),
         )
@@ -4523,6 +4327,7 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             "session_id": lease.get("session_id") if lease else None,
             "base_sha": lease.get("base_sha") if lease else None,
             "worktree": lease.get("worktree") if lease else None,
+            "lease_stale_vs_head": lease_stale_vs_head(lease) if lease else False,
             "lease": lease,
             **impl_view,
         },
@@ -4531,7 +4336,15 @@ def topic_view(topic_dir: Path, *, mode: str = "full") -> dict[str, Any]:
             "contract_preflight_passed": contract_preflight_passed,
             "provenance_preflight_passed": provenance_preflight_passed,
             "static_preflight_passed": static_preflight_passed,
+            "implementation_license": implementation_license(gates),
+            "poc_dispatch_hard_passed": bool(
+                implementation_license(gates).get("ok")
+                and isolation_passed
+                and context_valid
+                and workspace_bound
+            ),
             "active_isolated_lease": active_lease_ok,
+            "lease_stale_vs_head": lease_stale_vs_head(lease) if lease else False,
             "runtime_dispatch_ready": runtime_dispatch_ready,
             "runtime_dispatch_ready_source": runtime_ready_source,
             "safe_to_delegate_control": not any(
@@ -5893,6 +5706,41 @@ def claude_acp_resume_path(
     return home / ".claude" / "projects" / slug / f"{session_id}.jsonl"
 
 
+def estimate_acp_resume_text_chars(
+    session_id: str | None = None,
+    *,
+    repo_root: Path | None = None,
+) -> int:
+    """Rough UTF-8 char count of configured ACP resume jsonl (for context budget)."""
+    session_id = session_id or configured_acp_session_id()
+    if not session_id:
+        return 0
+    path = claude_acp_resume_path(session_id, repo_root=repo_root or ROOT)
+    if not path.is_file():
+        return 0
+    total = 0
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            total += len(line)
+    return total
+
+
+def apply_acp_context_budget_to_pack(payload: dict[str, Any]) -> None:
+    """Attach acp_context_budget; fail-closed safe_to_dispatch when over window."""
+    if str(payload.get("provider") or "") != "claude-code-acp":
+        return
+    import ndf_dispatch_send as dispatch
+
+    budget = dispatch.acp_context_budget_for_pack(payload)
+    payload["acp_context_budget"] = budget
+    if budget.get("over_budget"):
+        blockers = list(payload.get("blockers") or [])
+        if "acp_context_over_budget" not in blockers:
+            blockers.append("acp_context_over_budget")
+        payload["blockers"] = blockers
+        payload["safe_to_dispatch"] = False
+
+
 def probe_claude_acp_light(*, refresh: bool = False) -> dict[str, Any]:
     """Fast Agents-page probe: CLI + configured session + resume artifact (no doctor)."""
     global _ACP_LIGHT_PROBE
@@ -6543,10 +6391,13 @@ def runtime_dispatch_ready_for_topic(
     runtime: Mapping[str, Any],
     lease: Mapping[str, Any] | None,
 ) -> tuple[bool, str | None]:
-    """ACP pipeline reachable (live probe, absorbed pack, or active isolated lease)."""
-    active_ok, _active = active_isolated_lease_for_topic(topic_id)
-    if active_ok:
-        return True, "active_lease"
+    """Transport-plane ACP reachability (live probe or absorbed pack only).
+
+    Must NOT treat active isolated lease as runtime ready — lease is a separate
+    readiness face (active_isolated_lease / prepare-acp-lease). Delegate POC
+    gates on lease; default snapshot does not probe ACP.
+    """
+    del lease  # retained for call-site compatibility; lease is not transport evidence
     head = git_head()
     probed = bool(runtime.get("probe")) or bool(runtime.get("probe_mode"))
     if probed:
@@ -6574,6 +6425,21 @@ def _is_dispatch_stub_success(agent_run: Mapping[str, Any]) -> bool:
         if isinstance(send, Mapping) and send.get("lease_only"):
             return True
     return False
+
+
+def _partial_close_next_step_available(detail: Mapping[str, Any]) -> bool:
+    decision = detail.get("decision") or {}
+    if not isinstance(decision, Mapping):
+        return False
+    offered = decision.get("offered") or []
+    if "partial" not in offered:
+        return False
+    spaces = detail.get("spaces") or {}
+    test = spaces.get("test") if isinstance(spaces, Mapping) else None
+    if isinstance(test, Mapping) and test.get("ready") is True:
+        return True
+    focus = str(decision.get("next_round_focus") or "").lower()
+    return "partial" in focus and "promote" in focus
 
 
 def _implementation_dispatch_view(topic: str | None = None) -> dict[str, Any]:
@@ -6670,16 +6536,27 @@ def next_human_phrase(view: dict[str, Any]) -> str | None:
 
 
 def required_reads_for_task(task: str, topic: str | None) -> list[str]:
-    if task == "control_proposal" and not topic:
+    canonical = canonicalize_proposal_task(task)
+    if canonical == "product_proposal" and not topic:
         return [
             "AGENTS.md",
             "spec/00-charter/charter.md",
             "META-011",
             "META-012",
+            "ADR-META-004",
+        ]
+    if canonical == "process_proposal" and not topic:
+        return [
+            "AGENTS.md",
+            "spec/meta/README.md",
+            "META-011",
+            "META-012",
+            "META-014",
+            "ADR-META-004",
         ]
     if not topic:
         raise ValueError("topic is required for this control task")
-    base_meta = ["META-010", "BEH-025", "META-011", "META-013"]
+    base_meta = ["META-010", "BEH-025", "META-011"]
     binder = [f"poc/{topic}/ndf/TOPIC.md", f"poc/{topic}/ndf/GATES.md"]
     if task in {"legacy_gate_audit", "gate_pipeline"}:
         return base_meta + binder + [
@@ -6700,9 +6577,178 @@ def required_reads_for_task(task: str, topic: str | None) -> list[str]:
             f"poc/{topic}/ndf/DELTA.md",
             f"poc/{topic}/ndf/COMMITS.md",
         ]
-    if task == "control_proposal":
-        return ["AGENTS.md", "META-011", f"poc/{topic}/ndf/TOPIC.md"]
+    if canonical == "product_proposal":
+        return ["AGENTS.md", "META-011", "ADR-META-004", f"poc/{topic}/ndf/TOPIC.md"]
+    if canonical == "process_proposal":
+        return ["AGENTS.md", "META-014", "ADR-META-004", "spec/meta/README.md"]
     return base_meta + binder
+
+
+def canonicalize_proposal_task(task: str) -> str:
+    """Map legacy aliases to explicit product/process proposal tasks."""
+    if task in {"control_proposal", "product_proposal"}:
+        return "product_proposal"
+    if task in {"process_proposal", "ndf_improvement_proposal"}:
+        return "process_proposal"
+    return task
+
+
+def idea_plane_for_task(task: str) -> str | None:
+    canonical = canonicalize_proposal_task(task)
+    if canonical == "product_proposal":
+        return "product"
+    if canonical in {"process_proposal"} or task in PROCESS_PROPOSAL_TASKS:
+        return "process"
+    return None
+
+
+def allowed_roots_for_idea_plane(plane: str) -> list[str]:
+    roots = IDEA_PLANE_ROOTS.get(plane)
+    if not roots:
+        raise ValueError(f"unknown idea plane: {plane}")
+    return list(roots)
+
+
+def assert_idea_write_roots(task: str, roots: list[str]) -> None:
+    """Fail closed when pack write roots cross product/process planes."""
+    plane = idea_plane_for_task(task)
+    if plane is None:
+        return
+    allowed = set(allowed_roots_for_idea_plane(plane))
+    normalized = []
+    for root in roots:
+        text = str(root).replace("\\", "/")
+        if not text.endswith("/") and Path(text).suffix == "":
+            text = text + "/"
+        normalized.append(text)
+    for root in normalized:
+        if plane == "product" and (
+            root.startswith("spec/meta/") or "spec/meta/open" in root
+        ):
+            raise ValueError(
+                f"product_proposal must not write {root}; only spec/open/"
+            )
+        if plane == "process" and root.startswith("spec/open/"):
+            raise ValueError(
+                f"process_proposal must not write {root}; only spec/meta/open/"
+            )
+        if not any(root.startswith(a) or a.startswith(root) for a in allowed):
+            # Allow exact proposal file paths under the plane root.
+            if not any(root.startswith(a.rstrip("/")) for a in allowed):
+                raise ValueError(
+                    f"task {task} write root {root} outside plane {plane} {sorted(allowed)}"
+                )
+
+
+def classify_idea_plane(text: str) -> dict[str, Any]:
+    """Heuristic classifier for human ideas (ADR-META-004). Ambiguous → ask."""
+    raw = (text or "").strip()
+    lowered = raw.lower()
+    process_markers = (
+        "ndf 工作流",
+        "ndf workflow",
+        "流程",
+        "meta",
+        "agents.md",
+        "gate",
+        "装订",
+        "commander",
+        "replay",
+        "episode",
+        "dispatch",
+        "poc-dispatch",
+        "graphcheck",
+        "bindcheck",
+        "规范卫生",
+        "process",
+        "genesis 流程",
+        "skill",
+    )
+    product_markers = (
+        "qps",
+        "recall",
+        "sla",
+        "缓存",
+        "cache",
+        "hnsw",
+        "io",
+        "pq",
+        "性能",
+        "bug",
+        "trunk",
+        "src/",
+        "promote",
+        "poc/",
+        "检索",
+        "向量",
+    )
+    bootstrap_markers = (
+        "初始化项目",
+        "genesis",
+        "greenfield",
+        "adopt",
+        "接管已有",
+        "从 idea 建",
+    )
+    process_hits = sum(1 for m in process_markers if m in lowered or m in raw)
+    product_hits = sum(1 for m in product_markers if m in lowered or m in raw)
+    bootstrap_hits = sum(1 for m in bootstrap_markers if m in lowered or m in raw)
+    if bootstrap_hits and not process_hits:
+        return {
+            "plane": "product",
+            "track": "bootstrap",
+            "task": "product_proposal",
+            "write_roots": allowed_roots_for_idea_plane("product"),
+            "confidence": "high",
+            "reason": "genesis_bootstrap",
+        }
+    if process_hits and product_hits:
+        return {
+            "plane": "mixed",
+            "track": None,
+            "task": None,
+            "write_roots": [],
+            "confidence": "ask",
+            "reason": "mixed_product_and_process",
+            "split": [
+                {
+                    "plane": "product",
+                    "task": "product_proposal",
+                    "write_roots": allowed_roots_for_idea_plane("product"),
+                },
+                {
+                    "plane": "process",
+                    "task": "process_proposal",
+                    "write_roots": allowed_roots_for_idea_plane("process"),
+                },
+            ],
+        }
+    if process_hits and not product_hits:
+        return {
+            "plane": "process",
+            "track": "process",
+            "task": "process_proposal",
+            "write_roots": allowed_roots_for_idea_plane("process"),
+            "confidence": "high",
+            "reason": "process_markers",
+        }
+    if product_hits and not process_hits:
+        return {
+            "plane": "product",
+            "track": "poc",
+            "task": "product_proposal",
+            "write_roots": allowed_roots_for_idea_plane("product"),
+            "confidence": "high",
+            "reason": "product_markers",
+        }
+    return {
+        "plane": "ambiguous",
+        "track": None,
+        "task": None,
+        "write_roots": [],
+        "confidence": "ask",
+        "reason": "ambiguous_ask_human",
+    }
 
 
 def genesis_paths() -> dict[str, Path]:
@@ -6943,7 +6989,7 @@ def project_check_findings(checks: dict[str, dict[str, Any]]) -> list[dict[str, 
             {
                 "plane": "NDF Control",
                 "repair_owner": "openclaw",
-                "repair_task": "control_proposal",
+                "repair_task": "process_proposal",
                 "allowed_write_root": "spec/meta/open/",
                 "human_gate": "已确认 → 已审核",
             },
@@ -7223,15 +7269,28 @@ def persisted_active_topic() -> str | None:
     return None
 
 
+def retired_replay_projection() -> dict[str, Any]:
+    """Empty Replay projection for daily path (ADR-META-004). Does not touch store."""
+    return {
+        "schema": "ndf-replay-summary/v1",
+        "state": "retired",
+        "storeRoot": ".ndf/replay",
+        "fsck": None,
+        "episodes": [],
+        "focused": None,
+        "buttonActions": [],
+        "note": "Episode/Replay retired from hot path; historical .ndf/replay is read-only archaeology",
+    }
+
+
 def replay_summary(
     *,
     focused_id: str | None = None,
     active_topic: str | None = None,
 ) -> dict[str, Any]:
-    """Commander Replay: button actions with git A/B only; archived canvas hops omitted."""
-    del active_topic  # topic lens retired from Replay main path
-    store = ndf_replay.ReplayStore(ROOT)
-    return ndf_replay.project_button_replay_summary(store, focused_id=focused_id)
+    """Daily snapshot: retired stub. Does not read or write ReplayStore."""
+    del focused_id, active_topic
+    return retired_replay_projection()
 
 
 def snapshot(
@@ -7239,1258 +7298,54 @@ def snapshot(
     probe_runtime: bool | str = False,
     replay_episode: str | None = None,
 ) -> dict[str, Any]:
-    mode = normalize_probe_mode(probe_runtime)
-    if mode == "full":
-        probe_claude_acp(refresh=True)
-    elif mode == "light":
-        probe_claude_acp_light(refresh=True)
-    layers = generation_layers()
-    generation_sha = layers["root"]
-    ensure_spec_health(generation_sha)
-    leftover = closed_leftover_topic_ids()
-    directory = list_topic_views(mode="directory")
-    selected = None
-    if topic:
-        selected = next(
-            (
-                view
-                for view in directory
-                if view["topic_id"] == topic or Path(view["path"]).name == topic
-            ),
-            None,
-        )
-        if selected is None:
-            topic_dir = POC / topic
-            if not (topic_dir / "ndf" / "TOPIC.md").is_file():
-                raise FileNotFoundError(f"unknown topic: {topic}")
-            selected = {"topic_id": topic, "path": rel(topic_dir)}
-        if selected and selected.get("topic_id") in leftover:
-            selected = None
-    elif directory:
-        preferred = persisted_active_topic()
-        selected = next(
-            (view for view in directory if view["topic_id"] == preferred),
-            directory[0],
-        )
-    workbench = None
-    if selected:
-        topic_id = selected["topic_id"]
-        topic_dir = POC / Path(selected["path"]).name
-        workbench = topic_view(topic_dir, mode="canvas")
-        match = next((view for view in directory if view["topic_id"] == topic_id), None)
-        if match:
-            workbench["health"]["conflicts"] = match["health"]["conflicts"]
-    active = directory
-    product_proposals, process_proposals = scan_proposals()
-    performance = performance_summary()
-    blockers = sum(len(view["health"]["blockers"]) for view in active)
-    legacy_gates = sum(
-        1
-        for view in active
-        if any(gate["state"] == "legacy_unknown" for gate in view["gates"].values())
-    )
-    invalidated = sum(
-        1
-        for view in active
-        for gate in view["gates"].values()
-        if gate["state"] == "invalidated"
-    )
-    kernel = kernel_map()
-    identity = business_identity()
-    active_summaries = [topic_business_summary(view) for view in active]
-    primary = active_summaries[0] if active_summaries else None
-    details = [workbench] if workbench else []
-    spec_health_view = latest_spec_health(generation_sha)
-    for detail in details:
-        detail["health"]["latest_diagnosis"] = latest_topic_health(
-            detail["topic_id"],
-            generation_sha,
-            poc_sha=(layers.get("poc") or {}).get(detail["topic_id"]),
-        )
-        meta = dict(detail.get("workflow_meta") or {})
-        meta["spec_health_state"] = (spec_health_view or {}).get("state")
-        meta["spec_health_checks"] = {
-            name: (check or {}).get("state")
-            for name, check in ((spec_health_view or {}).get("checks") or {}).items()
-        }
-        detail["workflow_meta"] = meta
-    git_binding = git_execution_binding()
-    payload = {
-        "schema": "ndf-workflow-snapshot/v2",
-        "generated_at": now_iso(),
-        "repo_head": git_binding["head"],
-        "repo_branch": git_binding["branch"],
-        "repo_remote": git_binding["remote"],
-        "repo_remote_url": git_binding["remote_url"],
-        "repo_upstream": git_binding["upstream"],
-        "snapshot_sha": generation_sha,
-        "evidence_generation": generation_sha,
-        "generation_layers": {
-            "meta": layers.get("meta"),
-            "product": layers.get("product"),
-            "replay": layers.get("replay"),
-        },
-        "embedded_projection": {
-            "status": "unknown",
-            "verified_path": None,
-        },
-        "payload_binding": {
-            "repo_head": git_binding["head"],
-            "source_generation_sha": generation_sha,
-        },
-        "projection_freshness": projection_freshness(generation_sha),
-        "business": {
-            "identity": identity,
-            "goals": business_goals(),
-            "capabilities": capability_portfolio(),
-            "performance": performance,
-            "roadmap": roadmap_summary(),
-            "product_proposals": product_proposals,
-            "topics": active_summaries,
-            "risks": business_risks(directory, performance),
-            "now_next_blocked": {
-                "now": primary["topic_id"] if primary else f"{identity['name']} Trunk",
-                "next": (
-                    primary["next_gate"]
-                    or primary["phase_hint"]
-                    if primary
-                    else "Review product roadmap"
-                ),
-                "blocked": blockers,
-            },
-        },
-        "control": {
-            "genesis": genesis_status(),
-            "kernel_map": kernel,
-            "process_proposals": process_proposals,
-            "process_hop": focused_process_hop(process_proposals),
-            "close": close_projection(details),
-            "spec_health": {
-                "meta_clause_count": kernel.get("clause_count"),
-                "meta_graph_index_generated_at": kernel.get("generated_at"),
-                "meta_graphcheck": (
-                    (spec_health_view or {}).get("checks", {})
-                    .get("meta_graph", {})
-                    .get("state", "not_run")
-                ),
-                "state": (spec_health_view or {}).get("state", "not_run"),
-                "checks": (spec_health_view or {}).get("checks", {}),
-                "findings": (spec_health_view or {}).get("findings", []),
-                "next_actions": (spec_health_view or {}).get("next_actions", []),
-                "advisor": (spec_health_view or {}).get(
-                    "advisor",
-                    {"read_only": True},
-                ),
-                "proposal_plane_warnings": proposal_plane_warnings(),
-                "draft_map_warnings": draft_map_warnings(),
-            },
-            "gate_summary": {
-                "legacy_unknown_topics": legacy_gates,
-                "invalidated_receipts": invalidated,
-            },
-        },
-        "runtime": runtime_status(mode or False),
-        "replay": replay_summary(
-            focused_id=replay_episode,
-            active_topic=topic or (workbench or {}).get("topic_id"),
-        ),
-        "topics_detail": details,
-        "selected_topic": workbench,
-    }
-    return payload
-
-
-def canvas_process_catalog_keep(proposal: Mapping[str, Any]) -> bool:
-    hop = proposal.get("hop")
-    if hop in PROCESS_CATALOG_HOPS:
-        return True
-    if proposal.get("lifecycle") in PROCESS_CATALOG_LIFECYCLES:
-        return True
-    return False
-
-
-def canvas_process_catalog(proposals: Iterable[Mapping[str, Any]]) -> list[list[str]]:
-    rows = []
-    for proposal in proposals:
-        if not canvas_process_catalog_keep(proposal):
-            continue
-        rows.append(
-            [
-                str(proposal.get("title") or ""),
-                str(proposal.get("hop") or proposal.get("status") or ""),
-                str(proposal.get("path") or ""),
-            ]
-        )
-    return rows
-
-
-def canvas_ready_spaces(spaces: Mapping[str, Any] | None) -> dict[str, Any]:
-    ready: dict[str, Any] = {}
-    for key, value in (spaces or {}).items():
-        if not isinstance(value, Mapping):
-            continue
-        ready[key] = {
-            "ready": bool(value.get("ready")),
-            "gaps": list(value.get("gaps") or [])[:6],
-        }
-    return ready
-
-
-def canvas_topic_directory_row(
-    item: Mapping[str, Any],
-    detail: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    spaces = (detail or {}).get("spaces") or item.get("spaces") or {}
-    blockers = list(item.get("control_blockers") or [])
-    gates = {}
-    for name, gate in (item.get("gates") or {}).items():
-        gates[name] = {
-            "state": gate.get("state"),
-            "phrase": gate.get("phrase"),
-        }
+    """Commander/canvas snapshot retired (ADR-META-004). Prefer topic-health."""
     return {
-        "id": item["topic_id"],
-        "path": item["path"],
-        "lifecycle": item["lifecycle"],
-        "hypothesis": item["hypothesis"],
-        "expectedImpact": item["expected_impact"],
-        "surface": [value.rsplit("/", 1)[-1] for value in item.get("explore_surface") or []],
-        "evidenceFiles": item["current_evidence"]["evidence_files"],
-        "numbers": item["current_evidence"]["numbers"],
-        "baseline": item["baseline_status"],
-        "phase": str(item["phase_hint"]).replace("_", " "),
-        "spaces": canvas_ready_spaces(spaces),
-        "blockers": blockers,
-        "conflicts": item.get("surface_conflicts") or [],
-        "gates": gates,
-        "nextHumanPhrase": item.get("next_human_phrase"),
-        "closeEligible": bool((detail or {}).get("decision", {}).get("close_eligible")),
-        "health": {"blockerCount": len(blockers), "blockers": blockers},
+        "schema": "ndf-commander-retired/v1",
+        "command": "snapshot",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "topic": topic,
+        "probe_runtime": probe_runtime,
+        "replay_episode": replay_episode,
+        "enabledActions": [],
+        "replay": retired_replay_projection(),
+        "note": "Use topic-health / poc-dispatch; canvas projection removed",
     }
-
-
-def slim_canvas_foundation(foundation: Mapping[str, Any] | None) -> dict[str, Any]:
-    data = dict(foundation or {})
-    clauses = [
-        item for item in data.get("product_clauses") or [] if isinstance(item, Mapping)
-    ]
-    seeds = [item for item in clauses if item.get("role") == "seed"] or clauses[:8]
-    data["product_clauses"] = [
-        {
-            "id": item.get("id"),
-            "title": item.get("title"),
-            "status": item.get("status"),
-            "role": item.get("role"),
-        }
-        for item in seeds[:12]
-    ]
-    data["clause_count"] = len(clauses)
-    data["depends_on_edges"] = list(data.get("depends_on_edges") or [])[:12]
-    return data
-
-
-def slim_canvas_pipelines(pipelines: Mapping[str, Any] | None) -> dict[str, Any]:
-    result: dict[str, Any] = {}
-    for name, pipe in (pipelines or {}).items():
-        if not isinstance(pipe, Mapping):
-            continue
-        steps = []
-        for step in pipe.get("steps") or []:
-            if not isinstance(step, Mapping):
-                continue
-            steps.append(
-                {
-                    "kind": step.get("kind"),
-                    "label": step.get("label"),
-                    "task": step.get("repair_task") or step.get("task"),
-                    "owner": step.get("repair_owner") or step.get("owner"),
-                }
-            )
-        result[name] = {
-            "pipeline": pipe.get("pipeline"),
-            "label": pipe.get("label"),
-            "task": pipe.get("task"),
-            "needed": pipe.get("needed"),
-            "resume": pipe.get("resume"),
-            "step_count": pipe.get("step_count"),
-            "steps": steps,
-            "dispatch": pipe.get("dispatch"),
-            "handoff": pipe.get("handoff"),
-            "handoff_from_gate": pipe.get("handoff_from_gate"),
-            "blocked_by_binder": pipe.get("blocked_by_binder"),
-            "decision_required": pipe.get("decision_required"),
-            "close_eligible": pipe.get("close_eligible"),
-            "force_new_episode": pipe.get("force_new_episode"),
-            "retry_request_id": pipe.get("retry_request_id"),
-        }
-    return result
-
-
-def canvas_topic_workbench(
-    item: Mapping[str, Any],
-    detail: Mapping[str, Any],
-) -> dict[str, Any]:
-    row = canvas_topic_directory_row(item, detail)
-    gates = {}
-    for name, gate in (item.get("gates") or {}).items():
-        full = (detail.get("gates") or {}).get(name, {})
-        slices = []
-        for slice_item in full.get("slices") or []:
-            if isinstance(slice_item, Mapping):
-                slices.append(
-                    {
-                        "id": slice_item.get("id") or slice_item.get("name"),
-                        "sha": slice_item.get("sha") or slice_item.get("content_sha"),
-                    }
-                )
-        gates[name] = {
-            "state": gate.get("state"),
-            "phrase": gate.get("phrase"),
-            "expectedContentSha": gate.get("expected_content_sha"),
-            "approvedContentSha": full.get("approved_content_sha"),
-            "shaAligned": full.get("sha_aligned", False),
-            "bundleMode": full.get("bundle_mode"),
-            "sliceManifestSha": full.get("slice_manifest_sha"),
-            "slices": slices,
-            "bundleErrors": list(full.get("bundle_errors") or [])[:6],
-        }
-    spaces = detail.get("spaces", row.get("spaces"))
-    if isinstance(spaces, Mapping):
-        spaces = dict(spaces)
-        impl = spaces.get("implementation")
-        if isinstance(impl, Mapping):
-            impl = dict(impl)
-            files = list(impl.get("code_files") or [])[:8]
-            impl["code_files"] = [
-                str(path).rsplit("/", 1)[-1] for path in files
-            ]
-            spaces["implementation"] = impl
-        test = spaces.get("test")
-        if isinstance(test, Mapping):
-            test = dict(test)
-            round_text = str(test.get("latest_round") or "")
-            if len(round_text) > 240:
-                test["latest_round"] = round_text[:240]
-            spaces["test"] = test
-        spaces = attach_space_repairs(
-            spaces,
-            detail.get("health"),
-            topic_id=str(item.get("topic_id") or row.get("id") or ""),
-        )
-    pipelines = slim_canvas_pipelines(detail.get("control_pipelines"))
-    gate_pipe = dict(pipelines.get("gate") or {})
-    if gate_pipe:
-        gate_pipe["checklist"] = [
-            {
-                "id": name,
-                "phrase": GATE_PHRASES[name],
-                "state": ((detail.get("gates") or {}).get(name) or {}).get("state"),
-            }
-            for name in GATE_ORDER
-        ]
-        pipelines["gate"] = gate_pipe
-    binder_pipe = dict(pipelines.get("binder") or {})
-    if binder_pipe:
-        binder = detail.get("binder") or {}
-        binder_pipe["checklist"] = [
-            {
-                "id": facet,
-                "label": BINDER_FACET_LABELS[facet],
-                "file": BINDER_FACET_FILES[facet],
-                "exists": bool(
-                    (binder.get(BINDER_FACET_FILES[facet]) or {}).get("exists")
-                ),
-            }
-            for facet in BINDER_FACET_ORDER
-        ]
-        pipelines["binder"] = binder_pipe
-    gate_handoff = ((pipelines.get("gate") or {}).get("handoff") or {})
-    next_actions = ((detail.get("health") or {}).get("next_actions") or [])
-    dispatch_state = str((detail.get("agent_run") or {}).get("dispatch_state") or "")
-    send_blockers = list(
-        (detail.get("delegation") or {}).get("dispatch_blockers_from_send")
-        or (detail.get("agent_run") or {}).get("dispatch_blockers_from_send")
-        or []
-    )
-    if gate_handoff:
-        next_step_line = (
-            f"{gate_handoff.get('blocked_gate')} blocked by binder; "
-            f"next {gate_handoff.get('next_binder_label') or gate_handoff.get('next_binder_facet')}"
-        )
-    elif dispatch_state in {"sent", "awaiting_result"}:
-        next_step_line = (
-            "已发出；本聊天回「进展如何」查看 OpenClaw / Claude Code 执行情况。"
-            "「继续」只用于确认派发，不要对同一 pack 再 send。"
-        )
-    elif dispatch_state == "failed" and any(
-        item in {"acp_timeout", "acp_stalled", "acp_max_exceeded", "openclaw_stalled", "openclaw_timeout"}
-        or str(item).startswith("acp_")
-        for item in send_blockers
-        + list((detail.get("delegation") or {}).get("dispatch_blockers") or [])
-    ):
-        next_step_line = (
-            "上次派发未完成（运输超时/停滞），D1 未落地。"
-            "确认 ACP 会话可 resume 后重 pack，再 Delegate POC。"
-            "不要把失败 closeout 的 git commit 当成实现完成。"
-        )
-    elif dispatch_state == "failed":
-        completion_hits = humanize_completion_blockers(
-            send_blockers
-            + list((detail.get("delegation") or {}).get("dispatch_blockers") or [])
-        )
-        transport_ok = bool((detail.get("agent_run") or {}).get("transport_ok"))
-        if completion_hits:
-            reasons = "；".join(completion_hits[:3])
-            next_step_line = (
-                "运输已送达，回执未验收。"
-                f"{reasons}。"
-                "先 lease-record 或按金样改回执，再重 pack / Delegate POC；不是去修装订器。"
-            )
-        elif transport_ok:
-            next_step_line = (
-                "运输已送达但任务未验收；查看执行面 blockers，"
-                "先补 lease-record 或修正磁盘回执，不要当 D1 完成。"
-            )
-        elif any(
-            kind in CONTROL_BINDCHECK_KINDS
-            for kind in [
-                str((item or {}).get("kind") or "")
-                for item in ((detail.get("health") or {}).get("next_actions") or [])
-            ]
-        ) or "bindcheck_failed" in (
-            (detail.get("delegation") or {}).get("dispatch_blockers") or []
-        ):
-            next_step_line = (
-                "溯源/closeout 未通过（如缺 trailer）；"
-                "先 revert/ledger 登记，再重 pack 派发；不是 binder-amend。"
-            )
-        elif next_actions:
-            action = next_actions[0] or {}
-            if action.get("repair_task") == "binder_amend" and action.get("kind") not in KIND_TO_BINDER_FACET:
-                next_step_line = (
-                    "执行面 Control 债待处理；用 diagnose-topic / 重 pack，"
-                    "不要默认去修装订器。"
-                )
-            else:
-                next_step_line = str(action.get("label") or "Review next action")
-        else:
-            next_step_line = "上次派发失败；重 pack 后再 Delegate POC。"
-    elif next_actions:
-        action = next_actions[0] or {}
-        if action.get("repair_task") == "binder_amend" and action.get("kind") not in KIND_TO_BINDER_FACET:
-            next_step_line = (
-                "Control 诊断待处理；不要默认 binder-amend。"
-            )
-        else:
-            next_step_line = str(action.get("label") or "Review next action")
-    else:
-        decision = detail.get("decision") or {}
-        delegation = detail.get("delegation") or {}
-        selected = decision.get("selected")
-        agent_run = detail.get("agent_run") or {}
-        topic_token = str(detail.get("topic_id") or item.get("topic_id") or row.get("id") or "")
-        if (
-            selected in {"implement", "continue_exploring"}
-            and delegation.get("static_preflight_passed")
-            and delegation.get("active_isolated_lease")
-            and agent_run.get("dispatch_state") != "awaiting_result"
-        ):
-            if selected == "implement" and not decision.get("round_started"):
-                next_step_line = (
-                    f"ACP 管道已就绪；点击「派发探索任务」按 DESIGN 开 D1"
-                    f"（只写 poc/{topic_token}/）。本步不发明人口令。"
-                )
-            elif selected == "continue_exploring":
-                next_step_line = (
-                    f"ACP 管道已就绪；点击「派发探索任务」继续 POC 轮"
-                    f"（只写 poc/{topic_token}/）。"
-                )
-            else:
-                next_step_line = (
-                    "ACP 隔离租约已就绪；点击「派发探索任务」委派 Claude Code。"
-                )
-        elif (
-            selected in {"implement", "continue_exploring"}
-            and delegation.get("static_preflight_passed")
-            and delegation.get("runtime_dispatch_ready")
-            and not delegation.get("active_isolated_lease")
-            and agent_run.get("dispatch_state") != "awaiting_result"
-        ):
-            next_step_line = (
-                "ACP 可达但无隔离租约；先 Prepare ACP lease，再 Delegate POC。"
-            )
-        elif dispatch_state == "succeeded" and _is_dispatch_stub_success(
-            detail.get("agent_run") or {}
-        ):
-            next_step_line = (
-                "上次 hop 运输结束但租约未落地；重跑 Prepare ACP lease。"
-            )
-        elif (detail.get("decision") or {}).get("decision_required"):
-            decision = detail.get("decision") or {}
-            offered = decision.get("offered") or []
-            if "implement" in offered and decision.get("baseline_prepared"):
-                next_step_line = (
-                    "基线准备已完成；下一步：选择 implement（首次按设计实现）"
-                )
-            elif "implement" in offered:
-                next_step_line = "需要人选择本轮决策；建议 implement（首次按设计实现）"
-            else:
-                next_step_line = "需要人选择本轮决策；按钮点击不是人口令"
-        else:
-            next_step_line = "No mandatory next hop"
-    row.update(
-        {
-            "spaces": spaces,
-            "topicOverview": detail.get("topic_overview", {}),
-            "ndfFoundation": slim_canvas_foundation(detail.get("ndf_foundation")),
-            "workflowMeta": {
-                key: value
-                for key, value in (detail.get("workflow_meta") or {}).items()
-                if key != "nodes"
-            }
-            | {
-                "node_count": len((detail.get("workflow_meta") or {}).get("nodes") or []),
-            },
-            "gates": gates,
-            "decision": detail.get("decision", {}),
-            "delta": detail.get("delta", {}),
-            "traceability": (detail.get("traceability") or [])[:8],
-            "delegation": slim_canvas_delegation(detail.get("delegation", {})),
-            "agentRun": {
-                key: value
-                for key, value in (detail.get("agent_run") or {}).items()
-                if key != "lease"
-            },
-            "health": slim_canvas_health(detail.get("health", {})),
-            "controlPipelines": pipelines,
-            "commandEntry": {
-                "nextStepLine": next_step_line,
-                "decisionRequired": bool(
-                    (detail.get("decision") or {}).get("decision_required")
-                ),
-            },
-        }
-    )
-    return row
-
-
-def slim_canvas_spec_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
-    data = dict(health or {})
-    data.pop("raw_checks", None)
-    data.pop("layers", None)
-    data.pop("proposal_plane_warnings", None)
-    data.pop("draft_map_warnings", None)
-    checks = {}
-    for name, check in (data.get("checks") or {}).items():
-        if not isinstance(check, Mapping):
-            continue
-        summary = str(check.get("summary") or "")
-        checks[name] = {
-            "state": check.get("state"),
-            "exit_code": check.get("exit_code"),
-            "summary": summary[:160],
-        }
-    data["checks"] = checks
-    findings = []
-    for item in data.get("findings") or []:
-        if not isinstance(item, Mapping):
-            continue
-        findings.append(
-            {
-                "kind": item.get("kind"),
-                "severity": item.get("severity"),
-                "why_blocked": item.get("why_blocked") or item.get("evidence"),
-                "space": item.get("space"),
-                "plane": item.get("plane"),
-                "repair_owner": item.get("repair_owner"),
-                "repair_task": item.get("repair_task"),
-                "allowed_write_root": item.get("allowed_write_root"),
-            }
-        )
-    data["findings"] = findings
-    return data
 
 
 def canvas_snapshot_buckets(payload: Mapping[str, Any]) -> dict[str, int]:
-    business = payload.get("business") or {}
-    control = payload.get("control") or {}
-    replay = payload.get("replay") or {}
-
-    def nbytes(value: Any) -> int:
-        return len(
-            json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        )
-
-    known = {
-        "topics_directory": nbytes(business.get("topics")),
-        "focused_topic": nbytes(business.get("focusedTopic")),
-        "control": nbytes(control),
-        "replay_directory": nbytes(replay.get("episodes")),
-        "focused_ledger": nbytes(replay.get("focused")),
-    }
-    total = nbytes(payload)
-    known["other"] = max(0, total - sum(known.values()))
-    return known
+    """Retired with Commander canvas (ADR-META-004)."""
+    del payload
+    return {}
 
 
 def canvas_snapshot_budget_error(payload: Mapping[str, Any], encoded_len: int) -> str | None:
-    limit = CANVAS_SNAPSHOT_BYTE_LIMIT
-    buckets = canvas_snapshot_buckets(payload)
-    over = [
-        f"{name}={size}>{ndf_replay.CANVAS_BUCKET_LIMITS[name]}"
-        for name, size in buckets.items()
-        if size > ndf_replay.CANVAS_BUCKET_LIMITS.get(name, limit)
-    ]
-    if encoded_len <= limit and not over:
-        return None
-    detail = ", ".join(over) if over else "no bucket isolated"
-    return (
-        f"canvas snapshot exceeds {limit} bytes "
-        f"(total={encoded_len}, {detail}); pass --topic <id> and do not embed every workbench"
-    )
+    """Retired with Commander canvas (ADR-META-004)."""
+    del payload, encoded_len
+    return None
 
 
 def apply_canvas_snapshot_budget(payload: dict[str, Any]) -> dict[str, Any]:
-    """Omit oversized non-core buckets instead of failing the whole snapshot.
-
-    Core identity / freshness / enabledActions always publish. Replay directory
-    and focused ledger may be truncated with omittedCount.
-    """
-    data = dict(payload)
-    replay = data.get("replay")
-    if isinstance(replay, Mapping):
-        data["replay"] = ndf_replay.project_canvas_replay(replay)
-    compact = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-    encoded_len = len(compact.encode("utf-8"))
-    err = canvas_snapshot_budget_error(data, encoded_len)
-    if err is None:
-        return data
-    # Drop focused replay detail first, then truncate directory further.
-    replay2 = dict(data.get("replay") or {})
-    if replay2.get("focused") is not None:
-        replay2["focused"] = {
-            "id": (replay2.get("focused") or {}).get("id")
-            if isinstance(replay2.get("focused"), Mapping)
-            else None,
-            "omitted": True,
-            "reason": "snapshot_budget",
-        }
-        data["replay"] = replay2
-        compact = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
-        encoded_len = len(compact.encode("utf-8"))
-        err = canvas_snapshot_budget_error(data, encoded_len)
-        if err is None:
-            data.setdefault("projectionNotes", []).append("omitted_focused_replay")
-            return data
-    # Hard-trim episodes to empty directory pointer.
-    replay2 = dict(data.get("replay") or {})
-    omitted = len(replay2.get("episodes") or [])
-    replay2["episodes"] = []
-    replay2["omittedCount"] = int(replay2.get("omittedCount") or 0) + omitted
-    replay2["budgetOmitted"] = True
-    data["replay"] = replay2
-    data.setdefault("projectionNotes", []).append("omitted_replay_directory")
-    data["snapshotBudget"] = {
-        "state": "partial",
-        "omittedBuckets": ["replay_directory"],
-        "priorError": err,
-    }
-    return data
+    """Retired with Commander canvas (ADR-META-004)."""
+    return dict(payload)
 
 
 def canvas_snapshot(payload: dict[str, Any]) -> dict[str, Any]:
-    """Return the stable, camelCase payload embedded by the Cursor Canvas."""
-    business = payload["business"]
-    performance = business["performance"]
-    process_hop = payload["control"].get("process_hop")
-    if process_hop is None:
-        process_hop = focused_process_hop(payload["control"].get("process_proposals") or [])
-    detail_by_id = {
-        item["topic_id"]: item for item in payload.get("topics_detail", [])
-    }
-    focused_id = None
-    selected = payload.get("selected_topic")
-    if isinstance(selected, Mapping):
-        focused_id = selected.get("topic_id")
-    elif payload.get("topics_detail"):
-        focused_id = payload["topics_detail"][0].get("topic_id")
-    topics = []
-    focused_topic = None
-    for item in business["topics"]:
-        detail = detail_by_id.get(item["topic_id"], {})
-        topics.append(canvas_topic_directory_row(item, detail))
-        if item["topic_id"] == focused_id and detail:
-            focused_topic = canvas_topic_workbench(item, detail)
-    scenes = performance.get("best_scenes", [])
-    capabilities = []
-    for capability in business["capabilities"]:
-        clauses = capability["clauses"]
-        capabilities.append(
-            [
-                capability["name"],
-                clauses["stable"],
-                clauses["draft"],
-                clauses["deprecated"],
-                " + ".join(capability["modules"][:2]),
-            ]
-        )
-    close_topics = []
-    for item in payload["control"]["close"]["topics"]:
-        if focused_id and item["topic_id"] != focused_id:
-            close_topics.append(
-                {
-                    "topicId": item["topic_id"],
-                    "lifecycle": item["lifecycle"],
-                    "closeEligible": item.get("close_eligible", False),
-                }
-            )
-            continue
-        close_topics.append(
-            {
-                "topicId": item["topic_id"],
-                "lifecycle": item["lifecycle"],
-                "decisionRequired": item.get("decision_required", False),
-                "closeEligible": item.get("close_eligible", False),
-                "evidenceReady": item["evidence_ready"],
-                "proposalReady": item["proposal_ready"],
-                "closePlanReady": item["close_plan"]["ready"],
-                "finalizationReady": item["finalization_ready"],
-                "steps": [
-                    {
-                        "id": step.get("id"),
-                        "status": step.get("status"),
-                        "source": step.get("source"),
-                    }
-                    for step in item.get("steps") or []
-                    if isinstance(step, Mapping)
-                ],
-                "branches": {
-                    mode: {
-                        "mode": branch["mode"],
-                        "decisionSelected": branch.get("decision_selected", False),
-                        "closeEligible": branch.get("close_eligible", False),
-                        "proposalReady": branch["proposal_ready"],
-                        "closePlanReady": branch["close_plan_ready"],
-                        "trunkSrcWrites": branch.get("trunk_src_writes"),
-                        "verificationRequired": branch["verification_required"],
-                        "finalizationReady": branch["finalization_ready"],
-                        "finalized": branch["finalized"],
-                        "steps": [
-                            {
-                                "id": step.get("id"),
-                                "status": step.get("status"),
-                            }
-                            for step in branch.get("steps") or []
-                            if isinstance(step, Mapping)
-                        ],
-                        "nextStep": branch["next_step"],
-                    }
-                    for mode, branch in item.get("branches", {}).items()
-                },
-                "nextStep": item["next_step"],
-                "blockers": item["blockers"],
-            }
-        )
-    implementation = payload["runtime"]["implementation"]
-    control_runtime = payload["runtime"]["control"]
-    result = {
-        "schema": "ndf-workflow-canvas-snapshot/v1",
-        "generatedAt": payload["generated_at"],
-        "repoHead": (payload["repo_head"] or "")[:12],
-        "repoBranch": payload.get("repo_branch"),
-        "repoRemote": payload.get("repo_remote") or "origin",
-        "repoRemoteUrl": payload.get("repo_remote_url"),
-        "repoUpstream": payload.get("repo_upstream"),
-        "git": {
-            "remote": payload.get("repo_remote") or "origin",
-            "remoteUrl": payload.get("repo_remote_url"),
-            "branch": payload.get("repo_branch"),
-            "upstreamRef": payload.get("repo_upstream"),
-            "head": (payload["repo_head"] or "")[:12],
-        },
-        "snapshotSha": payload["snapshot_sha"],
-        "evidenceGeneration": payload.get("evidence_generation"),
-        "embeddedProjection": payload.get("embedded_projection"),
-        "payloadBinding": payload.get("payload_binding"),
-        "projectionFreshness": payload["projection_freshness"],
-        "absorbedActionId": (
-            (payload.get("projection_freshness", {}).get("latest_action") or {}).get("action_id")
-            if (payload.get("projection_freshness", {}).get("latest_action") or {}).get("status")
-            == "finished"
-            else None
-        ),
-        "business": {
-            "identity": {
-                "name": business["identity"]["name"],
-                "phase": business["identity"]["phase"],
-                "goal": business["identity"]["goal_summary"],
-                "charterPath": business["identity"]["charter_path"],
-                "charterExists": business["identity"].get("charter_exists", True),
-                "scales": [
-                    [entry["scale"], entry["status"]]
-                    for entry in business["identity"]["scale_coverage"]
-                ],
-            },
-            "performance": {
-                "protocol": performance["protocol"],
-                "baselineId": performance["baseline_id"],
-                "goldenSha": (performance.get("trunk_sha") or "")[:12],
-                "goldenHeadStatus": performance.get("golden_head_status"),
-                "trunkChangedSinceGolden": performance.get("trunk_changed_since_golden") or [],
-                "repoHeadFull": performance.get("repo_head_full"),
-                "status": performance["status"],
-                "configs": performance["configs"],
-                "scenes": [row[0] for row in scenes],
-                "aggQps": [int(row[1].replace(",", "")) for row in scenes],
-                "steadyQps": [int(row[2].replace(",", "")) for row in scenes],
-                "recall": [row[3] for row in scenes],
-                "warning": performance["warnings"][0]
-                if performance["warnings"]
-                else None,
-            },
-            "capabilities": capabilities,
-            "topics": topics,
-            "focusedTopic": focused_topic,
-            "focusedTopicId": focused_id,
-            "proposals": [
-                [
-                    proposal["title"],
-                    proposal["track"] or "unknown",
-                    proposal["status"],
-                ]
-                for proposal in business["product_proposals"]
-            ],
-            "roadmap": [
-                [
-                    item["id"],
-                    item["item"],
-                    item["goal"],
-                    item["priority"],
-                    item["reference"],
-                ]
-                for item in business["roadmap"]
-            ],
-            "risks": business["risks"],
-            "nowNextBlocked": business["now_next_blocked"],
-        },
-        "control": {
-            "maturity": payload["control"]["genesis"]["project_maturity"],
-            "genesis": payload["control"]["genesis"],
-            "kernelMap": _canvas_kernel_map(
-                payload["control"].get("kernel_map") or kernel_map()
-            ),
-            "nextActions": payload["control"]["spec_health"].get("next_actions", []),
-            "metaClauses": payload["control"]["spec_health"]["meta_clause_count"],
-            "metaGraph": slim_canvas_spec_health(payload["control"]["spec_health"]),
-            "legacyUnknownTopics": payload["control"]["gate_summary"][
-                "legacy_unknown_topics"
-            ],
-            "invalidatedReceipts": payload["control"]["gate_summary"][
-                "invalidated_receipts"
-            ],
-            "processProposals": canvas_process_catalog(
-                payload["control"]["process_proposals"]
-            ),
-            "processProposalArchivedCount": sum(
-                1
-                for proposal in payload["control"]["process_proposals"]
-                if not canvas_process_catalog_keep(proposal)
-            ),
-            "processHop": (
-                {
-                    "focusedPath": process_hop["focused_path"],
-                    "title": process_hop["title"],
-                    "hop": process_hop["hop"],
-                    "nextHumanPhrase": process_hop["next_human_phrase"],
-                    "remaining": process_hop["remaining"],
-                    "actionable": True,
-                }
-                if process_hop
-                else None
-            ),
-            "proposalPlaneWarnings": [
-                [
-                    warning["path"],
-                    warning.get("track") or "",
-                    warning["message"],
-                ]
-                for warning in payload["control"]["spec_health"].get(
-                    "proposal_plane_warnings", []
-                )
-            ],
-            "draftMapWarnings": [
-                [
-                    warning.get("clause_id") or "",
-                    warning["path"],
-                    warning["message"],
-                ]
-                for warning in payload["control"]["spec_health"].get(
-                    "draft_map_warnings", []
-                )
-            ],
-            "close": {
-                "stateSource": payload["control"]["close"]["state_source"],
-                "topics": close_topics,
-            },
-        },
-        "runtime": {
-            "implementation": {
-                "provider": implementation["provider"],
-                "status": implementation["status"],
-                "pipelineReachable": implementation["pipeline_reachable"],
-                "probeMode": implementation.get("probe_mode"),
-                "defaultSession": implementation["default_session"],
-                "activeRuns": implementation["active_runs"],
-                "cliAvailable": implementation.get("cli_available"),
-                "doctorOk": implementation.get("doctor_ok"),
-                "resumeAvailable": implementation.get("resume_available"),
-                "configuredSessionVisible": implementation.get(
-                    "configured_session_visible"
-                ),
-                "probeError": implementation.get("probe_error"),
-                "probeNote": implementation.get("probe_note"),
-                "workspace": {
-                    "binding": {
-                        "repoRoot": implementation["workspace"]["binding"][
-                            "repo_root"
-                        ],
-                        "statePath": implementation["workspace"]["binding"][
-                            "state_path"
-                        ],
-                        "activeTopic": implementation["workspace"]["binding"].get(
-                            "active_topic"
-                        ),
-                    },
-                    "stateExists": implementation["workspace"]["state_exists"],
-                    "match": implementation["workspace"].get("match"),
-                    "state": implementation["workspace"].get("state"),
-                },
-            },
-            "control": {
-                "provider": control_runtime["provider"],
-                "defaultSessionKey": control_runtime["default_session_key"],
-                "reachable": control_runtime["reachable"],
-                "gatewayReachable": control_runtime.get("gateway_reachable"),
-                "configuredSessionVisible": control_runtime.get(
-                    "configured_session_visible"
-                ),
-                "sessionConfigured": control_runtime.get("session_configured"),
-                "sessionDispatchable": control_runtime.get("session_dispatchable"),
-                "resolvedSessionId": control_runtime.get("resolved_session_id"),
-                "sessionTransport": control_runtime.get("session_transport"),
-                "sessionError": control_runtime.get("session_error"),
-                "sessionFixHint": control_runtime.get("session_fix_hint"),
-                "probeError": control_runtime.get("probe_error"),
-                "probe": control_runtime.get("probe"),
-                "workspace": {
-                    "binding": {
-                        "repoRoot": control_runtime["workspace"]["binding"][
-                            "repo_root"
-                        ],
-                        "statePath": control_runtime["workspace"]["binding"][
-                            "state_path"
-                        ],
-                        "activeTopic": control_runtime["workspace"]["binding"].get(
-                            "active_topic"
-                        ),
-                    },
-                    "stateExists": control_runtime["workspace"]["state_exists"],
-                    "match": control_runtime["workspace"].get("match"),
-                    "state": control_runtime["workspace"].get("state"),
-                },
-            },
-        },
-        "replay": ndf_replay.project_canvas_replay(
-            payload.get("replay", {
-                "schema": "ndf-replay-summary/v1",
-                "state": "not_initialized",
-                "storeRoot": ".ndf/replay",
-                "fsck": None,
-                "episodes": [],
-                "focused": None,
-            })
-        ),
-    }
-    mark_canvas_fresh_if_absorbing(result)
-    result["enabledActions"] = ndf_actions.evaluate_enabled_actions(result)
-    result = apply_canvas_snapshot_budget(result)
-    result["payloadSha"] = canvas_payload_sha(result)
-    return result
-
-
-def mark_canvas_fresh_if_absorbing(payload: dict[str, Any]) -> None:
-    """Promote stale_after_action when this payload stamps the latest terminal.
-
-    ``projection_freshness`` compares the *previous* projection receipt. Official
-    embed writes that receipt *after* SNAPSHOT is rendered, so a successful
-    refresh would otherwise bake ``stale_after_action`` into the Canvas and keep
-    Product write buttons disabled. This snapshot's ``absorbedActionId`` is the
-    proof of absorption.
-
-    Terminal results ``success`` / ``failed`` / ``cancelled`` may all be absorbed.
-    Unfinished actions MUST NOT be cleared by an unrelated finish.
-
-    Serve rebuilds always mint a new ``evidenceGeneration`` / ``snapshotSha``, so
-    a generation match against the prior action receipt is not required: a newer
-    snapshot that absorbs the latest finished terminal is current, not stale.
-    """
-    freshness = payload.get("projectionFreshness")
-    if not isinstance(freshness, dict):
-        return
-    if freshness.get("state") != "stale_after_action":
-        return
-    latest = freshness.get("latest_action") or {}
-    if not isinstance(latest, Mapping):
-        return
-    if latest.get("status") != "finished":
-        return
-    terminal = str(latest.get("result") or "").lower()
-    if terminal not in {"success", "failed", "cancelled"}:
-        return
-    if latest.get("action_id") != payload.get("absorbedActionId"):
-        return
-    freshness["state"] = "fresh"
-    freshness["absorbed_by_this_snapshot"] = True
-    freshness["absorbed_terminal"] = terminal
-
-
-CANVAS_SNAPSHOT_BYTE_LIMIT = ndf_replay.CANVAS_SNAPSHOT_BYTE_LIMIT
-CANVAS_TIMELINE_PREVIEW_LIMIT = ndf_replay.CANVAS_TIMELINE_PREVIEW_LIMIT
-
-
-def slim_canvas_context_plan(plan: Mapping[str, Any] | None) -> dict[str, Any] | None:
-    """Keep META-012 preview fields; drop clause bodies and compiler manifests."""
-    if not isinstance(plan, Mapping):
-        return None
-    reads: list[dict[str, Any]] = []
-    for index, item in enumerate(plan.get("ordered_reads") or [], start=1):
-        if not isinstance(item, Mapping):
-            continue
-        if len(reads) >= 5:
-            break
-        reads.append(
-            {
-                "order": item.get("order", index),
-                "path": item.get("path"),
-                "phase": item.get("phase") or "",
-                "reason": item.get("reason") or "",
-            }
-        )
-    graph = plan.get("graph") if isinstance(plan.get("graph"), Mapping) else {}
-    nodes = []
-    for node in graph.get("nodes") or []:
-        if not isinstance(node, Mapping):
-            continue
-        nodes.append(
-            {
-                "id": node.get("id"),
-                "title": node.get("title") or node.get("id"),
-                "file": node.get("file") or "",
-                "hop": node.get("hop") or 0,
-                "status": node.get("status"),
-                "scope": node.get("scope"),
-            }
-        )
-    surface = plan.get("implementation_surface") or []
-    if surface and isinstance(surface[0], Mapping):
-        surface = [
-            item.get("path") or item.get("root") or str(item) for item in surface
-        ]
-    privileges = (
-        plan.get("privileges") if isinstance(plan.get("privileges"), Mapping) else {}
-    )
+    """Commander canvas projection retired (ADR-META-004)."""
     return {
-        "schema": plan.get("schema") or "ndf-context-plan/v1",
-        "manifest_sha": plan.get("manifest_sha"),
-        "role": plan.get("role") or "",
-        "task": plan.get("task") or "",
-        "track": plan.get("track") or "",
-        "topic": plan.get("topic") or "",
-        "source_generation_sha": plan.get("source_generation_sha") or "",
-        "plan_sha": plan.get("plan_sha") or "",
-        "ordered_reads": reads,
-        "read_count": len(plan.get("ordered_reads") or []),
-        "seed_ids": list(plan.get("seed_ids") or []),
-        "graph": {
-            "nodes": [],
-            "node_count": len(nodes),
-            "depth": graph.get("depth") or 0,
-            "node_budget": graph.get("node_budget") or 0,
-            "byte_budget": graph.get("byte_budget") or 0,
-            "bytes_used": graph.get("bytes_used") or 0,
-            "truncated": list(graph.get("truncated") or []),
-            "blockers": list(graph.get("blockers") or []),
-        },
-        "implementation_surface": list(surface),
-        "baseline": plan.get("baseline") or {},
-        "privileges": {
-            "allowed_write_roots": list(privileges.get("allowed_write_roots") or []),
-            "forbidden_write_paths": list(
-                privileges.get("forbidden_write_paths") or []
-            ),
-            "summary_only": bool(privileges.get("summary_only")),
-        },
-        "human_phrase": plan.get("human_phrase"),
+        "schema": "ndf-commander-retired/v1",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "enabledActions": [],
+        "replay": retired_replay_projection(),
+        "note": "canvas_snapshot retired; use topic-health / poc-dispatch",
+        "inputKeys": sorted(str(k) for k in payload.keys())[:32] if isinstance(payload, Mapping) else [],
     }
-
-
-def _slim_verify_notes(items: Any) -> list[Any]:
-    notes: list[Any] = []
-    for item in list(items or [])[:8]:
-        if isinstance(item, Mapping):
-            notes.append(
-                {
-                    "kind": item.get("kind"),
-                    "message": str(item.get("message") or item.get("id") or "")[:160],
-                }
-            )
-        else:
-            notes.append(str(item)[:160])
-    return notes
-
-
-def slim_canvas_delegation(delegation: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Canvas may not embed full Task Manifest / graph closure."""
-    data = dict(delegation or {})
-    data.pop("task_manifest", None)
-    if data.get("context_plan") is not None:
-        data["context_plan"] = slim_canvas_context_plan(data.get("context_plan"))
-    verify = data.get("context_verify")
-    if isinstance(verify, Mapping):
-        data["context_verify"] = {
-            "valid": bool(verify.get("valid")),
-            "plan_sha": verify.get("plan_sha") or data.get("plan_sha") or "",
-            "errors": _slim_verify_notes(verify.get("errors")),
-            "warnings": _slim_verify_notes(verify.get("warnings")),
-        }
-    return data
-
-
-def _slim_finding_diff_kinds(items: Any) -> list[str]:
-    kinds: list[str] = []
-    for item in items or []:
-        if isinstance(item, Mapping):
-            kinds.append(str(item.get("kind") or item.get("id") or "")[:80])
-        elif item:
-            kinds.append(str(item)[:80])
-        if len(kinds) >= 8:
-            break
-    return kinds
-
-
-def slim_canvas_health(health: Mapping[str, Any] | None) -> dict[str, Any]:
-    data = dict(health or {})
-    data.pop("findings_by_space", None)
-    findings = []
-    for item in data.get("findings") or []:
-        if not isinstance(item, Mapping):
-            continue
-        findings.append(
-            {
-                "kind": item.get("kind"),
-                "severity": item.get("severity"),
-                "space": item.get("space"),
-                "why_blocked": item.get("why_blocked") or item.get("evidence"),
-                "evidence": str(item.get("why_blocked") or item.get("evidence") or "")[:360],
-                "clause_refs": item.get("clause_refs") or [],
-                "repair_owner": item.get("repair_owner"),
-                "repair_task": item.get("repair_task"),
-                "allowed_write_root": item.get("allowed_write_root"),
-                "human_gate": item.get("human_gate"),
-                "pipeline": item.get("pipeline"),
-                "gate": item.get("gate"),
-                "binder_facet": item.get("binder_facet"),
-            }
-        )
-    data["findings"] = findings
-    checks: dict[str, Any] = {}
-    for name, check in (data.get("checks") or {}).items():
-        if not isinstance(check, Mapping):
-            continue
-        checks[name] = {
-            "state": check.get("state"),
-            "exit_code": check.get("exit_code"),
-            "summary": str(check.get("summary") or "")[:160],
-        }
-    if checks:
-        data["checks"] = checks
-    diagnosis = data.get("latest_diagnosis")
-    if isinstance(diagnosis, Mapping):
-        diff = (
-            diagnosis.get("finding_diff")
-            if isinstance(diagnosis.get("finding_diff"), Mapping)
-            else {}
-        )
-        data["latest_diagnosis"] = {
-            "state": diagnosis.get("state"),
-            "generated_at": diagnosis.get("generated_at"),
-            "findings_hash": diagnosis.get("findings_hash"),
-            "finding_diff": {
-                "new": _slim_finding_diff_kinds(diff.get("new")),
-                "remaining": _slim_finding_diff_kinds(diff.get("remaining")),
-                "resolved": _slim_finding_diff_kinds(diff.get("resolved")),
-            },
-        }
-    return data
-
-
-def _canvas_kernel_map(kernel: Mapping[str, Any]) -> dict[str, Any]:
-    """Seeds are the command-layer map; omit the duplicate full node dump."""
-    payload = dict(kernel)
-    payload.pop("nodes", None)
-    seeds = []
-    for item in payload.get("seeds") or []:
-        if not isinstance(item, Mapping):
-            continue
-        seeds.append(
-            {
-                "id": item.get("id"),
-                "title": item.get("title"),
-                "status": item.get("status"),
-                "role": item.get("role"),
-                "scope": item.get("scope"),
-            }
-        )
-    payload["seeds"] = seeds
-    return payload
-
-
-def trim_canvas_replay_prompts(replay: Mapping[str, Any] | None) -> dict[str, Any]:
-    """Canvas counter projection: index rows + one focused ledger page."""
-    return ndf_replay.project_canvas_replay(replay)
-
-
-def _slim_canvas_timeline_event(event: Mapping[str, Any]) -> dict[str, Any]:
-    return ndf_replay.slim_canvas_timeline_event(event)
 
 
 def canvas_payload_sha(payload: Mapping[str, Any]) -> str:
-    """Hash stable Canvas semantics, excluding volatile observation timestamps."""
-
-    volatile = {
-        "payloadSha",
-        "generatedAt",
-        "generated_at",
-        "evaluated_at",
-        "probed_at",
-        "started_at",
-        "finished_at",
-        "summary",
-        "age",
-    }
-
-    def stable(value: Any) -> Any:
-        if isinstance(value, Mapping):
-            return {
-                key: stable(item)
-                for key, item in sorted(value.items())
-                if key not in volatile
-            }
-        if isinstance(value, list):
-            return [stable(item) for item in value]
-        return value
-
-    return canonical_json_sha(stable(dict(payload)))
+    """Retired helper kept for import compatibility."""
+    return canonical_json_sha(dict(payload) if isinstance(payload, Mapping) else {})
 
 
 def verify_embedded_snapshot(
@@ -8498,113 +7353,44 @@ def verify_embedded_snapshot(
     *,
     topic: str | None = None,
     replay_episode: str | None = None,
-    expected: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compare a managed TSX ``const SNAPSHOT`` object with a fresh payload."""
-    text = read_text(path)
-    match = re.search(r"\bconst\s+SNAPSHOT\b[^=]*=", text)
-    if not match:
-        raise ValueError(f"const SNAPSHOT JSON not found: {path}")
-    tail = text[match.end() :].lstrip()
-    try:
-        embedded, _ = json.JSONDecoder().raw_decode(tail)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid embedded SNAPSHOT JSON: {exc}") from exc
-    if not isinstance(embedded, dict):
-        raise ValueError("embedded SNAPSHOT must be a JSON object")
-    if expected is not None:
-        fresh = dict(expected)
-    else:
-        probe_runtime = bool(
-            embedded.get("runtime", {}).get("control", {}).get("probe")
-        )
-        focused = embedded.get("replay", {}).get("focused") if isinstance(
-            embedded.get("replay"), Mapping
-        ) else None
-        focused_id = replay_episode or (
-            focused.get("id") if isinstance(focused, Mapping) else None
-        )
-        fresh = canvas_snapshot(
-            snapshot(topic, probe_runtime, replay_episode=focused_id)
-        )
-        if embedded.get("schema") == "ndf-workflow-canvas-launcher/v1":
-            fresh = ndf_actions.canvas_launcher_snapshot(fresh)
-    launcher = embedded.get("schema") == "ndf-workflow-canvas-launcher/v1"
-    embedded_hash = canvas_payload_sha(embedded)
-    payload_ok = embedded.get("payloadSha") == fresh.get("payloadSha")
-    if not launcher:
-        payload_ok = payload_ok and embedded.get("payloadSha") == embedded_hash
-    checks = {
-        "snapshotSha": embedded.get("snapshotSha") == fresh.get("snapshotSha"),
-        "payloadSha": payload_ok,
-        "absorbedActionId": embedded.get("absorbedActionId")
-        == fresh.get("absorbedActionId"),
-    }
+    """Commander embedded SNAPSHOT retired (ADR-META-004)."""
+    del path, topic, replay_episode
     return {
-        "schema": "ndf-embedded-projection-verification/v1",
-        "valid": all(checks.values()),
-        "path": rel(path),
-        "checks": checks,
-        "embedded": {
-            "snapshotSha": embedded.get("snapshotSha"),
-            "payloadSha": embedded.get("payloadSha"),
-            "canonicalPayloadSha": embedded_hash,
-            "absorbedActionId": embedded.get("absorbedActionId"),
-        },
-        "fresh": {
-            "snapshotSha": fresh.get("snapshotSha"),
-            "payloadSha": fresh.get("payloadSha"),
-            "absorbedActionId": fresh.get("absorbedActionId"),
-        },
+        "schema": "ndf-commander-retired/v1",
+        "command": "snapshot --verify-embedded",
+        "deprecated": True,
+        "valid": False,
+        "reason": "ADR-META-004",
     }
 
 
 def write_commander_snapshot(payload: Mapping[str, Any], path: Path | None = None) -> Path:
-    """Write the full canvas-json commander payload (not embedded in Canvas)."""
-    target = path or (ROOT / "tmp" / "ndf-canvas-snapshot.json")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    bounded = apply_canvas_snapshot_budget(dict(payload))
-    compact = json.dumps(bounded, ensure_ascii=False, separators=(",", ":"))
-    # After omit, still refuse only if core exceeds absolute limit.
-    if len(compact.encode("utf-8")) > CANVAS_SNAPSHOT_BYTE_LIMIT * 2:
-        raise ValueError(
-            canvas_snapshot_budget_error(bounded, len(compact.encode("utf-8")))
-            or "canvas snapshot still exceeds hard limit after omit"
-        )
-    rendered = json.dumps(bounded, ensure_ascii=False, indent=2)
-    temporary = target.with_name(f".{target.name}.{os.getpid()}.tmp")
-    try:
-        with temporary.open("w", encoding="utf-8") as stream:
-            stream.write(rendered)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, target)
-    finally:
-        temporary.unlink(missing_ok=True)
-    return target
+    """Retired: write a thin retired marker instead of canvas projection."""
+    out = path or (ROOT / "tmp" / "ndf-canvas-snapshot.json")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    body = {
+        "schema": "ndf-commander-retired/v1",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "note": "commander snapshot write retired",
+        "payloadKeys": sorted(str(k) for k in payload.keys())[:32],
+    }
+    out.write_text(
+        json.dumps(body, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return out
 
 
 def write_live_commander_snapshot(topic: str | None = None) -> dict[str, Any]:
-    """Rebuild tmp/ndf-canvas-snapshot.json. Live --serve watches this file."""
-    selected = (topic or "").strip() or persisted_active_topic()
-    payload = snapshot(selected, False, None)
-    projected = canvas_snapshot(payload)
-    path = write_commander_snapshot(
-        projected
-        if isinstance(projected, dict)
-        and projected.get("schema") == "ndf-workflow-canvas-snapshot/v1"
-        else canvas_snapshot(payload),
-        ROOT / "tmp" / "ndf-canvas-snapshot.json",
-    )
-    freshness = projected.get("projectionFreshness") if isinstance(projected, dict) else {}
+    """Commander live snapshot retired (ADR-META-004)."""
     return {
-        "schema": "ndf-live-snapshot/v1",
-        "path": rel(path),
-        "topic": selected,
-        "freshness": (freshness or {}).get("state") if isinstance(freshness, Mapping) else None,
-        "absorbedActionId": projected.get("absorbedActionId")
-        if isinstance(projected, dict)
-        else None,
+        "schema": "ndf-commander-retired/v1",
+        "command": "write_live_commander_snapshot",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "topic": topic,
     }
 
 
@@ -8620,65 +7406,13 @@ def persist_dispatch_pack(payload: Mapping[str, Any]) -> Path:
 
 
 def close_unsent_started_action() -> dict[str, Any] | None:
-    """Stop-hook backstop: finish a started attempt that is not awaiting send."""
-    import ndf_dispatch_send as dispatch
-
-    receipts = read_action_receipts()
-    started = next(
-        (
-            receipt
-            for receipt in reversed(receipts)
-            if receipt.get("status") == "started" and receipt.get("action_id")
-        ),
-        None,
-    )
-    if started is None:
-        return None
-    action_id = str(started["action_id"])
-    last: dict[str, Any] = {}
-    if dispatch.DISPATCH_LAST.is_file():
-        try:
-            loaded = json.loads(dispatch.DISPATCH_LAST.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                last = loaded
-        except json.JSONDecodeError:
-            last = {}
-    in_flight = str(last.get("state") or "") in {"sent", "awaiting_result", "running"}
-    last_aid = str(last.get("action_id") or last.get("attempt_id") or "")
-    if in_flight and (not last_aid or last_aid == action_id):
-        return {
-            "schema": "ndf-unsent-action-close/v1",
-            "skipped": "dispatch_in_flight",
-            "action_id": action_id,
-        }
-    # Ready pack on disk awaiting human 「派发」 — do not cancel.
-    if DISPATCH_PACK_PATH.is_file():
-        try:
-            pack = json.loads(DISPATCH_PACK_PATH.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            pack = {}
-        if isinstance(pack, dict) and pack.get("safe_to_dispatch") is True:
-            pack_aid = str(pack.get("action_id") or pack.get("attempt_id") or "")
-            if not pack_aid or pack_aid == action_id:
-                return {
-                    "schema": "ndf-unsent-action-close/v1",
-                    "skipped": "awaiting_human_dispatch",
-                    "action_id": action_id,
-                    "pack_path": rel(DISPATCH_PACK_PATH),
-                }
-    episode = started.get("episode_id") or (started.get("replay") or {}).get("episode_id")
-    finish = action_finish(
-        action_id,
-        "cancelled",
-        ["abandoned_at_command_stop"],
-        str(episode) if episode else None,
-    )
-    snap = write_live_commander_snapshot(str(started.get("topic") or "") or None)
+    """Stop-hook backstop retired with ActionSpec (ADR-META-004)."""
     return {
-        "schema": "ndf-unsent-action-close/v1",
-        "action_id": action_id,
-        "action_finish": finish,
-        "snapshot": snap,
+        "schema": "ndf-commander-retired/v1",
+        "command": "close_unsent_started_action",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "skipped": "action_spec_retired",
     }
 
 
@@ -9319,294 +8053,14 @@ def host_pids_report(*, kill_stale: bool = False) -> dict[str, Any]:
     }
 
 
-class BoundedThreadingHTTPServer(ThreadingHTTPServer):
-    """ThreadingHTTPServer with daemon threads and a hard worker cap."""
-
-    daemon_threads = True
-
-    def __init__(self, server_address, RequestHandlerClass, *, max_workers: int = SERVE_MAX_WORKERS):
-        self._worker_slots = threading.BoundedSemaphore(int(max_workers))
-        super().__init__(server_address, RequestHandlerClass)
-
-    def process_request(self, request, client_address):  # noqa: ANN001
-        # Non-blocking: never stall the accept loop when workers are saturated
-        # (e.g. max SSE sessions held open). Prefer refuse over unbounded wait.
-        if not self._worker_slots.acquire(blocking=False):
-            try:
-                request.shutdown(socket.SHUT_RDWR)
-            except OSError:
-                pass
-            try:
-                request.close()
-            except OSError:
-                pass
-            return
-        try:
-            t = threading.Thread(
-                target=self.process_request_thread,
-                args=(request, client_address),
-            )
-            t.daemon = True
-            t.start()
-        except Exception:
-            self._worker_slots.release()
-            raise
-
-    def process_request_thread(self, request, client_address):  # noqa: ANN001
-        try:
-            self.finish_request(request, client_address)
-        except Exception:
-            self.handle_error(request, client_address)
-        finally:
-            try:
-                self.shutdown_request(request)
-            finally:
-                self._worker_slots.release()
-
-
-def _enable_tcp_keepalive(conn: socket.socket) -> None:
-    """Fail soft: keepalive helps detect dead SSE clients without relying on MSG_PEEK alone."""
-    try:
-        conn.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        if hasattr(socket, "TCP_KEEPIDLE"):
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
-        if hasattr(socket, "TCP_KEEPINTVL"):
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
-        if hasattr(socket, "TCP_KEEPCNT"):
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
-    except OSError:
-        pass
-
-
-def load_served_snapshot(path: Path) -> dict[str, Any]:
-    """Read the on-disk commander snapshot. Does not rebuild or probe."""
-    return json.loads(Path(path).read_text(encoding="utf-8"))
-
-
-def served_payload_sha(payload: Mapping[str, Any]) -> str:
-    return str(payload.get("payloadSha") or "")
-
-
-def commander_http_handler(
-    *,
-    dist: Path,
-    state: dict[str, Any],
-) -> type[SimpleHTTPRequestHandler]:
-    """HTTP handler for --serve. GET /api/refresh reads disk; POST rebuilds."""
-    root = str(dist if dist.is_dir() else META / "cockpit")
-
-    class Handler(SimpleHTTPRequestHandler):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, directory=root, **kwargs)
-
-        def log_message(self, format: str, *args: Any) -> None:
-            sys.stderr.write("%s - %s\n" % (self.address_string(), format % args))
-
-        def _send_json(self, payload: Mapping[str, Any], code: int = 200) -> None:
-            body = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
-            self.send_response(code)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def _read_json(self) -> dict[str, Any]:
-            length = int(self.headers.get("Content-Length") or 0)
-            if length <= 0:
-                return {}
-            raw = self.rfile.read(length)
-            data = json.loads(raw.decode("utf-8"))
-            return data if isinstance(data, dict) else {}
-
-        def _stream_snapshot_events(self) -> None:
-            sse_slots: threading.BoundedSemaphore = state.setdefault(
-                "sse_slots",
-                threading.BoundedSemaphore(int(state.get("max_sse") or SERVE_MAX_SSE)),
-            )
-            if not sse_slots.acquire(blocking=False):
-                self.send_error(503, "sse_limit_exceeded")
-                return
-            try:
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("Connection", "keep-alive")
-                self.send_header("X-Accel-Buffering", "no")
-                self.end_headers()
-                last_sha: str | None = None
-                interval = float(state.get("event_interval") or 0.5)
-                max_seconds = float(state.get("sse_max_seconds") or SERVE_SSE_MAX_SECONDS)
-                deadline = time.monotonic() + max(0.05, max_seconds)
-                conn = self.connection
-                _enable_tcp_keepalive(conn)
-                while time.monotonic() < deadline:
-                    try:
-                        readable, _, _ = select.select([conn], [], [], interval)
-                        if readable:
-                            peeked = conn.recv(1, socket.MSG_PEEK)
-                            if not peeked:
-                                break
-                        payload = load_served_snapshot(state["out"])
-                        sha = served_payload_sha(payload)
-                        if sha != last_sha:
-                            last_sha = sha
-                            data = json.dumps({"payloadSha": sha}, ensure_ascii=False)
-                            self.wfile.write(f"event: snapshot\ndata: {data}\n\n".encode("utf-8"))
-                            self.wfile.flush()
-                    except (
-                        BrokenPipeError,
-                        ConnectionResetError,
-                        ConnectionAbortedError,
-                        TimeoutError,
-                        OSError,
-                    ):
-                        break
-            finally:
-                sse_slots.release()
-
-        def do_GET(self) -> None:  # noqa: N802
-            parsed = urlparse(self.path)
-            if parsed.path in {"/snapshot.json", "/api/snapshot", "/api/refresh"}:
-                self._send_json(load_served_snapshot(state["out"]))
-                return
-            if parsed.path == "/api/events":
-                self._stream_snapshot_events()
-                return
-            if parsed.path == "/api/registry":
-                self._send_json(ndf_actions.load_registry())
-                return
-            if parsed.path in {"/", "/index.html"} and not Path(root).joinpath("index.html").is_file():
-                body = (
-                    "<!doctype html><meta charset=utf-8><title>NDF commander</title>"
-                    "<p>Build the cockpit: <code>cd spec/meta/cockpit && npm install && npm run build</code></p>"
-                    "<p>Snapshot: <a href=/snapshot.json>/snapshot.json</a></p>"
-                ).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                return
-            super().do_GET()
-
-        def do_POST(self) -> None:  # noqa: N802
-            parsed = urlparse(self.path)
-            body = self._read_json()
-            action_id = str(body.get("id") or "")
-            if parsed.path == "/api/refresh":
-                action_id = action_id or "refresh-snapshot"
-            if parsed.path in {"/api/refresh", "/api/action"}:
-                catalog = ndf_actions.registry_by_id().get(action_id)
-                if catalog is None:
-                    self._send_json({"error": "unregistered_action", "id": action_id}, 400)
-                    return
-                current = load_served_snapshot(state["out"])
-                ctx: dict[str, Any] = {}
-                if body.get("topic") or state["topic"]:
-                    ctx["topicId"] = body.get("topic") or state["topic"]
-                if body.get("episode") or state["replay_episode"]:
-                    ctx["episodeId"] = body.get("episode") or state["replay_episode"]
-                if "timelineStep" in body:
-                    ctx["timelineStep"] = body.get("timelineStep")
-                evaluated = ndf_actions.evaluate_action(catalog, current, ctx)
-                intent = str(body.get("intent") or "")
-                if catalog.get("requiresIntent") and not intent.strip():
-                    self._send_json({"error": "needs_intent", "id": action_id}, 400)
-                    return
-                if catalog.get("dispatch") != "projection_only" and not evaluated["enabled"]:
-                    self._send_json(
-                        {
-                            "error": "disabled",
-                            "id": action_id,
-                            "reason": evaluated["reason"],
-                        },
-                        400,
-                    )
-                    return
-                if catalog.get("dispatch") == "composer":
-                    prompt = ndf_actions.composer_prompt(
-                        action_id,
-                        current,
-                        intent=intent,
-                        topic=ctx.get("topicId"),
-                        episode_id=ctx.get("episodeId"),
-                        remote=str(body.get("remote") or "") or None,
-                        remote_url=str(body.get("remoteUrl") or body.get("remote_url") or "") or None,
-                        branch=str(body.get("branch") or "") or None,
-                    )
-                    prompt_path = ndf_actions.persist_action_prompt(action_id, prompt)
-                    self._send_json(
-                        {
-                            "id": action_id,
-                            "dispatch": "composer",
-                            "enabled": evaluated["enabled"],
-                            "reason": evaluated["reason"],
-                            "prompt": prompt,
-                            "promptPath": str(prompt_path.relative_to(ROOT)),
-                            "humanPhrase": catalog.get("humanPhrase"),
-                        }
-                    )
-                    return
-                if catalog.get("dispatch") == "openFile":
-                    self._send_json(
-                        {
-                            "id": action_id,
-                            "dispatch": "openFile",
-                            "path": ndf_actions.open_file_path(action_id, current),
-                            "enabled": evaluated["enabled"],
-                            "reason": evaluated["reason"],
-                        }
-                    )
-                    return
-                if catalog.get("dispatch") != "snapshot":
-                    self._send_json({"error": "projection_only", "id": action_id}, 400)
-                    return
-                if action_id in {"open-workbench", "refresh-topic"} and ctx.get("topicId"):
-                    state["topic"] = ctx["topicId"]
-                if action_id == "inspect-ledger" and ctx.get("episodeId"):
-                    state["replay_episode"] = ctx["episodeId"]
-                # Honor catalog probeRuntime, request probeMode, and serve --probe-runtime.
-                # Default refresh-snapshot stays unprobed (doctor hangs Product CTAs).
-                # Agents page may pass probeMode=light for CLI/resume without doctor.
-                catalog_probe = catalog.get("probeRuntime")
-                body_mode = body.get("probeMode") or body.get("probe_mode")
-                if body_mode in {"light", "full"}:
-                    probe: bool | str = str(body_mode)
-                elif catalog_probe in {"light", "full"}:
-                    probe = str(catalog_probe)
-                elif catalog_probe is True:
-                    probe = "full"
-                elif action_id == "refresh-snapshot" and state.get("probe_runtime"):
-                    serve_probe = state["probe_runtime"]
-                    probe = (
-                        serve_probe
-                        if serve_probe in {"light", "full", True}
-                        else ("full" if serve_probe else False)
-                    )
-                else:
-                    probe = False
-                payload = canvas_snapshot(
-                    snapshot(
-                        state["topic"],
-                        probe,
-                        replay_episode=state["replay_episode"],
-                    )
-                )
-                write_commander_snapshot(payload, state["out"])
-                self._send_json(
-                    {
-                        "id": action_id,
-                        "dispatch": "snapshot",
-                        "enabled": True,
-                        "payloadSha": payload.get("payloadSha"),
-                        "snapshot": payload,
-                    }
-                )
-                return
-            self.send_error(404)
-
-    return Handler
+def ensure_cockpit_dist_built(*, force: bool = False) -> dict[str, Any]:
+    """Commander cockpit retired (ADR-META-004). No-op stub."""
+    return {
+        "built": False,
+        "reason": "commander_retired",
+        "dist": None,
+        "force": bool(force),
+    }
 
 
 def serve_commander(
@@ -9618,47 +8072,14 @@ def serve_commander(
     port: int,
     event_interval: float = 0.5,
 ) -> dict[str, Any]:
-    """Serve the React+D3 commander and rebuild snapshot JSON on demand."""
-    ensure_serve_pid_headroom()
-    lock = acquire_serve_lock(port)
-    atexit.register(release_serve_lock, pid=os.getpid())
-    payload = canvas_snapshot(snapshot(topic, probe_runtime, replay_episode=replay_episode))
-    write_commander_snapshot(payload, out)
-    dist = META / "cockpit" / "dist"
-    state = {
-        "topic": topic,
-        "replay_episode": replay_episode,
-        "probe_runtime": probe_runtime,
-        "out": out,
-        "event_interval": event_interval,
-        "max_sse": SERVE_MAX_SSE,
-        "sse_max_seconds": SERVE_SSE_MAX_SECONDS,
-        "sse_slots": threading.BoundedSemaphore(SERVE_MAX_SSE),
-    }
-    Handler = commander_http_handler(dist=dist, state=state)
+    """Commander --serve retired (ADR-META-004)."""
+    raise RuntimeError(
+        "snapshot --serve is deprecated (ADR-META-004). "
+        "Use .cursor/skills/ndf-workflow/ + poc-dispatch. "
+        f"(ignored topic={topic!r} port={port} out={out} "
+        f"probe={probe_runtime} episode={replay_episode} interval={event_interval})"
+    )
 
-    httpd = BoundedThreadingHTTPServer(
-        ("127.0.0.1", port),
-        Handler,
-        max_workers=SERVE_MAX_WORKERS,
-    )
-    url = f"http://127.0.0.1:{port}/"
-    sys.stderr.write(
-        f"NDF commander at {url} snapshot={out}\n"
-        f"bind=127.0.0.1 lock={SERVE_LOCK_PATH} pid={lock.get('pid')} "
-        f"workers<={SERVE_MAX_WORKERS} sse<={SERVE_MAX_SSE} "
-        f"sse_max_s={SERVE_SSE_MAX_SECONDS}\n"
-        "GET /api/refresh reads the snapshot file; "
-        "GET /api/events pushes payloadSha. Open this URL on the machine that ran --serve.\n"
-    )
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        httpd.server_close()
-        release_serve_lock(pid=os.getpid())
-    return {"url": url, "outPath": rel(out)}
 
 
 def update_embedded_snapshot(
@@ -9669,71 +8090,14 @@ def update_embedded_snapshot(
     replay_episode: str | None = None,
     out: Path | None = None,
 ) -> dict[str, Any]:
-    """Write commander JSON and embed a thin Canvas launcher SNAPSHOT."""
-    text = read_text(path)
-    match = re.search(r"\bconst\s+SNAPSHOT\b[^=]*=", text)
-    if not match:
-        raise ValueError(f"const SNAPSHOT JSON not found: {path}")
-    tail = text[match.end() :].lstrip()
-    leading = len(text[match.end() :]) - len(tail)
-    try:
-        _, consumed = json.JSONDecoder().raw_decode(tail)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"invalid embedded SNAPSHOT JSON: {exc}") from exc
-    payload = canvas_snapshot(
-        snapshot(topic, probe_runtime, replay_episode=replay_episode)
-    )
-    compact = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    encoded = compact.encode("utf-8")
-    budget_error = canvas_snapshot_budget_error(payload, len(encoded))
-    if budget_error:
-        raise ValueError(budget_error)
-    out_path = write_commander_snapshot(payload, out)
-    launcher = ndf_actions.canvas_launcher_snapshot(payload)
-    # TSX canvas parsers fail on 32KiB+ single lines; pretty-print the file
-    # while the 120KiB budget still measures compact UTF-8.
-    rendered = json.dumps(launcher, ensure_ascii=False, indent=2)
-    longest = max((len(line) for line in rendered.splitlines()), default=0)
-    if longest > 8000:
-        raise ValueError(
-            f"embedded SNAPSHOT line length {longest} exceeds 8000; "
-            "trim the overflowing string field"
-        )
-    start = match.end() + leading
-    updated = text[:start] + rendered + tail[consumed:]
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        with temporary.open("w", encoding="utf-8") as stream:
-            stream.write(updated)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
-    finally:
-        temporary.unlink(missing_ok=True)
-    verification = verify_embedded_snapshot(
-        path,
-        topic=topic,
-        replay_episode=replay_episode,
-        expected=launcher,
-    )
+    """Commander embedded SNAPSHOT retired (ADR-META-004)."""
+    del path, topic, probe_runtime, replay_episode, out
     return {
-        "schema": "ndf-embedded-projection-update/v1",
-        "updated": verification["valid"],
-        "path": str(path),
-        "outPath": rel(out_path),
-        "payloadSha": payload.get("payloadSha"),
-        "snapshotSha": payload.get("snapshotSha"),
-        "absorbedActionId": payload.get("absorbedActionId"),
-        "verification": verification,
-        "embeddedBytes": len(encoded),
-        "launcherBytes": len(rendered.encode("utf-8")),
-        "replayEpisode": replay_episode
-        or ((payload.get("replay") or {}).get("focused") or {}).get("id"),
+        "schema": "ndf-commander-retired/v1",
+        "command": "snapshot --update-embedded",
+        "deprecated": True,
+        "updated": False,
+        "reason": "ADR-META-004",
     }
 
 
@@ -9741,70 +8105,17 @@ def record_projection_verification(
     source_path: Path,
     verification: Mapping[str, Any],
     *,
-    topic: str | None,
-    episode_id: str | None,
+    topic: str | None = None,
+    episode_id: str | None = None,
 ) -> dict[str, Any]:
-    """Persist an evidence-bound embedded projection receipt."""
-    if episode_id:
-        store = ndf_replay.ReplayStore(ROOT)
-        if store.read_ref(f"episodes/{episode_id}/HEAD") is None:
-            raise ValueError(f"unknown replay episode: {episode_id}")
-    timestamp = now_iso()
-    evidence = {
-        "schema": "ndf-embedded-projection-evidence/v1",
-        "source_path": str(source_path.resolve()),
-        "source_file_sha": file_sha(source_path),
-        "topic": topic,
-        "checks": dict(verification.get("checks") or {}),
-        "embedded": dict(verification.get("embedded") or {}),
-        "fresh": dict(verification.get("fresh") or {}),
+    """Projection verification retired with Commander (ADR-META-004)."""
+    del source_path, verification, topic, episode_id
+    return {
+        "schema": "ndf-commander-retired/v1",
+        "command": "record_projection_verification",
+        "deprecated": True,
+        "reason": "ADR-META-004",
     }
-    evidence_name = (
-        "embedded-"
-        f"{str((verification.get('embedded') or {}).get('canonicalPayloadSha') or 'unknown')}.json"
-    )
-    evidence_path = PROJECTION_EVIDENCE_DIR / evidence_name
-    write_json_artifact(evidence_path, evidence)
-    evidence_rel = rel(evidence_path)
-    output_sha = evidence_bundle_sha([evidence_rel], root=ROOT)
-    receipt = {
-        "schema": "ndf-projection-receipt/v2",
-        "task": "snapshot_embedded",
-        "topic": topic,
-        "mode": "process",
-        "step": "verify-embedded",
-        "repo_head": git_head(),
-        "source_generation_sha": (verification.get("fresh") or {}).get("snapshotSha"),
-        "manifest_sha": None,
-        "context_plan_sha": None,
-        "command": "ndf_workflow_status.py snapshot --verify-embedded",
-        "input_sha": file_sha(source_path),
-        "output_sha": output_sha,
-        "evidence_paths": [evidence_rel],
-        "started_at": timestamp,
-        "finished_at": timestamp,
-        "result": "passed" if verification.get("valid") else "failed",
-        "blockers": [] if verification.get("valid") else ["embedded_projection_mismatch"],
-        "projection_sha": (verification.get("embedded") or {}).get(
-            "canonicalPayloadSha"
-        ),
-        "snapshot_sha_after": (verification.get("fresh") or {}).get("snapshotSha"),
-        "absorbed_action_id": (verification.get("embedded") or {}).get(
-            "absorbedActionId"
-        ),
-        "episode_id": episode_id,
-    }
-    validation = validate_receipt(receipt)
-    bundle_validation = validate_evidence_bundle(receipt, root=ROOT)
-    if not validation["valid"] or not bundle_validation["valid"]:
-        raise ValueError(
-            f"invalid projection receipt: {validation['errors'] + bundle_validation['errors']}"
-        )
-    receipt_path = PROJECTION_EVIDENCE_DIR / (
-        f"receipt-{str(receipt['projection_sha'] or 'unknown')}.json"
-    )
-    write_json_artifact(receipt_path, receipt)
-    return {**receipt, "receipt_path": rel(receipt_path)}
 
 
 def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any], int]:
@@ -9834,6 +8145,7 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
         not in {
             "runtime_unavailable",
             "topic_active_lease",
+            "lease_stale_vs_head",
             "runtime_not_probed",
             "missing_active_isolated_lease",
         }
@@ -9848,12 +8160,15 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
             else []
         ),
         *(
+            ["lease_stale_vs_head"]
+            if lease and lease_stale_vs_head(lease)
+            else []
+        ),
+        *(
             ["topic_active_lease"]
             if lease
-            and not (
-                str(lease.get("base_sha") or lease.get("repo_head") or "")
-                == str(git_head() or "")
-            )
+            and not active_lease_ok
+            and not lease_stale_vs_head(lease)
             else []
         ),
     ]
@@ -9909,9 +8224,11 @@ def pack_topic(topic: str, episode_id: str | None = None) -> tuple[dict[str, Any
             "allowed_write_root",
         ],
     }
-    return bind_pack_to_episode(
-        _with_completion_receipt_path(payload), episode_id=episode_id
-    ), 0 if safe_to_dispatch else 1
+    payload = _with_completion_receipt_path(payload)
+    apply_acp_context_budget_to_pack(payload)
+    return bind_pack_to_episode(payload, episode_id=episode_id), (
+        0 if payload.get("safe_to_dispatch") else 1
+    )
 
 
 def pack_prepare_acp_lease(
@@ -9960,10 +8277,12 @@ def pack_prepare_acp_lease(
             "base_sha",
             "repo_root",
             "allowed_write_root",
-            "episode_id",
         ],
     }
-    return bind_pack_to_episode(payload, episode_id=episode_id), 0 if safe_to_dispatch else 1
+    apply_acp_context_budget_to_pack(payload)
+    return bind_pack_to_episode(payload, episode_id=episode_id), (
+        0 if payload.get("safe_to_dispatch") else 1
+    )
 
 
 def _with_completion_receipt_path(payload: dict[str, Any]) -> dict[str, Any]:
@@ -9986,17 +8305,13 @@ def evaluate_execution_capabilities(
     ``waiting_human`` blockers rather than pretending transport is enough.
     """
     catalog_id = (catalog_action_id or "").strip()
-    action = ndf_actions.registry_by_id().get(catalog_id) if catalog_id else None
-    if action is None and task:
-        # Map repair task → catalog id.
-        for item in ndf_actions.registry_actions():
-            if item.get("task") == task or item.get("packTask") == task:
-                action = item
-                catalog_id = item["id"]
-                break
+    # ActionSpec retired — capability defaults by provider/task only.
+    action: Mapping[str, Any] | None = None
     required = list((action or {}).get("requiredCapabilities") or [])
     if not required and provider == "claude-code-acp":
         required = ["transport", "write_poc_ndf", "isolated_worktree"]
+    if not required and task == "poc_measurement":
+        required = ["transport", "write_poc_ndf", "run_sustained"]
     missing: list[str] = []
     waiting: list[str] = []
     present: list[str] = []
@@ -10066,82 +8381,17 @@ def capability_approve(
     topic: str | None = None,
     note: str | None = None,
 ) -> dict[str, Any]:
-    """Record human capability approval, close waiting attempts, snapshot --out."""
-    catalog_id = (catalog_action_id or "").strip()
-    if catalog_id not in ndf_actions.registry_by_id():
-        raise ValueError(f"unknown catalog_action_id: {catalog_id}")
-    caps = [item.strip() for item in capabilities if str(item).strip()]
-    if not caps:
-        raise ValueError("at least one --capability is required")
-    receipt_path = ROOT / "tmp" / "ndf-capability-receipt.json"
-    existing: dict[str, Any] = {}
-    if receipt_path.is_file():
-        try:
-            loaded = json.loads(receipt_path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                existing = loaded
-        except json.JSONDecodeError:
-            existing = {}
-    approved = {
-        str(item)
-        for item in (existing.get("approved_capabilities") or [])
-        if str(item).strip()
-    }
-    approved.update(caps)
-    selected_topic = (topic or "").strip() or persisted_active_topic()
-    receipt = {
-        "schema": "ndf-capability-receipt/v1",
-        "topic": selected_topic,
-        "catalog_action_id": catalog_id,
-        "approved_capabilities": sorted(approved),
-        "approved_by": (approved_by or "human").strip() or "human",
-        "approved_at": now_iso(),
-        "note": note,
-    }
-    receipt_path.parent.mkdir(parents=True, exist_ok=True)
-    receipt_path.write_text(
-        json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-    latest_by_id: dict[str, dict[str, Any]] = {}
-    for row in read_action_receipts():
-        latest_by_id[str(row.get("action_id"))] = row
-    action_spec = ndf_actions.registry_by_id().get(catalog_id) or {}
-    expected_ops = {
-        catalog_id,
-        str(action_spec.get("task") or ""),
-        str(action_spec.get("operation") or ""),
-        str(action_spec.get("packTask") or ""),
-    }
-    finished: list[dict[str, Any]] = []
-    for row in latest_by_id.values():
-        if row.get("status") != "started":
-            continue
-        rec_catalog = str(row.get("catalog_action_id") or "")
-        rec_op = str(row.get("operation") or row.get("task") or "")
-        if rec_catalog and rec_catalog != catalog_id:
-            continue
-        if rec_catalog != catalog_id and rec_op not in expected_ops:
-            continue
-        episode = row.get("episode_id") or (row.get("replay") or {}).get("episode_id")
-        try:
-            finished.append(
-                action_finish(
-                    str(row["action_id"]),
-                    "cancelled",
-                    ["waiting_human_resolved"],
-                    str(episode) if episode else None,
-                )
-            )
-        except ValueError:
-            continue
-    snap = write_live_commander_snapshot(selected_topic)
+    """Capability approvals retired with ActionSpec (ADR-META-004)."""
     return {
-        "schema": "ndf-capability-approve/v1",
-        "receipt_path": rel(receipt_path),
-        "receipt": receipt,
-        "finished_actions": [item.get("action_id") for item in finished],
-        "snapshot": snap,
+        "schema": "ndf-commander-retired/v1",
+        "command": "capability-approve",
+        "deprecated": True,
+        "reason": "ADR-META-004",
+        "catalog_action_id": catalog_action_id,
+        "capabilities": list(capabilities or []),
+        "approved_by": approved_by,
+        "topic": topic,
+        "note": note,
     }
 
 
@@ -10266,14 +8516,7 @@ def repair_pack(
             if caps.get("waiting_human") and static_ready and runtime_ready
             else ("ready" if safe_to_dispatch else "blocked")
         ),
-        "catalog_action_id": next(
-            (
-                item["id"]
-                for item in ndf_actions.registry_actions()
-                if item.get("task") == task or item.get("packTask") == task
-            ),
-            None,
-        ),
+        "catalog_action_id": None,  # ActionSpec retired (ADR-META-004)
         **context,
         "blockers": blockers,
         "human_gate": (
@@ -10299,6 +8542,8 @@ def repair_pack(
             f"python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic {topic} --json",
         ],
     }
+    payload = _with_completion_receipt_path(payload)
+    apply_acp_context_budget_to_pack(payload)
     attempt = (action_id or "").strip() or None
     if attempt:
         payload["action_id"] = attempt
@@ -10318,9 +8563,7 @@ def repair_pack(
                     or (start.get("replay") or {}).get("episode_id")
                     or ""
                 ) or None
-    bound = bind_pack_to_episode(
-        _with_completion_receipt_path(payload), episode_id=episode_id
-    )
+    bound = bind_pack_to_episode(payload, episode_id=episode_id)
     persist_dispatch_pack(bound)
     return bound, 0 if bound.get("safe_to_dispatch") else 1
 
@@ -10329,28 +8572,45 @@ def control_proposal_idea_pack(
     episode_id: str | None = None,
     *,
     intent: str | None = None,
+    task: str = "product_proposal",
 ) -> tuple[dict[str, Any], int]:
-    """Topic-less Product idea hop: draft spec/open/ only, stop at 已确认."""
-    normalized_intent = normalize_process_intent(intent)
-    allowed_roots = ["spec/open/"]
+    """Topic-less idea hop: product → spec/open/; process → spec/meta/open/."""
+    canonical = canonicalize_proposal_task(task)
+    if canonical not in {"product_proposal", "process_proposal"}:
+        raise ValueError(f"idea hop task must be product/process proposal, got {task}")
+    plane = "product" if canonical == "product_proposal" else "process"
+    normalized_intent = normalize_human_intent(intent)
+    allowed_roots = allowed_roots_for_idea_plane(plane)
+    assert_idea_write_roots(canonical, allowed_roots)
+    pack_task = (
+        "ndf_improvement_proposal"
+        if canonical == "process_proposal"
+        else "product_proposal"
+    )
+    # Legacy alias preserved on wire for product packs that still say control_proposal.
+    wire_task = task if task in CONTROL_TASKS | PROJECT_CONTROL_TASKS else pack_task
+    if canonical == "product_proposal" and task == "control_proposal":
+        wire_task = "control_proposal"
+    elif canonical == "product_proposal":
+        wire_task = "product_proposal"
+    role = "project-control" if plane == "process" else "openclaw"
+    track = "process" if plane == "process" else "poc"
     context = context_binding(
         topic=None,
-        role="openclaw",
-        task="control_proposal",
-        track="poc",
+        role=role,
+        task=pack_task if plane == "process" else "product_proposal",
+        track=track,
         allowed_write_roots=allowed_roots,
     )
     context_valid = bool(context["context_verify"].get("valid"))
-    episode_ready = bool(episode_id or os.environ.get("NDF_REPLAY_EPISODE"))
-    static_ready = bool(normalized_intent) and context_valid and episode_ready
+    # Episode no longer required for daily idea hops (ADR-META-004).
+    static_ready = bool(normalized_intent) and context_valid
     control_runtime = runtime_status(True)["control"]
     runtime_ready = control_runtime_dispatch_ready(control_runtime)
     safe = static_ready and runtime_ready
     blockers: list[str] = []
     if not normalized_intent:
         blockers.append("human_intent_missing")
-    if not episode_ready:
-        blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
     blockers.extend(control_runtime_dispatch_blockers(control_runtime))
@@ -10359,14 +8619,34 @@ def control_proposal_idea_pack(
         if normalized_intent
         else None
     )
+    forbidden = [
+        "poc/",
+        "src/",
+        "include/",
+        "tests/",
+        ".openclaw/state.json",
+        "GATES.md approved_by without human phrase",
+        "human approval fabrication",
+    ]
+    if plane == "product":
+        forbidden.extend(["spec/meta/", "spec/meta/open/", "spec/meta/ (stable body)"])
+    else:
+        forbidden.extend(["spec/open/", "spec/00-charter/", "spec/20-behavior/"])
+    schema = (
+        "ndf-project-control-pack/v2"
+        if plane == "process"
+        else "ndf-control-pack/v2"
+    )
     payload = {
-        "schema": "ndf-control-pack/v2",
+        "schema": schema,
         "compatibility": {"legacy_schema": "ndf-control-pack/v1"},
         "generated_at": now_iso(),
         "topic": None,
-        "track": "poc",
-        "task": "control_proposal",
-        "pipeline": None,
+        "track": track,
+        "task": wire_task,
+        "idea_plane": plane,
+        "canonical_task": canonical,
+        "pipeline": PIPELINE_PROCESS if plane == "process" else None,
         "pipeline_plan": None,
         "hop": "draft",
         "resume": False,
@@ -10385,22 +8665,12 @@ def control_proposal_idea_pack(
             "intent_summary": (
                 clean_markdown(normalized_intent, 400) if normalized_intent else None
             ),
+            "idea_plane": plane,
         },
-        "required_reads": required_reads_for_task("control_proposal", None),
+        "required_reads": required_reads_for_task(canonical, None),
         "allowed_write_roots": allowed_roots,
         "allowed_write_paths": allowed_roots,
-        "forbidden": [
-            "poc/",
-            "src/",
-            "include/",
-            "tests/",
-            "spec/meta/",
-            "spec/meta/open/",
-            "spec/meta/ (stable body)",
-            ".openclaw/state.json",
-            "GATES.md approved_by without human phrase",
-            "human approval fabrication",
-        ],
+        "forbidden": forbidden,
         "required_proposal_status": REQUIRED_PROCESS_PROPOSAL_STATUS,
         "next_human_phrase": "已确认",
         "safe_to_delegate": static_ready,
@@ -10411,7 +8681,9 @@ def control_proposal_idea_pack(
         "blockers": blockers,
     }
     bound = bind_pack_to_episode(
-        _with_completion_receipt_path(payload), episode_id=episode_id
+        _with_completion_receipt_path(payload),
+        episode_id=episode_id,
+        require_episode=False,
     )
     return bound, 0 if safe else 1
 
@@ -10430,13 +8702,16 @@ def control_pack(
         raise ValueError(f"unknown control task: {task}")
     topic = (topic or "").strip() or None
     if topic is None:
-        if task != "control_proposal":
+        if canonicalize_proposal_task(task) not in {
+            "product_proposal",
+            "process_proposal",
+        }:
             raise ValueError(
-                "control-pack --topic is required except for control_proposal idea hops"
+                "control-pack --topic is required except for product/process proposal idea hops"
             )
         if resume or focus_gate or focus_binder_facet:
             raise ValueError("resume/focus requires --topic")
-        return control_proposal_idea_pack(episode_id, intent=intent)
+        return control_proposal_idea_pack(episode_id, intent=intent, task=task)
     topic_dir = POC / topic
     if not (topic_dir / "ndf" / "TOPIC.md").is_file():
         raise FileNotFoundError(f"unknown topic: {topic}")
@@ -10502,8 +8777,15 @@ def control_pack(
             f"poc/{topic}/ndf/{BINDER_FACET_FILES[facet]}"
             for facet in facets
         ]
+    elif canonicalize_proposal_task(task) == "product_proposal":
+        allowed_roots = allowed_roots_for_idea_plane("product")
+        assert_idea_write_roots(task, allowed_roots)
+    elif canonicalize_proposal_task(task) == "process_proposal":
+        allowed_roots = allowed_roots_for_idea_plane("process")
+        assert_idea_write_roots(task, allowed_roots)
     else:
-        allowed_roots = ["spec/open/", "spec/meta/open/"]
+        allowed_roots = allowed_roots_for_idea_plane("product")
+        assert_idea_write_roots("product_proposal", allowed_roots)
     context = context_binding(
         topic=topic,
         role="openclaw",
@@ -10816,7 +9098,7 @@ def record_control_pipeline_step(
     }, 0
 
 
-def normalize_process_intent(intent: str | None) -> str:
+def normalize_human_intent(intent: str | None) -> str:
     value = (intent or "").replace("\r\n", "\n").replace("\r", "\n").strip()
     if "\0" in value:
         raise ValueError("human intent must not contain NUL bytes")
@@ -10825,6 +9107,11 @@ def normalize_process_intent(intent: str | None) -> str:
             f"human intent exceeds {MAX_PROCESS_INTENT_BYTES} UTF-8 bytes"
         )
     return value
+
+
+def normalize_process_intent(intent: str | None) -> str:
+    """Compatibility alias for normalize_human_intent."""
+    return normalize_human_intent(intent)
 
 
 def read_process_intent_file(path_value: str | None) -> str | None:
@@ -10915,7 +9202,6 @@ def project_control_land_pack(
         control_binding=control_binding,
     )
     context_valid = bool(context["context_verify"].get("valid"))
-    episode_ready = bool(episode_id or os.environ.get("NDF_REPLAY_EPISODE"))
     control_runtime = runtime_status(True)["control"]
     runtime_ready = control_runtime_dispatch_ready(control_runtime)
     blockers: list[str] = []
@@ -10929,8 +9215,6 @@ def project_control_land_pack(
         blockers.append("process_proposal_human_receipt_required")
     elif hop == PROCESS_HOP_MANAGED_REVIEW and human_phrase != "已审核":
         blockers.append("process_proposal_review_phrase_missing")
-    if not episode_ready:
-        blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
     blockers.extend(control_runtime_dispatch_blockers(control_runtime))
@@ -10938,7 +9222,7 @@ def project_control_land_pack(
         hop == PROCESS_HOP_CONFIRM_LAND
         or (hop == PROCESS_HOP_MANAGED_REVIEW and human_phrase == "已审核")
     )
-    static_ready = source_ready and context_valid and episode_ready and not path_blocker
+    static_ready = source_ready and context_valid and not path_blocker
     if hop in {None, PROCESS_HOP_DONE}:
         static_ready = False
     if hop == PROCESS_HOP_CONFIRM_LAND:
@@ -11116,13 +9400,12 @@ def project_control_pack(
         control_binding=control_binding,
     )
     context_valid = bool(context["context_verify"].get("valid"))
-    episode_ready = bool(episode_id or os.environ.get("NDF_REPLAY_EPISODE"))
     source_ready = (
         bool(findings) and health_current
         if origin == "health_finding"
         else bool(normalized_intent)
     )
-    static_ready = source_ready and context_valid and episode_ready
+    static_ready = source_ready and context_valid
     control_runtime = runtime_status(True)["control"]
     runtime_ready = control_runtime_dispatch_ready(control_runtime)
     safe = static_ready and runtime_ready
@@ -11142,8 +9425,6 @@ def project_control_pack(
         blockers.append("process_proposal_target_exists")
         static_ready = False
         safe = False
-    if not episode_ready:
-        blockers.append("replay_episode_missing")
     if not context_valid:
         blockers.append("context_verify_failed")
     blockers.extend(control_runtime_dispatch_blockers(control_runtime))
@@ -12672,6 +10953,29 @@ def main() -> int:
     )
     pack_parser.add_argument("--json", action="store_true")
 
+    poc_dispatch_parser = sub.add_parser(
+        "poc-dispatch",
+        help="Text-first POC dispatch: hard gates only, inline lease (ADR-META-004)",
+    )
+    poc_dispatch_parser.add_argument("--topic", required=True)
+    poc_dispatch_parser.add_argument(
+        "--intent",
+        choices=sorted(POC_DISPATCH_INTENTS),
+        default="implement",
+    )
+    poc_dispatch_parser.add_argument(
+        "--send",
+        action="store_true",
+        help="After pack+lease, call dispatch-send",
+    )
+    poc_dispatch_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="With --send, prepare transport without invoking ACP",
+    )
+    poc_dispatch_parser.add_argument("--episode")
+    poc_dispatch_parser.add_argument("--json", action="store_true")
+
     repair_pack_parser = sub.add_parser("repair-pack")
     repair_pack_parser.add_argument("--topic", required=True)
     repair_pack_parser.add_argument(
@@ -12689,7 +10993,7 @@ def main() -> int:
     control_pack_parser = sub.add_parser("control-pack")
     control_pack_parser.add_argument(
         "--topic",
-        help="Required except for topic-less control_proposal idea hops",
+        help="Required except for topic-less product_proposal/process_proposal idea hops",
     )
     control_pack_parser.add_argument(
         "--task",
@@ -12874,88 +11178,20 @@ def main() -> int:
             emit(payload)
             return code
         if args.command == "snapshot":
-            if args.verify_embedded and args.update_embedded:
-                raise ValueError(
-                    "--verify-embedded and --update-embedded are mutually exclusive"
-                )
-            if args.update_embedded:
-                result = update_embedded_snapshot(
-                    Path(args.update_embedded),
-                    topic=args.topic,
-                    probe_runtime=args.probe_runtime,
-                    replay_episode=args.replay_episode,
-                    out=Path(args.out) if args.out else None,
-                )
-                receipt = record_projection_verification(
-                    Path(args.update_embedded),
-                    result["verification"],
-                    topic=args.topic,
-                    episode_id=args.episode,
-                )
-                result["receipt"] = receipt
-                emit(result)
-                return 0 if result["updated"] else 1
-            if args.verify_embedded:
-                source_path = Path(args.verify_embedded)
-                result = verify_embedded_snapshot(
-                    source_path,
-                    topic=args.topic,
-                    replay_episode=args.replay_episode,
-                )
-                receipt = record_projection_verification(
-                    source_path,
-                    result,
-                    topic=args.topic,
-                    episode_id=args.episode,
-                )
-                result["receipt"] = receipt
-                if result["valid"] and args.episode:
-                    store = ndf_replay.ReplayStore(ROOT)
-                    blob_sha = store.put_blob(receipt)
-                    event = store.append_event(
-                        args.episode,
-                        kind="snapshot.embedded",
-                        actor="canvas",
-                        payload_sha=blob_sha,
-                        topic=args.topic,
-                        task="snapshot_embedded",
-                        track="process",
-                        repo_head=git_head(),
-                        manifest_sha=None,
-                        context_plan_sha=None,
-                    )
-                    result["replay"] = {
-                        "episode_id": args.episode,
-                        "blob_sha": blob_sha,
-                        "event_sha": event["event_sha"],
-                    }
-                emit(result)
-                return 0 if result["valid"] else 1
-            payload = snapshot(args.topic, args.probe_runtime, args.replay_episode)
-            projected = (
-                canvas_snapshot(payload)
-                if args.format == "canvas-json" or args.serve or args.out
-                else payload
+            # ADR-META-004: Commander/canvas snapshot retired — fail fast (no snapshot()).
+            cmd = "snapshot --serve" if args.serve else "snapshot"
+            sys.stderr.write(
+                f"{cmd} is deprecated (ADR-META-004). "
+                "Commander retired; use .cursor/skills/ndf-workflow/ + "
+                "topic-health / poc-dispatch.\n"
             )
-            if args.out or args.serve:
-                out_path = Path(args.out) if args.out else ROOT / "tmp" / "ndf-canvas-snapshot.json"
-                if args.format == "canvas-json" or args.serve or args.out:
-                    write_commander_snapshot(
-                        projected if isinstance(projected, dict) and projected.get("schema") == "ndf-workflow-canvas-snapshot/v1" else canvas_snapshot(payload),
-                        out_path,
-                    )
-            if args.serve:
-                # serve_commander re-checks Chromium forbid + serve reserve.
-                serve_commander(
-                    topic=args.topic,
-                    probe_runtime=args.probe_runtime,
-                    replay_episode=args.replay_episode,
-                    out=Path(args.out) if args.out else ROOT / "tmp" / "ndf-canvas-snapshot.json",
-                    port=args.port,
-                )
-                return 0
-            emit(projected)
-            return 0
+            emit({
+                "schema": "ndf-commander-retired/v1",
+                "command": cmd,
+                "deprecated": True,
+                "reason": "ADR-META-004",
+            })
+            return 2
         if args.command == "host-pids":
             report = host_pids_report(kill_stale=args.kill_stale_serve)
             emit(report)
@@ -12968,44 +11204,29 @@ def main() -> int:
             payload, code = spec_health()
             emit(payload)
             return code
-        if args.command == "action-begin":
-            emit(
-                action_begin(
-                    args.operation,
-                    args.topic,
-                    args.action_id,
-                    args.episode,
-                    catalog_action_id=args.catalog_action_id,
-                )
+        if args.command in {"action-begin", "action-finish", "action-commit"}:
+            sys.stderr.write(
+                f"{args.command} is deprecated (ADR-META-004). "
+                "ActionSpec/Commander retired; use poc-dispatch / dispatch-send.\n"
             )
-            return 0
-        if args.command == "action-finish":
-            emit(action_finish(args.action_id, args.result, args.blocker, args.episode))
-            return 0
+            emit({
+                "schema": "ndf-commander-retired/v1",
+                "command": args.command,
+                "deprecated": True,
+                "reason": "ADR-META-004",
+            })
+            return 2
         if args.command == "capability-approve":
-            emit(
-                capability_approve(
-                    args.catalog_action_id,
-                    args.capabilities,
-                    approved_by=args.approved_by,
-                    topic=args.topic,
-                    note=args.note,
-                )
+            sys.stderr.write(
+                "capability-approve is deprecated (ADR-META-004). "
+                "ActionSpec/Commander retired.\n"
             )
-            return 0
-        if args.command == "action-commit":
-            prompt_text = None
-            if args.prompt_file:
-                prompt_text = Path(args.prompt_file).read_text(encoding="utf-8")
-            emit(
-                action_commit(
-                    args.action_id,
-                    catalog_action_id=args.catalog_action_id,
-                    prompt=prompt_text,
-                    label=args.label,
-                )
-            )
-            return 0
+            emit({
+                "schema": "ndf-commander-retired/v1",
+                "command": "capability-approve",
+                "deprecated": True,
+            })
+            return 2
         if args.command == "dispatch-send":
             import ndf_dispatch_send
 
@@ -13045,6 +11266,18 @@ def main() -> int:
             persist_dispatch_pack(payload)
             emit(payload)
             return code
+        if args.command == "poc-dispatch":
+            import ndf_poc_dispatch as poc_dispatch_mod
+
+            payload, code = poc_dispatch_mod.poc_dispatch(
+                args.topic,
+                intent=args.intent,
+                send=bool(args.send),
+                episode_id=args.episode,
+                dry_run=bool(args.dry_run),
+            )
+            emit(payload)
+            return code
         if args.command == "repair-pack":
             payload, code = repair_pack(
                 args.topic, args.task, args.episode, args.action_id
@@ -13053,12 +11286,15 @@ def main() -> int:
             emit(payload)
             return code
         if args.command == "control-pack":
-            if args.task != "control_proposal" and not args.topic:
+            idea_tasks = PRODUCT_PROPOSAL_TASKS | {"process_proposal"}
+            if args.task not in idea_tasks and not args.topic:
                 raise ValueError(
-                    "--topic is required except for control_proposal idea hops"
+                    "--topic is required except for product/process proposal idea hops"
                 )
-            if args.intent_file and args.task != "control_proposal":
-                raise ValueError("--intent-file is only valid for --task control_proposal")
+            if args.intent_file and args.task not in idea_tasks:
+                raise ValueError(
+                    "--intent-file is only valid for product/process proposal tasks"
+                )
             payload, code = control_pack(
                 args.topic,
                 args.task,

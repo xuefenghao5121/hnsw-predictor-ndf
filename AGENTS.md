@@ -7,7 +7,8 @@
 1. 本文件 `AGENTS.md`
 2. **流程 SoT**：`spec/meta/README.md` + `spec/meta/language.md`（[[META-001]]…[[META-005]]、[[META-008]]）
   - `spec/meta/process.md`（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、
-    [[META-006]]、[[META-007]]、[[META-009]]…[[META-015]]）
+    [[META-006]]、[[META-007]]、[[META-009]]…[[META-012]]、[[META-014]]；
+    [[META-013]] / [[META-015]] 已 deprecated，见 [[ADR-META-004]]）
 3. 当前相关的**产品**契约：`spec/00–50`（及产品 `spec/open/` 提案）
 
 若工作区存在 `SOUL.md` / `MEMORY.md`，一并重读；**不存在则跳过，不得阻塞**。
@@ -32,7 +33,8 @@ Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/
 **权威流程条款**（正文在 `spec/meta/`，产品树仅为 adopted 指针）：[[CHR-008]]、[[ARCH-008]]、
 [[BEH-018]]、[[BEH-019]]、[[BEH-020]]、[[BEH-025]]、[[CON-POC-001]]、[[META-004]]、
 [[META-005]]、[[META-006]]、[[META-007]]、[[META-009]]、[[META-010]]、[[META-011]]、
-[[META-012]]、[[META-013]]、[[META-014]]、[[META-015]]。
+[[META-012]]、[[META-014]]、[[ADR-META-003]]、[[ADR-META-004]]。
+[[META-013]] / [[META-015]] 已 deprecated（控制面/回放义务退役，见 [[ADR-META-004]]）。
 分层见 [[ADR-META-001]]；新建 process 条款编号见 [[ADR-META-002]] / [[DEF-META-ID-NS]]
 （`META-*`，勿续产品数字）。
 **Meta 自洽**：meta 条款 MUST NOT `depends-on` 产品 ID；must 正文 MUST NOT 写产品功能专名；
@@ -41,48 +43,67 @@ Project Genesis `bootstrap`；operational 项目按 track 运作。你只做 L0/
 
 ## 1. 工作流程（按 track 分支）
 
-每次需求先判定 **track**，再走对应步骤。提案头部 MUST 标明：
+每次需求先按 [[ADR-META-004]] 判定 **Idea 平面**，再判定 **track**，再走对应步骤。
+提案头部 MUST 标明：
 
 ```text
 > track: bootstrap | poc | promote | process | bug | refactor | rollback
 ```
 
+### Idea 平面分流（[[ADR-META-004]]）
 
+| Idea 类型 | 落点 |
+|-----------|------|
+| 产品能力、运行中项目、bug、性能、POC、Genesis | `spec/open/` |
+| NDF 语言、工作流、Agent 编排、治理工具、规范卫生 | `spec/meta/open/` |
+| 同时影响两面（mixed） | 拆成两个互相引用的提案 |
+| 无法判断（ambiguous） | **先问人**；MUST NOT 默认落成 poc / 一刀切写根 |
+
+人类日常入口唯一 skill：`.cursor/skills/ndf-workflow/`（初始化项目 / 提交 Idea /
+派发 / 继续 / 关闭）。内部模块对人类不可见。
 
 ### 三工作空间与交互编排
 
 按 [[META-008]]：Design（契约/设计）、Implementation（代码/切片）、Test（绑定/证据）
-是 NDF 的工作视角；交互只编排其读写与口令，不替代真值。组装 Agent 上下文 MUST 先按主题
-装订器读序，再按 NDF 图 `depends-on` 展开相关条款，并纳入当前 git/evidence；MUST NOT 从
-SLA/NOTES 叙述偷取观测数字。
+是 NDF 的**文档组织视角**，不是用户必须逐项修绿的状态机。交互只编排其读写与口令，
+不替代真值。组装 Agent 上下文 MUST 先按主题装订器读序，再按 NDF 图 `depends-on`
+展开相关条款，并纳入当前 git/evidence；MUST NOT 从 SLA/NOTES 叙述偷取观测数字。
 机械上下文 MUST 由 `ndf_context.py manifest-create|role-plan|context-expand|context-verify`
-生成。Canvas、OpenClaw 与 Claude Code 的 role plan MUST 引用同一 manifest SHA，
-不得各自拼接。可写委派按 [[META-013]] 创建或续接显式 Episode；上下文压缩只创建
-checkpoint，不得用 summary 覆盖父事件。
-新托管 process proposal 按 [[META-014]] 使用绑定人口令与内容 SHA 的生命周期；
-`draft` / `confirm_land` / `review` MUST 使用 stage-specific child Episode，历史无绑定
-提案只读展示，MUST NOT 自动生成可写 hop。
+生成。OpenClaw 与 Claude Code 的 role plan MUST 引用同一 manifest SHA，不得各自拼接。
+
+**日常路径是纯文字指挥**（[[ADR-META-003]] / [[ADR-META-004]]）：无 Commander、无
+Episode、无 Replay；不依赖面板。成功仅以磁盘 `ndf-agent-completion/v1` 为准。
+
+```text
+Idea → 提案「已确认」/「已审核」（按平面落 `spec/open/` 或 `spec/meta/open/`）
+→ OpenClaw 一次写齐 TOPIC/DESIGN/PERF_BASELINE/DELTA/INTERFACE（产品 POC）
+→ Human「派发」（绑定当前契约 bundle SHA）
+→ Claude Code 实现/测量（`poc-dispatch`）
+→ Human「继续」修订装订器再派发，或选 close 模式
+```
+
+新托管 process proposal 按 [[META-014]] 使用绑定人口令与内容 SHA 的生命周期。
 
 
 | 闸门            | 触发                                                                                           | 编排作用                 |
 | ------------- | -------------------------------------------------------------------------------------------- | -------------------- |
-| POC           | `TOPIC已审核` → `DESIGN已审核` → `可以开始实现`                                                          | 设计→绑定/DELTA→实现       |
+| POC（文字优先）     | 产品提案审核 → 整包装订器 → 「派发」                                                                       | 契约→实现/测量             |
+| POC（legacy 三闸） | `TOPIC已审核` → `DESIGN已审核` → `可以开始实现`                                                          | 设计→绑定/DELTA→实现       |
 | Genesis       | `IDEA已审核` → `CHARTER已审核` → `ARCHITECTURE已审核` → `VERIFICATION已审核` → `可以建立初始主线` → `GENESIS已审核` | IDEA→本地 NDF→初始 Trunk |
 | 产品/process 提案 | `已确认` → `已审核`                                                                                | 契约/流程落地              |
 | 测试            | R0 完善 Numbers；promote 触发 META-006                                                            | 测试空间收敛               |
 
 
-口令在可视化/自动委派路径 MUST 追加到 `GATES.md`，绑定人、时间与内容 SHA（[[META-010]]）；
-文件存在不得推断审批。Canvas 是派生投影，运行态从 Claude Code 管道读取，不改
-`.openclaw/state.json`（[[META-011]]）。
+口令 MUST 追加到 `GATES.md`，绑定人、时间与内容 SHA（[[META-010]]）；文件存在不得推断审批。
 
 ### 步骤1：接收需求
 
 人工描述需求，或在 `spec/open/` / `spec/meta/open/` 见到新的 `req-*.md` / 意向。
+先按 Idea 平面表分流；ambiguous 先问人。
 
 **你的输出**：
 
-> 收到需求。track=<…>。开始生成提案。
+> 收到需求。plane=<product|process|mixed|ask>。track=<…>。开始生成提案。
 
 
 
@@ -144,7 +165,7 @@ checkpoint，不得用 summary 覆盖父事件。
 | track                         | 已审核之后                                                                |
 | ----------------------------- | -------------------------------------------------------------------- |
 | **bootstrap**                 | Genesis 分段门禁 → Claude Code 隔离 Trunk candidate → 构建/验收 → `GENESIS已审核` |
-| **poc**                       | 装订器分段门禁通过（含「可以开始实现」）后委派 `poc/<topic>/` only；多轮深入；**不**跑 Trunk SLA 验收 |
+| **poc**                       | 产品提案审核后写齐装订器；Human「派发」后 `poc-dispatch` 委派 `poc/<topic>/`；多轮继续/关闭；**不**跑 Trunk SLA |
 | **promote**                   | 委派 Claude Code **干净合入** `src/` → 编译验证 → 性能验证                         |
 | **process**                   | 仅 `spec/meta/`** + 产品 thin 指针 + `AGENTS.md` 等；**跳过** src 委派与编译/性能    |
 | **bug / refactor / rollback** | 通常同 promote（动 Trunk）→ 编译 → 性能；若仅文档则同 process                         |
@@ -174,8 +195,8 @@ checkpoint，不得用 summary 覆盖父事件。
 
 存储在 `.openclaw/state.json`。**仅记录本代理指挥的项目进展**（当前提案、track、验证轮次、
 **工作区绑定**等）。`workspace.repo_root` 是 OpenClaw 跨会话/跨通道的文件操作锚点；
-收到 `control-pack` 或切换 topic 时 MUST 更新。Canvas / `ndf_workflow_status.py`
-MUST NOT 改写本文件（只读投影 `workspace` 若存在）。
+收到 `control-pack` 或切换 topic 时 MUST 更新。`ndf_workflow_status.py` MUST NOT
+改写本文件（日常无面板；工具仅服务文字派发与诊断）。
 
 建议字段：
 
@@ -218,51 +239,40 @@ MUST NOT 改写本文件（只读投影 `workspace` 若存在）。
 
 ## 5. Agent Runtime 配置
 
-
+日常**无面板**（无 Commander / serve / SSE / ActionSpec / Episode / Replay；
+[[ADR-META-004]]）。文字入口：`.cursor/skills/ndf-workflow/`；委派用
+`poc-dispatch` / `dispatch-send`。成功 = 磁盘 completion，不以 transport ACK /
+stdout 冒充。
 
 ### OpenClaw 指挥会话
 
 OpenClaw 指挥会话 session_key：`agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35`
 
-Canvas / `ndf_workflow_status.py` 只读此配置委派 NDF Control 文档流。改绑时只改本行。
 该值是 **session_key 路由身份**（飞书等通道），不是 `openclaw agent --session-id` 的 UUID。
 gateway `health` 可达 ≠ session 可派发：配置 key 须在 `openclaw sessions` 中可匹配（或本身为 UUID）。
 `dispatch-send` 对 routing key 走 gateway `sessionKey`；非法/缺失才
-`openclaw_session_invalid` fail-closed。面板只读诊断，MUST NOT 用 Canvas 改本行。
-OpenClaw 与 Claude Code ACP 等待都用心跳续等（`NDF_OPENCLAW_*` / `NDF_ACP_PING_SEC` /
-`STALL_SEC` / `MAX_SEC`），有会话或磁盘回执进展就继续等，勿把长 hop 当固定墙钟杀掉。
-在途 hop 本聊天「进展如何」→ `dispatch-probe`（探活，不再派发）。「派发」/「继续」
-只确认发出 ready pack。`action-commit` 仅 succeeded 任务可跑。
+`openclaw_session_invalid` fail-closed。OpenClaw 与 Claude Code ACP 等待都用心跳续等
+（`NDF_OPENCLAW_*` / `NDF_ACP_PING_SEC` / `STALL_SEC` / `MAX_SEC`），有会话或磁盘
+回执进展就继续等。在途 hop「进展如何」→ `dispatch-probe`（探活，不再派发）。
+「派发」/「继续」只确认发出 ready pack。
+
+可写 pack 委派（[[META-011]]）：先造 pack → 本聊天等人回「派发」/「继续」→ 显式
+`dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json`。`dispatch-send` 是送
+worker + closeout 的唯一入口。MUST 读 pack `completion_receipt_path`，MUST NOT
+手抄 Numbers 当 success。硬安全门保留：错仓库、越界写根、缺人审 bundle、并发写
+run、上下文漂移、伪造 completion、ACP 预算溢出。
 
 **宿主 PID 卫生（[[META-011]]）**：Cursor Agent Shell 若报 `EAGAIN` / fork 失败，先跑
 `python3 spec/meta/tools/ndf_workflow_status.py host-pids --json`，读
-`chromium_cgroup` / `consumers` / `advice`：Chromium 占满时关标签，勿默认杀 serve；
-仅当 NDF serve/qemu 确为嫌疑才清理。MUST NOT 改 `environment=cloud` 绕开，MUST NOT
-调大 TasksMax。Command Agent MUST NOT 在 Chromium scope 启动或残留 `--serve`
-（工具层会 `chromium_serve_forbidden`）；日常刷新只用 `snapshot --out`（不要默认
-`--probe-runtime full`）。live 面板只在**仓库外终端**跑 `--serve`。
-`waiting_human` / 人类能力批准是 META hop：`capability-approve` 写回执后 MUST
-`snapshot --out`；能力未就绪的 attempt MUST `action-finish cancelled`。
-Cursor 指挥官面是能力批准的唯一人工面；回执已就绪后 `dispatch-send` MUST 让
-ACP print/resume 继承该批准，MUST NOT 把人类设计进 Claude Code 会话里的二次
-Bash 批准。`execution_binding_stale` MUST NOT 挡测量。
-live `--serve` 侦听 snapshot 文件自动刷新，MUST NOT 重启 serve。
-可写 pack 委派（[[META-011]]）：Command Agent 先造 pack → 本聊天等人回「派发」/
-「继续」→ 显式 `dispatch-send --pack-file tmp/ndf-dispatch-last-pack.json`。
-`dispatch-send` 是送 worker + closeout 的唯一入口；MUST NOT 依赖
-`afterShellExecution` 自动送。ready pack 等人审时 stop hook MUST NOT 误取消。
-派发结果：CLI/OpenClaw 可达 ≠ 任务成功；`dispatch-send` 的 transport
-acknowledgement 与 stdout `ndf-dispatch-notify/v1` 都不得冒充 validated
-磁盘 `ndf-agent-completion/v1` success。Command Agent MUST 读 pack
-`completion_receipt_path`，MUST NOT 手抄 Numbers 当 success。
-Commander ActionSpec（`action-registry.json` v2）是可写动作的单一编译源：UI enablement、
-Composer prompt、pack CLI、capability 与 closeout 均由其生成；可写动作 MUST 贯通
-同一 Episode/attempt。`workspace_bound` 表示身份绑定，不等于 execution HEAD 对齐。
+`chromium_cgroup` / `consumers` / `advice` 再决定是否清理嫌疑进程。MUST NOT 改
+`environment=cloud` 绕开，MUST NOT 调大 TasksMax。
 
 ### Claude Code 实现管道
 
-ACP 长连接会话 ID：`d21779ab-aad3-408c-a717-f871eae0884e`（已常驻）。你只需发送指令；
-可用 resume 接入该会话。
+ACP 长连接会话 ID：`7f24709c-5c7a-41c4-ada7-44452004652a`（短寿命可换绑；改后须 bootstrap resume 工件再派发）。
+`dispatch-send` 默认 `--fork-session` 每 hop 分叉，避免永恒 resume 堆满上下文。
+超预算时 pack / dispatch MUST `acp_context_over_budget` fail-closed（见 `NDF_ACP_CONTEXT_MAX_TOKENS`）。
+首次绑定或换绑后运行：`python3 spec/meta/tools/ndf_acp_session_bootstrap.py`。
 
 ### Per-Project Workspace
 
@@ -338,7 +348,9 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 依赖就绪后再试 → 平级新 topic，`depends_on_topics` 含旧题（及使能依赖）；新 R0。
 仍 `exploring`（含 partial）= 同题继续，非重启。
 
-不确定时：**默认先 poc**，除非用户明确要求合入主线或已有达标证据。
+**产品 track** 不确定时（已确认是产品平面）：**默认先 poc**，除非用户明确要求合入
+主线或已有达标证据。Idea 平面 ambiguous 仍 MUST 先问人（[[ADR-META-004]]），不得
+默认写成 poc 提案。
 
 ### 6.2 变更类通用流程（按 track）
 
@@ -349,11 +361,12 @@ Claude Code 写入禁区（参考 `CLAUDE.md`）：
 落地时：
 
 - 契约进产品 `open/` 或 `poc/<topic>/ndf/proposals/` 或固定目录且 `status=draft` **/** `level=tbd`
-- MUST 存在/更新装订器；新开题 / 平级重启 MUST 走 **装订器分段审核**（[[BEH-025]]），
-不得一次写满 TOPIC/DESIGN/INTERFACE 后直接开码
+- MUST 存在/更新装订器；新开题 / 平级重启按 [[BEH-025]] / [[ADR-META-003]]：**文字优先**
+  可在产品提案审核后一次写齐 TOPIC/DESIGN/PERF/DELTA/INTERFACE，以「派发」授权实现；
+  legacy 三闸（TOPIC已审核→DESIGN已审核→可以开始实现）仍可用
 - 开题 MUST 填 `explore_surface`；扫活跃 exploring 表面——相交则 depends/conflicts，禁止默认可并行（[[BEH-018]] §9）
 - 首次 R0 后 MUST 钉死 `baseline_trunk_sha` + `baseline_status=current`，完善
-`PERF_BASELINE.md` Numbers（绑定头已在 `DESIGN已审核` 后写出；[[BEH-025]] / [[META-007]]）
+`PERF_BASELINE.md` Numbers（绑定头在装订器写出时就位；[[BEH-025]] / [[META-007]]）
 - 实现前读序 MUST：TOPIC → DESIGN → PERF_BASELINE（绑定）→ DELTA → INTERFACE → proposals；
 比 Δ% / 压测 MUST 只读 TOPIC→PERF_BASELINE（及卡内 `vs:` 金标、**Measure** 绑定）与 DELTA；
 MUST NOT 从 SLA 抄观测表
@@ -363,12 +376,23 @@ MUST NOT 从 SLA 抄观测表
 - 探索中发现的 Trunk bug：默认本主题修测（[[BEH-018]] 第 8 条）；合入另开 bug/promote，勿绕过第 6 条
 - 探索延长：同主题 amend / partial；分叉用平级 topic（[[BEH-025]]）；禁止嵌套子 POC
 - **关闭后重启**：已 `rejected`/`promoted` MUST NOT 改回 exploring；开平级新 topic +
-`depends_on_topics`（旧题及使能依赖）；新装订器与分段门禁 + R0（[[BEH-025]]）
+`depends_on_topics`（旧题及使能依赖）；新装订器 + R0（[[BEH-025]]）
 - 回到已 `baseline_status=stale` 的老 POC（仍 exploring）：先重测 R0（现行 Trunk）或显式
 `vs_trunk=<old>`；相交已 promote → 先冲突复核
 - 委派前后 SHOULD：`python3 spec/meta/tools/ndf_poc_isolation.py check --topic <topic>`
 
-**装订器分段审核**（与产品提案「已确认 / 已审核」口令分开）：
+**文字优先开题与派发**（默认；与产品提案「已确认 / 已审核」衔接）：
+
+1. 产品提案审核通过后，一次写齐装订器（含金标绑定头、DELTA 骨架、INTERFACE、测试计划），然后：
+  > POC 装订器已写好：`poc/<topic>/ndf/`。请审阅契约；确认无误后回复「派发」。
+2. 收到「派发」后：将 `bundle_dispatch`（phrase=`派发`）回执写入 `GATES.md`（绑定闸 3 同款
+   bundle SHA），再执行：
+  `python3 spec/meta/tools/ndf_workflow_status.py poc-dispatch --topic <topic> --intent implement|measure --send`
+3. 轮次结果后请人选择「继续」（修订装订器 → 再「派发」）或 close 模式（partial/promote/reject）。
+4. 实质 amend 假设/接口/测量协议/写边界后，下一次「派发」绑定新 SHA；Numbers/Rounds/evidence
+   追加不触发重审。
+
+**Legacy 装订器分段审核**（可选，旧主题或需要分步审阅时）：
 
 1. 写好可审的 `TOPIC.md`（及必要 `proposals/` stub）后输出：
   > TOPIC 已写好：`poc/<topic>/ndf/TOPIC.md`。请审阅，回复「TOPIC已审核」。
@@ -385,7 +409,7 @@ MUST NOT 从 SLA 抄观测表
 4. 实质 amend TOPIC/DESIGN/INTERFACE 后，对应阶段重新过闸；实质改绑或大改 DELTA
   假设 SHOULD 再请用户过目。
 
-收到「可以开始实现」后：
+收到「派发」或「可以开始实现」后：
 
 - 委派：在 `poc/<topic>/` 实现与基准；允许 v1→v2 多轮，**改 POC、装订器与提案证据，不反复改 Trunk stable**
 - 比性能 / R0 MUST 只读 TOPIC→PERF_BASELINE（绑定+Numbers）与 DELTA；更新 DELTA Rounds
@@ -394,9 +418,10 @@ MUST NOT 从 SLA 抄观测表
 - 正结果 → 另开 **promote** 提案（引用 TOPIC；子集可用 `ndf_close --mode partial`）；负结果 → §6.2d
 - 主题内已验证的 Trunk bug 切片要合入 → 另开 **bug**（或挂 promote）提案，干净合入 `src/`
 
-Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无活跃写 run，并要求握手返回
+Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无并发写 run，并要求握手返回
 `run_id/session_id`、`base_sha`、独立 worktree/branch 与 `allowed_write_root`。
-缺任一项 = `unsafe`，不得派发（[[META-011]]）。
+缺任一项 = `unsafe`，不得派发（[[META-011]]）。日常入口优先 `poc-dispatch`
+（内联租约；硬门见 [[ADR-META-003]] / [[ADR-META-004]]）。
 
 **若曾误改 Trunk** `src/` **/** `include/` **/** `tests/`**（矫正检查清单）**：
 
@@ -440,7 +465,7 @@ Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无活跃写
 8. 自动场景6（性能；对照 stable SLA + 金标 [[CON-GOLDEN-001]]）
 9. **更新金标**（[[META-006]]）：重跑 12 数据点，写入新 `baselines/bl-trunk-golden-<sha>.md`，
   更新 `configs/`（若配置变）与索引 `golden-baseline.md`；禁止只改 `sla.md` 观测数字
-10. 任一失败 → 场景7；TOPIC 保持原 status，Canvas 只能显示 `closing`
+10. 任一失败 → 场景7；TOPIC 保持原 status（不得假称已收口）
 11. 全部通过后才更新 TOPIC=`promoted`（全量）或保持 exploring（partial）；
   **同步** `NOTES.md` **头 status**（无 NOTES 则 N/A）；COMMITS 记 src/spec；装订器按提案归档
 12. 验收合并提示（tag 可选）
@@ -595,7 +620,8 @@ Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无活跃写
 1. **先提案，后行动**：任何 **Trunk** `src/` 变更或 **stable** 契约变更前，必须有提案。
   产品提案 → `spec/open/`；流程/卫生 → `spec/meta/open/proposal-meta-*.md`。
 2. **确认后落地**：经用户「已确认」后由你写入对应目录；产品提案「已审核」后再委派实现。
-  **poc 开题另循装订器分段门禁**：`TOPIC已审核` → `DESIGN已审核` → `可以开始实现`（[[BEH-025]]）。
+  **poc 默认文字优先**：提案审核 → 整包装订器 →「派发」→ `poc-dispatch`（[[ADR-META-003]] /
+  [[ADR-META-004]] / [[BEH-025]]）；legacy 三闸仍可用。无 Commander/Episode/Replay。
 3. **双轨**：探索在 `poc/` + draft；晋升才 stable + `src/`（[[CHR-008]]，正文在 `spec/meta/`）。
 4. **先收口，再 POC，关闭后才回合**：`open/` 不堆 Implemented；探索中默认不改 stable/`src/`；
   主题 promote/reject 时才做产品 NDF + 代码回合（[[BEH-018]]…[[BEH-020]]；卫生 r2）。
@@ -611,7 +637,7 @@ Claude Code 管道委派前 MUST 校验实现回执 SHA、同 topic 无活跃写
 3. 等待「已确认」
 4. 按 track 落地
 5. 等待「已审核」（产品/process 提案收口）
-6. bootstrap → Genesis 门禁 + 初始 Trunk 验证；poc → **装订器分段门禁**后委派 `poc/`；
+6. bootstrap → Genesis 门禁 + 初始 Trunk 验证；poc → **文字优先装订 +「派发」**后委派 `poc/`；
   promote → `ndf_close plan` **+ 语义核决策** → 委派 `src/` → 验证；
    process → 结束
 7. 失败走场景7；负结果走 §6.2d

@@ -2359,6 +2359,30 @@ class WorkflowHealthTest(unittest.TestCase):
             self.assertEqual(payload["dispatch_state"], "waiting_human")
             self.assertIn("waiting_human", payload["blockers"])
 
+    def test_apply_acp_context_budget_blocks_over_limit(self) -> None:
+        payload = {
+            "provider": "claude-code-acp",
+            "safe_to_dispatch": True,
+            "blockers": [],
+            "topic": "demo",
+            "task": "poc_implementation",
+            "manifest_sha": "a",
+            "plan_sha": "b",
+            "workspace": {"repo_root": str(workflow.ROOT)},
+            "allowed_write_root": "poc/demo/",
+            "completion_receipt_path": "poc/demo/ndf/evidence/poc_implementation-completion.json",
+        }
+        with patch.dict(os.environ, {"NDF_ACP_CONTEXT_MAX_TOKENS": "100"}, clear=False):
+            with patch.object(
+                workflow,
+                "estimate_acp_resume_text_chars",
+                return_value=10_000_000,
+            ):
+                workflow.apply_acp_context_budget_to_pack(payload)
+        self.assertFalse(payload["safe_to_dispatch"])
+        self.assertIn("acp_context_over_budget", payload["blockers"])
+        self.assertTrue(payload["acp_context_budget"]["over_budget"])
+
     def test_probe_claude_acp_does_not_treat_cli_alone_as_reachable(self) -> None:
         workflow._ACP_PROBE = None
         with (
@@ -2543,6 +2567,7 @@ class WorkflowHealthTest(unittest.TestCase):
         ):
             result = workflow.context_binding_for_canvas("demo")
         self.assertEqual(captured.get("role"), "canvas")
+        self.assertEqual(captured.get("task"), "partial")
         self.assertFalse(captured.get("include_bodies"))
         self.assertTrue(result["context_verify"]["valid"])
         self.assertEqual(result["context_plan"]["role"], "canvas")
@@ -3866,6 +3891,13 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertEqual(selected["selected"], "continue_exploring")
         self.assertFalse(selected["decision_required"])
         self.assertEqual(selected["source"], "TOPIC.md:selected_decision")
+        focused = workflow.topic_decision_view(
+            "> status: exploring\n> selected_decision: continue_exploring\n"
+            "> next_round_focus: D2 RaBitQ\n",
+            "exploring",
+            {name: {"state": "valid"} for name in workflow.GATE_ORDER},
+        )
+        self.assertEqual(focused["next_round_focus"], "D2 RaBitQ")
 
         invalid = workflow.topic_decision_view(
             "> status: exploring\n> selected_decision: keep-going\n",
@@ -3875,7 +3907,7 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertEqual(invalid["state"], "decision_required")
         self.assertIsNone(invalid["selected"])
 
-    def test_not_ready_offers_early_reject_not_promote(self) -> None:
+    def test_not_ready_offers_early_reject_and_partial_not_promote(self) -> None:
         gates = {
             "topic_review": {"state": "missing"},
             "design_review": {"state": "missing"},
@@ -3894,12 +3926,14 @@ class WorkflowHealthTest(unittest.TestCase):
         self.assertTrue(view["early_close_allowed"])
         self.assertIn("reject", view["offered"])
         self.assertIn("amend", view["offered"])
+        # Partial close is evidence-gated later; chip must not wait on three gates.
+        self.assertIn("partial", view["offered"])
         self.assertNotIn("promote", view["offered"])
-        self.assertNotIn("partial", view["offered"])
         self.assertNotIn("implement", view["offered"])
         self.assertNotIn("continue_exploring", view["offered"])
         self.assertEqual(view["blocked"]["promote"], "gates_not_valid")
         self.assertEqual(view["blocked"]["implement"], "gates_not_valid")
+        self.assertNotIn("partial", view["blocked"])
 
     def test_implement_and_continue_exploring_are_mutually_exclusive(self) -> None:
         gates = {name: {"state": "valid"} for name in workflow.GATE_ORDER}
@@ -3955,6 +3989,98 @@ class WorkflowHealthTest(unittest.TestCase):
                 0,
             )
         )
+
+    @unittest.skip("commander retired ADR-META-004")
+    def test_selected_implement_still_offers_continue_after_feature_round(self) -> None:
+        gates = {name: {"state": "valid"} for name in workflow.GATE_ORDER}
+        later_delta = (
+            "# DELTA\n\n## Rounds\n\n"
+            "| round | date | conclusion |\n"
+            "|-------|------|------------|\n"
+            "| R0 | 2026-08-10 | baseline |\n"
+            "| R1 | 2026-08-14 | entropy saturated |\n"
+        )
+        view = workflow.topic_decision_view(
+            "> status: exploring\n> selected_decision: implement\n",
+            "exploring",
+            gates,
+            spaces={"implementation": {"code_files": ["poc/demo/train.py"]}},
+            delta={"latest_round": "| R1 | 2026-08-14 | entropy saturated |"},
+            delta_text=later_delta,
+            evidence_count=3,
+        )
+        self.assertEqual(view["selected"], "implement")
+        self.assertEqual(view["state"], "selected")
+        self.assertFalse(view["decision_required"])
+        self.assertTrue(view["round_started"])
+        self.assertIn("continue_exploring", view["offered"])
+        self.assertNotIn("implement", view["offered"])
+
+    @unittest.skip("commander retired ADR-META-004")
+    def test_execute_chips_stay_visible_after_selected_decision(self) -> None:
+        src = (workflow.ROOT / "spec" / "meta" / "cockpit" / "src" / "main.tsx").read_text(
+            encoding="utf-8"
+        )
+        chips_src = (
+            workflow.ROOT / "spec" / "meta" / "cockpit" / "src" / "CloseDecisionChips.tsx"
+        ).read_text(encoding="utf-8")
+        self.assertNotIn("focused.decision?.decision_required && (", src)
+        self.assertIn('phase === "execute" && focused.decision && (', src)
+        self.assertIn("EXECUTE_DECISION_ORDER.map(", src)
+        self.assertIn("buildDecisionIntent(chip, roundFocus)", src)
+        self.assertIn("本轮焦点", src)
+        self.assertIn("closeOffered(focused.decision)", src)
+        self.assertIn("收口决策芯片", src)
+        self.assertIn("export function closeOffered", chips_src)
+        self.assertNotIn("if (!decision?.decision_required)", chips_src)
+        readiness_src = (
+            workflow.ROOT / "spec" / "meta" / "cockpit" / "src" / "readiness.ts"
+        ).read_text(encoding="utf-8")
+        self.assertIn("closePathActive", readiness_src)
+        self.assertIn('if (states.promote === "active")', readiness_src)
+        workflow_src = (workflow.ROOT / "spec" / "meta" / "tools" / "ndf_workflow_status.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("def ensure_cockpit_dist_built", workflow_src)
+
+    def test_close_offered_when_partial_available_with_selected_explore(self) -> None:
+        gates = {
+            "topic_review": {"state": "valid"},
+            "design_review": {"state": "invalidated"},
+            "implementation_approval": {"state": "invalidated"},
+        }
+        view = workflow.topic_decision_view(
+            "> status: exploring\n> selected_decision: continue_exploring\n",
+            "exploring",
+            gates,
+            spaces={"test": {"ready": True}, "implementation": {"code_files": ["run.sh"]}},
+            delta={"latest_round": "| R1 | 2026-08-22 | +2.66% |"},
+            evidence_count=2,
+        )
+        self.assertTrue(view["close_offered"])
+        self.assertIn("partial", view["offered"])
+        self.assertFalse(view["decision_required"])
+
+    def test_gate_invalidated_does_not_block_design_space(self) -> None:
+        topic_dir = workflow.POC / "hotspot-optimization"
+        if not (topic_dir / "ndf" / "TOPIC.md").is_file():
+            self.skipTest("hotspot-optimization binder not present")
+        view = workflow.topic_view(topic_dir, mode="directory")
+        design = view["spaces"]["design"]
+        self.assertTrue(design["ready"], design["gaps"])
+        self.assertFalse(any(str(gap).startswith("gate_") for gap in design["gaps"]))
+        self.assertFalse(any(str(gap).startswith("gate:") for gap in design["gaps"]))
+
+    def test_partial_close_next_step_when_test_ready(self) -> None:
+        detail = {
+            "decision": {
+                "offered": ["amend", "partial", "reject"],
+                "selected": "continue_exploring",
+                "next_round_focus": "D1 partial promote",
+            },
+            "spaces": {"test": {"ready": True}},
+        }
+        self.assertTrue(workflow._partial_close_next_step_available(detail))
 
     def test_baseline_prep_does_not_consume_implement(self) -> None:
         gates = {name: {"state": "valid"} for name in workflow.GATE_ORDER}
@@ -5767,7 +5893,8 @@ class RuntimeDispatchReadyAbsorptionTests(unittest.TestCase):
             self.assertFalse(ready)
             self.assertIsNone(source)
 
-    def test_runtime_dispatch_ready_from_active_isolated_lease(self) -> None:
+    def test_runtime_dispatch_ready_ignores_active_isolated_lease(self) -> None:
+        """Lease is a separate face; must not mark transport runtime ready."""
         head = "c" * 40
         runtime = {"status": "not_probed", "pipeline_reachable": False}
         lease_row = {
@@ -5784,12 +5911,131 @@ class RuntimeDispatchReadyAbsorptionTests(unittest.TestCase):
                 "active_isolated_lease_for_topic",
                 return_value=(True, lease_row),
             ),
+            patch.object(workflow, "_read_last_dispatch_pack", return_value=None),
         ):
             ready, source = workflow.runtime_dispatch_ready_for_topic(
                 "demo", runtime, lease_row
             )
-        self.assertTrue(ready)
-        self.assertEqual(source, "active_lease")
+        self.assertFalse(ready)
+        self.assertIsNone(source)
+
+    def test_active_isolated_lease_requires_exact_head_match(self) -> None:
+        head = "c" * 40
+        ancestor = "a" * 40
+        lease_row = {
+            "topic": "demo",
+            "base_sha": ancestor,
+            "run_id": "run-lease-demo",
+            "worktree": "/repo/.worktrees/demo-lease",
+            "result": "active",
+        }
+        with (
+            patch.object(workflow, "git_head", return_value=head),
+            patch.object(workflow, "topic_active_lease", return_value=lease_row),
+        ):
+            ok, lease = workflow.active_isolated_lease_for_topic("demo")
+        self.assertFalse(ok)
+        self.assertIs(lease, lease_row)
+        self.assertTrue(workflow.lease_stale_vs_head(lease_row, head))
+
+    def test_pack_blocks_stale_lease_vs_head(self) -> None:
+        head = "c" * 40
+        stale = "a" * 40
+        with tempfile.TemporaryDirectory() as tmp:
+            poc = Path(tmp)
+            ndf = poc / "demo" / "ndf"
+            ndf.mkdir(parents=True)
+            (ndf / "TOPIC.md").write_text("> topic_id: demo\n", encoding="utf-8")
+            fake = {
+                "topic_id": "demo",
+                "gates": {"implementation_approval": {"state": "valid"}},
+                "delegation": {
+                    "static_preflight_passed": True,
+                    "runtime_dispatch_ready": False,
+                    "context_plan": {},
+                    "context_verify": {"valid": True},
+                    "task_manifest": {"schema": "ndf-task-manifest/v1"},
+                    "manifest_sha": "b" * 64,
+                    "plan_sha": "a" * 64,
+                    "dispatch_blockers": ["lease_stale_vs_head"],
+                },
+                "spaces": {},
+                "phase_hint": "implementing",
+                "health": {"checks": {"perf_baseline": {}, "isolation": {}}},
+            }
+            stale_lease = {
+                "run_id": "run-lease-demo",
+                "base_sha": stale,
+                "worktree": "/repo/.worktrees/demo-lease",
+            }
+            with (
+                patch.object(workflow, "POC", poc),
+                patch.object(workflow, "git_head", return_value=head),
+                patch.object(workflow, "topic_view", return_value=fake),
+                patch.object(
+                    workflow,
+                    "ensure_spec_health",
+                    return_value={"state": "current"},
+                ),
+                patch.object(workflow, "poc_gate_bundles", return_value={"implementation_approval": []}),
+                patch.object(
+                    workflow,
+                    "implementation_dispatch_runtime",
+                    return_value=(
+                        {"pipeline_reachable": True},
+                        False,
+                        stale_lease,
+                    ),
+                ),
+                patch.object(
+                    workflow,
+                    "active_isolated_lease_for_topic",
+                    return_value=(False, stale_lease),
+                ),
+                patch.object(
+                    workflow,
+                    "workspace_truth_view",
+                    return_value={"workspace_bound": True, "state": "bound"},
+                ),
+            ):
+                payload, code = workflow.pack_topic("demo")
+            self.assertEqual(code, 1)
+            self.assertIn("lease_stale_vs_head", payload["blockers"])
+            self.assertIn("missing_active_isolated_lease", payload["blockers"])
+            self.assertFalse(payload["safe_to_dispatch"])
+
+    def test_active_isolated_lease_prefers_head_aligned_over_stale_row(self) -> None:
+        head = "c" * 40
+        stale = "a" * 40
+        stale_row = {
+            "topic": "demo",
+            "base_sha": stale,
+            "run_id": "run-lease-old",
+            "worktree": "/repo/.worktrees/demo-lease-old",
+            "result": "active",
+            "started_at": "2026-08-22T12:00:00+00:00",
+        }
+        current_row = {
+            "topic": "demo",
+            "base_sha": head,
+            "run_id": "run-lease-new",
+            "worktree": "/repo/.worktrees/demo-lease-new",
+            "result": "active",
+            "started_at": "2026-08-22T18:00:00+00:00",
+        }
+        with (
+            patch.object(workflow, "git_head", return_value=head),
+            patch.object(
+                workflow,
+                "active_runtime_leases",
+                return_value=[stale_row, current_row],
+            ),
+        ):
+            lease = workflow.topic_active_lease("demo")
+            ok, active = workflow.active_isolated_lease_for_topic("demo")
+        self.assertEqual(lease.get("run_id"), "run-lease-new")
+        self.assertTrue(ok)
+        self.assertEqual(active.get("run_id"), "run-lease-new")
 
     def test_last_dispatch_send_matches_topic_without_pack(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

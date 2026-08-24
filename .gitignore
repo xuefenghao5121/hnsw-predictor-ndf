@@ -26,10 +26,9 @@ output2/
 # AGENTS.md
 # MEMORY.md
 # tmp/
-# .ndf/replay/
+.ndf/replay/
 # packages/
-spec/meta/cockpit/node_modules/
-spec/meta/cockpit/dist/
+
 
 # 目标文件
 *.o
@@ -38,5 +37,5 @@ spec/meta/cockpit/dist/
 __pycache__/
 
 # hnswlib 外部依赖 (如需精简可改为 submodule)
-hnswlib/
+# hnswlib/
 results/

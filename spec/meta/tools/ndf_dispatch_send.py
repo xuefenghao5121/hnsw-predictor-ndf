@@ -5,11 +5,12 @@ Command Agent builds pack JSON, waits for human 「派发」, then runs this mod
   1. sends when safe_to_dispatch (or lease-only prepare)
   2. waits for worker stdout notify (ndf-dispatch-notify/v1)
   3. reads pack.completion_receipt_path from disk
-  4. records disk completion → action-commit only if succeeded →
-     action-finish → write last.json → snapshot
+  4. records disk completion → optional best-effort action-commit/finish →
+     write last.json → snapshot
 
 stdout completion JSON and transport acknowledgement MUST NOT count as
-validated success. Must not rely on Cursor afterShellExecution to auto-send.
+validated success. Episode/Replay/action closeout MUST NOT gate success
+(ADR-META-004). Must not rely on Cursor afterShellExecution to auto-send.
 """
 
 from __future__ import annotations
@@ -34,6 +35,9 @@ DEFAULT_OPENCLAW_MAX_SEC = 14400
 DEFAULT_ACP_PING_SEC = 60
 DEFAULT_ACP_STALL_SEC = 900
 DEFAULT_ACP_MAX_SEC = 14400
+DEFAULT_ACP_CONTEXT_MAX_TOKENS = 800000
+DEFAULT_ACP_COMPLETION_RESERVE = 32000
+DEFAULT_ACP_CHARS_PER_TOKEN = 4.0
 LEASE_STUB_SUMMARIES = frozenset()
 LEASE_SUCCESS_SUMMARIES = frozenset(
     {
@@ -183,6 +187,14 @@ def _pack_preflight_blockers(pack: Mapping[str, Any]) -> list[str]:
             str(b).startswith("capability_missing:") for b in blockers
         ):
             blockers.append("execution_capabilities_not_ready")
+    provider = str(pack.get("provider") or "")
+    if provider == "claude-code-acp":
+        budget = pack.get("acp_context_budget")
+        if not isinstance(budget, Mapping):
+            budget = acp_context_budget_for_pack(pack)
+        if budget.get("over_budget"):
+            if "acp_context_over_budget" not in blockers:
+                blockers.append("acp_context_over_budget")
     return blockers
 
 
@@ -198,7 +210,6 @@ def correlate_started_action(
     receipts: list[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """Match a started action receipt to a pack or pack CLI. Never 'latest started' alone."""
-    import ndf_actions
     import ndf_workflow_status as workflow
 
     if receipts is None:
@@ -214,11 +225,7 @@ def correlate_started_action(
         action_id = action_id or _command_flag(command, "action-id")
         episode = episode or _command_flag(command, "episode")
         task = task or _command_flag(command, "task")
-    if not catalog and task:
-        for item in ndf_actions.registry_actions():
-            if item.get("task") == task or item.get("packTask") == task:
-                catalog = str(item.get("id") or "")
-                break
+    # ActionSpec registry retired (ADR-META-004) — no task→catalog mapping.
     started = [
         receipt
         for receipt in receipts
@@ -271,6 +278,166 @@ def _pack_episode_id(pack: Mapping[str, Any]) -> str:
     if isinstance(nested, str) and nested.strip():
         return nested.strip()
     return ""
+
+
+def _acp_context_limits() -> tuple[int, int, float]:
+    max_tokens = int(
+        os.environ.get("NDF_ACP_CONTEXT_MAX_TOKENS") or DEFAULT_ACP_CONTEXT_MAX_TOKENS
+    )
+    reserve = int(
+        os.environ.get("NDF_ACP_COMPLETION_RESERVE") or DEFAULT_ACP_COMPLETION_RESERVE
+    )
+    chars_per = float(os.environ.get("NDF_ACP_CHARS_PER_TOKEN") or DEFAULT_ACP_CHARS_PER_TOKEN)
+    return max_tokens, reserve, chars_per
+
+
+def _slim_pack_for_acp_worker(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """Worker prompt JSON: SHA + read paths only; omit duplicate graph/manifest blobs."""
+    slim: dict[str, Any] = {}
+    for key in (
+        "schema",
+        "topic",
+        "track",
+        "task",
+        "provider",
+        "episode_id",
+        "action_id",
+        "attempt_id",
+        "catalog_action_id",
+        "base_sha",
+        "manifest_sha",
+        "plan_sha",
+        "allowed_write_root",
+        "completion_receipt_path",
+        "approved_bundle_sha",
+        "active_isolated_lease",
+        "runtime_dispatch_ready",
+        "safe_to_dispatch",
+        "execution_capabilities_ready",
+        "replay",
+        "required_handshake",
+        "forbidden",
+        "allowed_sections",
+        "mutable_sections",
+        "next_action",
+        "generated_at",
+        "contract_preflight_passed",
+        "static_preflight_passed",
+    ):
+        if key in pack:
+            slim[key] = pack[key]
+    workspace = pack.get("workspace")
+    if isinstance(workspace, Mapping):
+        slim["workspace"] = {
+            k: workspace.get(k)
+            for k in (
+                "repo_root",
+                "repo_name",
+                "repo_head",
+                "active_topic",
+                "topic_dir",
+                "topic_ndf_dir",
+                "state_path",
+            )
+            if workspace.get(k)
+        }
+    cp = pack.get("context_plan")
+    if isinstance(cp, Mapping):
+        slim_reads: list[dict[str, Any]] = []
+        for item in cp.get("ordered_reads") or []:
+            if not isinstance(item, Mapping):
+                continue
+            slim_reads.append(
+                {
+                    k: item[k]
+                    for k in ("order", "path", "phase", "reason", "sha256")
+                    if k in item
+                }
+            )
+        slim_cp: dict[str, Any] = {
+            k: cp.get(k)
+            for k in (
+                "schema",
+                "manifest_sha",
+                "plan_sha",
+                "topic",
+                "task",
+                "track",
+                "role",
+                "evidence_refs",
+                "seed_ids",
+            )
+            if k in cp
+        }
+        slim_cp["ordered_reads"] = slim_reads
+        baseline = cp.get("baseline")
+        if isinstance(baseline, Mapping):
+            slim_cp["baseline"] = {
+                k: baseline.get(k)
+                for k in (
+                    "path",
+                    "bind_sha",
+                    "baseline_trunk_sha",
+                    "baseline_status",
+                    "bind",
+                )
+                if k in baseline
+            }
+        gates = cp.get("gates")
+        if isinstance(gates, Mapping):
+            slim_cp["gates"] = {
+                k: gates.get(k)
+                for k in (
+                    "bundle_mode",
+                    "expected_content_sha",
+                    "slice_manifest_sha",
+                )
+                if k in gates
+            }
+        slim["context_plan"] = slim_cp
+    cv = pack.get("context_verify")
+    if isinstance(cv, Mapping):
+        slim["context_verify"] = {
+            k: cv.get(k) for k in ("valid", "plan_sha", "manifest_sha", "errors") if k in cv
+        }
+    slim["task_manifest_ref"] = {
+        "manifest_sha": pack.get("manifest_sha"),
+        "plan_sha": pack.get("plan_sha"),
+    }
+    return slim
+
+
+def acp_context_budget_for_pack(pack: Mapping[str, Any]) -> dict[str, Any]:
+    """Estimate resume history + worker message vs model window (fail-closed before API 400)."""
+    import ndf_workflow_status as workflow
+
+    session_id = workflow.configured_acp_session_id()
+    resume_chars = workflow.estimate_acp_resume_text_chars(session_id)
+    worker_message = _build_worker_message(pack)
+    message_chars = len(worker_message)
+    max_tokens, reserve, chars_per = _acp_context_limits()
+    estimated_tokens = int((resume_chars + message_chars) / chars_per) + reserve
+    over_budget = estimated_tokens > max_tokens
+    resume_path = (
+        str(workflow.claude_acp_resume_path(session_id)) if session_id else None
+    )
+    return {
+        "session_id": session_id,
+        "resume_path": resume_path,
+        "resume_chars": resume_chars,
+        "worker_message_chars": message_chars,
+        "estimated_tokens": estimated_tokens,
+        "max_tokens": max_tokens,
+        "completion_reserve": reserve,
+        "chars_per_token": chars_per,
+        "over_budget": over_budget,
+        "fork_session": _acp_fork_session_enabled(),
+    }
+
+
+def _acp_fork_session_enabled() -> bool:
+    raw = str(os.environ.get("NDF_ACP_FORK_SESSION") or "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
 
 
 def _build_worker_message(pack: Mapping[str, Any]) -> str:
@@ -327,9 +494,10 @@ def _build_worker_message(pack: Mapping[str, Any]) -> str:
             "(see tmp/cluster-gbdt-completion.json). MUST NOT use a summary object.",
             "evidence_bundle_sha MUST match evidence_paths hashed at completion worktree root.",
         ])
+    slim = _slim_pack_for_acp_worker(pack)
     lines.extend([
         "BEGIN NDF_PACK_JSON",
-        json.dumps(pack, ensure_ascii=False, sort_keys=True, default=str),
+        json.dumps(slim, ensure_ascii=False, sort_keys=True, default=str),
         "END NDF_PACK_JSON",
     ])
     return "\n".join(lines)
@@ -1316,6 +1484,8 @@ def _acp_argv(
     if not exe:
         return None
     cmd = [exe, "--resume", session_id]
+    if _acp_fork_session_enabled():
+        cmd.append("--fork-session")
     if _acp_inherit_commander_permissions(pack):
         cmd.extend(
             [
@@ -1815,13 +1985,13 @@ def _closeout(
     agent_completion: Mapping[str, Any] | None = None,
     pack: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Persist dispatch receipt → action-commit → snapshot.
+    """Persist dispatch receipt; optional best-effort action closeout.
 
     Task success MUST NOT be inferred from transport alone. When a Worker
     ``ndf-agent-completion/v1`` is present it is written beside the thin
-    dispatch receipt; ``action-finish`` uses the validated task ``result``.
+    dispatch receipt. Episode/Replay recording and action-finish are optional
+    and MUST NOT flip a validated disk success to failed (ADR-META-004).
     """
-    import ndf_actions
     import ndf_workflow_status as workflow
 
     steps: dict[str, Any] = {}
@@ -1843,7 +2013,7 @@ def _closeout(
             encoding="utf-8",
         )
         steps["agent_completion_path"] = "tmp/ndf-agent-completion.json"
-        # Bind Episode for both success and failure completions.
+        # Optional legacy Episode bind — never fail success for missing/failed Episode.
         episode_id = None
         if isinstance(pack, Mapping):
             episode_id = _pack_episode_id(pack)
@@ -1861,28 +2031,15 @@ def _closeout(
                     "exit_code": verify_code,
                     "valid": bool(verify.get("valid")),
                     "errors": verify.get("errors") or [],
+                    "optional": True,
                 }
-                if result == "succeeded" and (
-                    verify_code != 0 or not verify.get("valid")
-                ):
-                    # Fail closed: do not keep a false succeeded closeout.
-                    result = "failed"
-                    for err in verify.get("errors") or ["completion_record_failed"]:
-                        if str(err) not in blockers:
-                            blockers.append(str(err))
-                    completion["result"] = result
-                    completion["blockers"] = blockers
             except Exception as exc:  # noqa: BLE001 — closeout must not crash dispatch
                 steps["completion_record"] = {
                     "exit_code": 1,
                     "valid": False,
+                    "optional": True,
                     "errors": [f"completion_record_exception:{type(exc).__name__}"],
                 }
-                if result == "succeeded":
-                    result = "failed"
-                    blockers.append(f"completion_record_exception:{type(exc).__name__}")
-                    completion["result"] = result
-                    completion["blockers"] = blockers
     completion_path.write_text(
         json.dumps(completion, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -1914,8 +2071,21 @@ def _closeout(
         isinstance(agent_completion, Mapping)
         and agent_completion.get("schema") == "ndf-agent-completion/v1"
     )
-    if result == "succeeded" and action_id and catalog_action_id and (lease_only or validated):
-        prompt_rel = ndf_actions.action_prompt_relpath(catalog_action_id)
+    # Action commit/finish optional; ActionSpec retired — skip without failing success.
+    if (
+        result == "succeeded"
+        and action_id
+        and catalog_action_id
+        and (lease_only or validated)
+    ):
+        steps["action_closeout"] = {
+            "skipped": True,
+            "reason": "action_spec_retired",
+            "action_id": action_id,
+            "catalog_action_id": catalog_action_id,
+        }
+    elif False and result == "succeeded" and action_id and catalog_action_id and (lease_only or validated):
+        prompt_rel = "tmp/ndf-action-prompts/retired.md"
         commit_cmd = [
             "python3",
             "spec/meta/tools/ndf_workflow_status.py",
@@ -1940,6 +2110,7 @@ def _closeout(
             "exit_code": commit.returncode,
             "stdout": (commit.stdout or "")[-4000:],
             "stderr": (commit.stderr or "")[-2000:],
+            "optional": True,
         }
     elif action_id and catalog_action_id:
         steps["action_commit"] = {
@@ -1951,42 +2122,25 @@ def _closeout(
             ),
             "result": result,
         }
+    else:
+        steps["action_commit"] = {
+            "skipped": True,
+            "skip_reason": "no_action_id",
+            "optional": True,
+        }
     if action_id:
-        has_started = _action_has_started(action_id)
-        if not has_started:
-            steps["action_finish"] = {
-                "skipped": True,
-                "skip_reason": "no_started_receipt",
-            }
-        else:
-            finish_result = _finish_result(result, blockers)
-            finish_cmd = [
-                "python3",
-                "spec/meta/tools/ndf_workflow_status.py",
-                "action-finish",
-                "--action-id",
-                action_id,
-                "--result",
-                finish_result,
-                "--json",
-            ]
-            episode_id = _pack_episode_id(pack) if isinstance(pack, Mapping) else ""
-            if episode_id:
-                finish_cmd.extend(["--episode", episode_id])
-            for blocker in blockers:
-                finish_cmd.extend(["--blocker", str(blocker)[:200]])
-            finish = subprocess.run(
-                finish_cmd,
-                cwd=ROOT,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                check=False,
-            )
-            steps["action_finish"] = {
-                "exit_code": finish.returncode,
-                "stdout": (finish.stdout or "")[-2000:],
-            }
+        steps["action_finish"] = {
+            "skipped": True,
+            "skip_reason": "action_spec_retired",
+            "action_id": action_id,
+            "optional": True,
+        }
+    else:
+        steps["action_finish"] = {
+            "skipped": True,
+            "skip_reason": "no_action_id",
+            "optional": True,
+        }
     steps["final_result"] = result
     return steps
 
@@ -2005,31 +2159,14 @@ def _action_has_started(action_id: str) -> bool:
 
 
 def _run_snapshot(pack: Mapping[str, Any] | None) -> dict[str, Any]:
-    snap_cmd = [
-        "python3",
-        "spec/meta/tools/ndf_workflow_status.py",
-        "snapshot",
-        "--out",
-        "tmp/ndf-canvas-snapshot.json",
-        "--json",
-    ]
-    topic = ""
-    if isinstance(pack, Mapping):
-        topic = str(pack.get("topic") or "").strip()
-    if topic:
-        snap_cmd.extend(["--topic", topic])
-    snap = subprocess.run(
-        snap_cmd,
-        cwd=ROOT,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=False,
-    )
+    """Commander snapshot retired — no-op (ADR-META-004)."""
+    _ = pack
     return {
-        "exit_code": snap.returncode,
-        "stdout": (snap.stdout or "")[-2000:],
-        "stderr": (snap.stderr or "")[-1000:],
+        "exit_code": 0,
+        "skipped": True,
+        "reason": "commander_retired",
+        "stdout": "",
+        "stderr": "",
     }
 
 

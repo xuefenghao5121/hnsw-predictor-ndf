@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T14:35:08Z",
-  "clause_count": 50,
+  "generated_at": "2026-08-24T08:40:18Z",
+  "clause_count": 51,
   "meta_only": true,
   "nodes": {
     "ADR-META-001": {
@@ -57,6 +57,35 @@
         "ADR-META-001",
         "DEF-META-ID-NS",
         "META-001"
+      ]
+    },
+    "ADR-META-003": {
+      "id": "ADR-META-003",
+      "title": "ADR: 文字优先 POC 热路径",
+      "file": "meta/decisions/adr-meta-text-first-poc.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-025",
+          "META-010",
+          "META-011",
+          "META-012",
+          "META-013"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-025",
+        "META-010",
+        "META-011",
+        "META-012",
+        "META-013"
       ]
     },
     "ADR-TOPIC-BINDER-001": {
@@ -186,14 +215,16 @@
         "DEF-NDF-STABLE-DRAFT",
         "META-004",
         "META-005",
-        "META-006"
+        "META-006",
+        "META-010",
+        "META-011"
       ]
     },
     "BEH-020": {
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 906,
+      "line": 1116,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -221,7 +252,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 926,
+      "line": 1136,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -241,6 +272,7 @@
       },
       "body_refs": [
         "DEF-023",
+        "ADR-META-003",
         "META-010",
         "BEH-018",
         "BEH-019",
@@ -248,6 +280,7 @@
       ],
       "backlinks": [
         "ADR-META-001",
+        "ADR-META-003",
         "ADR-TOPIC-BINDER-001",
         "ARCH-008",
         "BEH-018",
@@ -266,7 +299,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 1069,
+      "line": 1286,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1140,9 +1173,12 @@
         ]
       },
       "body_refs": [
+        "ADR-META-003",
+        "BEH-019",
         "META-014"
       ],
       "backlinks": [
+        "ADR-META-003",
         "BEH-025",
         "DEF-NDF-GATE-RECEIPT",
         "META-011",
@@ -1155,7 +1191,7 @@
       "id": "META-011",
       "title": "Workflow 投影与 Claude Code 委派",
       "file": "meta/process.md",
-      "line": 256,
+      "line": 269,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1169,10 +1205,14 @@
         ]
       },
       "body_refs": [
+        "ADR-META-003",
         "META-010",
-        "BEH-025"
+        "META-008",
+        "BEH-025",
+        "BEH-019"
       ],
       "backlinks": [
+        "ADR-META-003",
         "DEF-NDF-WORKFLOW-PROJECTION",
         "META-008",
         "META-012",
@@ -1185,7 +1225,7 @@
       "id": "META-012",
       "title": "NDF 任务上下文与证据绑定",
       "file": "meta/process.md",
-      "line": 573,
+      "line": 749,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1201,9 +1241,11 @@
         ]
       },
       "body_refs": [
-        "BEH-025"
+        "BEH-025",
+        "ADR-META-003"
       ],
       "backlinks": [
+        "ADR-META-003",
         "META-013",
         "META-014"
       ]
@@ -1212,7 +1254,7 @@
       "id": "META-013",
       "title": "Agent Episode、事件链与回放等级",
       "file": "meta/process.md",
-      "line": 647,
+      "line": 837,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1227,11 +1269,13 @@
         ]
       },
       "body_refs": [
+        "ADR-META-003",
         "META-015",
         "META-011",
         "META-014"
       ],
       "backlinks": [
+        "ADR-META-003",
         "META-014",
         "META-015"
       ]
@@ -1240,7 +1284,7 @@
       "id": "META-014",
       "title": "Process Proposal 生命周期与回执",
       "file": "meta/process.md",
-      "line": 829,
+      "line": 1039,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1265,7 +1309,7 @@
       "id": "META-015",
       "title": "回放沙箱与执行器边界",
       "file": "meta/process.md",
-      "line": 792,
+      "line": 998,
       "kind": "req",
       "level": "must",
       "layer": "L1",

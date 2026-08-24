@@ -557,6 +557,53 @@ class DispatchSendTests(unittest.TestCase):
         self.assertEqual(argv[0], "/usr/bin/claude")
         self.assertIn("--resume", argv)
         self.assertIn("sess-1", argv)
+        self.assertIn("--fork-session", argv)
+
+    def test_acp_argv_fork_session_disabled(self) -> None:
+        with mock.patch.dict(os.environ, {"NDF_ACP_FORK_SESSION": "0"}, clear=False):
+            argv = dispatch._acp_argv(
+                {"safe_to_dispatch": True},
+                session_id="sess-1",
+                message="run it",
+                executable="/usr/bin/claude",
+            )
+        self.assertIsNotNone(argv)
+        assert argv is not None
+        self.assertNotIn("--fork-session", argv)
+
+    def test_slim_worker_message_omits_task_manifest_graph(self) -> None:
+        pack = {
+            "provider": "claude-code-acp",
+            "task": "poc_implementation",
+            "topic": "demo",
+            "manifest_sha": "abc",
+            "plan_sha": "def",
+            "task_manifest": {"shared_graph_closure": {"nodes": [{"id": "BEH-001"}]}},
+            "context_plan": {
+                "plan_sha": "def",
+                "graph": {"nodes": [{"id": "BEH-001"}]},
+                "ordered_reads": [{"order": 0, "path": "poc/demo/ndf/TOPIC.md"}],
+            },
+        }
+        slim = dispatch._slim_pack_for_acp_worker(pack)
+        self.assertNotIn("task_manifest", slim)
+        self.assertIn("task_manifest_ref", slim)
+        self.assertNotIn("graph", slim.get("context_plan") or {})
+        msg = dispatch._build_worker_message(pack)
+        self.assertNotIn("shared_graph_closure", msg)
+
+    def test_acp_context_over_budget_blocks_preflight(self) -> None:
+        pack = {
+            "provider": "claude-code-acp",
+            "safe_to_dispatch": True,
+            "workspace_truth": {"workspace_bound": True},
+            "base_sha": "abc",
+            "workspace": {"repo_root": "/repo"},
+            "allowed_write_root": "poc/demo/",
+            "acp_context_budget": {"over_budget": True},
+        }
+        blockers = dispatch._pack_preflight_blockers(pack)
+        self.assertIn("acp_context_over_budget", blockers)
 
     def test_acp_argv_override_is_unchanged(self) -> None:
         with mock.patch.dict(os.environ, {"NDF_ACP_DISPATCH_CMD": "echo skip-me"}, clear=False):
@@ -824,7 +871,9 @@ class CloseoutCommitGateTests(unittest.TestCase):
         self.assertTrue(steps["action_commit"]["skipped"])
         self.assertEqual(steps["action_commit"]["skip_reason"], "dispatch_not_succeeded")
         self.assertFalse(any("action-commit" in cmd for cmd in runs))
-        self.assertTrue(any("action-finish" in cmd for cmd in runs))
+        # ActionSpec retired: action-finish is skipped, not invoked (ADR-META-004).
+        self.assertFalse(any("action-finish" in cmd for cmd in runs))
+        self.assertEqual(steps["action_finish"].get("skip_reason"), "action_spec_retired")
 
     def test_cancelled_skips_action_commit(self) -> None:
         steps, runs = self._run_closeout(result="cancelled", blockers=["waiting_human"])
@@ -849,8 +898,11 @@ class CloseoutCommitGateTests(unittest.TestCase):
             result="succeeded",
             agent_completion=completion,
         )
-        self.assertFalse(steps["action_commit"].get("skipped"))
-        self.assertTrue(any("action-commit" in cmd for cmd in runs))
+        # ActionSpec retired: closeout records skip, never calls action-commit.
+        self.assertTrue(steps["action_closeout"].get("skipped"))
+        self.assertEqual(steps["action_closeout"].get("reason"), "action_spec_retired")
+        self.assertFalse(any("action-commit" in cmd for cmd in runs))
+        self.assertFalse(any("action-finish" in cmd for cmd in runs))
 
 
 class SnapshotOrderTests(unittest.TestCase):

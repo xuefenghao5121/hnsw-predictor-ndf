@@ -631,6 +631,36 @@ QPS and Recall.
         self.assertIn("gate_sha_mismatch", {item["kind"] for item in result["warnings"]})
         self.assertTrue(result["valid"])
 
+    def test_canvas_role_treats_gate_drift_as_warning_not_required_gate(self) -> None:
+        plan = self._plan(task="poc_implementation", role="canvas")
+        plan["gates"]["receipts"] = [
+            {
+                "gate": "implementation_approval",
+                "status": "approved",
+                "phrase": "可以开始实现",
+                "expected_phrase": "可以开始实现",
+                "approved_by": "human",
+                "approved_at": "2026-08-13T00:00:00Z",
+                "source_ref": "TOPIC+DESIGN+PERF",
+                "approved_content_sha": "a" * 64,
+                "expected_content_sha": "b" * 64,
+                "receipt_bundle_mode": "review_slice",
+                "expected_bundle_mode": "review_slice",
+                "receipt_slice_manifest_sha": "d" * 64,
+                "expected_slice_manifest_sha": "d" * 64,
+            }
+        ]
+        self._resign(plan)
+        result = context.verify_plan(plan, root=self.root)
+        kinds = {item["kind"] for item in result["errors"]}
+        self.assertNotIn("gate_sha_mismatch", kinds, result["errors"])
+        self.assertNotIn("required_gate_not_valid", kinds, result["errors"])
+        self.assertIn(
+            "gate_sha_mismatch",
+            {item["kind"] for item in result["warnings"]},
+        )
+        self.assertTrue(result["valid"], result["errors"])
+
     def test_binder_repair_treats_stale_baseline_and_gate_drift_as_warnings(self) -> None:
         plan = self._plan(task="binder_amend", role="openclaw")
         plan["baseline"]["baseline_status"] = "stale"

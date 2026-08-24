@@ -39,6 +39,14 @@ GATE_SLICE_IDS = {
         "delta_hypothesis",
         "interface_contract",
     ),
+    # Text-first POC hot path (ADR-META-003): same contract bundle as gate 3.
+    "bundle_dispatch": (
+        "topic_contract",
+        "design_contract",
+        "perf_bind",
+        "delta_hypothesis",
+        "interface_contract",
+    ),
 }
 MUTABLE_SECTIONS = (
     "topic_runtime_headers",
@@ -328,16 +336,18 @@ def gate_bundle_specs(
     proposal_paths: Iterable[Path] = (),
 ) -> dict[str, dict[str, Any]]:
     ndf = topic_dir / "ndf"
+    impl_paths = [
+        ndf / "TOPIC.md",
+        ndf / "DESIGN.md",
+        ndf / "PERF_BASELINE.md",
+        ndf / "DELTA.md",
+        ndf / "INTERFACE.md",
+    ]
     legacy_paths = {
         "topic_review": [ndf / "TOPIC.md", *proposal_paths],
         "design_review": [ndf / "TOPIC.md", ndf / "DESIGN.md"],
-        "implementation_approval": [
-            ndf / "TOPIC.md",
-            ndf / "DESIGN.md",
-            ndf / "PERF_BASELINE.md",
-            ndf / "DELTA.md",
-            ndf / "INTERFACE.md",
-        ],
+        "implementation_approval": list(impl_paths),
+        "bundle_dispatch": list(impl_paths),
     }
     parsed = {
         name: parse_review_slices(ndf / filename, root=root)

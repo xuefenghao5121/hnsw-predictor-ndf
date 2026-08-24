@@ -53,12 +53,13 @@ PROCESS_TASKS = frozenset(
     {
         "ndf_improvement_proposal",
         "ndf_improvement_land",
-        "control_proposal",
+        "process_proposal",
         "spec_health",
         "project_control",
         "process",
     }
 )
+PRODUCT_PROPOSAL_TASKS = frozenset({"product_proposal", "control_proposal"})
 PROJECT_CONTROL_STAGE_TASKS = {
     "ndf_improvement_proposal": frozenset({"draft"}),
     "ndf_improvement_land": frozenset({"confirm_land", "review"}),
@@ -89,9 +90,11 @@ TASK_DEFAULT_SEEDS = {
     "partial": ("BEH-019", "META-004", "META-012"),
     "binder_amend": ("BEH-025", "META-010", "META-012"),
     "gate_sha_audit": ("META-010", "META-012"),
-    "control_proposal": ("META-011", "META-012"),
-    "ndf_improvement_proposal": ("META-011", "META-012"),
-    "ndf_improvement_land": ("META-011", "META-012"),
+    "control_proposal": ("META-011", "META-012", "ADR-META-004"),
+    "product_proposal": ("META-011", "META-012", "ADR-META-004"),
+    "process_proposal": ("META-011", "META-012", "META-014", "ADR-META-004"),
+    "ndf_improvement_proposal": ("META-011", "META-012", "META-014", "ADR-META-004"),
+    "ndf_improvement_land": ("META-011", "META-012", "META-014"),
     "episode_replay": ("META-012", "META-013", "META-015"),
     "replay_audit": ("META-012", "META-013", "META-015"),
     "replay_sandbox": ("META-012", "META-013", "META-015"),
@@ -108,7 +111,8 @@ PRIVILEGES = {
         "summary_only": True,
     },
     "openclaw": {
-        "allowed_write_roots": ["spec/open/", "spec/meta/open/"],
+        # Default empty; task-specific privileges narrow to one plane (ADR-META-004).
+        "allowed_write_roots": [],
         "forbidden_write_paths": ["src/", "include/", "tests/", "spec/meta/process.md"],
         "summary_only": False,
     },
@@ -165,6 +169,8 @@ def _role_task_compatible(role: str, task: str, track: str) -> bool:
             "gate_pipeline",
             "binder_pipeline",
             "control_proposal",
+            "product_proposal",
+            "process_proposal",
             "close",
             "promote",
             "partial",
@@ -776,8 +782,26 @@ def _privileges(
                 "commits_append",
                 "decision_selected",
             ]
-        elif task == "control_proposal":
-            value["allowed_write_roots"] = ["spec/open/", "spec/meta/open/"]
+        elif task in {"control_proposal", "product_proposal"}:
+            value["allowed_write_roots"] = ["spec/open/"]
+            value["forbidden_write_paths"] = _unique(
+                [
+                    *value.get("forbidden_write_paths", []),
+                    "spec/meta/",
+                    "spec/meta/open/",
+                ]
+            )
+        elif task == "process_proposal":
+            value["allowed_write_roots"] = ["spec/meta/open/"]
+            value["forbidden_write_paths"] = _unique(
+                [
+                    *value.get("forbidden_write_paths", []),
+                    "spec/open/",
+                    "src/",
+                    "include/",
+                    "tests/",
+                ]
+            )
     if role == "project-control":
         hop = str((control or {}).get("hop") or "")
         proposal_path = (control or {}).get("proposal_path")
@@ -1575,11 +1599,21 @@ def verify_plan(
                 "expected": expected,
                 "actual": recorded,
             }
-            if plan.get("task") in CONTROL_REPAIR_TASKS:
+            # Canvas is read-only projection: gate drift must not paint the whole
+            # topic red. ACP write packs still use role=claude-code +
+            # task=poc_implementation and fail closed on mismatch.
+            if (
+                plan.get("task") in CONTROL_REPAIR_TASKS
+                or plan.get("role") == "canvas"
+            ):
                 warnings.append(finding)
             else:
                 errors.append(finding)
-    required_gate = plan.get("task") in {"poc_measurement", "implement", "poc_implementation", "poc_prepare_baseline"}
+    required_gate = (
+        plan.get("task")
+        in {"poc_measurement", "implement", "poc_implementation", "poc_prepare_baseline"}
+        and plan.get("role") != "canvas"
+    )
     if required_gate:
         implementation = [
             item

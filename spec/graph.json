@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-19T13:35:40Z",
-  "clause_count": 256,
+  "generated_at": "2026-08-24T11:08:36Z",
+  "clause_count": 261,
   "meta_only": false,
   "nodes": {
     "ADR-META-001": {
@@ -57,6 +57,69 @@
         "ADR-META-001",
         "DEF-META-ID-NS",
         "META-001"
+      ]
+    },
+    "ADR-META-003": {
+      "id": "ADR-META-003",
+      "title": "ADR: 文字优先 POC 热路径",
+      "file": "meta/decisions/adr-meta-text-first-poc.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-025",
+          "META-010",
+          "META-011",
+          "META-012",
+          "META-013"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004"
+      ],
+      "backlinks": [
+        "ADR-META-004",
+        "BEH-025",
+        "META-010",
+        "META-011",
+        "META-012",
+        "META-013"
+      ]
+    },
+    "ADR-META-004": {
+      "id": "ADR-META-004",
+      "title": "ADR: Idea 分流与控制面减法",
+      "file": "meta/decisions/adr-meta-control-retirement.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-009",
+          "META-010",
+          "META-011",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-003"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "META-011",
+        "META-012",
+        "META-013",
+        "META-014",
+        "META-015"
       ]
     },
     "ADR-TOPIC-BINDER-001": {
@@ -302,7 +365,8 @@
         "DEC-088",
         "CON-002",
         "BEH-036",
-        "API-020"
+        "API-020",
+        "BEH-038"
       ],
       "backlinks": [
         "API-001",
@@ -325,7 +389,7 @@
       "id": "API-012",
       "title": "L4 WILLNEED 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 128,
+      "line": 129,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -361,7 +425,7 @@
       "id": "API-013",
       "title": "WILLNEED 多线程扩展环境变量",
       "file": "30-interfaces/env.md",
-      "line": 143,
+      "line": 144,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -422,7 +486,7 @@
       "id": "API-017",
       "title": "PQ 距离间隙自适应 EF 环境变量",
       "file": "30-interfaces/env.md",
-      "line": 158,
+      "line": 159,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -452,7 +516,7 @@
       "id": "API-018",
       "title": "GBDT 学习式候选数预测环境变量",
       "file": "30-interfaces/env.md",
-      "line": 189,
+      "line": 190,
       "kind": "req",
       "level": "may",
       "layer": "L1",
@@ -507,6 +571,30 @@
         "DEC-084",
         "MODEL-SUSTAINED-001",
         "VER-043"
+      ]
+    },
+    "API-022": {
+      "id": "API-022",
+      "title": "PQ SIMD 表查环境变量",
+      "file": "30-interfaces/env.md",
+      "line": 211,
+      "kind": "req",
+      "level": "may",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.20",
+      "scope": "",
+      "edges": {
+        "depends-on": [
+          "BEH-005"
+        ]
+      },
+      "body_refs": [
+        "BEH-038"
+      ],
+      "backlinks": [
+        "BEH-038",
+        "DEC-097"
       ]
     },
     "ARCH-001": {
@@ -786,7 +874,9 @@
       },
       "body_refs": [],
       "backlinks": [
+        "API-022",
         "BEH-006",
+        "BEH-038",
         "DEC-002",
         "DEC-014",
         "DEC-036",
@@ -845,7 +935,7 @@
       "id": "BEH-008",
       "title": "邻接表访问策略",
       "file": "20-behavior/search.md",
-      "line": 181,
+      "line": 197,
       "kind": "req",
       "level": "must",
       "layer": "L2",
@@ -1210,20 +1300,23 @@
       "backlinks": [
         "BEH-025",
         "DEC-064",
+        "DEC-097",
         "DEF-021",
         "DEF-NDF-BINDER-DUAL-HEAD",
         "DEF-NDF-SPEC-DRIFT",
         "DEF-NDF-STABLE-DRAFT",
         "META-004",
         "META-005",
-        "META-006"
+        "META-006",
+        "META-010",
+        "META-011"
       ]
     },
     "BEH-020": {
       "id": "BEH-020",
       "title": "负结果与回退",
       "file": "meta/process.md",
-      "line": 896,
+      "line": 540,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1254,7 +1347,7 @@
       "id": "BEH-021",
       "title": "I/O Pipelining 行为 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 97,
+      "line": 113,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -1292,7 +1385,7 @@
       "id": "BEH-022",
       "title": "L1/L2/L3 CPU Cache 向量预取 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 128,
+      "line": 144,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -1320,7 +1413,7 @@
       "id": "BEH-023",
       "title": "L4 Page Cache 旁路填充 (探索轨)",
       "file": "20-behavior/search.md",
-      "line": 141,
+      "line": 157,
       "kind": "req",
       "level": "tbd",
       "layer": "L1",
@@ -1351,7 +1444,7 @@
       "id": "BEH-024",
       "title": "L4 Page Cache 主动管理",
       "file": "20-behavior/search.md",
-      "line": 156,
+      "line": 172,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1397,7 +1490,7 @@
       "id": "BEH-025",
       "title": "POC 主题装订纪律",
       "file": "meta/process.md",
-      "line": 916,
+      "line": 560,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1417,6 +1510,7 @@
       },
       "body_refs": [
         "DEF-023",
+        "ADR-META-003",
         "META-010",
         "BEH-018",
         "BEH-019",
@@ -1424,6 +1518,8 @@
       ],
       "backlinks": [
         "ADR-META-001",
+        "ADR-META-003",
+        "ADR-META-004",
         "ADR-TOPIC-BINDER-001",
         "ARCH-008",
         "BEH-018",
@@ -1437,7 +1533,6 @@
         "META-003",
         "META-007",
         "META-008",
-        "META-011",
         "META-012"
       ]
     },
@@ -1445,7 +1540,7 @@
       "id": "BEH-026",
       "title": "NDF 缺陷分类（指针）",
       "file": "meta/process.md",
-      "line": 1059,
+      "line": 710,
       "kind": "info",
       "level": "may",
       "layer": "L1",
@@ -1469,7 +1564,7 @@
       "id": "BEH-027",
       "title": "WILLNEED 后台线程化",
       "file": "20-behavior/search.md",
-      "line": 192,
+      "line": 208,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1506,7 +1601,7 @@
       "id": "BEH-028",
       "title": "WILLNEED BG 页合并",
       "file": "20-behavior/search.md",
-      "line": 216,
+      "line": 232,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1558,7 +1653,7 @@
       "id": "BEH-033",
       "title": "PQ 距离间隙自适应 EF",
       "file": "20-behavior/search.md",
-      "line": 233,
+      "line": 249,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1589,7 +1684,7 @@
       "id": "BEH-034",
       "title": "GBDT 学习式候选数预测",
       "file": "20-behavior/search.md",
-      "line": 273,
+      "line": 289,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -1653,6 +1748,32 @@
         "DEC-084",
         "MODEL-SUSTAINED-001",
         "VER-043"
+      ]
+    },
+    "BEH-038": {
+      "id": "BEH-038",
+      "title": "SIMD ADC 表查快路径",
+      "file": "20-behavior/search.md",
+      "line": 97,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.20",
+      "scope": "",
+      "edges": {
+        "refines": [
+          "BEH-005"
+        ],
+        "depends-on": [
+          "API-022"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "API-011",
+        "API-022",
+        "DEC-097"
       ]
     },
     "CHR-001": {
@@ -4017,7 +4138,9 @@
       "body_refs": [
         "CHR-006"
       ],
-      "backlinks": []
+      "backlinks": [
+        "DEC-097"
+      ]
     },
     "DEC-073": {
       "id": "DEC-073",
@@ -4421,6 +4544,32 @@
       },
       "body_refs": [
         "DEC-067"
+      ],
+      "backlinks": []
+    },
+    "DEC-097": {
+      "id": "DEC-097",
+      "title": "DEC-097: Partial Promote Hotspot D1 — SIMD `pqAdcDistance`",
+      "file": "decisions/097-hotspot-d1-partial-promote.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "3",
+      "layer": "",
+      "status": "accepted",
+      "since": "",
+      "scope": "",
+      "edges": {
+        "affects": [
+          "BEH-038",
+          "API-022"
+        ],
+        "depends-on": [
+          "DEC-072",
+          "BEH-019"
+        ]
+      },
+      "body_refs": [
+        "DEC-072"
       ],
       "backlinks": []
     },
@@ -4997,7 +5146,7 @@
       "id": "DEF-NDF-BINDER-DUAL-HEAD",
       "title": "DEF: 装订器双头漂移",
       "file": "meta/glossary.md",
-      "line": 178,
+      "line": 179,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5021,7 +5170,7 @@
       "id": "DEF-NDF-CONFLICT-ASYM",
       "title": "DEF: conflicts 非对称",
       "file": "meta/glossary.md",
-      "line": 136,
+      "line": 137,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5042,7 +5191,7 @@
       "id": "DEF-NDF-CYCLE",
       "title": "DEF: 依赖环缺陷",
       "file": "meta/glossary.md",
-      "line": 124,
+      "line": 125,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5102,7 +5251,7 @@
       "id": "DEF-NDF-GRAPH",
       "title": "DEF: NDF 条款语义图模型",
       "file": "meta/glossary.md",
-      "line": 104,
+      "line": 105,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5162,7 +5311,7 @@
       "id": "DEF-NDF-META-DANGLING",
       "title": "DEF: meta 边悬空",
       "file": "meta/glossary.md",
-      "line": 142,
+      "line": 143,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5181,7 +5330,7 @@
       "id": "DEF-NDF-OBS-GRAIN",
       "title": "DEF: 观测粒度过粗",
       "file": "meta/glossary.md",
-      "line": 172,
+      "line": 173,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5241,7 +5390,7 @@
       "id": "DEF-NDF-REPRO-BIND-GAP",
       "title": "DEF: 可复现绑定缺失",
       "file": "meta/glossary.md",
-      "line": 166,
+      "line": 167,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5260,7 +5409,7 @@
       "id": "DEF-NDF-SPEC-DRIFT",
       "title": "DEF: 规范漂移",
       "file": "meta/glossary.md",
-      "line": 154,
+      "line": 155,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5285,7 +5434,7 @@
       "id": "DEF-NDF-STABLE-DRAFT",
       "title": "DEF: stable must 依赖非 stable",
       "file": "meta/glossary.md",
-      "line": 130,
+      "line": 131,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5328,7 +5477,7 @@
       "id": "DEF-NDF-UNLINKED",
       "title": "DEF: 未连接条款（warning）",
       "file": "meta/glossary.md",
-      "line": 148,
+      "line": 149,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5368,7 +5517,7 @@
       "id": "DEF-NDF-ZOMBIE-SPEC",
       "title": "DEF: 僵尸规范",
       "file": "meta/glossary.md",
-      "line": 160,
+      "line": 161,
       "kind": "def",
       "level": "",
       "layer": "L1",
@@ -5629,6 +5778,7 @@
       },
       "body_refs": [],
       "backlinks": [
+        "ADR-META-004",
         "DEC-PROJECT-GENESIS",
         "DEF-NDF-PROJECT-GENESIS"
       ]
@@ -5637,7 +5787,7 @@
       "id": "META-010",
       "title": "人工门禁回执",
       "file": "meta/process.md",
-      "line": 188,
+      "line": 189,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5651,9 +5801,13 @@
         ]
       },
       "body_refs": [
+        "ADR-META-003",
+        "BEH-019",
         "META-014"
       ],
       "backlinks": [
+        "ADR-META-003",
+        "ADR-META-004",
         "BEH-025",
         "DEF-NDF-GATE-RECEIPT",
         "META-011",
@@ -5664,9 +5818,9 @@
     },
     "META-011": {
       "id": "META-011",
-      "title": "Workflow 投影与 Claude Code 委派",
+      "title": "文字委派与磁盘完成合同",
       "file": "meta/process.md",
-      "line": 255,
+      "line": 269,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5680,10 +5834,14 @@
         ]
       },
       "body_refs": [
-        "BEH-025",
-        "META-010"
+        "ADR-META-003",
+        "ADR-META-004",
+        "META-010",
+        "BEH-019"
       ],
       "backlinks": [
+        "ADR-META-003",
+        "ADR-META-004",
         "DEF-NDF-WORKFLOW-PROJECTION",
         "META-008",
         "META-012",
@@ -5696,7 +5854,7 @@
       "id": "META-012",
       "title": "NDF 任务上下文与证据绑定",
       "file": "meta/process.md",
-      "line": 563,
+      "line": 367,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5712,22 +5870,24 @@
         ]
       },
       "body_refs": [
-        "BEH-025"
+        "ADR-META-004",
+        "BEH-025",
+        "ADR-META-003"
       ],
       "backlinks": [
-        "META-013",
-        "META-014"
+        "ADR-META-003",
+        "META-013"
       ]
     },
     "META-013": {
       "id": "META-013",
       "title": "Agent Episode、事件链与回放等级",
       "file": "meta/process.md",
-      "line": 637,
+      "line": 446,
       "kind": "req",
       "level": "must",
       "layer": "L1",
-      "status": "stable",
+      "status": "deprecated",
       "since": "0.9.15",
       "scope": "ndf-process",
       "edges": {
@@ -5738,12 +5898,13 @@
         ]
       },
       "body_refs": [
-        "META-015",
+        "ADR-META-004",
+        "ADR-META-003",
         "META-011",
-        "META-014"
+        "META-012"
       ],
       "backlinks": [
-        "META-014",
+        "ADR-META-003",
         "META-015"
       ]
     },
@@ -5751,7 +5912,7 @@
       "id": "META-014",
       "title": "Process Proposal 生命周期与回执",
       "file": "meta/process.md",
-      "line": 819,
+      "line": 488,
       "kind": "req",
       "level": "must",
       "layer": "L1",
@@ -5761,26 +5922,26 @@
       "edges": {
         "depends-on": [
           "META-010",
-          "META-011",
-          "META-012",
-          "META-013"
+          "META-011"
         ]
       },
-      "body_refs": [],
+      "body_refs": [
+        "ADR-META-004",
+        "META-010"
+      ],
       "backlinks": [
-        "META-010",
-        "META-013"
+        "META-010"
       ]
     },
     "META-015": {
       "id": "META-015",
       "title": "回放沙箱与执行器边界",
       "file": "meta/process.md",
-      "line": 782,
+      "line": 471,
       "kind": "req",
       "level": "must",
       "layer": "L1",
-      "status": "stable",
+      "status": "deprecated",
       "since": "0.9.17",
       "scope": "ndf-process",
       "edges": {
@@ -5790,11 +5951,9 @@
         ]
       },
       "body_refs": [
-        "META-013"
+        "ADR-META-004"
       ],
-      "backlinks": [
-        "META-013"
-      ]
+      "backlinks": []
     },
     "MODEL-SUSTAINED-001": {
       "id": "MODEL-SUSTAINED-001",

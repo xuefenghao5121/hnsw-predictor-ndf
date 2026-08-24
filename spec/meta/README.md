@@ -23,16 +23,16 @@
 | 读什么 | 路径 |
 |--------|------|
 | **NDF 语言 SoT** | [`language.md`](language.md)（[[META-001]]…[[META-005]]、[[META-008]] 工作空间视角；性能 SLA↔旋钮图依赖 / `trunk-ref` 见 [[META-005]]） |
-| 流程纪律 | [`process.md`](process.md)（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]、[[META-007]]、[[META-009]]…[[META-015]]） |
+| 流程纪律 | [`process.md`](process.md)（[[CHR-008]]、[[BEH-018]]…[[BEH-020]]、[[BEH-025]]、[[META-006]]、[[META-007]]、[[META-009]]…[[META-012]]、[[META-014]]；[[META-013]]/[[META-015]] deprecated） |
 | 目录边界 | [`architecture.md`](architecture.md)（[[ARCH-008]]） |
 | POC↔SLA | [`constraints.md`](constraints.md)（[[CON-POC-001]]） |
 | 术语 | [`glossary.md`](glossary.md)（[[DEF-020]]…[[DEF-023]]、[[DEF-META-ID-NS]]、DEF-NDF-*） |
 | **Harness 治理架构（参考）** | [`tools/GOVERNANCE.md`](tools/GOVERNANCE.md) |
 | **Portable Harness（分发 / Init）** | [`tools/HARNESS.md`](tools/HARNESS.md) · [`../../packages/ndf-harness/`](../../packages/ndf-harness/)（**可能滞后**；以本地本目录为准；统一重提炼另案；禁止用包反推本地） |
-| 卫生 ADR | [`decisions/`](decisions/)（[[ADR-META-001]]、[[ADR-META-002]]…） |
+| 卫生 ADR | [`decisions/`](decisions/)（[[ADR-META-001]]、[[ADR-META-002]]、[[ADR-META-003]]、[[ADR-META-004]]…） |
 | 流程提案 | [`open/proposal-meta-*.md`](open/)（及迁入的装订器提案） |
 | 审核 harness 命令 | [`tools/README.md`](tools/README.md) |
-| Workflow commander / Genesis | [`.cursor/skills/ndf-workflow-canvas/`](../../.cursor/skills/ndf-workflow-canvas/) + [`cockpit/`](cockpit/) + [`tools/ndf_workflow_status.py`](tools/ndf_workflow_status.py) |
+| **文字优先工作流 / Genesis** | [`.cursor/skills/ndf-workflow/`](../../.cursor/skills/ndf-workflow/)（初始化 / Idea / 派发 / 继续 / 关闭）+ [[META-009]] Genesis；工具 [`tools/ndf_workflow_status.py`](tools/ndf_workflow_status.py)（`poc-dispatch` 等） |
 | 卫生收口 r2 | [`open/proposal-meta-trunk-hygiene-r2.md`](open/proposal-meta-trunk-hygiene-r2.md) |
 
 ## 条款 ID 命名空间（[[ADR-META-002]]）
@@ -48,19 +48,23 @@
 产品树中对应段落为 **adopted 薄指针（非 SoT 正文）**，不得把元条款长文写回 `20-behavior/`。
 
 新项目先按 [[META-009]] 走 `track=bootstrap`（greenfield/adopt）建立 Project Genesis；
-日常 Proposal/POC 再按 [[META-010]] 门禁回执与 [[META-011]] 派生工作台编排。
-Agent 任务上下文按 [[META-012]] 由本地 Context Compiler 统一生成：binder→NDF 图→
-git/evidence→gate/runtime→角色权限；不同角色 plan 共享 Task Manifest。可写委派按
-[[META-013]] 进入内容寻址 Episode；R0/R1/R2/R3 分级回放，不承诺逐 token 确定性。
-回放「已执行」按 [[META-015]] 要求 Lvm guest-proof；提示词与同机 worktree 不得冒充。
-新托管 process proposal 按 [[META-014]] 绑定生命周期、人口令回执、stage-specific
-child Episode 与幂等 dispatch；历史无绑定提案只读显示为 `legacy_*_unbound`。
-既有健康棕地可显示 `operational_legacy`，不因缺历史 Genesis 而停止运作。
-Canvas 默认监控本地 Business Project（产品 `spec/00–50` + Trunk）；本目录只作为
-Governance/Control 子视图，MUST NOT 冒充业务项目。Topics 的 NDF Control 文档流
-委派 OpenClaw；实现代码走 Claude Code。**所有 pack MUST 含 `workspace.repo_root`**；
-项目 state 在 `{repo_root}/.openclaw/state.json`，与 gateway session 分离。
+日常 Proposal/POC 按 [[META-010]] 门禁回执与 [[META-011]] 文字委派（`poc-dispatch` /
+磁盘 completion）。Agent 任务上下文按 [[META-012]] 由本地 Context Compiler 统一生成：
+binder→NDF 图→git/evidence→gate/runtime→角色权限；不同角色 plan 共享 Task Manifest。
+[[ADR-META-004]] 退役 Commander / Episode / Replay 运行义务；[[META-013]]、[[META-015]]
+已 deprecated（历史说明可保留，不再要求运行）。新托管 process proposal 按 [[META-014]]
+绑定生命周期与人口令回执。既有健康棕地可显示 `operational_legacy`，不因缺历史 Genesis
+而停止运作。
+
+**本地本目录是流程 SoT**；`packages/ndf-harness/` 可能滞后，禁止用包反推本地。
+Topics 的 NDF Control 文档流委派 OpenClaw；实现代码走 Claude Code。**所有 pack MUST
+含 `workspace.repo_root`**；项目 state 在 `{repo_root}/.openclaw/state.json`，与
+gateway session 分离。
 
 分层决策见 [`decisions/adr-meta-layer-split.md`](decisions/adr-meta-layer-split.md)
 （[[ADR-META-001]]）。编号命名空间见 [`decisions/adr-meta-id-namespace.md`](decisions/adr-meta-id-namespace.md)
-（[[ADR-META-002]] / [[DEF-META-ID-NS]]）。
+（[[ADR-META-002]] / [[DEF-META-ID-NS]]）。文字优先与控制面退役见
+[`decisions/adr-meta-text-first-poc.md`](decisions/adr-meta-text-first-poc.md)
+（[[ADR-META-003]]）与
+[`decisions/adr-meta-control-retirement.md`](decisions/adr-meta-control-retirement.md)
+（[[ADR-META-004]]）。
