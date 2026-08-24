@@ -1,0 +1,9 @@
+# ndf_graphcheck (META)
+clauses: 49
+summary: 0 error(s), 1 warning(s)
+
+  unlinked: 1
+
+- [warning] `unlinked` DEC-HYGIENE-001 -[—]-> — @ `meta/decisions/adr-ndf-hygiene.md:1`
+
+wrote report: /home/huawei/hnsw-predictor-ndf/tmp/ndf-graphcheck.md

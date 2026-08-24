@@ -1,0 +1,23 @@
+# Topic: <topic>
+
+> ndf_topic: <topic>
+> status: exploring
+> baseline_status: n/a
+> baseline_trunk_sha: pending
+> baseline_protocol: <protocol>
+> perf_baseline: ndf/PERF_BASELINE.md
+> next_gate: TOPIC已审核
+
+The lifecycle/baseline/next_gate headers above are mutable runtime navigation and are
+outside the human review slice.
+
+<!-- ndf:gate-slice begin=topic_contract -->
+## Scope and hypothesis
+
+> explore_surface: <surface>
+> depends_on_topics: <topic-or-none>
+> conflicts_with_topics: <topic-or-none>
+
+State the active hypothesis, non-goals, directions, success criteria, proposal paths and
+draft clause IDs reviewed by the human.
+<!-- ndf:gate-slice end=topic_contract -->

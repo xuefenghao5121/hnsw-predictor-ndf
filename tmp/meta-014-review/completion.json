@@ -1,0 +1,47 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "task": "ndf_improvement_land",
+  "track": "process",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "e82f22f74bdd23328e930d4c11c05b334e6c2dada6339acff204f274ef3d9543",
+  "context_plan_sha": "7b0ea1d19655ae7a80c58e06f181b927a4590c817ff242accf206481c1f8f100",
+  "changed_files": [
+    "spec/meta/open/proposal-meta-ndf-control-closed-loop.md"
+  ],
+  "changed_file_shas": {
+    "spec/meta/open/proposal-meta-ndf-control-closed-loop.md": "1a3838e622eff4e342b6b507cc343d699b0fbdccff006d19f840e0e33b2f8fcf"
+  },
+  "reproduce_commands": [
+    "python3 spec/meta/tools/ndf_graphcheck.py --meta"
+  ],
+  "evidence_paths": [
+    "tmp/meta-014-review/graphcheck.txt"
+  ],
+  "evidence_bundle_sha": "07792d1f84b34f5cfdb9acf6e2c2d6a41911b2c7bb877df86bd1dfa888eaea8d",
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_graphcheck.py --meta",
+      "result": "passed",
+      "output_sha": "07792d1f84b34f5cfdb9acf6e2c2d6a41911b2c7bb877df86bd1dfa888eaea8d",
+      "evidence_paths": [
+        "tmp/meta-014-review/graphcheck.txt"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_graphcheck.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_graphcheck.py",
+          "--meta"
+        ],
+        "version_sha": "89bd3794b927ee6035e05383997b5db258f1a27db070605758a8c0950d6eaedc",
+        "exit_code": 0,
+        "output_schema": "ndf-graphcheck/v1"
+      }
+    }
+  ],
+  "result": "success",
+  "run_id": "run-meta-014-review",
+  "session_id": "session-meta-014-review"
+}

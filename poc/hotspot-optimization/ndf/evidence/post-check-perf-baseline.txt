@@ -1,0 +1,17 @@
+topic: hotspot-optimization
+  TOPIC baseline_trunk_sha: a14339234133cc6c5a2348464954f744c6465efb
+  TOPIC baseline_status:    n/a
+  TOPIC perf_baseline:      ndf/PERF_BASELINE.md
+  card: poc/hotspot-optimization/ndf/PERF_BASELINE.md
+  bind vs:        bl-trunk-golden-7ee4ee2
+  bind config_id: cfg-m24-ef60
+  bind measure:   scripts/run_sustained.sh
+  trunk_sha:  a14339234133cc6c5a2348464954f744c6465efb
+  protocol:   CON-SLA-014 strict cgroup + CON-SLA-019 禁预热 + CON-SLA-020 sustained
+  status:     pending
+  measure_binary: (none)
+  measure_source: card
+  DELTA.md:   yes
+  numbers:    Measured 2026-08-22 under ACP lease `ep-c82a69ac-433a-4a36-a758-32674d616dd4`. Protocol: CON-SLA-014 strict cgroup + CON-SLA-019 禁预热 + CON-SLA-020 sustained. Config: cfg-m24-ef60 (M_graph=24, REFINE_EF=60, FLAT_VEC_MB=64), 512MB cgroup, 1T,
+  [info] vs_unmentioned: Numbers does not mention vs `bl-trunk-golden-7ee4ee2` (ok if own R0 table)
+

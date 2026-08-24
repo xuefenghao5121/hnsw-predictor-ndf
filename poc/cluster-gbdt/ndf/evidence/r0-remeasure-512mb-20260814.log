@@ -1,0 +1,18 @@
+(config: cfg-m24-ef60 | data=output/sift1m_m24/sift1m_m24 | ef=60)
+[Cluster] Regenerating k=1024 from output/sift1m_m24/sift1m_m24_vecblocks_64k.bin...
+[1] Extracting vectors from vecblocks...
+[1] Total vectors in file: 1000000
+[1] Extracted 1000000 vectors
+[2] K-Means k=1024 on 1000000 vectors dim=128...
+[KMeans] iter 1/20 max_shift=46958.671875[KMeans] iter 2/20 max_shift=6422.280762[KMeans] iter 3/20 max_shift=3408.623047[KMeans] iter 4/20 max_shift=1643.183716[KMeans] iter 5/20 max_shift=1471.611816[KMeans] iter 6/20 max_shift=1539.920898[KMeans] iter 7/20 max_shift=1183.390503[KMeans] iter 8/20 max_shift=957.001648[KMeans] iter 9/20 max_shift=822.259766[KMeans] iter 10/20 max_shift=458.329987[KMeans] iter 11/20 max_shift=453.993866[KMeans] iter 12/20 max_shift=368.379364[KMeans] iter 13/20 max_shift=352.623413[KMeans] iter 14/20 max_shift=367.396423[KMeans] iter 15/20 max_shift=228.235062[KMeans] iter 16/20 max_shift=132.453140[KMeans] iter 17/20 max_shift=117.797165[KMeans] iter 18/20 max_shift=97.494293[KMeans] iter 19/20 max_shift=119.284378[KMeans] iter 20/20 max_shift=92.511375
+[2] Done in 108.0s. Cluster sizes: min=265 max=3894 avg=977
+[4] Processing vecblocks...
+[4] blocks=7937 block_size=65536 dim=128 vec_bytes=512 vpp=8
+[5] block 0/7937 nodes=126 switches=48[5] block 1000/7937 nodes=126126 switches=55732[5] block 2000/7937 nodes=252126 switches=118535[5] block 3000/7937 nodes=378126 switches=175309[5] block 4000/7937 nodes=504126 switches=228410[5] block 5000/7937 nodes=630126 switches=277357[5] block 6000/7937 nodes=756126 switches=334146[5] block 7000/7937 nodes=882126 switches=389603[5] Complete: 7937 blocks, 1000000 nodes, 432443 cluster switches
+Done. Output: output/sift1m_m24/sift1m_m24_vecblocks_64k_cluster1024.bin
+(sudo password may be required for cgroup + drop_caches)
+=== cluster-gbdt-r0-512mb | cfg-m24-ef60 | bl-trunk-golden-434c6f5 | 512MB | 1T | N=1000 | R=15 | seed=42 ===
+(no result lines; rc=1) tail:
+sudo: a terminal is required to read the password; either use the -S option to read from standard input or configure an askpass helper
+sudo: 需要密码
+--- log: results/sustained/cluster-gbdt-r0-512mb_512mb_1t_n1000_r15.log

@@ -1,0 +1,99 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "status": "completed",
+  "topic": "hotspot-optimization",
+  "task": "poc_measurement",
+  "track": "poc",
+  "base_sha": "e37ab5e23a47dfb8a1d6167021d688d0dcd00d36",
+  "repo_head": "e37ab5e23a47dfb8a1d6167021d688d0dcd00d36",
+  "worktree": "/home/huawei/hnsw-predictor-ndf",
+  "branch": "cursor/ndf-meta-integrate-pev95-063a",
+  "run_id": "run-poc-measurement-hotspot-optimization-20260822T163952Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "episode_id": "ep-c82a69ac-433a-4a36-a758-32674d616dd4",
+  "attempt_id": "be0b6abe-bfaa-4d4e-9561-4897ae1cf123",
+  "manifest_sha": "ce2aa36eea4f908ba76a20df3c4c1156a3eb2188f619a1bc23be17961c1a764f",
+  "context_plan_sha": "55f512c5836f1db71527091cb415a854a2669f555ae877eda7d6bec85eb37e55",
+  "changed_files": [
+    "poc/hotspot-optimization/ndf/PERF_BASELINE.md",
+    "poc/hotspot-optimization/ndf/DELTA.md",
+    "poc/hotspot-optimization/ndf/COMMITS.md",
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt"
+  ],
+  "changed_file_shas": {
+    "poc/hotspot-optimization/ndf/PERF_BASELINE.md": "3eefbc919441edcd906ecdd3480661ee4851fef0af39bae8345985fcd7c2ca84",
+    "poc/hotspot-optimization/ndf/DELTA.md": "675d23349c6bc6914e6ca973fd9f426f0f8c501248d80019105d3e3165307ec9",
+    "poc/hotspot-optimization/ndf/COMMITS.md": "38621516a29a82fcaf778719d6fbfc253e026e0f553ea94bdc81b2ca09b554dd",
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt": "eb1b6922a50ba14d0b8d744f76004429557c2c987528aae05bc1060b09aea9a2",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt": "8d66db691974d228744d53bb6776a8c81b30ef8793c9c5bde14718a4d76e2adc"
+  },
+  "changed_sections": [
+    "perf_numbers",
+    "delta_rounds",
+    "commits_append",
+    "evidence"
+  ],
+  "evidence_paths": [
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt",
+    "results/sustained/ver043_512mb_1t_n1000_r15.log"
+  ],
+  "evidence_bundle_sha": "6f76f0e7411e59e3f67c4574df2a5fe3edc7da9f53eb31433c3ae7aff2576ae1",
+  "reproduce_commands": [
+    "g++ -O3 -std=c++17 -march=native -I./hnswlib -I./include -I poc/hotspot-optimization/src src/benchmark/benchmark_sustained.cpp poc/hotspot-optimization/src/disk_hnsw.cpp src/core/block_cache.cpp src/core/graph_prefetcher.cpp -pthread -o build/benchmark_sustained_d1",
+    "BIN=build/benchmark_sustained_d1 bash scripts/run_sustained.sh --config cfg-m24-ef60"
+  ],
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hotspot-optimization --workspace --report -",
+      "result": "passed",
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_poc_isolation.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_poc_isolation.py",
+          "check",
+          "--topic",
+          "hotspot-optimization",
+          "--workspace",
+          "--report",
+          "-"
+        ],
+        "version_sha": "05611551f8868d8f4249a3f18fb161b15a44b2ba59b266d833ac1457946e4102",
+        "exit_code": 0,
+        "output_schema": "ndf-poc-isolation/v1"
+      },
+      "evidence_paths": [
+        "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt"
+      ],
+      "output_sha": "8b03062d4ff3e28e9c11ab995a2505a205fe66e08323407c680a77ee4d81285b"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hotspot-optimization",
+      "result": "passed",
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_perf_baseline.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_perf_baseline.py",
+          "check",
+          "--topic",
+          "hotspot-optimization"
+        ],
+        "version_sha": "9ceb8bbf137bcefcb35367becc2400f5f1cf95a9e7e2f1a61c58e20fa5de94be",
+        "exit_code": 0,
+        "output_schema": "ndf-perf-baseline/v1"
+      },
+      "evidence_paths": [
+        "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt"
+      ],
+      "output_sha": "9253ac5e9cf8ba623b6187fb9327cc540d8c17e4406035971362cc2768b70682"
+    }
+  ],
+  "summary": "poc_measurement for D1 (SIMD pqAdcDistance gather). Built D1 benchmark (build/benchmark_sustained_d1) from poc/hotspot-optimization/src/disk_hnsw.cpp + simd headers. Measured cfg-m24-ef60 512MB 1T sustained: D1 agg QPS=2280.5 steady(R15)=2733.9 recall@10=96.59% RSS=332MB vs baseline (Trunk no D1) agg QPS=2221.4 steady=2679.3 recall=96.59%. Delta: QPS +2.66% agg / +2.04% steady, recall unchanged. Positive result; D1 provides modest QPS gain bounded by I/O-bound 1T sustained. Numbers written to PERF_BASELINE.md, DELTA.md Rounds, COMMITS.md ledger. Note: measurement ran in main repo because isolated worktree lacks gitignored deps (hnswlib/, output/).",
+  "result": "success",
+  "blockers": [],
+  "coverage": "completion_only"
+}

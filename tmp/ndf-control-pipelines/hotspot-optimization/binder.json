@@ -1,0 +1,7 @@
+{
+  "schema": "ndf-control-pipeline-binding/v1",
+  "topic": "hotspot-optimization",
+  "pipeline": "binder",
+  "episode_id": "ep-binder-withdraw-hotspot-optimization-20260818T182100Z",
+  "updated_at": "2026-08-18T18:26:26.088342+00:00"
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "ndf_improvement_proposal",
+  "track": "process",
+  "topic": null,
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "8ed97997be2260c8d1d143d315205f148913b8b414750d94f620f7df5e67f7d5",
+  "context_plan_sha": "4f0fcb845b1546d47491b3ddee5ebfdf36027525e3293f038b1957d952597b31",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "4c1c0e1a-458e-4cf4-b0f4-32217cddb393",
+  "message": "MCP error -32001: Request timed out. MCP error -32001: Request timed out",
+  "status": "failed",
+  "blockers": [
+    "openclaw.chat_send timed out without a non-empty assistant response",
+    "proposal path was not reported"
+  ]
+}

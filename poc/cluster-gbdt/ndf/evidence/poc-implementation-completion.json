@@ -1,0 +1,89 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "run_id": "run-poc-implementation-cluster-gbdt-20260814T090921Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "status": "completed",
+  "topic": "cluster-gbdt",
+  "task": "poc_implementation",
+  "track": "poc",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head": "025e217117d67489804aed27ee976c4a954f09d1",
+  "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/cluster-gbdt-poc-20260814T090921Z",
+  "branch": "poc/cluster-gbdt-implementation-20260814T090921Z",
+  "manifest_sha": "ff94e66296baa169bd7304db0181540ecad7b1d4e93e5110efcf69d17a9639a4",
+  "context_plan_sha": "77a405eadb3db8137189d032638389f4e12abacc759179116c758b6ee75ffdf7",
+  "changed_files": [
+    "poc/cluster-gbdt/NOTES.md",
+    "poc/cluster-gbdt/ndf/DELTA.md",
+    "poc/cluster-gbdt/ndf/COMMITS.md",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+    "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+    "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+  ],
+  "changed_file_shas": {
+    "poc/cluster-gbdt/NOTES.md": "d9d24a4294cb8d6af7e66e3d2280c33527a5b09811a5be6b46f09f4d43fb98aa",
+    "poc/cluster-gbdt/ndf/DELTA.md": "2502e8bfdf13369d64b7422aa6bc8136c45e32f2eadfc4c84352a5348f7e0adb",
+    "poc/cluster-gbdt/ndf/COMMITS.md": "67ca194a715fb0e8b4c0386c279cf6eb79563be5e191ad2a98d5f2ec12f19f98",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log": "0dd911fcc70f6f5072373857d529303ecc90ac804e9a33840de3594fc4b3cbe6",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md": "de27efd70c345392202b04cb68d36d645bf8b425551f3321ced6d472cce49edb",
+    "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt": "aff8d894a80f744b9e7984a21ceb4377ebae3ecda584887e8ea59cc3e900e09d",
+    "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json": "9ab2cf80c0343e790d0f87fd9ad4bbf55a05cc25ca462b1ec404a6daef0e0ff1"
+  },
+  "changed_sections": [
+    "delta_rounds",
+    "commits_append",
+    "evidence",
+    "topic_runtime_headers"
+  ],
+  "git_commit": "025e217117d67489804aed27ee976c4a954f09d1",
+  "reproduce": [
+    "python3 poc/cluster-gbdt/r1_entropy_analysis.py poc/cluster-gbdt/cluster_assignments_1M.npy data/sift_groundtruth_official.ivecs 10000",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+    "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json"
+  ],
+  "evidence_paths": [
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+    "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+    "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+  ],
+  "evidence_bundle_sha": "b828f703e73c3e813fbff90effa64a68f0670edc74dca40192a46331a09df4b7",
+  "summary": "R1 entropy analysis (A1 candidate) on current Trunk a143392. Groundtruth top-100 (9999 queries, k=1024): normalized entropy 0.9945 (saturated near max), purity 0.0634, dominant_frac 0.0237; top-100 candidates span ~94/1024 clusters. Cluster concentration does not occur in top candidates; entropy has near-zero per-query variance (std 0.0038). Verdict: A1 (cluster entropy) provides no incremental signal over distance features, consistent with R0 purity negative. A2/A3 remain deferred. Heavy PQ coarse simulation not started (decisive negative). Topic remains exploring; no promotion, no close.",
+  "result": "success",
+  "blockers": [],
+  "coverage": "completion_only",
+  "verdict": "A1 (cluster entropy) does NOT provide incremental signal",
+  "decision_path": [
+    "Do NOT start the heavy PQ coarse simulation (r1_pq_coarse_analysis.py): entropy analysis finished with a decisive negative.",
+    "A2 (k=4096/8192) and A3 (per-cluster predictor) remain deferred, gated on A1 showing an incremental trend — which it does not.",
+    "Topic remains exploring; no automatic promotion or close."
+  ],
+  "suggested_paths": [
+    {
+      "mode": "reject",
+      "recommended": true,
+      "label": "负结果关闭",
+      "rationale": "A1 无增量，A2/A3 门控失败。走 DEC + TOPIC=rejected。",
+      "next_work": "Close reject: DEC, TOPIC=rejected, archive poc binder. Do not start A2/A3 or PQ simulation.",
+      "prefill": "A1 已证伪（entropy 饱和、无聚集）。A2/A3 门在 A1 增量趋势，未满足。走负结果关闭，不要再开 A2/A3 或 PQ simulation。"
+    },
+    {
+      "mode": "new_poc",
+      "route": "new_poc",
+      "recommended": true,
+      "label": "另开新 POC",
+      "rationale": "放弃 cluster-concentration 家族。重提 track=poc 提案并开平级新 topic，depends_on_topics 含 cluster-gbdt。禁止改当前 TOPIC 假设。",
+      "next_work": "Draft spec/open/proposal-*.md track=poc for a sibling topic; depends_on_topics includes cluster-gbdt; stop at 已确认. MUST NOT binder_amend current TOPIC/DESIGN.",
+      "prefill": "A1 证伪后不再沿用 cluster 聚集假设。重提产品提案，开平级新 POC；不要改当前 TOPIC/DESIGN。"
+    },
+    {
+      "mode": "continue_exploring",
+      "recommended": false,
+      "label": "仍做 A2",
+      "rationale": "A1 门控未满足。仅在人明文覆盖时做 A2。",
+      "next_work": "MUST NOT rerun A1 or start PQ coarse simulation. If the human overrides, only A2 with the override reason in the pack.",
+      "prefill": "我覆盖 A1 门控，仍要做 A2（更细粒度 k）。不要重跑 A1，不要 PQ coarse simulation。覆盖理由："
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "actor": "composer",
+  "blockers": [],
+  "command": "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic page-packer --json",
+  "context_plan_sha": null,
+  "evidence_paths": [
+    "tmp/topic-health-after-close-page-packer.json"
+  ],
+  "finished_at": "2026-08-18T08:04:20.140311+00:00",
+  "input_sha": "fd442873e5c8d301bb48f727a8a74990fac1654d6eae56b87c0d4b12e2307aef",
+  "manifest_sha": "03ba874f31ce572df8c11b4aa41a8ea126deb81e860f940b39e326aad523c8a2",
+  "mode": "reject",
+  "notes": "reject finalize: DEC-100; TOPIC=rejected; NOTES status synced; binder+NOTES copied to spec/archive/2026-08/poc-page-packer/; proposal moved to spec/archive/2026-08/proposal-reject-page-packer.md; no draft clauses; Trunk src never contained this POC. topic-health lifecycle=rejected.",
+  "output_sha": "426e3dd1e3b4210bbb284f03518f03a5c39de7c52e7896893f86bbadf4a0cf8f",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-close-evidence/v1",
+  "source_generation_sha": "d39f3a1341e92d16072079a5552c6d3023f879abb10d16dcb9828549c94ff0a3",
+  "started_at": "2026-08-18T08:04:20.140311+00:00",
+  "step": "finalize",
+  "task": "close",
+  "topic": "page-packer"
+}

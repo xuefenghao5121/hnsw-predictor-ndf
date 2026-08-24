@@ -1,0 +1,7 @@
+{
+  "schema": "ndf-control-pipeline-binding/v1",
+  "topic": "hotspot-optimization",
+  "pipeline": "gate",
+  "episode_id": "ep-gate-impl-approval-hotspot-optimization-20260818T180600Z",
+  "updated_at": "2026-08-18T18:08:28.542391+00:00"
+}

@@ -1,0 +1,77 @@
+=== Sustained Query Benchmark (BEH-035) ===
+Pool: 10000 queries (dim=128) | GT: 10000x100
+Rounds: 15 | Per-round: 1000 | Seed: 42
+k=10, ef=50
+Cache: 64MB (1024 slots, 11.6% coverage)
+Mode: CONCURRENT (threads=1)
+[BfsLayoutProvider] Loaded route table: 1000000 entries, 8812 blocks
+[BlockCache] Initialized: block_size=65536, num_blocks=8812, cache_slots=1024, dim=128, layout=bfs, policy=lru, io_mode=direct
+[BlockCache] Flat vec cache: 130055 slots, 65027 KB, entry_size=512
+[BlockCache] Flat block cache: 4096 slots, 32 KB
+[DiskHNSW] Loading graph structure (slim) from output/sift1m_m24/sift1m_m24_graph.bin...
+  [slim+adj] Loading vectors for 42294 upper-layer nodes (20MB, skipping 488MB)
+  [slim+adj] Loaded L0 adjacency: 26609131 edges (101MB)
+  [slim+adj] Loaded graph structure from output/sift1m_m24/sift1m_m24_graph.bin (1000000 nodes, 42294 upper, 26609131 edges)
+[DiskHNSW] Graph: 1000000 nodes, dim=128, max_level=4, entry_point=572119
+[DiskHNSW] Loading BFS order from output/sift1m_m24/sift1m_m24_bfs.bin...
+[DiskHNSW] BFS mapping loaded: 1000000 entries
+  [CSR] Built compressed adjacency: 26609131 edges, compact=54MB + offsets=3MB = 57MB (raw would be 105MB, 1.8x compression)
+[DiskHNSW] BlockCache (pluggable) initialized
+[GraphPrefetcher] Initialized: ring_size=512, block_size=65536, odirect=yes, fd=3
+[DiskHNSW] Graph-guided prefetch enabled (io_uring, odirect=yes)
+[DiskHNSW] Loading PQ codes from output/pqco_sift1m_M32_correct.bin...
+  PQ params: N=1000000, M=32, nbits=8, dim=128, dsub=4, ksub=256
+  [UpperPQ] Freed 42294 exact vectors (20MB) — using PQ ADC instead
+  PQ codebook: 0 MB
+  PQ codes: 30 MB (1000000 x 32 bytes)
+  PQ enabled: ADC distance will be used for Layer 0
+RSS after init: 106 MB
+[FineRerank] buffered mode (page cache + disk, recommended)
+[FineRerank] slot table built: 7937 blocks, 591.681 ms
+
+=== Aggregate ===
+Total queries: 15000
+Total time:    9.066 s
+QPS:           1654.6
+Recall@10:     95.34%
+Cumulative unique queries: 7942 / 10000
+Hit%:          0.00
+RSS:           232 MB
+
+=== Cache saturation ===
+Round 1 QPS:   646.5
+Round 15 QPS:  1978.8
+Ramp-up:       206.1%
+
+CSV_HEADER,round,queries,seconds,qps,recall,cum_unique
+CSV_ROW,1,1000,1.546759,646.5,95.27,1000
+CSV_ROW,2,1000,0.634176,1576.8,95.11,1914
+CSV_ROW,3,1000,0.598924,1669.7,94.93,2714
+CSV_ROW,4,1000,0.556147,1798.1,95.42,3434
+CSV_ROW,5,1000,0.532198,1879.0,95.36,4081
+CSV_ROW,6,1000,0.535735,1866.6,95.06,4675
+CSV_ROW,7,1000,0.524924,1905.0,95.62,5220
+CSV_ROW,8,1000,0.520582,1920.9,94.90,5696
+CSV_ROW,9,1000,0.533046,1876.0,95.84,6116
+CSV_ROW,10,1000,0.516066,1937.7,95.48,6494
+CSV_ROW,11,1000,0.528472,1892.2,95.68,6837
+CSV_ROW,12,1000,0.513815,1946.2,95.01,7145
+CSV_ROW,13,1000,0.509592,1962.4,95.87,7439
+CSV_ROW,14,1000,0.510055,1960.6,95.27,7701
+CSV_ROW,15,1000,0.505369,1978.8,95.32,7942
+CSV_AGG,15,15000,9.065859,1654.6,95.34,7942,1978.8
+[Prefetch Accuracy] useful=0 wasted=0 total_prefetched_settled=0 accuracy=0%
+terminate called without an active exception
+anon_bytes:           0
+file_bytes:           0
+total_bytes:          0
+peak_bytes:           0
+limit_bytes:          268435456
+violations:           0
+workingset_refault:   0
+pgmajfault:           0
+pgfault:              0
+slab_bytes:           0
+--- memory.events ---
+oom 0
+oom_kill 0

@@ -1,0 +1,53 @@
+## Binder Pipeline Audit — All 6 Facets
+
+### Episode: 023fcc82-81a1-48e0-898f-7d39508646fa
+
+| # | Facet | Audit Result | Action | Changed Files |
+|---|-------|-------------|--------|---------------|
+| 1 | **TOPIC.md** | topic_contract ✅ complete. Runtime header `next_gate` stale. | **binder.amend** — updated `next_gate` runtime header | `poc/cluster-gbdt/ndf/TOPIC.md` (line 9: topic_runtime_headers) |
+| 2 | **DESIGN.md** | design_contract ✅ complete | **no-op recheck** | — |
+| 3 | **PERF_BASELINE.md** | perf_bind ✅ correct (`vs: bl-trunk-golden-7ee4ee2`). Numbers section properly marks claims as unverified. | **no-op recheck** (cannot amend perf_numbers — forbidden section) | — |
+| 4 | **DELTA.md** | delta_hypothesis ✅ complete. R0-remeasure-claim properly marked unverified. | **no-op recheck** (cannot amend delta_rounds — forbidden section) | — |
+| 5 | **INTERFACE.md** | interface_contract ✅ complete | **no-op recheck** | — |
+| 6 | **COMMITS.md** | ledger_skeleton ✅ present. Correction rows already appended by compiler. | **no-op recheck** (cannot amend commits_append — forbidden section) | — |
+
+### Pipeline-Step Evidence
+
+| step | kind | facet | result |
+|------|------|-------|--------|
+| 1 | binder.audit | topic | next_gate runtime header stale → amend |
+| 1 | binder.amend | topic | Updated `next_gate` to reflect all-gates-approved + decision_required |
+| 1 | binder.recheck | topic | topic_contract slice unchanged, runtime header updated ✅ |
+| 2 | binder.audit | design | Complete → no-op |
+| 2 | binder.recheck | design | ✅ |
+| 3 | binder.audit | perf_baseline | perf_bind correct; numbers_pending + unverified_measurement_claim are Test findings outside binder scope |
+| 3 | binder.recheck | perf_baseline | ✅ (cannot fix perf_numbers — forbidden) |
+| 4 | binder.audit | delta | delta_hypothesis complete |
+| 4 | binder.recheck | delta | ✅ (cannot fix delta_rounds — forbidden) |
+| 5 | binder.audit | interface | Complete → no-op |
+| 5 | binder.recheck | interface | ✅ |
+| 6 | binder.audit | commits | Ledger present, correction rows already added |
+| 6 | binder.recheck | commits | ✅ (cannot amend commits_append — forbidden) |
+
+### Files Changed
+
+| Path | Section Changed |
+|------|----------------|
+| `.openclaw/state.json` | workspace binding (new episode) |
+| `poc/cluster-gbdt/ndf/TOPIC.md` | `topic_runtime_headers`: `next_gate` updated |
+
+### Remaining Test-Space Findings (outside binder scope)
+
+| Finding | Why Binder Can't Fix | Required Resolution |
+|---------|---------------------|---------------------|
+| `numbers_pending` | perf_numbers is forbidden to openclaw role | Claude Code measurement run with lease/completion evidence |
+| `unverified_measurement_claim` | Claims already marked unverified in PERF_BASELINE/DELTA/COMMITS; cannot rewrite perf_numbers | Claude Code re-run to produce verified evidence |
+| `baseline_status=stale` | Correctly reflects current state — prior measurements lack evidence | Resolve via Claude Code verified measurement |
+| `sha_mismatch` | Gate bundle SHAs were aligned at approval time; subsequent binder amendments are in mutable_sections | No action needed — gate receipts use slice_manifest_sha not whole-file SHA |
+
+### Privileges Check
+- Wrote only `TOPIC.md` (topic_runtime_headers — allowed) + `.openclaw/state.json` ✅
+- Did NOT write GATES.md ✅
+- Did NOT write perf_numbers, delta_rounds, evidence, commits_append ✅
+- Did NOT approve gates or select close mode ✅
+- Did NOT touch src/, include/, tests/ ✅

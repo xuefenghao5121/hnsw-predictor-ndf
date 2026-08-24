@@ -1,0 +1,570 @@
+{
+  "schema": "ndf-context-plan/openclaw/v1",
+  "manifest_sha": "56efa57445006ce9cafefa399042a26d1cfe9bcc4093c64801c3eff78a8de40e",
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-ndf",
+    "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+    "topic": "page-packer"
+  },
+  "role": "openclaw",
+  "task": "binder_amend",
+  "track": "poc",
+  "topic": "page-packer",
+  "control": null,
+  "source_generation_sha": "d50936ec9cfd2a6c0f7748a60d947c19a415527c75e84f172bd49e11c3ec42f8",
+  "ordered_reads": [
+    {
+      "order": 0,
+      "path": "poc/page-packer/ndf/TOPIC.md",
+      "sha256": "fb47b7ad0289222fce4fc0212a1aeb55a833469f1c0138d397137f275d2861fc",
+      "bytes": 1002,
+      "phase": "binder",
+      "reason": "binder_root"
+    },
+    {
+      "order": 1,
+      "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+      "sha256": "248a5909c799c63fffcc53cc22a3373621fd179dbaad1c3500d6abb33385751a",
+      "bytes": 164,
+      "phase": "binder",
+      "reason": "binder_root"
+    }
+  ],
+  "seed_ids": [
+    "BEH-025",
+    "META-010",
+    "META-012"
+  ],
+  "seed_sources": {
+    "topic": [],
+    "proposals": [],
+    "commits": [],
+    "task_defaults": [
+      "BEH-025",
+      "META-010",
+      "META-012"
+    ],
+    "explicit": []
+  },
+  "graph": {
+    "relations": [
+      "depends-on",
+      "refines"
+    ],
+    "direction": "upstream; verifies also reverse",
+    "depth": 8,
+    "node_budget": 240,
+    "byte_budget": 1048576,
+    "bytes_used": 51208,
+    "nodes": [
+      {
+        "id": "BEH-025",
+        "title": "POC 主题装订纪律",
+        "file": "spec/meta/process.md",
+        "line": 916,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 0,
+        "clause_sha": "de364f428e2e1cb2c3cbba3ff44d4be002cd51e10cf7bfc733f4142856ee0fec",
+        "bytes": 7315,
+        "edges": {
+          "depends-on": [
+            "DEF-022",
+            "DEF-023",
+            "CON-POC-001"
+          ],
+          "refines": [
+            "BEH-018",
+            "ARCH-008"
+          ]
+        }
+      },
+      {
+        "id": "META-010",
+        "title": "人工门禁回执",
+        "file": "spec/meta/process.md",
+        "line": 188,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 0,
+        "clause_sha": "02a85c6a667f81837c3c3c0edec85a8c06ea87467a1c3f8d3e2abb3cb9f9e23e",
+        "bytes": 3224,
+        "edges": {
+          "depends-on": [
+            "META-001",
+            "META-008"
+          ]
+        }
+      },
+      {
+        "id": "META-012",
+        "title": "NDF 任务上下文与证据绑定",
+        "file": "spec/meta/process.md",
+        "line": 563,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 0,
+        "clause_sha": "8244024586e895c7258f8337fc8bdbaa497aba2f5c86b006a5f8570678399bf7",
+        "bytes": 4609,
+        "edges": {
+          "depends-on": [
+            "META-002",
+            "META-008",
+            "META-010",
+            "META-011"
+          ]
+        }
+      },
+      {
+        "id": "DEF-022",
+        "title": "DEF: Topic Binder（主题装订器）",
+        "file": "spec/meta/glossary.md",
+        "line": 21,
+        "kind": "def",
+        "level": "",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "891ed0585f28fc39a19afc6fc88a4675f7527aaa4c81f55fc690c165bfbc9be4",
+        "bytes": 645,
+        "edges": {
+          "depends-on": [
+            "DEF-020"
+          ]
+        }
+      },
+      {
+        "id": "DEF-023",
+        "title": "DEF: Commit Ledger（提交账本）",
+        "file": "spec/meta/glossary.md",
+        "line": 31,
+        "kind": "def",
+        "level": "",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "abd41a7b602d69431deccdca7ebfaf6a9c8c29ebc3c9d773f9251cab46aa02e2",
+        "bytes": 385,
+        "edges": {
+          "depends-on": [
+            "DEF-022"
+          ]
+        }
+      },
+      {
+        "id": "CON-POC-001",
+        "title": "POC 不纳入生产 SLA",
+        "file": "spec/meta/constraints.md",
+        "line": 7,
+        "kind": "constraint",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "174500bbaee58a069db6335aa4f4e886b0613e8cc0cf12fb02e84792f6bd690b",
+        "bytes": 430,
+        "edges": {
+          "depends-on": [
+            "ARCH-008"
+          ],
+          "refines": [
+            "CHR-008"
+          ]
+        }
+      },
+      {
+        "id": "BEH-018",
+        "title": "探索期 NDF 纪律",
+        "file": "spec/meta/process.md",
+        "line": 24,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "2c3a518c01128c11d17a553b8062aa872c1d945c1da28a414bd2933971b5c28d",
+        "bytes": 3598,
+        "edges": {
+          "depends-on": [
+            "ARCH-008",
+            "DEF-020"
+          ],
+          "refines": [
+            "CHR-008"
+          ]
+        }
+      },
+      {
+        "id": "ARCH-008",
+        "title": "`models/` 与 `poc/` 边界",
+        "file": "spec/meta/architecture.md",
+        "line": 7,
+        "kind": "arch",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "4e9700a83ca75ccb818cdd226a59cdf69a27944c5e8e4456899acacc7cd629eb",
+        "bytes": 1910,
+        "edges": {
+          "depends-on": [
+            "DEF-020",
+            "DEF-021"
+          ],
+          "refines": [
+            "CHR-008"
+          ]
+        }
+      },
+      {
+        "id": "META-001",
+        "title": "NDF 条款书写与元数据",
+        "file": "spec/meta/language.md",
+        "line": 11,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "d0ed1a2183ebec9d530fcd4534e7130b04f95bb626bfcd7b1a3393ff1548c8a3",
+        "bytes": 2288,
+        "edges": {
+          "depends-on": [
+            "ADR-META-002"
+          ]
+        }
+      },
+      {
+        "id": "META-008",
+        "title": "NDF 工作空间视角",
+        "file": "spec/meta/language.md",
+        "line": 111,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "aab85f5dda1443e2f36234c36f9452ce3f4d41cf81210129c72733e49510a0a8",
+        "bytes": 1644,
+        "edges": {
+          "depends-on": [
+            "META-002",
+            "META-003"
+          ]
+        }
+      },
+      {
+        "id": "META-002",
+        "title": "NDF 图边与引用",
+        "file": "spec/meta/language.md",
+        "line": 56,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "9cd7b3cc5cba350a03ab1594e700d86102ef365782c0a4481abec2acb015f37a",
+        "bytes": 1150,
+        "edges": {
+          "depends-on": [
+            "META-001"
+          ]
+        }
+      },
+      {
+        "id": "META-011",
+        "title": "Workflow 投影与 Claude Code 委派",
+        "file": "spec/meta/process.md",
+        "line": 255,
+        "kind": "req",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 1,
+        "clause_sha": "705b433ce41cf1f24e062db3e225a25f1e184927d8c845f233383bdb05741a8d",
+        "bytes": 17355,
+        "edges": {
+          "depends-on": [
+            "META-008",
+            "META-010"
+          ]
+        }
+      },
+      {
+        "id": "DEF-020",
+        "title": "DEF: POC（概念验证）",
+        "file": "spec/meta/glossary.md",
+        "line": 9,
+        "kind": "def",
+        "level": "",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 2,
+        "clause_sha": "471e9846b3acaaa069357d96a598b73f4a148ef81b49e1c10551a9a6eb619fc5",
+        "bytes": 375,
+        "edges": {}
+      },
+      {
+        "id": "CHR-008",
+        "title": "探索与晋升双轨",
+        "file": "spec/meta/process.md",
+        "line": 10,
+        "kind": "arch",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 2,
+        "clause_sha": "fa59f0d5cd011b64451ca691355b773a2d3b7ec6077357f174ec3354b84d51e2",
+        "bytes": 769,
+        "edges": {}
+      },
+      {
+        "id": "DEF-021",
+        "title": "DEF: 晋升（Promote）",
+        "file": "spec/meta/glossary.md",
+        "line": 15,
+        "kind": "def",
+        "level": "",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 2,
+        "clause_sha": "45551a9b0b2ecd8158fda730948daab6de49c948baa29e590daeffdcf51a7bb6",
+        "bytes": 339,
+        "edges": {}
+      },
+      {
+        "id": "ADR-META-002",
+        "title": "ADR: Meta 条款独立编号命名空间",
+        "file": "spec/meta/decisions/adr-meta-id-namespace.md",
+        "line": 1,
+        "kind": "decision",
+        "level": "",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 2,
+        "clause_sha": "6c8cebc26aefe5942ea034fa77d815c0a7ba57c5f4fbeaec5a237e8625e98fe5",
+        "bytes": 2397,
+        "edges": {
+          "depends-on": [
+            "ADR-META-001"
+          ]
+        }
+      },
+      {
+        "id": "META-003",
+        "title": "分层与强制语气",
+        "file": "spec/meta/language.md",
+        "line": 81,
+        "kind": "def",
+        "level": "must",
+        "status": "stable",
+        "scope": "ndf-process",
+        "trunk_ref": null,
+        "hop": 2,
+        "clause_sha": "8a76145eda3afeaf7a5fe27a9f2345917df3d910bc508fc61f84d4ef079a051f",
+        "bytes": 916,
+        "edges": {
+          "depends-on": [
+            "META-001"
+          ]
+        }
+      },
+      {
+        "id": "ADR-META-001",
+        "title": "ADR: NDF 元规范与产品契约分层",
+        "file": "spec/meta/decisions/adr-meta-layer-split.md",
+        "line": 1,
+        "kind": "",
+        "level": "",
+        "status": "",
+        "scope": null,
+        "trunk_ref": null,
+        "hop": 3,
+        "clause_sha": "5d2cfd5340d327c5b82a8531ba0e592db669c2bb59b6cd71fd815a11d4c76179",
+        "bytes": 1859,
+        "edges": {}
+      }
+    ],
+    "missing_seeds": [],
+    "truncated": [],
+    "blockers": []
+  },
+  "implementation_surface": [
+    "poc/page-packer/"
+  ],
+  "ledger_joins": [],
+  "baseline": {
+    "path": "poc/page-packer/ndf/PERF_BASELINE.md",
+    "baseline_status": "current",
+    "baseline_trunk_sha": "9df8b74",
+    "baseline_protocol": "CON-SLA-020 sustained, CON-SLA-014 strict cgroup, CON-SLA-019 禁预热",
+    "bind": {
+      "baseline": "bl-trunk-golden-7ee4ee2",
+      "config": "Config C (M=24, EF=60), SIFT1M"
+    },
+    "bind_sha": "ed2cf1388afb3d5ae01c238524659aedcf8785f5aba18fa42715f52e6239aa2b"
+  },
+  "gates": {
+    "path": null,
+    "path_sha": null,
+    "expected": {
+      "topic_review": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+      "design_review": null,
+      "implementation_approval": null
+    },
+    "bundle_specs": {
+      "topic_review": {
+        "bundle_mode": "legacy_whole_file",
+        "expected_content_sha": "89c23ebad5f954bf22087b6ccf63b358dc041dd1c09b8e873a5f1ba0c546ed7e",
+        "bundle_paths": [
+          "poc/page-packer/ndf/TOPIC.md"
+        ],
+        "slices": [],
+        "slice_manifest_sha": null,
+        "errors": [],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "design_review": {
+        "bundle_mode": "legacy_whole_file",
+        "expected_content_sha": null,
+        "bundle_paths": [
+          "poc/page-packer/ndf/TOPIC.md"
+        ],
+        "slices": [],
+        "slice_manifest_sha": null,
+        "errors": [
+          {
+            "kind": "missing_file",
+            "path": "poc/page-packer/ndf/DESIGN.md"
+          }
+        ],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      },
+      "implementation_approval": {
+        "bundle_mode": "legacy_whole_file",
+        "expected_content_sha": null,
+        "bundle_paths": [
+          "poc/page-packer/ndf/TOPIC.md",
+          "poc/page-packer/ndf/PERF_BASELINE.md"
+        ],
+        "slices": [],
+        "slice_manifest_sha": null,
+        "errors": [
+          {
+            "kind": "missing_file",
+            "path": "poc/page-packer/ndf/DESIGN.md"
+          },
+          {
+            "kind": "missing_file",
+            "path": "poc/page-packer/ndf/DELTA.md"
+          },
+          {
+            "kind": "missing_file",
+            "path": "poc/page-packer/ndf/INTERFACE.md"
+          }
+        ],
+        "mutable_sections": [
+          "topic_runtime_headers",
+          "perf_numbers",
+          "delta_rounds",
+          "evidence",
+          "commits",
+          "gates"
+        ]
+      }
+    },
+    "bundle_mode": "legacy_whole_file",
+    "mutable_sections": [
+      "topic_runtime_headers",
+      "perf_numbers",
+      "delta_rounds",
+      "evidence",
+      "commits",
+      "gates"
+    ],
+    "receipts": [],
+    "receipt_history_count": 0
+  },
+  "evidence_refs": [],
+  "trunk_ref_joins": [],
+  "privileges": {
+    "allowed_write_roots": [
+      "poc/page-packer/ndf/TOPIC.md",
+      "poc/page-packer/ndf/DESIGN.md",
+      "poc/page-packer/ndf/PERF_BASELINE.md",
+      "poc/page-packer/ndf/DELTA.md",
+      "poc/page-packer/ndf/INTERFACE.md",
+      "poc/page-packer/ndf/COMMITS.md"
+    ],
+    "forbidden_write_paths": [
+      "src/",
+      "include/",
+      "tests/",
+      "spec/meta/process.md"
+    ],
+    "summary_only": false,
+    "allowed_sections": [
+      "topic_contract",
+      "design_contract",
+      "perf_bind",
+      "delta_hypothesis",
+      "interface_contract",
+      "ledger_skeleton",
+      "topic_runtime_headers"
+    ],
+    "forbidden_sections": [
+      "gate_receipts",
+      "perf_numbers",
+      "delta_rounds",
+      "evidence",
+      "commits_append",
+      "decision_selected"
+    ],
+    "mutable_sections": [
+      "topic_runtime_headers",
+      "perf_numbers",
+      "delta_rounds",
+      "evidence",
+      "commits",
+      "gates"
+    ]
+  },
+  "human_phrase": null,
+  "plan_sha": "640592cc1cca45884e02211d74852e291f7c6c7b03b3de74b0bc202ae9a4601c"
+}

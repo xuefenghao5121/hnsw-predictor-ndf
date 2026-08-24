@@ -1,0 +1,100 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "status": "completed",
+  "topic": "hotspot-optimization",
+  "task": "poc_implementation",
+  "track": "poc",
+  "base_sha": "578fe4f0a2a9dc2ee636a30a7198f6410126d575",
+  "repo_head": "948f789709e5397275f29696b867491646470753",
+  "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/hotspot-optimization-lease-20260822T125219Z",
+  "branch": "poc/hotspot-optimization-lease-20260822T125219Z",
+  "run_id": "run-poc-implementation-hotspot-optimization-20260822T132126Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "episode_id": "ep-c189bec7-6ed7-4fb0-b446-587799d3c526",
+  "attempt_id": "343434b7-67f7-4f71-bcd0-32d1901bcc44",
+  "manifest_sha": "dfd5ec50c03f5226c22695b516470fc09177c787c8e9ebf8ec4b82625903ebd2",
+  "context_plan_sha": "c9d54c1a920a5abf968569036fc9deba3b77a53eb4b75af73b326de01a8f4f48",
+  "changed_files": [
+    "poc/hotspot-optimization/src/simd_x86.h",
+    "poc/hotspot-optimization/src/simd_scalar.h",
+    "poc/hotspot-optimization/src/simd_arm.h",
+    "poc/hotspot-optimization/src/disk_hnsw.cpp",
+    "poc/hotspot-optimization/ndf/COMMITS.md",
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt"
+  ],
+  "changed_file_shas": {
+    "poc/hotspot-optimization/src/simd_x86.h": "1f824d7e8f544be9a75a7e4a7d9cb5d0077f93521964d02b0161c2c8f5ed0483",
+    "poc/hotspot-optimization/src/simd_scalar.h": "a27a5f3cb3b6ed5c913de142e64be62d36228bcc9745af183858e2391b93101f",
+    "poc/hotspot-optimization/src/simd_arm.h": "27f32ca0e0cf211db77cfe3fa1aa84779bbe32ad554c0b003020d14233c98d6a",
+    "poc/hotspot-optimization/src/disk_hnsw.cpp": "df93dba88083e3f4a12924794a9d40ac944030ceec3f01ab7bda5f9df0240b5d",
+    "poc/hotspot-optimization/ndf/COMMITS.md": "92eadd658fe6fcaa8e1e5647cc856716343ebf8c5286ee7c6337f3bd2c71ade8",
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt": "ff54926d2eb8b06d021ea11147035b974e3ceb0aedd8a98cbe112e8d5d219294",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt": "da77c86fe78aea25334fec222f21ae65285e410cda2b1c8d7ddbc71fa804e47f"
+  },
+  "changed_sections": [
+    "poc_code",
+    "commits_append",
+    "evidence"
+  ],
+  "evidence_paths": [
+    "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt",
+    "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt"
+  ],
+  "evidence_bundle_sha": "084b7249567cb7a47d59654d9c2150c9425a23e5fc091aa2dfbec723374f0062",
+  "reproduce_commands": [
+    "g++ -O3 -std=c++17 -march=native -I./hnswlib -I./include -I poc/hotspot-optimization/src -c poc/hotspot-optimization/src/disk_hnsw.cpp -o /tmp/wt_disk_hnsw.o"
+  ],
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hotspot-optimization --workspace --report -",
+      "result": "passed",
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_poc_isolation.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_poc_isolation.py",
+          "check",
+          "--topic",
+          "hotspot-optimization",
+          "--workspace",
+          "--report",
+          "-"
+        ],
+        "version_sha": "05611551f8868d8f4249a3f18fb161b15a44b2ba59b266d833ac1457946e4102",
+        "exit_code": 0,
+        "output_schema": "ndf-poc-isolation/v1"
+      },
+      "evidence_paths": [
+        "poc/hotspot-optimization/ndf/evidence/post-check-isolation.txt"
+      ],
+      "output_sha": "8474683f7e06dcc77b052ee5f964e91cadd75b86e58aea445c075af34f32b843"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hotspot-optimization",
+      "result": "passed",
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_perf_baseline.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_perf_baseline.py",
+          "check",
+          "--topic",
+          "hotspot-optimization"
+        ],
+        "version_sha": "9ceb8bbf137bcefcb35367becc2400f5f1cf95a9e7e2f1a61c58e20fa5de94be",
+        "exit_code": 0,
+        "output_schema": "ndf-perf-baseline/v1"
+      },
+      "evidence_paths": [
+        "poc/hotspot-optimization/ndf/evidence/post-check-perf-baseline.txt"
+      ],
+      "output_sha": "366b6c4982313f2e8666272b277d86c71f2a0ea3273e097fc350f46149cc7581"
+    }
+  ],
+  "summary": "poc_implementation D1 (SIMD PQ gather) landed in isolated lease worktree. Added pqAdcDistance to simd_x86.h (AVX2 _mm256_i32gather_ps 8-lane gather + hsum), simd_scalar.h and simd_arm.h (scalar 4-way, NEON lacks gather). POC simd headers ADD pqAdcDistance only and rely on Trunk include/simd_*.h (via block_cache.h) for pqBuildTable_dsub4/SIMD_PREFETCH to avoid redefinition. disk_hnsw.cpp pqDistance fast path now calls pqAdcDistance. Compiles clean; M=32 bit-identical to scalar reference; non-multiple-of-8 M ULP-level. Recall@10 unchanged by construction. Numbers pending: separate poc_measurement task.",
+  "result": "success",
+  "blockers": [],
+  "coverage": "completion_only"
+}

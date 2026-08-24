@@ -1,0 +1,4 @@
+{
+  "schema": "ndf-workflow-error/v1",
+  "error": "canvas snapshot exceeds 122880 bytes (total=129656, focused_topic=88150>24576); pass --topic <id> and do not embed every workbench"
+}

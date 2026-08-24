@@ -1,0 +1,9 @@
+{
+  "schema": "ndf-context-verification/v1",
+  "valid": true,
+  "plan_sha": "e6f926f6e45ed59841a96a5e0c0a46b3d0a3d91299d8276085a165ecaf39ffc3",
+  "manifest_sha": "692dd417bb8fc1e3e0a080b62c2b3b65f6fbebd93b50137f9b9ec474dd59262d",
+  "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+  "errors": [],
+  "warnings": []
+}

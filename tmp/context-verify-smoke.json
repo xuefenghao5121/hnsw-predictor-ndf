@@ -1,0 +1,15 @@
+{
+  "schema": "ndf-context-verification/v1",
+  "valid": true,
+  "plan_sha": "99b268cd9ad63a25487a07a7d04ba679c384cb561d71ec98879493ae343b14f7",
+  "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+  "errors": [],
+  "warnings": [
+    {
+      "kind": "graph_truncated",
+      "reasons": [
+        "depth"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "schema": "ndf-context-verification/v1",
+  "valid": true,
+  "plan_sha": "77a405eadb3db8137189d032638389f4e12abacc759179116c758b6ee75ffdf7",
+  "manifest_sha": "ff94e66296baa169bd7304db0181540ecad7b1d4e93e5110efcf69d17a9639a4",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "errors": [],
+  "warnings": [
+    {
+      "kind": "ledger_commit_unresolvable",
+      "source": "poc/cluster-gbdt/ndf/COMMITS.md",
+      "line": 17,
+      "commit": "20260814"
+    }
+  ]
+}

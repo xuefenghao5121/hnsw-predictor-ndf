@@ -1,0 +1,25 @@
+{
+  "absorbed_action_id": "0bf9250d-c1fb-42aa-859c-87d3174049ca",
+  "blockers": [],
+  "command": "ndf_workflow_status.py snapshot --verify-embedded",
+  "context_plan_sha": null,
+  "episode_id": null,
+  "evidence_paths": [
+    "tmp/ndf-projection-evidence/embedded-26896230a33c225dda87213bc0d5e5fe3c1a52c1d6c44b802921624b21630bcd.json"
+  ],
+  "finished_at": "2026-08-14T13:29:49.323598+00:00",
+  "input_sha": "10af7a185d4c9851b5d385c7a5a2722e8f47ecf6846df80b768c996189f83727",
+  "manifest_sha": null,
+  "mode": "process",
+  "output_sha": "e96ba14281086f9f73925f2125ddaa0a65daad3f841dd79bda39d64641374e38",
+  "projection_sha": "26896230a33c225dda87213bc0d5e5fe3c1a52c1d6c44b802921624b21630bcd",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-projection-receipt/v2",
+  "snapshot_sha_after": "207bcbad9a3d8be74c1b9e5137cef65ea87614c5b13f81c6fa543b74c9120edf",
+  "source_generation_sha": "207bcbad9a3d8be74c1b9e5137cef65ea87614c5b13f81c6fa543b74c9120edf",
+  "started_at": "2026-08-14T13:29:49.323598+00:00",
+  "step": "verify-embedded",
+  "task": "snapshot_embedded",
+  "topic": null
+}

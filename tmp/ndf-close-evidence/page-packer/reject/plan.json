@@ -1,0 +1,23 @@
+{
+  "actor": "composer",
+  "blockers": [],
+  "command": "python3 spec/meta/tools/ndf_close.py plan --topic page-packer --mode reject --report tmp/ndf-close-page-packer-reject.md",
+  "context_plan_sha": null,
+  "evidence_paths": [
+    "tmp/ndf-close-page-packer-reject.md"
+  ],
+  "finished_at": "2026-08-18T08:04:20.140311+00:00",
+  "input_sha": "04e8b11b42b2a3779d43114495697c03e4d0072ff1e6adc870f8b99da48776c9",
+  "manifest_sha": "03ba874f31ce572df8c11b4aa41a8ea126deb81e860f940b39e326aad523c8a2",
+  "mode": "reject",
+  "notes": "reject plan: no topic-owned drafts; trunk_src_writes=none; integrate N/A; suggested DEC-100. context_plan_sha omitted because close-receipt-verify recompiles context_binding(task=reject).",
+  "output_sha": "6883b9281feec4d6adcbeb40383ca373716006dfea3ecce673145b5225427fd6",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-close-evidence/v1",
+  "source_generation_sha": "d39f3a1341e92d16072079a5552c6d3023f879abb10d16dcb9828549c94ff0a3",
+  "started_at": "2026-08-18T08:04:20.140311+00:00",
+  "step": "plan",
+  "task": "close",
+  "topic": "page-packer"
+}

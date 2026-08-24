@@ -1,0 +1,25 @@
+{
+  "absorbed_action_id": "971eb54f-9fbb-4dc4-bdad-1fca9272beb3",
+  "blockers": [],
+  "command": "ndf_workflow_status.py snapshot --verify-embedded",
+  "context_plan_sha": null,
+  "episode_id": null,
+  "evidence_paths": [
+    "tmp/ndf-projection-evidence/embedded-effcebad2fae66e53e367e6712d607f8c19ec1dba7785b14a7046e7c07f07258.json"
+  ],
+  "finished_at": "2026-08-18T18:16:12.247520+00:00",
+  "input_sha": "e5fda9d2cf72c351e7f770e7fdf01682d67bda6b0051c7bfa23d1aaace73a663",
+  "manifest_sha": null,
+  "mode": "process",
+  "output_sha": "c5722f55473f9d43c33bfb78673aab78a181ee0b0eb844389043eb6c9102d1a4",
+  "projection_sha": "effcebad2fae66e53e367e6712d607f8c19ec1dba7785b14a7046e7c07f07258",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-projection-receipt/v2",
+  "snapshot_sha_after": "2cd4f56109d281582711dcad5d210951426e53a1a657c1f2c8e07dabcdd89894",
+  "source_generation_sha": "2cd4f56109d281582711dcad5d210951426e53a1a657c1f2c8e07dabcdd89894",
+  "started_at": "2026-08-18T18:16:12.247520+00:00",
+  "step": "verify-embedded",
+  "task": "snapshot_embedded",
+  "topic": "cluster-gbdt"
+}

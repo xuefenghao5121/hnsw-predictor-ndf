@@ -1,0 +1,21 @@
+{
+  "schema": "ndf-agent-message/v1",
+  "task": "control_proposal",
+  "track": "poc",
+  "topic": "hotspot-optimization",
+  "pipeline": null,
+  "hop": "land",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "manifest_sha": "581a0a55da4b20ed73ba46c3225384331b45ea2b5378712e92bfeccd5a9790fd",
+  "context_plan_sha": "c67a15b9dc5630a7e17127f31bae1f57423683ee5a63abfd486660c141fd0bd3",
+  "plan_sha": "c67a15b9dc5630a7e17127f31bae1f57423683ee5a63abfd486660c141fd0bd3",
+  "session_id": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "session_key": "agent:main:feishu:direct:ou_0b4beca180f4f81040fd343d1b0b1c35",
+  "run_id": "f5364813-5434-48e4-9c58-3a5b40e9bc19",
+  "request_id": "req-control-proposal-land-hotspot-optimization-20260818T161700Z",
+  "origin": "human_phrase",
+  "human_utterance": "已确认",
+  "proposal_path": "spec/open/proposal-poc-hotspot-optimization.md",
+  "next_human_phrase": "已审核",
+  "message": "Proposal path: spec/open/proposal-poc-hotspot-optimization.md\nStatus line: Status: Implemented on 2026-08-18\nTrack: poc\nTopic: hotspot-optimization\n\nLanded after 已确认. No Trunk clauses/DEC/SLA. No spec/meta. No DESIGN. GATES.md approved_by not set.\nBinder: poc/hotspot-optimization/ndf/TOPIC.md exploring; proposals stub present.\nstate.json bound to active_topic=hotspot-optimization, pending_decision=waiting_for_user_review.\n\nStopped for human review. Next phrase: 已审核"
+}

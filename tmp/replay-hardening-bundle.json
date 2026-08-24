@@ -1,0 +1,16 @@
+{
+  "schema": "ndf-context-verification/v1",
+  "valid": false,
+  "plan_sha": "4994bccfa9be02284dbe8e3cc28479b249b8cc75c1ce58d22f6285b188b6b6ad",
+  "manifest_sha": "bbb2ed0028d0cd265a54f02b8636ca8640125c68f444e3e0e0339f470cd67e31",
+  "repo_head": "747b20b1c01d01d80df183173c7e6998634c160c",
+  "errors": [
+    {
+      "kind": "graph_truncated",
+      "reasons": [
+        "depth"
+      ]
+    }
+  ],
+  "warnings": []
+}

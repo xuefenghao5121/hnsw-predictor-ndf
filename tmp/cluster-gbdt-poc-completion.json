@@ -1,0 +1,96 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "run_id": "run-poc-implementation-cluster-gbdt-20260814T090921Z",
+  "session_id": "d21779ab-aad3-408c-a717-f871eae0884e",
+  "status": "completed",
+  "topic": "cluster-gbdt",
+  "task": "poc_implementation",
+  "track": "poc",
+  "base_sha": "a14339234133cc6c5a2348464954f744c6465efb",
+  "repo_head": "025e217117d67489804aed27ee976c4a954f09d1",
+  "worktree": "/home/huawei/hnsw-predictor-ndf/.worktrees/cluster-gbdt-poc-20260814T090921Z",
+  "branch": "poc/cluster-gbdt-implementation-20260814T090921Z",
+  "manifest_sha": "ff94e66296baa169bd7304db0181540ecad7b1d4e93e5110efcf69d17a9639a4",
+  "context_plan_sha": "77a405eadb3db8137189d032638389f4e12abacc759179116c758b6ee75ffdf7",
+  "changed_files": [
+    "poc/cluster-gbdt/NOTES.md"
+  ],
+  "changed_file_shas": {
+    "poc/cluster-gbdt/NOTES.md": "d9d24a4294cb8d6af7e66e3d2280c33527a5b09811a5be6b46f09f4d43fb98aa"
+  },
+  "changed_sections": [
+    "delta_rounds",
+    "commits_append",
+    "evidence"
+  ],
+  "git_commit": "025e217117d67489804aed27ee976c4a954f09d1",
+  "reproduce": [
+    "python3 poc/cluster-gbdt/r1_entropy_analysis.py poc/cluster-gbdt/cluster_assignments_1M.npy data/sift_groundtruth_official.ivecs 10000",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+    "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json"
+  ],
+  "evidence_paths": [
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.log",
+    "poc/cluster-gbdt/ndf/evidence/r1-entropy-analysis-20260814.md",
+    "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt",
+    "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+  ],
+  "evidence_bundle_sha": "be43175b663a749f484d06eae999b744dc771a3f1f2a9947c10b4dea453f7097",
+  "summary": "R1 entropy analysis (A1 candidate) on current Trunk a143392. Groundtruth top-100 (9999 queries, k=1024): normalized entropy 0.9945 (saturated near max), purity 0.0634, dominant_frac 0.0237; top-100 candidates span ~94/1024 clusters. Cluster concentration does not occur in top candidates; entropy has near-zero per-query variance (std 0.0038). Verdict: A1 (cluster entropy) provides no incremental signal over distance features, consistent with R0 purity negative. A2/A3 remain deferred. Heavy PQ coarse simulation not started (decisive negative). Topic remains exploring; no promotion, no close.",
+  "result": "success",
+  "blockers": [],
+  "coverage": "completion_only",
+  "reproduce_commands": [
+    "python3 poc/cluster-gbdt/r1_entropy_analysis.py poc/cluster-gbdt/cluster_assignments_1M.npy data/sift_groundtruth_official.ivecs 10000",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+    "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json"
+  ],
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic cluster-gbdt --workspace --report -",
+      "result": "passed",
+      "output_sha": "08cad51caa214f5d1c38ab2902e1717f3e853e2da187d080454cf37477c53083",
+      "evidence_paths": [
+        "poc/cluster-gbdt/ndf/evidence/post-check-isolation.txt"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_poc_isolation.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_poc_isolation.py",
+          "check",
+          "--topic",
+          "cluster-gbdt",
+          "--workspace",
+          "--report",
+          "-"
+        ],
+        "version_sha": "05611551f8868d8f4249a3f18fb161b15a44b2ba59b266d833ac1457946e4102",
+        "exit_code": 0,
+        "output_schema": "ndf-poc-isolation/v1"
+      }
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_workflow_status.py topic-health --topic cluster-gbdt --json",
+      "result": "passed",
+      "output_sha": "1127c0a65d337407315a163e32b0c6a8245d6b6d080d792e4a3d58facf9faa8f",
+      "evidence_paths": [
+        "poc/cluster-gbdt/ndf/evidence/post-check-topic-health.json"
+      ],
+      "verifier": {
+        "path": "/home/huawei/hnsw-predictor-ndf/spec/meta/tools/ndf_workflow_status.py",
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_workflow_status.py",
+          "topic-health",
+          "--topic",
+          "cluster-gbdt",
+          "--json"
+        ],
+        "version_sha": "e9c8a5a1f4cb36b8979d3e26d8d5ec074b23c2bd4d7350f770d9a29d1f98cf47",
+        "exit_code": 0,
+        "output_schema": "ndf-topic-health/v1"
+      }
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "absorbed_action_id": null,
+  "blockers": [],
+  "command": "ndf_workflow_status.py snapshot --verify-embedded",
+  "context_plan_sha": null,
+  "episode_id": null,
+  "evidence_paths": [
+    "tmp/ndf-projection-evidence/embedded-c51e033b13aff74ad520dc57ad6de10af60f9bdc30d71b62a7e95b17bbd1c6ec.json"
+  ],
+  "finished_at": "2026-08-19T12:27:00.271036+00:00",
+  "input_sha": "6076fd97bf9c9f88a4666d5c058d062f1a9ce37616f01941aa5ebb4b8213f223",
+  "manifest_sha": null,
+  "mode": "process",
+  "output_sha": "ed82966219c9505a9d17bf62f87f6e3619e82fed7f935e09e4b4a64a88ca2d7b",
+  "projection_sha": "c51e033b13aff74ad520dc57ad6de10af60f9bdc30d71b62a7e95b17bbd1c6ec",
+  "repo_head": "a14339234133cc6c5a2348464954f744c6465efb",
+  "result": "passed",
+  "schema": "ndf-projection-receipt/v2",
+  "snapshot_sha_after": "6c58250df13e2fe02eb0bab87fd230a60feaff735087c2976a538c1e82f13e33",
+  "source_generation_sha": "6c58250df13e2fe02eb0bab87fd230a60feaff735087c2976a538c1e82f13e33",
+  "started_at": "2026-08-19T12:27:00.271036+00:00",
+  "step": "verify-embedded",
+  "task": "snapshot_embedded",
+  "topic": "hotspot-optimization"
+}

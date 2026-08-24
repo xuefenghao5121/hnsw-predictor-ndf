@@ -1,0 +1,7 @@
+{
+  "schema": "ndf-control-pipeline-binding/v1",
+  "topic": "page-packer",
+  "pipeline": "binder",
+  "episode_id": "ep-binder-amend-page-packer-20260818T065000Z",
+  "updated_at": "2026-08-18T06:54:32.895377+00:00"
+}

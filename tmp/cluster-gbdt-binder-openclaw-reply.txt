@@ -1,0 +1,55 @@
+---
+
+## Binder Pipeline — All 6 Facets Audited
+
+### Episode: ep-binder-pipeline-cluster-gbdt-20260813T173659Z
+
+| # | Facet | Status | Action | Changed Files |
+|---|-------|--------|--------|---------------|
+| 1 | **TOPIC.md** | ✅ Complete | no-op recheck | — |
+| 2 | **DESIGN.md** | ✅ Complete | no-op recheck | — |
+| 3 | **PERF_BASELINE.md** | ✅ Complete | no-op recheck | — |
+| 4 | **DELTA.md** | ✅ Complete | no-op recheck | — |
+| 5 | **INTERFACE.md** | ✅ Complete | no-op recheck | — |
+| 6 | **COMMITS.md** | ✅ Complete | no-op recheck | appended binder audit row |
+
+### Pipeline-step-record evidence
+
+| step | kind | facet | result |
+|------|------|-------|--------|
+| 1 | binder.audit | topic | complete — no amendment |
+| 2 | binder.audit | design | complete — no amendment |
+| 3 | binder.audit | perf_baseline | complete — vs/config_id/measure_script present; Numbers pending is honestly stated |
+| 4 | binder.audit | delta | complete — R0 + R1-prep rounds recorded |
+| 5 | binder.audit | interface | complete — entry points, signatures, config documented |
+| 6 | binder.audit | commits | complete — R0 commit recorded; appended binder audit row |
+
+### Files Changed
+
+| Path | Action |
+|------|--------|
+| `.openclaw/state.json` | **Updated** — binder episode binding |
+| `poc/cluster-gbdt/ndf/COMMITS.md` | **Appended** — binder audit row (doc-only) |
+
+### Topic-Health Findings (not binder gaps)
+
+| Finding | Space | Detail | Resolution |
+|---------|-------|--------|------------|
+| `numbers_pending` | Test | Current-Trunk PERF numbers not yet measured | PERF_BASELINE honestly states "pending remeasurement"; `baseline_status=stale`. Not a binder gap — requires actual measurement run (dispatch to Claude Code or human-run benchmark). |
+| `baseline_status=stale` | Test | Trunk has advanced since `baseline_trunk_sha: 1f684c7` | Correctly reflected in TOPIC.md and PERF_BASELINE.md. Will resolve when R0 is re-measured. |
+
+### Privileges Check
+- Wrote only binder-owned paths + `.openclaw/state.json` ✅
+- Did NOT touch GATES.md, src/, include/, tests/ ✅
+- Did NOT approve gates or select close mode ✅
+- Did NOT invent Numbers ✅
+
+### Next Step
+
+Binder facets are complete. The remaining topic-health finding (`numbers_pending`) requires a **measurement run** (not a binder amendment). This is a `decision_required` state — the human needs to decide:
+
+- **Re-measure R0** on current Trunk → restores `baseline_status=current`
+- **Amend/continue exploring** with R1 candidates (entropy, finer k)
+- **Reject/close** as negative result
+
+No binder handoff needed. Waiting for human decision.
