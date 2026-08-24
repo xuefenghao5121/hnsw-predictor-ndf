@@ -42,6 +42,8 @@ disable-model-invocation: false
 [poc.md](poc.md) / [close.md](close.md) / [health.md](health.md) / [delegate.md](delegate.md)。
 **禁止**让用户选 skill / CLI 子命令。
 
+总览（调用图 + Context/Amend/图健康闭环）：[OVERVIEW.md](OVERVIEW.md)。
+
 ## Idea 平面（[[ADR-META-004]]）
 
 | plane | 写根 |
