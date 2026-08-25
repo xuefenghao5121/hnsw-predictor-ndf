@@ -74,11 +74,10 @@ if [ $((DIM % M)) -ne 0 ]; then
     echo "❌ M=$M 不能整除 dim=$DIM，请换 M"; exit 1
 fi
 
-echo "[1/7] build_index ..."
-./build/build_index "$BASE" "$O/${PREFIX}_index.bin" 16 200
+echo "[1/7] build_index (hierarchical Vamana: HNSW 分层 + 层内 Vamana) ..."
+./build/build_index "$BASE" "$O/${PREFIX}_graph.bin"
 
-echo "[2/7] extract_graph ..."
-./build/extract_graph "$O/${PREFIX}_index.bin" "$O/${PREFIX}_graph.bin" "$DIM"
+echo "[2/7] (extract_graph 已合并入 build_index — 直接产出 GraphStructure) ..."
 
 echo "[3/7] bfs_reorder ..."
 ./build/bfs_reorder "$O/${PREFIX}_graph.bin" "$O/${PREFIX}_bfs.bin"

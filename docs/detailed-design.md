@@ -171,10 +171,9 @@ GraphPrefetcher 的 io_uring 机制可作为未来 Fine Rerank I/O 优化的参�
 ```
 base.fvecs
   │
-  ├─ Step 1: build_index (hnswlib M=16 efC=200)
-  │    └─ index.bin
-  ├─ Step 2: extract_graph (maxM=128)
+  ├─ Step 1: build_index (hierarchical Vamana: HNSW 分层 + 层内 Vamana)
   │    └─ graph.bin [slim+adj 格式: 上层向量 + L0 邻接表]
+  │    （原 Step 2 extract_graph 已合并；锁定 HV_M=16 R0=32 Rup=16 beam=32 α=1.2 rounds=3）
   ├─ Step 3: bfs_reorder
   │    └─ bfs.bin (old↔new 映射, 提升空间局部性)
   ├─ Step 4: write_blocks_veconly (blockSize=64KB)

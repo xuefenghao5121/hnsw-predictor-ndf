@@ -115,8 +115,8 @@ grep -E "^(anon|file|workingset_refault_file|pgmajfault)" /sys/fs/cgroup/hnsw_te
 
 | 步骤 | 命令 | 产出 |
 |------|------|------|
-| 1. 建图 | `./build/build_index data/sift_base.fvecs output/sift1m_index.bin 16 200` | hnswlib 索引 |
-| 2. 提取图 | `./build/extract_graph output/sift1m_index.bin output/sift1m_graph.bin 128` | 精简图结构 |
+| 1. 建图 | `./build/build_index data/sift_base.fvecs output/sift1m_graph.bin` | 分层 Vamana 图结构 |
+| 2. 提取图 | （已合并入建图——build_index 直接产出 GraphStructure） | — |
 | 3. BFS 重排 | `./build/bfs_reorder output/sift1m_graph.bin output/sift1m_bfs.bin` | old↔new 映射 |
 | 4. Vec-Only 块 | `./build/write_blocks_veconly output/sift1m_graph.bin output/sift1m_bfs.bin output/sift1m_vecblocks_64k.bin 65536` | 向量块 + route |
 | 5. 旧格式块 | `./build/write_blocks ... && ./build/gen_route ...` | BlockCache 用 |

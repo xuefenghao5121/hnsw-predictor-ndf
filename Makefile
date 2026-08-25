@@ -21,6 +21,10 @@ $(BUILD_DIR)/%: src/pipeline/%.cpp $(HEADERS) | $(BUILD_DIR)
 $(BUILD_DIR)/cluster_reorder: src/pipeline/cluster_reorder.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -fopenmp -o $@ $< $(LDFLAGS)
 
+# BEH-027: build_index (hierarchical Vamana) needs -fopenmp for per-layer parallel build
+$(BUILD_DIR)/build_index: src/pipeline/build_index.cpp | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -fopenmp -o $@ $< $(LDFLAGS)
+
 # 主 benchmark (依赖全部 core) —— 原 Makefile 漏了这个, 已补
 $(BUILD_DIR)/benchmark_diskhnsw: src/benchmark/benchmark_diskhnsw.cpp $(CORE_SRC) $(HEADERS) | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -o $@ src/benchmark/benchmark_diskhnsw.cpp $(CORE_SRC) $(LDFLAGS)
