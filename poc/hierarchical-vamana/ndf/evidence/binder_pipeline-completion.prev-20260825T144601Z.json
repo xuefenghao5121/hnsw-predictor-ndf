@@ -1,0 +1,68 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "result": "success",
+  "topic": "hierarchical-vamana",
+  "task": "binder_pipeline",
+  "track": "poc",
+  "base_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "repo_head": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "manifest_sha": "0631e8b626674ca27bdb8c3f847d8cc07abb2579147fa6468af383585313089d",
+  "context_plan_sha": "a0c69482668651b9a3595043741819e1cbdedf5302cb6dda0bf08b93dccd2e35",
+  "episode_id": "",
+  "attempt_id": "",
+  "hop": "",
+  "changed_files": [
+    "poc/hierarchical-vamana/ndf/TOPIC.md",
+    "poc/hierarchical-vamana/ndf/DESIGN.md",
+    "poc/hierarchical-vamana/ndf/PERF_BASELINE.md",
+    "poc/hierarchical-vamana/ndf/DELTA.md",
+    "poc/hierarchical-vamana/ndf/INTERFACE.md",
+    "poc/hierarchical-vamana/ndf/COMMITS.md"
+  ],
+  "changed_file_shas": {
+    "poc/hierarchical-vamana/ndf/TOPIC.md": "bec39fd4eab378052a4aeecdb182514270428655bb5b7a7c7384f14e193f1c14",
+    "poc/hierarchical-vamana/ndf/DESIGN.md": "1a693e1806ebea6b0d58b13d56c1f0f3b6c880a79bc29fc9a7a41433c68cc67c",
+    "poc/hierarchical-vamana/ndf/PERF_BASELINE.md": "f0d4c5245f279de955779f4122dcf1879f51908bc913477323b2cbb92c9d8b04",
+    "poc/hierarchical-vamana/ndf/DELTA.md": "9eb75fc1a68f2197b76b15c87c11ddece034572a4c99a6d4d41b53b1eb83c87e",
+    "poc/hierarchical-vamana/ndf/INTERFACE.md": "618f253273a9c0eafdfb1111777b4a2df295d6f7e68cd223df552ba93a210dbe",
+    "poc/hierarchical-vamana/ndf/COMMITS.md": "4cc1c139ad673aa4753b726bdef3fe694e95fd9df9d0de1a6c7201977bc68be3"
+  },
+  "changed_sections": [
+    "topic_contract",
+    "design_contract",
+    "perf_bind",
+    "delta_hypothesis",
+    "interface_contract",
+    "ledger_skeleton",
+    "topic_runtime_headers"
+  ],
+  "reproduce_commands": [
+    "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana"
+  ],
+  "evidence_paths": [
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t.log",
+    "poc/hierarchical-vamana/ndf/evidence/poc_implementation-summary.md"
+  ],
+  "evidence_bundle_sha": "c4d5df0d2ac964d6566ce2094c32fe170ebc13c58682ba408604f8b76dea4f68",
+  "git_commit": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); bind vs=bl-trunk-d0ae5dd config=cfg-sla-ef100 measure=scripts/run_sustained.sh; status=measured; numbers=R0 measured (Recall@10 98.00% vs 96.00%, agg QPS 4653.9 vs 4330.9)",
+      "verifier": "ndf_perf_baseline"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); 0 errors, 0 warnings (checks=bind,dual,grain)",
+      "verifier": "ndf_bindcheck"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); 0 errors (no Trunk write-surface leakage)",
+      "verifier": "ndf_poc_isolation"
+    }
+  ],
+  "summary": "Binder pipeline (Control/OpenClaw) finalized the perf_baseline bind for hierarchical-vamana: vs=bl-trunk-d0ae5dd x config=cfg-sla-ef100 x measure=scripts/run_sustained.sh (POC measure via poc/hierarchical-vamana/scripts/run_poc_measure.sh, protocol VER-001 sustained + VER-003 cgroup v2 512MB/16T). Bind now measured (R0): Recall@10 98.00% vs 96.00% (+2.00pp), agg QPS 4653.9 vs 4330.9 (+7.5%), steady QPS 6999.8 vs 6448.0 (+8.6%), RSS +18MB. Binder facets (topic_contract/design_contract/perf_bind/delta_hypothesis/interface_contract/ledger_skeleton/topic_runtime_headers) verified in final bound state; Numbers/Rounds/evidence authored by poc_implementation R0. Post-checks pass (perf_baseline status=measured, bindcheck 0/0, poc_isolation 0). No GATES.md approval forged; no src//include//tests/ writes."
+}

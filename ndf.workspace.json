@@ -1,0 +1,11 @@
+{
+  "workspace": {
+    "repo_root": "/home/huawei/hnsw-predictor-pageann",
+    "repo_name": "hnsw-predictor-pageann",
+    "active_topic": "hierarchical-vamana",
+    "bound_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755"
+  },
+  "track": "poc",
+  "bootstrap_mode": "adopt",
+  "project_maturity": "operational"
+}

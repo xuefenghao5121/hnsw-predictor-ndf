@@ -12,13 +12,14 @@ output2/
 # 日志
 logs/
 
-# POC文档
-poc/
+# POC runtime artifacts (binders under poc/*/ndf/ are tracked)
+poc/**/output/
+poc/**/build/
+poc/**/build-bin/
+poc/**/*.o
+.worktrees/
 
-# spec文档 NDF迭代记录
-spec/
-
-# AI 工具相关
+# AI / local harness state (SoT lives in tracked spec/ + ndf.workflow.yaml)
 .claude/
 .openclaw/
 .cursor/

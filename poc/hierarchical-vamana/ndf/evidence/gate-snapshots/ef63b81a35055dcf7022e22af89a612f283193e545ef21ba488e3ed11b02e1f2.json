@@ -1,0 +1,38 @@
+{
+  "approved_content_sha": "ef63b81a35055dcf7022e22af89a612f283193e545ef21ba488e3ed11b02e1f2",
+  "bundle_mode": "review_slice",
+  "gate": "bundle_dispatch",
+  "schema": "ndf-gate-slice-snapshot/v1",
+  "slices": [
+    {
+      "content_sha": "ae6b077abdc5a4bea995152b266127fed251e0774bbeb493d239dcecd1532ec2",
+      "content_text": "## Scope and hypothesis\n\n> explore_surface: hierarchical-vamana, graph-build, diskann, hnsw-layers\n> depends_on_topics: none\n> conflicts_with_topics: none\n\n**Active hypothesis (H0)**：在 DiskHNSW 存储/搜索外壳不变（或最小适配）的前提下，用\n「HNSW 层分配 + 每层 Vamana（GreedySearch + RobustPrune, α）」替换 Trunk\n`build_index.cpp` 的整图 hnswlib HNSW 建边，在 sustained 协议下达到对照召回\n（≥95% Recall@10），并以更少无效边或更短导航路径改善 QPS 和/或常驻内存。\n\n**Proposal**：`spec/open/proposal-hierarchical-vamana-build.md`（已审核）\n\n**Draft clauses**（仅探索，不进 stable）：\n\n- `BEH-HV-001`：构建 MUST 支持分层分配 + 层内 Vamana prune（opt-in）\n- `ARCH-HV-001`：上层邻接内存驻留；L0 与现 DiskHNSW 块布局兼容或有明确迁移表\n\n**Directions**\n\n1. 实现层内 Vamana 建边 + HNSW 式层分配，导出邻接到现有 reorder/blocks/PQ 流水线\n2. 对照 `bl-trunk-d0ae5dd` / `cfg-sla-ef100`（SIFT1M sustained 512MB/16T）\n3. 记录层数、`M`/`R`、`α`、`beam` 与相对对照的 Δ%\n\n**Non-goals**\n\n- 重写 DiskANN 十亿点分片合并流水线\n- 改 VER 金标口径或写 stable SLA\n- 默认合入 Trunk `src/` / `include/` / `tests/`\n\n**Success criteria (explore)**\n\n1. poc 内可构建索引并跑通搜索路径（或最小搜索壳）\n2. 相对 `bl-trunk-d0ae5dd` 报告 recall/QPS/内存（evidence + PERF Numbers）；不写 stable SLA\n3. TOPIC/NOTES 记录参数与失败模式\n",
+      "path": "poc/hierarchical-vamana/ndf/TOPIC.md",
+      "slice_id": "topic_contract"
+    },
+    {
+      "content_sha": "7905a7d2b38a4ccf8c2933d2c25df591bac47d6d9b0a5fc202b9e7fed08b6e2c",
+      "content_text": "## Goals / non-goals\n\n- Goals: 分层（HNSW 式）+ 层内 Vamana 建图；导出适配现 DiskHNSW 布局；相对 Trunk 对照测量\n- Non-goals: 十亿点 DiskANN 分片合并；改 VER；写 Trunk / stable SLA\n\n## Modules and layout\n\n```text\npoc/hierarchical-vamana/\n  build/                 # 分层 Vamana 建图（拷贝自 Trunk pipeline 后改）\n  export/                # 邻接 → extract / BFS reorder / blocks / PQ 适配\n  search/                # 可选：上层下降 + 复用 L0 搜索壳（若需）\n  ndf/                   # 本装订器\n  evidence/              # 测量证据（mutable）\n```\n\n## Data / control flow\n\n```text\nvectors\n  → assign max layer (HNSW geometric)\n  → per-layer: beam/GreedySearch → RobustPrune(α) → directed edges\n  → optional 2nd pass α>1 on L0\n  → export adjacency\n  → (reuse) reorder / write_blocks / PQ\n  → search: upper in-mem descent → L0 + Fine Rerank / BlockCache\n```\n\n## Trunk boundary\n\n- Copy-then-edit: `src/pipeline/build_index.cpp` 及相关图构建辅助；必要时拷贝搜索侧仅读对接头\n- Read-only link: Trunk 搜索路径、PQ、BlockCache、`scripts/run_sustained.sh`、`cfg-sla-ef100`\n- MUST NOT write Trunk `src/` / `include/` / `tests/`（[[BEH-018]]）\n\n## Implementation slice\n\n本轮：\n\n1. 在 poc 内落地 Vamana RobustPrune + 层分配骨架\n2. 接到现有导出/分块路径（或 poc 内等价最小导出）\n3. 跑通构建 + 对照测量入口（见 INTERFACE / PERF_BASELINE）\n\n不改：Trunk 默认 `build_index` 路径、stable SLA、VER 协议正文。\n\n## Failure modes\n\n- 召回 < 对照：调 α / M / beam / 层概率；记录于 DELTA Rounds\n- 导出布局不兼容：明确迁移表或 L0-only 回退路径（仍留在 poc）\n- 建图过慢：缩小集先证伪，再 SIFT1M\n\n## Verification hooks\n\n- `ndf/PERF_BASELINE.md` Measure；`evidence/` 原始 log\n- MUST NOT 从 CON-SLA / SLA 观测表抄数字作 SoT\n",
+      "path": "poc/hierarchical-vamana/ndf/DESIGN.md",
+      "slice_id": "design_contract"
+    },
+    {
+      "content_sha": "c19f74277aeda7c30354e84aa36975d90d2b8ba04be333eba536c06b7c634ae0",
+      "content_text": "> vs: bl-trunk-d0ae5dd\n> config_id: cfg-sla-ef100\n> measure_script: scripts/run_sustained.sh\n> protocol: VER-001 sustained + VER-003 cgroup v2（512MB / 16T）\n\n## Config\n\n继承 `spec/50-verification/configs/cfg-sla-ef100.md`：SIFT1M，REFINE_EF=100，\n官方 10K query 池，15 rounds × 1000，seed=42；cgroup `memory.max=512MB`，THREADS=16。\n\n## Measure\n\n```bash\nCGROUP_MB=512 THREADS=16 bash scripts/run_sustained.sh --config cfg-sla-ef100\n```\n\nPOC 索引路径以 INTERFACE 为准（指向 `poc/hierarchical-vamana/` 产出，而非 Trunk 默认\n`output/sift1m`，除非本轮明确复用对照索引做负对照）。观测写入 `evidence/` 与下方\nNumbers；**不**写入产品 stable SLA。\n",
+      "path": "poc/hierarchical-vamana/ndf/PERF_BASELINE.md",
+      "slice_id": "perf_bind"
+    },
+    {
+      "content_sha": "2a2c5845888e96c9007e45cc23b4a8dc078e0bd828c924c862e4aa270f3540c5",
+      "content_text": "## Bind snapshot\n\n| leg | id / path |\n|-----|-----------|\n| vs | bl-trunk-d0ae5dd |\n| config_id | cfg-sla-ef100 |\n| measure_script | scripts/run_sustained.sh |\n\n## Feature delta\n\n| id | change | links | status |\n|----|--------|-------|--------|\n| F1 | 建图：HNSW 层分配 + 层内 Vamana RobustPrune，替换 hnswlib 整图建边 | BEH-HV-001 / DESIGN | planned |\n| F2 | 导出邻接到现 DiskHNSW reorder/blocks/PQ（或明确迁移） | ARCH-HV-001 / DESIGN | planned |\n| F3 | 搜索：上层内存下降 + 现 L0 Fine Rerank（最小适配） | DESIGN §flow | planned |\n\n## Hotspot delta\n\n| id | hypothesis | measured | links | status |\n|----|------------|----------|-------|--------|\n| H1 | Vamana α 剪枝减少无效边 → 同等召回下更高 QPS 或更低跳数 | pending | PERF / evidence | open |\n| H2 | 上层稀疏导航缩短进入 L0 的路径 | pending | PERF / evidence | open |\n| H3 | 建图 CPU 时间可能高于 hnswlib；可接受若查询收益明显 | pending | evidence | open |\n",
+      "path": "poc/hierarchical-vamana/ndf/DELTA.md",
+      "slice_id": "delta_hypothesis"
+    },
+    {
+      "content_sha": "017393c6b8a926577f09fcfce348d26a551cd279f6358ef4be313682fe3751ec",
+      "content_text": "## Entry points\n\n- Build CLI / script: `poc/hierarchical-vamana/build/`（实现后钉死具体二进制或脚本名）\n- Measure: `scripts/run_sustained.sh`（经 POC 索引路径 env / flag）\n- Library symbols（目标，实现期可迭代）:\n  - `assign_levels(...)`\n  - `vamana_build_layer(...)` / `robust_prune(...)`\n  - `export_adjacency_for_diskhnsw(...)`\n\n## Types and signatures\n\n```text\n// conceptual\nstruct BuildParams {\n  int M;              // max out-degree target (per layer may differ)\n  int beam_width;     // GreedySearch / construction beam\n  float alpha;        // RobustPrune\n  float alpha2;       // optional second pass (>1)\n  int max_level;      // or geometric level assign\n};\n\nvoid assign_levels(span<node_id>, BuildParams, span<int> out_level);\nvoid vamana_build_layer(int layer, vectors, BuildParams, Graph& g);\nvoid export_adjacency_for_diskhnsw(const Graph&, path out_prefix);\n```\n\n## Config / env / flags\n\n| name | meaning | default |\n|------|---------|---------|\n| HV_M | 层内目标出度 | TBD（对齐 Trunk M 量级） |\n| HV_BEAM | 建图 beam | TBD |\n| HV_ALPHA | RobustPrune α | ~1.2（DiskANN 常见起点） |\n| HV_ALPHA2 | 二遍 α（0=关闭） | 0 or >1 |\n| HV_INDEX_DIR | POC 索引输出目录 | poc/hierarchical-vamana/output/ |\n\n## Errors and invariants\n\n- 层分配与边端点层关系必须一致（无指向更高层非法边，按选定语义）\n- 导出后 L0 邻接可被现搜索路径加载，或文档化不兼容点\n- 测量 MUST 声明是否使用 POC 索引\n\n## Threading / lifetime\n\n建图可多线程；与 Trunk 相同：索引写完后再开 sustained 查询线程池。\n\n## Draft API-* map\n\n| draft id | this surface | note |\n|----------|--------------|------|\n| N/A | build/export CLI | 晋升时再开 API-* |\n",
+      "path": "poc/hierarchical-vamana/ndf/INTERFACE.md",
+      "slice_id": "interface_contract"
+    }
+  ]
+}

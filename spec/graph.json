@@ -1,0 +1,2589 @@
+{
+  "generated_at": "2026-08-25T16:51:59Z",
+  "clause_count": 117,
+  "meta_only": false,
+  "nodes": {
+    "ADR-META-001": {
+      "id": "ADR-META-001",
+      "title": "ADR: NDF 元规范与产品契约分层",
+      "file": "meta/decisions/adr-meta-layer-split.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CHR-008",
+        "BEH-018",
+        "ARCH-008",
+        "CON-POC-001",
+        "BEH-025",
+        "ADR-META-002",
+        "DEF-META-ID-NS"
+      ],
+      "backlinks": [
+        "ADR-META-002",
+        "ADR-TOPIC-BINDER-001",
+        "DEF-META-ID-NS",
+        "DEF-NDF-GRAPH",
+        "META-002"
+      ]
+    },
+    "ADR-META-002": {
+      "id": "ADR-META-002",
+      "title": "ADR: Meta 条款独立编号命名空间",
+      "file": "meta/decisions/adr-meta-id-namespace.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "ADR-META-001"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-001",
+        "DEF-META-ID-NS",
+        "DEF-NDF-GRAPH"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "DEF-META-ID-NS",
+        "META-001"
+      ]
+    },
+    "ADR-META-003": {
+      "id": "ADR-META-003",
+      "title": "ADR: 文字优先 POC 热路径",
+      "file": "meta/decisions/adr-meta-text-first-poc.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-025",
+          "META-010",
+          "META-011",
+          "META-012",
+          "META-013"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004"
+      ],
+      "backlinks": [
+        "ADR-META-004",
+        "BEH-025",
+        "META-009",
+        "META-010",
+        "META-011",
+        "META-012",
+        "META-013"
+      ]
+    },
+    "ADR-META-004": {
+      "id": "ADR-META-004",
+      "title": "ADR: Idea 分流与控制面减法",
+      "file": "meta/decisions/adr-meta-control-retirement.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "",
+      "layer": "",
+      "status": "stable",
+      "since": "",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-009",
+          "META-010",
+          "META-011",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-003"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "DEF-NDF-WORKFLOW-PROJECTION",
+        "META-011",
+        "META-012",
+        "META-013",
+        "META-014",
+        "META-015"
+      ]
+    },
+    "ADR-TOPIC-BINDER-001": {
+      "id": "ADR-TOPIC-BINDER-001",
+      "title": "ADR: Topic Binder as meta capability",
+      "file": "meta/decisions/adr-topic-binder.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-025",
+        "DEF-022",
+        "DEF-023",
+        "ADR-META-001"
+      ],
+      "backlinks": []
+    },
+    "API-001": {
+      "id": "API-001",
+      "title": "DiskHNSW 公共接口",
+      "file": "30-interfaces/interfaces.md",
+      "line": 9,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "BEH-003",
+        "BEH-011",
+        "BEH-014",
+        "DEF-001"
+      ]
+    },
+    "API-002": {
+      "id": "API-002",
+      "title": "BlockCache 公共接口",
+      "file": "30-interfaces/interfaces.md",
+      "line": 26,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "BEH-005"
+      ]
+    },
+    "API-003": {
+      "id": "API-003",
+      "title": "布局编排器",
+      "file": "30-interfaces/interfaces.md",
+      "line": 36,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "ARCH-005"
+      ]
+    },
+    "API-004": {
+      "id": "API-004",
+      "title": "替换策略",
+      "file": "30-interfaces/interfaces.md",
+      "line": 43,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "ARCH-005",
+        "BEH-005"
+      ]
+    },
+    "API-005": {
+      "id": "API-005",
+      "title": "图预取器",
+      "file": "30-interfaces/interfaces.md",
+      "line": 50,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "BEH-006"
+      ]
+    },
+    "API-006": {
+      "id": "API-006",
+      "title": "io_uring 封装",
+      "file": "30-interfaces/interfaces.md",
+      "line": 57,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-004"
+      ],
+      "backlinks": []
+    },
+    "API-007": {
+      "id": "API-007",
+      "title": "SIMD 抽象",
+      "file": "30-interfaces/interfaces.md",
+      "line": 63,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "ARCH-006",
+        "BEH-016"
+      ]
+    },
+    "API-008": {
+      "id": "API-008",
+      "title": "GBDT 模型",
+      "file": "30-interfaces/interfaces.md",
+      "line": 69,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-010"
+      ],
+      "backlinks": []
+    },
+    "API-009": {
+      "id": "API-009",
+      "title": "文件格式与 Magic",
+      "file": "30-interfaces/interfaces.md",
+      "line": 76,
+      "kind": "def",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "API-010": {
+      "id": "API-010",
+      "title": "运行时旋钮接口",
+      "file": "30-interfaces/interfaces.md",
+      "line": 88,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-001",
+        "BEH-003",
+        "BEH-005",
+        "BEH-008",
+        "BEH-004",
+        "BEH-007",
+        "BEH-009",
+        "BEH-010",
+        "BEH-013",
+        "BEH-011"
+      ],
+      "backlinks": [
+        "BEH-001"
+      ]
+    },
+    "API-011": {
+      "id": "API-011",
+      "title": "索引构建流水线工具",
+      "file": "30-interfaces/interfaces.md",
+      "line": 108,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "CON-005"
+      ]
+    },
+    "API-012": {
+      "id": "API-012",
+      "title": "基准工具",
+      "file": "30-interfaces/interfaces.md",
+      "line": 117,
+      "kind": "def",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "VER-001",
+        "VER-002"
+      ],
+      "backlinks": [
+        "VER-001"
+      ]
+    },
+    "ARCH-001": {
+      "id": "ARCH-001",
+      "title": "模块分解",
+      "file": "10-architecture/architecture.md",
+      "line": 9,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "ARCH-002": {
+      "id": "ARCH-002",
+      "title": "内存驻留分层",
+      "file": "10-architecture/architecture.md",
+      "line": 23,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "ARCH-007"
+      ]
+    },
+    "ARCH-003": {
+      "id": "ARCH-003",
+      "title": "两阶段搜索数据流",
+      "file": "10-architecture/architecture.md",
+      "line": 35,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-001",
+        "BEH-002",
+        "BEH-003",
+        "BEH-004"
+      ],
+      "backlinks": [
+        "ARCH-007"
+      ]
+    },
+    "ARCH-004": {
+      "id": "ARCH-004",
+      "title": "I/O 优化层次",
+      "file": "10-architecture/architecture.md",
+      "line": 49,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-008",
+        "BEH-007",
+        "BEH-011",
+        "BEH-009",
+        "BEH-010",
+        "DEC-002"
+      ],
+      "backlinks": []
+    },
+    "ARCH-005": {
+      "id": "ARCH-005",
+      "title": "可插拔设计",
+      "file": "10-architecture/architecture.md",
+      "line": 64,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-003",
+        "API-004"
+      ],
+      "backlinks": []
+    },
+    "ARCH-006": {
+      "id": "ARCH-006",
+      "title": "SIMD 抽象层",
+      "file": "10-architecture/architecture.md",
+      "line": 74,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-007",
+        "BEH-016"
+      ],
+      "backlinks": [
+        "BEH-016"
+      ]
+    },
+    "ARCH-007": {
+      "id": "ARCH-007",
+      "title": "分层 Vamana 建图与上层驻留",
+      "file": "10-architecture/architecture.md",
+      "line": 85,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L2",
+      "status": "stable",
+      "since": "0.2",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-027",
+        "BEH-002",
+        "ARCH-002",
+        "ARCH-003"
+      ],
+      "backlinks": [
+        "BEH-027"
+      ]
+    },
+    "ARCH-008": {
+      "id": "ARCH-008",
+      "title": "`models/` 与 `poc/` 边界",
+      "file": "meta/architecture.md",
+      "line": 7,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "CHR-008"
+        ],
+        "depends-on": [
+          "DEF-020",
+          "DEF-021"
+        ]
+      },
+      "body_refs": [
+        "BEH-018",
+        "DEF-022",
+        "BEH-025",
+        "DEF-023",
+        "META-004"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "BEH-018",
+        "BEH-025",
+        "CHR-008",
+        "CON-POC-001",
+        "DEF-020",
+        "META-004"
+      ]
+    },
+    "BEH-001": {
+      "id": "BEH-001",
+      "title": "两阶段搜索",
+      "file": "20-behavior/behavior.md",
+      "line": 10,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-010"
+      ],
+      "backlinks": [
+        "API-010",
+        "ARCH-003"
+      ]
+    },
+    "BEH-002": {
+      "id": "BEH-002",
+      "title": "贪心下降入口定位",
+      "file": "20-behavior/behavior.md",
+      "line": 20,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "ARCH-003",
+        "ARCH-007"
+      ]
+    },
+    "BEH-003": {
+      "id": "BEH-003",
+      "title": "PQ 粗筛",
+      "file": "20-behavior/behavior.md",
+      "line": 26,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-001"
+      ],
+      "backlinks": [
+        "API-010",
+        "ARCH-003"
+      ]
+    },
+    "BEH-004": {
+      "id": "BEH-004",
+      "title": "精确精排",
+      "file": "20-behavior/behavior.md",
+      "line": 33,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-008",
+        "BEH-007"
+      ],
+      "backlinks": [
+        "API-010",
+        "ARCH-003"
+      ]
+    },
+    "BEH-005": {
+      "id": "BEH-005",
+      "title": "块缓存",
+      "file": "20-behavior/behavior.md",
+      "line": 42,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-004",
+        "API-002"
+      ],
+      "backlinks": [
+        "API-010"
+      ]
+    },
+    "BEH-006": {
+      "id": "BEH-006",
+      "title": "图引导预取",
+      "file": "20-behavior/behavior.md",
+      "line": 49,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-005"
+      ],
+      "backlinks": []
+    },
+    "BEH-007": {
+      "id": "BEH-007",
+      "title": "WILLNEED 页缓存预取",
+      "file": "20-behavior/behavior.md",
+      "line": 55,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-SLA-004"
+      ],
+      "backlinks": [
+        "API-010",
+        "ARCH-004",
+        "BEH-004"
+      ]
+    },
+    "BEH-008": {
+      "id": "BEH-008",
+      "title": "flat_vec_cache 热向量缓存",
+      "file": "20-behavior/behavior.md",
+      "line": 66,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "API-010",
+        "ARCH-004",
+        "BEH-004"
+      ]
+    },
+    "BEH-009": {
+      "id": "BEH-009",
+      "title": "自适应 EF（PQ gap 启发式）",
+      "file": "20-behavior/behavior.md",
+      "line": 72,
+      "kind": "req",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "API-010",
+        "ARCH-004"
+      ]
+    },
+    "BEH-010": {
+      "id": "BEH-010",
+      "title": "学习式 EF（GBDT）",
+      "file": "20-behavior/behavior.md",
+      "line": 78,
+      "kind": "req",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "API-008",
+        "API-010",
+        "ARCH-004"
+      ]
+    },
+    "BEH-011": {
+      "id": "BEH-011",
+      "title": "VisitedList 访问标记",
+      "file": "20-behavior/behavior.md",
+      "line": 85,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-001"
+      ],
+      "backlinks": [
+        "API-010",
+        "ARCH-004"
+      ]
+    },
+    "BEH-012": {
+      "id": "BEH-012",
+      "title": "ID 映射",
+      "file": "20-behavior/behavior.md",
+      "line": 91,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "DEF-001"
+      ],
+      "backlinks": []
+    },
+    "BEH-013": {
+      "id": "BEH-013",
+      "title": "并发搜索",
+      "file": "20-behavior/behavior.md",
+      "line": 97,
+      "kind": "req",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-004"
+      ],
+      "backlinks": [
+        "API-010",
+        "CON-004"
+      ]
+    },
+    "BEH-014": {
+      "id": "BEH-014",
+      "title": "事件驱动批量搜索",
+      "file": "20-behavior/behavior.md",
+      "line": 104,
+      "kind": "req",
+      "level": "may",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-001"
+      ],
+      "backlinks": []
+    },
+    "BEH-015": {
+      "id": "BEH-015",
+      "title": "召回一致性",
+      "file": "20-behavior/behavior.md",
+      "line": 110,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "VER-006"
+      ],
+      "backlinks": []
+    },
+    "BEH-016": {
+      "id": "BEH-016",
+      "title": "跨架构 SIMD 分发",
+      "file": "20-behavior/behavior.md",
+      "line": 116,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "ARCH-006",
+        "API-007"
+      ],
+      "backlinks": [
+        "ARCH-006"
+      ]
+    },
+    "BEH-018": {
+      "id": "BEH-018",
+      "title": "探索期 NDF 纪律",
+      "file": "meta/process.md",
+      "line": 24,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "CHR-008"
+        ],
+        "depends-on": [
+          "ARCH-008",
+          "DEF-020"
+        ]
+      },
+      "body_refs": [
+        "BEH-025",
+        "BEH-020"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "ARCH-008",
+        "BEH-025",
+        "CHR-008",
+        "DEF-020",
+        "DEF-NDF-BINDER-DUAL-HEAD",
+        "DEF-NDF-IMPL-SPACE",
+        "META-003"
+      ]
+    },
+    "BEH-019": {
+      "id": "BEH-019",
+      "title": "晋升闸门",
+      "file": "meta/process.md",
+      "line": 67,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "CHR-008"
+        ],
+        "depends-on": [
+          "DEF-021",
+          "DEF-022",
+          "META-004",
+          "META-005"
+        ]
+      },
+      "body_refs": [
+        "BEH-025",
+        "META-004",
+        "META-005"
+      ],
+      "backlinks": [
+        "BEH-025",
+        "DEF-021",
+        "DEF-NDF-BINDER-DUAL-HEAD",
+        "DEF-NDF-SPEC-DRIFT",
+        "DEF-NDF-STABLE-DRAFT",
+        "META-004",
+        "META-005",
+        "META-006",
+        "META-010",
+        "META-011"
+      ]
+    },
+    "BEH-020": {
+      "id": "BEH-020",
+      "title": "负结果与回退",
+      "file": "meta/process.md",
+      "line": 649,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "CHR-008"
+        ],
+        "depends-on": [
+          "DEF-022"
+        ]
+      },
+      "body_refs": [
+        "BEH-025"
+      ],
+      "backlinks": [
+        "BEH-018",
+        "CHR-008",
+        "DEF-NDF-ZOMBIE-SPEC"
+      ]
+    },
+    "BEH-025": {
+      "id": "BEH-025",
+      "title": "POC 主题装订纪律",
+      "file": "meta/process.md",
+      "line": 669,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "BEH-018",
+          "ARCH-008"
+        ],
+        "depends-on": [
+          "DEF-022",
+          "DEF-023",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [
+        "DEF-023",
+        "ADR-META-003",
+        "META-010",
+        "BEH-018",
+        "BEH-019",
+        "META-008"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "ADR-META-003",
+        "ADR-META-004",
+        "ADR-TOPIC-BINDER-001",
+        "ARCH-008",
+        "BEH-018",
+        "BEH-019",
+        "BEH-020",
+        "DEF-022",
+        "DEF-NDF-ORCHESTRATION",
+        "META-003",
+        "META-007",
+        "META-008",
+        "META-012"
+      ]
+    },
+    "BEH-026": {
+      "id": "BEH-026",
+      "title": "NDF 缺陷分类（指针）",
+      "file": "meta/process.md",
+      "line": 819,
+      "kind": "info",
+      "level": "may",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH",
+          "CHR-008"
+        ]
+      },
+      "body_refs": [
+        "DEF-NDF-GRAPH",
+        "DEF-NDF-CYCLE",
+        "DEF-NDF-BINDER-DUAL-HEAD"
+      ],
+      "backlinks": []
+    },
+    "BEH-027": {
+      "id": "BEH-027",
+      "title": "分层 Vamana 建图",
+      "file": "20-behavior/behavior.md",
+      "line": 122,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.2",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "ARCH-007",
+        "DEC-003"
+      ],
+      "backlinks": [
+        "ARCH-007"
+      ]
+    },
+    "CHR-001": {
+      "id": "CHR-001",
+      "title": "产品目标",
+      "file": "00-charter/charter.md",
+      "line": 12,
+      "kind": "req",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CHR-003"
+      ],
+      "backlinks": []
+    },
+    "CHR-002": {
+      "id": "CHR-002",
+      "title": "范围",
+      "file": "00-charter/charter.md",
+      "line": 23,
+      "kind": "req",
+      "level": "should",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "CHR-003": {
+      "id": "CHR-003",
+      "title": "非目标",
+      "file": "00-charter/charter.md",
+      "line": 36,
+      "kind": "req",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "DEC-002"
+      ],
+      "backlinks": [
+        "CHR-001"
+      ]
+    },
+    "CHR-004": {
+      "id": "CHR-004",
+      "title": "成功判据",
+      "file": "00-charter/charter.md",
+      "line": 47,
+      "kind": "req",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "VER-004",
+        "VER-005",
+        "CON-SLA-001"
+      ],
+      "backlinks": []
+    },
+    "CHR-008": {
+      "id": "CHR-008",
+      "title": "探索与晋升双轨",
+      "file": "meta/process.md",
+      "line": 10,
+      "kind": "arch",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {},
+      "body_refs": [
+        "DEF-020",
+        "DEF-021",
+        "BEH-018",
+        "BEH-020",
+        "ARCH-008"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "ARCH-008",
+        "BEH-018",
+        "BEH-019",
+        "BEH-020",
+        "BEH-026",
+        "CON-POC-001",
+        "DEF-NDF-GRAPH",
+        "DEF-NDF-SPEC-DRIFT",
+        "META-003"
+      ]
+    },
+    "CON-001": {
+      "id": "CON-001",
+      "title": "内存预算约束",
+      "file": "40-constraints/constraints.md",
+      "line": 11,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "DEF-001"
+      ]
+    },
+    "CON-002": {
+      "id": "CON-002",
+      "title": "召回目标",
+      "file": "40-constraints/constraints.md",
+      "line": 17,
+      "kind": "constraint",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-SLA-001",
+        "VER-006"
+      ],
+      "backlinks": []
+    },
+    "CON-003": {
+      "id": "CON-003",
+      "title": "吞吐声明纪律",
+      "file": "40-constraints/constraints.md",
+      "line": 23,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "DEC-002"
+      ],
+      "backlinks": [
+        "DEC-002",
+        "VER-002"
+      ]
+    },
+    "CON-004": {
+      "id": "CON-004",
+      "title": "io_uring 线程安全",
+      "file": "40-constraints/constraints.md",
+      "line": 29,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "BEH-013"
+      ],
+      "backlinks": [
+        "API-006",
+        "BEH-013"
+      ]
+    },
+    "CON-005": {
+      "id": "CON-005",
+      "title": "数据配套一致性",
+      "file": "40-constraints/constraints.md",
+      "line": 35,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-011"
+      ],
+      "backlinks": [
+        "VER-006"
+      ]
+    },
+    "CON-006": {
+      "id": "CON-006",
+      "title": "架构平台约束",
+      "file": "40-constraints/constraints.md",
+      "line": 41,
+      "kind": "constraint",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "CON-POC-001": {
+      "id": "CON-POC-001",
+      "title": "POC 不纳入生产 SLA",
+      "file": "meta/constraints.md",
+      "line": 7,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {
+        "refines": [
+          "CHR-008"
+        ],
+        "depends-on": [
+          "ARCH-008"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "ADR-META-001",
+        "BEH-025",
+        "DEF-NDF-STABLE-DRAFT"
+      ]
+    },
+    "CON-SLA-001": {
+      "id": "CON-SLA-001",
+      "title": "SLA：SIFT1M sustained（stable）",
+      "file": "40-constraints/constraints.md",
+      "line": 47,
+      "kind": "constraint",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "VER-001",
+        "CON-SLA-003",
+        "CON-SLA-006"
+      ],
+      "backlinks": [
+        "CHR-004",
+        "CON-002"
+      ]
+    },
+    "CON-SLA-002": {
+      "id": "CON-SLA-002",
+      "title": "SLA：SIFT1M cache-warmed 回归（draft）",
+      "file": "40-constraints/constraints.md",
+      "line": 64,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "VER-002",
+        "VER-005"
+      ],
+      "backlinks": []
+    },
+    "CON-SLA-003": {
+      "id": "CON-SLA-003",
+      "title": "SLA：多线程扩展性（draft）",
+      "file": "40-constraints/constraints.md",
+      "line": 70,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "CON-SLA-001"
+      ]
+    },
+    "CON-SLA-004": {
+      "id": "CON-SLA-004",
+      "title": "SLA：I/O 优化收益（draft）",
+      "file": "40-constraints/constraints.md",
+      "line": 76,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "BEH-007"
+      ]
+    },
+    "CON-SLA-005": {
+      "id": "CON-SLA-005",
+      "title": "SLA：DEEP10M（draft）",
+      "file": "40-constraints/constraints.md",
+      "line": 83,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "CON-SLA-006": {
+      "id": "CON-SLA-006",
+      "title": "SLA：QPS/MB 内存效率（draft）",
+      "file": "40-constraints/constraints.md",
+      "line": 89,
+      "kind": "constraint",
+      "level": "tbd",
+      "layer": "L1",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "CON-SLA-001"
+      ]
+    },
+    "DEC-001": {
+      "id": "DEC-001",
+      "title": "DEC-001: adopt-mode 产品提案（Genesis 设计 hop）",
+      "file": "decisions/dec-adopt-and-measurement.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "must",
+      "layer": "L0",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "META-009"
+      ],
+      "backlinks": []
+    },
+    "DEC-002": {
+      "id": "DEC-002",
+      "title": "DEC-002: 测量口径（sustained vs cache-warmed）",
+      "file": "decisions/dec-adopt-and-measurement.md",
+      "line": 18,
+      "kind": "decision",
+      "level": "must",
+      "layer": "L0",
+      "status": "draft",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-003"
+      ],
+      "backlinks": [
+        "ARCH-004",
+        "CHR-003",
+        "CON-003",
+        "DEF-001"
+      ]
+    },
+    "DEC-003": {
+      "id": "DEC-003",
+      "title": "DEC-003: 分层 Vamana 默认建图（promote hierarchical-vamana）",
+      "file": "decisions/dec-promote-hierarchical-vamana.md",
+      "line": 1,
+      "kind": "decision",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.2",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "BEH-027"
+      ]
+    },
+    "DEC-HYGIENE-001": {
+      "id": "DEC-HYGIENE-001",
+      "title": "ADR: NDF 规范防腐化（可移植摘要）",
+      "file": "meta/decisions/adr-ndf-hygiene.md",
+      "line": 1,
+      "kind": "",
+      "level": "",
+      "layer": "",
+      "status": "",
+      "since": "",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "META-006",
+        "META-007"
+      ],
+      "backlinks": []
+    },
+    "DEF-001": {
+      "id": "DEF-001",
+      "title": "术语",
+      "file": "00-charter/charter.md",
+      "line": 58,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-001",
+        "DEC-002",
+        "VER-001",
+        "VER-002",
+        "CON-001"
+      ],
+      "backlinks": [
+        "BEH-012"
+      ]
+    },
+    "DEF-020": {
+      "id": "DEF-020",
+      "title": "DEF: POC（概念验证）",
+      "file": "meta/glossary.md",
+      "line": 9,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {},
+      "body_refs": [
+        "ARCH-008",
+        "BEH-018"
+      ],
+      "backlinks": [
+        "ARCH-008",
+        "BEH-018",
+        "CHR-008",
+        "DEF-022"
+      ]
+    },
+    "DEF-021": {
+      "id": "DEF-021",
+      "title": "DEF: 晋升（Promote）",
+      "file": "meta/glossary.md",
+      "line": 15,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.7",
+      "scope": "ndf-process",
+      "edges": {},
+      "body_refs": [
+        "BEH-019"
+      ],
+      "backlinks": [
+        "ARCH-008",
+        "BEH-019",
+        "CHR-008"
+      ]
+    },
+    "DEF-022": {
+      "id": "DEF-022",
+      "title": "DEF: Topic Binder（主题装订器）",
+      "file": "meta/glossary.md",
+      "line": 21,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-020"
+        ]
+      },
+      "body_refs": [
+        "BEH-025"
+      ],
+      "backlinks": [
+        "ADR-TOPIC-BINDER-001",
+        "ARCH-008",
+        "BEH-019",
+        "BEH-020",
+        "BEH-025",
+        "DEF-023",
+        "DEF-NDF-BINDER-DUAL-HEAD"
+      ]
+    },
+    "DEF-023": {
+      "id": "DEF-023",
+      "title": "DEF: Commit Ledger（提交账本）",
+      "file": "meta/glossary.md",
+      "line": 31,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-022"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "ADR-TOPIC-BINDER-001",
+        "ARCH-008",
+        "BEH-025",
+        "DEF-NDF-OBS-GRAIN",
+        "DEF-NDF-REPRO-BIND-GAP",
+        "DEF-NDF-SPEC-DRIFT",
+        "META-003",
+        "META-004"
+      ]
+    },
+    "DEF-META-ID-NS": {
+      "id": "DEF-META-ID-NS",
+      "title": "DEF: Meta 条款 ID 命名空间",
+      "file": "meta/glossary.md",
+      "line": 38,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "ADR-META-001",
+          "ADR-META-002",
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-002"
+      ],
+      "backlinks": [
+        "ADR-META-001",
+        "ADR-META-002",
+        "META-001"
+      ]
+    },
+    "DEF-NDF-BINDER-DUAL-HEAD": {
+      "id": "DEF-NDF-BINDER-DUAL-HEAD",
+      "title": "DEF: 装订器双头漂移",
+      "file": "meta/glossary.md",
+      "line": 179,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-022",
+          "BEH-018",
+          "BEH-019"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-026",
+        "DEF-NDF-GRAPH"
+      ]
+    },
+    "DEF-NDF-CONFLICT-ASYM": {
+      "id": "DEF-NDF-CONFLICT-ASYM",
+      "title": "DEF: conflicts 非对称",
+      "file": "meta/glossary.md",
+      "line": 137,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "META-002"
+      ]
+    },
+    "DEF-NDF-CYCLE": {
+      "id": "DEF-NDF-CYCLE",
+      "title": "DEF: 依赖环缺陷",
+      "file": "meta/glossary.md",
+      "line": 125,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "BEH-026",
+        "DEF-NDF-GRAPH"
+      ]
+    },
+    "DEF-NDF-DESIGN-SPACE": {
+      "id": "DEF-NDF-DESIGN-SPACE",
+      "title": "DEF: Design Space（设计空间）",
+      "file": "meta/glossary.md",
+      "line": 55,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-008"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-GATE-RECEIPT": {
+      "id": "DEF-NDF-GATE-RECEIPT",
+      "title": "DEF: Gate Receipt（门禁回执）",
+      "file": "meta/glossary.md",
+      "line": 90,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-010"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-GRAPH": {
+      "id": "DEF-NDF-GRAPH",
+      "title": "DEF: NDF 条款语义图模型",
+      "file": "meta/glossary.md",
+      "line": 105,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "ADR-META-001",
+          "CHR-008",
+          "META-001",
+          "META-002"
+        ]
+      },
+      "body_refs": [
+        "META-001",
+        "META-002",
+        "DEF-NDF-CYCLE",
+        "DEF-NDF-UNLINKED",
+        "DEF-NDF-SPEC-DRIFT",
+        "DEF-NDF-BINDER-DUAL-HEAD"
+      ],
+      "backlinks": [
+        "ADR-META-002",
+        "BEH-026",
+        "DEF-META-ID-NS",
+        "DEF-NDF-CONFLICT-ASYM",
+        "DEF-NDF-CYCLE",
+        "DEF-NDF-META-DANGLING",
+        "DEF-NDF-STABLE-DRAFT",
+        "DEF-NDF-UNLINKED",
+        "DEF-NDF-ZOMBIE-SPEC",
+        "META-002"
+      ]
+    },
+    "DEF-NDF-IMPL-SPACE": {
+      "id": "DEF-NDF-IMPL-SPACE",
+      "title": "DEF: Implementation Space（实现空间）",
+      "file": "meta/glossary.md",
+      "line": 62,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-008",
+          "BEH-018"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-META-DANGLING": {
+      "id": "DEF-NDF-META-DANGLING",
+      "title": "DEF: meta 边悬空",
+      "file": "meta/glossary.md",
+      "line": 143,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-OBS-GRAIN": {
+      "id": "DEF-NDF-OBS-GRAIN",
+      "title": "DEF: 观测粒度过粗",
+      "file": "meta/glossary.md",
+      "line": 173,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-023"
+        ]
+      },
+      "body_refs": [
+        "DEF-023"
+      ],
+      "backlinks": []
+    },
+    "DEF-NDF-ORCHESTRATION": {
+      "id": "DEF-NDF-ORCHESTRATION",
+      "title": "DEF: Interaction Orchestration（交互编排）",
+      "file": "meta/glossary.md",
+      "line": 76,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-008",
+          "BEH-025"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-PROJECT-GENESIS": {
+      "id": "DEF-NDF-PROJECT-GENESIS",
+      "title": "DEF: Project Genesis",
+      "file": "meta/glossary.md",
+      "line": 83,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-009"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-REPRO-BIND-GAP": {
+      "id": "DEF-NDF-REPRO-BIND-GAP",
+      "title": "DEF: 可复现绑定缺失",
+      "file": "meta/glossary.md",
+      "line": 167,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-023"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-SPEC-DRIFT": {
+      "id": "DEF-NDF-SPEC-DRIFT",
+      "title": "DEF: 规范漂移",
+      "file": "meta/glossary.md",
+      "line": 155,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "CHR-008",
+          "BEH-019",
+          "DEF-023"
+        ]
+      },
+      "body_refs": [
+        "CHR-008"
+      ],
+      "backlinks": [
+        "DEF-NDF-GRAPH"
+      ]
+    },
+    "DEF-NDF-STABLE-DRAFT": {
+      "id": "DEF-NDF-STABLE-DRAFT",
+      "title": "DEF: stable must 依赖非 stable",
+      "file": "meta/glossary.md",
+      "line": 131,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH",
+          "BEH-019",
+          "CON-POC-001"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "DEF-NDF-TEST-SPACE": {
+      "id": "DEF-NDF-TEST-SPACE",
+      "title": "DEF: Test Space（测试空间）",
+      "file": "meta/glossary.md",
+      "line": 69,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-006",
+          "META-008"
+        ]
+      },
+      "body_refs": [
+        "META-008"
+      ],
+      "backlinks": []
+    },
+    "DEF-NDF-UNLINKED": {
+      "id": "DEF-NDF-UNLINKED",
+      "title": "DEF: 未连接条款（warning）",
+      "file": "meta/glossary.md",
+      "line": 149,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "DEF-NDF-GRAPH"
+      ]
+    },
+    "DEF-NDF-WORKFLOW-PROJECTION": {
+      "id": "DEF-NDF-WORKFLOW-PROJECTION",
+      "title": "DEF: Workflow Projection（工作流投影）",
+      "file": "meta/glossary.md",
+      "line": 97,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "deprecated",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-011"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004"
+      ],
+      "backlinks": []
+    },
+    "DEF-NDF-ZOMBIE-SPEC": {
+      "id": "DEF-NDF-ZOMBIE-SPEC",
+      "title": "DEF: 僵尸规范",
+      "file": "meta/glossary.md",
+      "line": 161,
+      "kind": "def",
+      "level": "",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-020",
+          "DEF-NDF-GRAPH"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": []
+    },
+    "META-001": {
+      "id": "META-001",
+      "title": "NDF 条款书写与元数据",
+      "file": "meta/language.md",
+      "line": 11,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "ADR-META-002"
+        ]
+      },
+      "body_refs": [
+        "DEF-META-ID-NS",
+        "META-003",
+        "META-005",
+        "META-002"
+      ],
+      "backlinks": [
+        "DEF-NDF-GRAPH",
+        "META-002",
+        "META-003",
+        "META-005",
+        "META-010"
+      ]
+    },
+    "META-002": {
+      "id": "META-002",
+      "title": "NDF 图边与引用",
+      "file": "meta/language.md",
+      "line": 56,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-001"
+        ]
+      },
+      "body_refs": [
+        "DEF-NDF-GRAPH",
+        "DEF-NDF-CONFLICT-ASYM",
+        "ADR-META-001"
+      ],
+      "backlinks": [
+        "DEF-NDF-GRAPH",
+        "META-001",
+        "META-004",
+        "META-005",
+        "META-008",
+        "META-012"
+      ]
+    },
+    "META-003": {
+      "id": "META-003",
+      "title": "分层与强制语气",
+      "file": "meta/language.md",
+      "line": 81,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-001"
+        ]
+      },
+      "body_refs": [
+        "DEF-023",
+        "BEH-025",
+        "CHR-008",
+        "BEH-018"
+      ],
+      "backlinks": [
+        "META-001",
+        "META-004",
+        "META-005",
+        "META-008",
+        "META-009"
+      ]
+    },
+    "META-004": {
+      "id": "META-004",
+      "title": "NDF `model` 边与语义核纪律",
+      "file": "meta/language.md",
+      "line": 135,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-002",
+          "META-003",
+          "ARCH-008"
+        ]
+      },
+      "body_refs": [
+        "ARCH-008",
+        "DEF-023",
+        "BEH-019",
+        "META-002"
+      ],
+      "backlinks": [
+        "ARCH-008",
+        "BEH-019"
+      ]
+    },
+    "META-005": {
+      "id": "META-005",
+      "title": "性能 SLA 与旋钮接口的图依赖 / Trunk 绑定",
+      "file": "meta/language.md",
+      "line": 179,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-001",
+          "META-002",
+          "META-003"
+        ]
+      },
+      "body_refs": [
+        "META-002",
+        "META-001",
+        "BEH-019"
+      ],
+      "backlinks": [
+        "BEH-019",
+        "META-001"
+      ]
+    },
+    "META-006": {
+      "id": "META-006",
+      "title": "金标更新义务",
+      "file": "meta/process.md",
+      "line": 108,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.11",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-019"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "DEC-HYGIENE-001",
+        "DEF-NDF-TEST-SPACE",
+        "META-007"
+      ]
+    },
+    "META-007": {
+      "id": "META-007",
+      "title": "POC 性能线唯一绑定",
+      "file": "meta/process.md",
+      "line": 127,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.12",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "BEH-025",
+          "META-006"
+        ]
+      },
+      "body_refs": [],
+      "backlinks": [
+        "DEC-HYGIENE-001"
+      ]
+    },
+    "META-008": {
+      "id": "META-008",
+      "title": "NDF 工作空间视角",
+      "file": "meta/language.md",
+      "line": 111,
+      "kind": "def",
+      "level": "must",
+      "layer": "L0",
+      "status": "stable",
+      "since": "0.9",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-002",
+          "META-003"
+        ]
+      },
+      "body_refs": [
+        "BEH-025",
+        "META-011"
+      ],
+      "backlinks": [
+        "BEH-025",
+        "DEF-NDF-DESIGN-SPACE",
+        "DEF-NDF-IMPL-SPACE",
+        "DEF-NDF-ORCHESTRATION",
+        "DEF-NDF-TEST-SPACE",
+        "META-009",
+        "META-010",
+        "META-011",
+        "META-012"
+      ]
+    },
+    "META-009": {
+      "id": "META-009",
+      "title": "Project Genesis 初始化轨",
+      "file": "meta/process.md",
+      "line": 150,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-003",
+          "META-008",
+          "META-010"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-003"
+      ],
+      "backlinks": [
+        "ADR-META-004",
+        "DEC-001",
+        "DEF-NDF-PROJECT-GENESIS",
+        "META-010"
+      ]
+    },
+    "META-010": {
+      "id": "META-010",
+      "title": "人工门禁回执",
+      "file": "meta/process.md",
+      "line": 212,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-001",
+          "META-008"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-003",
+        "META-009",
+        "BEH-019",
+        "META-014"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "ADR-META-004",
+        "BEH-025",
+        "DEF-NDF-GATE-RECEIPT",
+        "META-009",
+        "META-011",
+        "META-012",
+        "META-013",
+        "META-014"
+      ]
+    },
+    "META-011": {
+      "id": "META-011",
+      "title": "文字委派与磁盘完成合同",
+      "file": "meta/process.md",
+      "line": 317,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.13",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-008",
+          "META-010"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-003",
+        "ADR-META-004",
+        "META-010",
+        "META-014",
+        "BEH-019"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "ADR-META-004",
+        "DEF-NDF-WORKFLOW-PROJECTION",
+        "META-008",
+        "META-012",
+        "META-013",
+        "META-014",
+        "META-015"
+      ]
+    },
+    "META-012": {
+      "id": "META-012",
+      "title": "NDF 任务上下文与证据绑定",
+      "file": "meta/process.md",
+      "line": 476,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.14",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-002",
+          "META-008",
+          "META-010",
+          "META-011"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004",
+        "BEH-025",
+        "ADR-META-003"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "META-013"
+      ]
+    },
+    "META-013": {
+      "id": "META-013",
+      "title": "Agent Episode、事件链与回放等级",
+      "file": "meta/process.md",
+      "line": 555,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "deprecated",
+      "since": "0.9.15",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-010",
+          "META-011",
+          "META-012"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004",
+        "ADR-META-003",
+        "META-011",
+        "META-012"
+      ],
+      "backlinks": [
+        "ADR-META-003",
+        "META-015"
+      ]
+    },
+    "META-014": {
+      "id": "META-014",
+      "title": "Process Proposal 生命周期与回执",
+      "file": "meta/process.md",
+      "line": 597,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.9.16",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-010",
+          "META-011"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004",
+        "META-010"
+      ],
+      "backlinks": [
+        "META-010",
+        "META-011"
+      ]
+    },
+    "META-015": {
+      "id": "META-015",
+      "title": "回放沙箱与执行器边界",
+      "file": "meta/process.md",
+      "line": 580,
+      "kind": "req",
+      "level": "must",
+      "layer": "L1",
+      "status": "deprecated",
+      "since": "0.9.17",
+      "scope": "ndf-process",
+      "edges": {
+        "depends-on": [
+          "META-011",
+          "META-013"
+        ]
+      },
+      "body_refs": [
+        "ADR-META-004"
+      ],
+      "backlinks": []
+    },
+    "PREFIX-AREA-NNN": {
+      "id": "PREFIX-AREA-NNN",
+      "title": "条款标题",
+      "file": "meta/CLAUSE-FORMAT.md",
+      "line": 8,
+      "kind": "<kind>",
+      "level": "<level>",
+      "layer": "<layer>",
+      "status": "<status>",
+      "since": "<version>",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "OTHER-ID"
+      ],
+      "backlinks": []
+    },
+    "VER-001": {
+      "id": "VER-001",
+      "title": "sustained 权威口径",
+      "file": "50-verification/verification.md",
+      "line": 10,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "API-012"
+      ],
+      "backlinks": [
+        "API-012",
+        "CON-SLA-001",
+        "DEF-001"
+      ]
+    },
+    "VER-002": {
+      "id": "VER-002",
+      "title": "cache-warmed 回归护栏",
+      "file": "50-verification/verification.md",
+      "line": 19,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-003"
+      ],
+      "backlinks": [
+        "API-012",
+        "CON-SLA-002",
+        "DEF-001"
+      ]
+    },
+    "VER-003": {
+      "id": "VER-003",
+      "title": "cgroup 隔离测量",
+      "file": "50-verification/verification.md",
+      "line": 25,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "VER-004": {
+      "id": "VER-004",
+      "title": "配置注册表",
+      "file": "50-verification/verification.md",
+      "line": 31,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "CHR-004"
+      ]
+    },
+    "VER-005": {
+      "id": "VER-005",
+      "title": "基线注册表",
+      "file": "50-verification/verification.md",
+      "line": 38,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": [
+        "CHR-004",
+        "CON-SLA-002"
+      ]
+    },
+    "VER-006": {
+      "id": "VER-006",
+      "title": "召回验证",
+      "file": "50-verification/verification.md",
+      "line": 45,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [
+        "CON-005"
+      ],
+      "backlinks": [
+        "BEH-015",
+        "CON-002"
+      ]
+    },
+    "VER-007": {
+      "id": "VER-007",
+      "title": "单元 / 质量测试",
+      "file": "50-verification/verification.md",
+      "line": 51,
+      "kind": "verif",
+      "level": "should",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    },
+    "VER-008": {
+      "id": "VER-008",
+      "title": "复现与证据义务",
+      "file": "50-verification/verification.md",
+      "line": 57,
+      "kind": "verif",
+      "level": "must",
+      "layer": "L1",
+      "status": "stable",
+      "since": "0.1",
+      "scope": "",
+      "edges": {},
+      "body_refs": [],
+      "backlinks": []
+    }
+  }
+}

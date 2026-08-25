@@ -1,0 +1,98 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "result": "success",
+  "topic": "hierarchical-vamana",
+  "task": "poc_measurement",
+  "track": "poc",
+  "base_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "repo_head": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "manifest_sha": "abb73201c81939b749eb56ecbf07fa09cc1d372daa1c9e0e467962f50bb0eeb1",
+  "context_plan_sha": "9eaea13ff463258a93d5b2a86ca12c6633f2b0d91cf32842c9a1bd10fbadb462",
+  "episode_id": "",
+  "attempt_id": "",
+  "hop": "",
+  "changed_files": [
+    "poc/hierarchical-vamana/scripts/run_sweep_r2.sh",
+    "poc/hierarchical-vamana/ndf/DELTA.md",
+    "poc/hierarchical-vamana/ndf/PERF_BASELINE.md",
+    "poc/hierarchical-vamana/ndf/TOPIC.md",
+    "poc/hierarchical-vamana/ndf/COMMITS.md",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary-r2.md",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam32_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam128_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r024.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r040.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam32_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam128_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r024.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r040.log",
+    "poc/hierarchical-vamana/ndf/evidence/sweep_r2.out"
+  ],
+  "changed_file_shas": {
+    "poc/hierarchical-vamana/scripts/run_sweep_r2.sh": "84e5b2a760d69f2380379d33442488a72724a7d03437ae9f6231151f32a73129",
+    "poc/hierarchical-vamana/ndf/DELTA.md": "f55b2c49d051217512343edbe9da8416c173ad6ca4802ebe210bea600bf05354",
+    "poc/hierarchical-vamana/ndf/PERF_BASELINE.md": "1948596330fcaee7c5858d3c30e290368943e9e7910317a14a6e4e0ca0c2110a",
+    "poc/hierarchical-vamana/ndf/TOPIC.md": "434f03247005f8bc42bd1891f7ddc6f1c960a81606e468c659b9b259b8bcd735",
+    "poc/hierarchical-vamana/ndf/COMMITS.md": "f7a3742de58cbca09d952f5e78c2e56e75681d4915dd17a8785af0f85bf5f972",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary-r2.md": "5e594086fcc1a74a4dd5d906da311a380fa8e377d2fc5c5e2615ec4a02aa33b6",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam32_r032.log": "fe395efe576ee8063d9ed6fa9074e749f57f422ab46b4f6cf722587151361689",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r032.log": "975114ababe376ec2f7c650b3b3b4f5db201ab3cbb2e0c87ecf07db1f3969d41",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam128_r032.log": "8de41ab258b7eac34bd867d39f6cd6c8e8cbe9e5bbff1986bb99b090978f8d2c",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r024.log": "bde5f7ec861be627f806726a13f31de9189c4dbd20eb792239c500e41a3e3caa",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r040.log": "0904273c6f84397146c07d15226e5cafcbbb48272eaf30237b312df71ee9bb5f",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam32_r032.log": "01b2809439d96eedfefb48adfb888fb3a9ddc2f30cf9406fcc60ba7f58db4a76",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r032.log": "ebefb4b4d247599382ac5cc7ae08e98a6da31043a7bdd4639596385f8f37b4c9",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam128_r032.log": "373ee479c40860a87f1753b6b979754445f8a163d42fdcb573c90444ecee0b8b",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r024.log": "e8e7681a7af3cb11306508bfad4d79da571468abc93a5710e0dc49ce65f8709b",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r040.log": "cc9a5774ae9f887fc5b3cab0e657b4a1f243a60bd70480f690af7250b833f8b4",
+    "poc/hierarchical-vamana/ndf/evidence/sweep_r2.out": "cba9e2a76350eaf0eb82ea9907f8845e8b505c1f9a38dded7923babb6e6067f6"
+  },
+  "evidence_paths": [
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam32_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam128_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r024.log",
+    "poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r040.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam32_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam128_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r024.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r040.log",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary-r2.md",
+    "poc/hierarchical-vamana/ndf/evidence/sweep_r2.out"
+  ],
+  "evidence_bundle_sha": "69ee1cb3e5515b6ce0ac15afe3fde9becaeb0f79c634b68c06ef507f54eb0824",
+  "reproduce_commands": [
+    "bash poc/hierarchical-vamana/scripts/run_sweep_r2.sh",
+    "OMP_NUM_THREADS=24 HV_M=16 HV_R0=32 HV_RUP=16 HV_BEAM=64 HV_ALPHA=1.2 HV_ALPHA2=0 HV_ROUNDS=3 HV_SEED=42 poc/hierarchical-vamana/build-bin/vamana_build data/sift_base.fvecs poc/hierarchical-vamana/output/sift1m_graph.bin",
+    "./build/bfs_reorder poc/hierarchical-vamana/output/sift1m_graph.bin poc/hierarchical-vamana/output/sift1m_bfs.bin",
+    "./build/write_blocks_veconly poc/hierarchical-vamana/output/sift1m_graph.bin poc/hierarchical-vamana/output/sift1m_bfs.bin poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin 65536",
+    "./build/write_blocks poc/hierarchical-vamana/output/sift1m_graph.bin poc/hierarchical-vamana/output/sift1m_bfs.bin poc/hierarchical-vamana/output/sift1m_blocks_64k.bin 65536",
+    "./build/gen_route poc/hierarchical-vamana/output/sift1m_blocks_64k.bin poc/hierarchical-vamana/output/sift1m_route_64k.bin",
+    "CGROUP_MB=512 THREADS=16 TAG=hv_beam64_r0_32 bash poc/hierarchical-vamana/scripts/run_poc_measure.sh",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana"
+  ],
+  "git_commit": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); summary: 0 error(s) (no Trunk write-surface leakage)",
+      "verifier": "ndf_poc_isolation"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); bind vs=bl-trunk-d0ae5dd config=cfg-sla-ef100 measure=scripts/run_sustained.sh; status=measured; numbers=R0 + R1 α-sweep + R2 beam+R0 sweep (operating point beam=64/R0=32/α=1.2: Recall 98.00% / agg 6159.1)",
+      "verifier": "ndf_perf_baseline"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); 0 error(s), 0 warning(s) (checks=bind,dual,grain)",
+      "verifier": "ndf_bindcheck"
+    }
+  ],
+  "summary": "R2 poc_measurement: beam+R0 sweep @ α=1.2 on SIFT1M @ bl-trunk-d0ae5dd x cfg-sla-ef100 x VER-001/003 (512MB/16T, no 1T), fixed M=16 Rup=16 rounds=3 seed=42 via poc/hierarchical-vamana/scripts/run_sweep_r2.sh (5 unique configs). beam ∈ {32,64,128} @ R0=32: Recall 97.02/98.00/97.86%, agg QPS 6210.4/6159.1/6130.1, RSS 367/371/372MB, L0 edges 26.24/29.64/31.05M, build 72.3/135.9/248.8s — negligible effect (recall/QPS flat, beam=64 best recall; build ~linear in beam). R0 ∈ {24,32,40} @ beam=64: Recall 95.87/98.00/98.95%, agg QPS 6367.0/6159.1/6047.8, RSS 358/371/381MB, L0 edges 23.25/29.64/34.64M — dominant monotonic knob (R0↑ ⇒ edges/recall↑, QPS/memory↓). Operating point confirmed beam=64/R0=32/α=1.2 (Recall 98.00% = +2.0pp vs trunk 96.00%, agg QPS +42% vs trunk 4330.9, within 512MB budget); R0=40 offers +0.95pp recall (98.95%) at -1.8% QPS/+10MB/+4.99M edges (optional recall-margin tier); R0=24 leanest (358MB) but recall 95.87% (thin ≥95% margin). R2 center point agg QPS 6159.1 matches R1 α=1.2 re-measure 6052.2 (~2%, warm-session, ~30% above R0 cold-cache 4653.9; Recall stable 98.00%). Appended DELTA Rounds R2 / PERF Numbers R2 / TOPIC NOTES R2 / COMMITS + evidence logs; no contract-slice changes; no src//include//tests/ writes. Post-checks pass (poc_isolation 0, perf_baseline measured, bindcheck 0/0)."
+}

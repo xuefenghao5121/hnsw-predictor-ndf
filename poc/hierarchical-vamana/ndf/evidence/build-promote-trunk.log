@@ -1,0 +1,18 @@
+=== hierarchical-vamana builder ===
+M_base=16 R0=32 Rup=16 beam=32 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.263934s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.00984871s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.025441s)
+  layer 3: 2727 edges, avg 11.3625
+Building layer 2 over 3799 nodes (R=16)... done (0.0844594s)
+  layer 2: 56456 edges, avg 14.8608
+Building layer 1 over 62778 nodes (R=16)... done (1.71107s)
+  layer 1: 971948 edges, avg 15.4823
+Building layer 0 over 1000000 nodes (R=32)... done (71.9823s)
+  layer 0: 26244126 edges, avg 26.2441
+Saving graph structure to output/sift1m_graph.bin...
+  Saved graph structure to output/sift1m_graph.bin (1000000 nodes)
+Done.

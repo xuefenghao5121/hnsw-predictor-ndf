@@ -1,0 +1,24 @@
+# Project Genesis — Kernel Bind Record
+
+> track: bootstrap
+> bootstrap_mode: greenfield | adopt
+> project_maturity: kernel_bound
+
+## Kernel
+
+| Field | Value |
+|-------|-------|
+| `observed_trunk_sha` | |
+| `roles_sha` | |
+| `bootstrap_mode` | greenfield \| adopt |
+| `perf_status` | not-established |
+
+## Product tree
+
+Design hop (`hop=genesis_design`) writes draft NDF under `spec/00–50`.
+Until then, product tree remains skeleton.
+
+## Gates
+
+`角色已配置` →（Command bind）→ `派发` → [`可以建立初始主线` if greenfield] →
+`GENESIS已审核`.

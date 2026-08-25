@@ -1,0 +1,51 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "result": "success",
+  "task": "product_proposal",
+  "topic": "hierarchical-vamana",
+  "track": "promote",
+  "hop": "draft",
+  "episode_id": "",
+  "attempt_id": "",
+  "base_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "repo_head": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "manifest_sha": "ec1ad02c0e074000927691dbe7ce5a0a1340c736967a7ad3499e5e07270331fb",
+  "context_plan_sha": "c8f9666f514af8b15041f8b5415371a53d8c3ea1800821abd790e150001154f7",
+  "git_commit": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "changed_files": [
+    "spec/open/proposal-promote-hierarchical-vamana.md"
+  ],
+  "changed_file_shas": {
+    "spec/open/proposal-promote-hierarchical-vamana.md": "46d06bd675ee854d2c21a1f33bdf4a8a0f1945f00aaec1e1c19498e7439ee4bb"
+  },
+  "evidence_paths": [
+    "tmp/ndf-close-plan-hierarchical-vamana-promote.md",
+    "poc/hierarchical-vamana/ndf/TOPIC.md",
+    "poc/hierarchical-vamana/ndf/DELTA.md",
+    "poc/hierarchical-vamana/ndf/PERF_BASELINE.md",
+    "poc/hierarchical-vamana/ndf/INTERFACE.md",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary.md",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary-r2.md",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-1t-beam32_r032.log",
+    "poc/hierarchical-vamana/ndf/evidence/run_trunk_measure-512mb-1t.log"
+  ],
+  "evidence_bundle_sha": "1e6ab81e27626bac80af69a614feeeb1334028a743f8f277391ccb5173250372",
+  "reproduce_commands": [
+    "cat spec/open/proposal-promote-hierarchical-vamana.md",
+    "git -C . rev-parse HEAD"
+  ],
+  "post_check_receipts": [
+    {
+      "command": "grep -qE \"^> track: promote$\" spec/open/proposal-promote-hierarchical-vamana.md && grep -qE \"^> status: draft$\" spec/open/proposal-promote-hierarchical-vamana.md && grep -qE \"BEH-HV-001\" spec/open/proposal-promote-hierarchical-vamana.md && grep -qE \"ARCH-HV-001\" spec/open/proposal-promote-hierarchical-vamana.md && grep -qE \"语义核|semantic core\" spec/open/proposal-promote-hierarchical-vamana.md && grep -qE \"src/pipeline/build_index.cpp\" spec/open/proposal-promote-hierarchical-vamana.md",
+      "result": "pass (RC=0); proposal has track=promote, status=draft, draft->stable table (BEH-HV-001/ARCH-HV-001), semantic core=Yes, trunk write surface src/pipeline/build_index.cpp",
+      "verifier": "proposal_contract_check"
+    },
+    {
+      "command": "git status --porcelain -- spec/open/proposal-promote-hierarchical-vamana.md spec/open/.ndf-completion/product_proposal-attempt.json",
+      "result": "pass (RC=0); only spec/open/ touched, no src//include//tests//poc//spec/meta/ writes",
+      "verifier": "write_root_check"
+    }
+  ],
+  "summary": "product_proposal (promote draft): wrote spec/open/proposal-promote-hierarchical-vamana.md proposing to replace Trunk default hnswlib whole-graph build with HNSW geometric layering + per-layer Vamana (GreedySearch+RobustPrune), export into existing DiskHNSW reorder/blocks/PQ/search shell. Locked defaults HV_M=16 R0=32 Rup=16 beam=32 alpha=1.2 rounds=3 seed=42 (human override beam=32). Draft->stable table: BEH-HV-001->BEH-027 (or next free BEH), ARCH-HV-001->next free ARCH. Semantic core=Yes (L3 oracle outline sketched; spec/models/hierarchical-vamana-build.md to land with Implementation after 已审核). Evidence cited only (R0-R3), not copied as must SLA (CON-POC-001). Non-goals: GBDT/LEARNED_EF, DiskANN billion-shard merge, search-stack rewrite. Stopped at draft; no Trunk code landed, no GATES/approved_by forged."
+}

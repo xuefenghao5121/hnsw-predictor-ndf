@@ -1,0 +1,55 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "result": "success",
+  "topic": "hierarchical-vamana",
+  "task": "binder_amend",
+  "track": "poc",
+  "base_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "repo_head": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "manifest_sha": "2829b2faed4d43f5d53f7882c5cabb437ff26fc0bf1ce5e3f15bc4324f47f431",
+  "context_plan_sha": "f2249806527e90632aa68f3b54404d82ea4ab9f7bbfc89dcfd33aeff9c76d860",
+  "episode_id": "",
+  "attempt_id": "",
+  "hop": "",
+  "changed_files": [
+    "poc/hierarchical-vamana/ndf/INTERFACE.md",
+    "poc/hierarchical-vamana/ndf/TOPIC.md",
+    "poc/hierarchical-vamana/ndf/DELTA.md",
+    "poc/hierarchical-vamana/ndf/COMMITS.md"
+  ],
+  "changed_file_shas": {
+    "poc/hierarchical-vamana/ndf/INTERFACE.md": "92fb90ebaa1dc304be903f12d59dc8d124a5cf69a11a0ad18098df1898961cf0",
+    "poc/hierarchical-vamana/ndf/TOPIC.md": "d67dd05bd76c41f6e1dbb702ebed0a0f32926a1ac3ebafbd68036d91255a0be3",
+    "poc/hierarchical-vamana/ndf/DELTA.md": "cb96cd7cd56e3f32b2b3992445b10bdd93b83028dcb3feceee6daad35c84db60",
+    "poc/hierarchical-vamana/ndf/COMMITS.md": "0bf47f6fbda99e911cf7d6256e0ade283a672ce0efb3912a71d123bd341bb81f"
+  },
+  "evidence_paths": [
+    "tmp/intent-hierarchical-vamana-lock-beam32.md",
+    "poc/hierarchical-vamana/ndf/evidence/poc_measurement-summary-r2.md"
+  ],
+  "evidence_bundle_sha": "98d7850bc4261e8d470341277fc77d9d56e56d6a5a3ecebbf7511ce082988bf5",
+  "reproduce_commands": [
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+    "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana"
+  ],
+  "git_commit": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); 0 error(s) (no Trunk write-surface leakage)",
+      "verifier": "ndf_poc_isolation"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_perf_baseline.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); bind vs=bl-trunk-d0ae5dd config=cfg-sla-ef100 measure=scripts/run_sustained.sh; status=measured; numbers=R0 + R1 α-sweep + R2 beam+R0 sweep (operating point locked beam=32/R0=32/α=1.2 per human override)",
+      "verifier": "ndf_perf_baseline"
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_bindcheck.py check --topic hierarchical-vamana",
+      "result": "pass (RC=0); 0 error(s), 0 warning(s) (checks=bind,dual,grain)",
+      "verifier": "ndf_bindcheck"
+    }
+  ],
+  "summary": "Control binder_amend: human override locks POC operating point to beam=32/R0=32/α=1.2 (vs R2 agent pick beam=64). Amended INTERFACE.md interface_contract to pin defaults HV_M=16 HV_R0=32 HV_RUP=16 HV_BEAM=32 HV_ALPHA=1.2 HV_ALPHA2=0 HV_ROUNDS=3 HV_SEED=42 (HV_BEAM 64→32, HV_ROUNDS TBD→3; added R0/RUP/ROUNDS/SEED rows); appended TOPIC.md NOTES R2b (human decision: −0.98pp recall for higher QPS + leaner RSS + ~1.9× faster build, still ≥95% H0) and DELTA.md R2b round + COMMITS ledger row. No perf_bind change (512MB/16T); no GATES approval forged (topic_review still pending, next human phrase TOPIC已审核); no code/measurement change (code defaults in vamana_build.cpp / run_poc_measure.sh deferred to next 派发 implementation step). Post-checks pass (poc_isolation 0, perf_baseline measured, bindcheck 0/0)."
+}

@@ -1,0 +1,1020 @@
+
+############################################################
+### R2 SWEEP beam=32 R0=32 (α=1.2, TAG=hv_beam32_r0_32)
+############################################################
+--- BUILD beam=32 R0=32 ---
+=== hierarchical-vamana builder ===
+M_base=16 R0=32 Rup=16 beam=32 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.411721s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.0103307s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.0255787s)
+  layer 3: 2727 edges, avg 11.3625
+Building layer 2 over 3799 nodes (R=16)... done (0.085424s)
+  layer 2: 56456 edges, avg 14.8608
+Building layer 1 over 62778 nodes (R=16)... done (1.85307s)
+  layer 1: 971948 edges, avg 15.4823
+Building layer 0 over 1000000 nodes (R=32)... done (72.2938s)
+  layer 0: 26244126 edges, avg 26.2441
+Saving graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin...
+  Saved graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Done.
+--- REORDER + BLOCKS beam=32 R0=32 ---
+=== Task 1.2: BFS Global Reorder ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Running BFS from entry point 18691...
+  BFS visited: 999593/1000000 nodes
+  Isolated nodes (appended at end): 407
+
+=== BFS Reorder Statistics ===
+  Total nodes: 1000000
+  Average neighbor distance (BFS): 169302
+  Expected average distance (random): 333333
+  Distance improvement: 49.2095%
+  Total edges (level 0): 26244126
+
+Saving BFS order to poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  File size: 8000016 bytes
+Task 1.2 complete.
+=== Vec-Only Block Generator ===
+  Block size: 65536 (64KB)
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+  Nodes per block: max 126
+  Per-node: 516 bytes (id+vec)
+  Total blocks: 7937
+  Avg nodes/block: 125.992
+  Avg fill rate: 99.2248%
+  Total data: 496 MB
+  vs old format (vec+adj): same block count but adjacency not stored
+
+Writing to poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin...
+  Block 1000/7937
+  Block 2000/7937
+  Block 3000/7937
+  Block 4000/7937
+  Block 5000/7937
+  Block 6000/7937
+  Block 7000/7937
+  Block 7937/7937
+
+Writing route table to poc/hierarchical-vamana/output/sift1m_vecblocks_64k_route.bin...
+
+=== Vec-Only Blocks Complete ===
+  Blocks: 7937 × 65536B = 496 MB
+  Route: 3 MB
+  Adjacency: in CSR memory (not in blocks!)
+=== Task 1.3: Write Blocks (delta+varint compressed) ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Loading BFS order from poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  Block size: 65536 bytes (64KB)
+  Neighbor data: 104976504 -> 60252415 bytes (57.3961% of original)
+  Total blocks: 8866
+  Avg nodes per block: 112.79
+  Avg fill rate: 99.5565%
+  Min nodes/block: 107, Max nodes/block: 118
+
+Writing blocks to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Written block 100/8866
+  Written block 200/8866
+  Written block 300/8866
+  Written block 400/8866
+  Written block 500/8866
+  Written block 600/8866
+  Written block 700/8866
+  Written block 800/8866
+  Written block 900/8866
+  Written block 1000/8866
+  Written block 1100/8866
+  Written block 1200/8866
+  Written block 1300/8866
+  Written block 1400/8866
+  Written block 1500/8866
+  Written block 1600/8866
+  Written block 1700/8866
+  Written block 1800/8866
+  Written block 1900/8866
+  Written block 2000/8866
+  Written block 2100/8866
+  Written block 2200/8866
+  Written block 2300/8866
+  Written block 2400/8866
+  Written block 2500/8866
+  Written block 2600/8866
+  Written block 2700/8866
+  Written block 2800/8866
+  Written block 2900/8866
+  Written block 3000/8866
+  Written block 3100/8866
+  Written block 3200/8866
+  Written block 3300/8866
+  Written block 3400/8866
+  Written block 3500/8866
+  Written block 3600/8866
+  Written block 3700/8866
+  Written block 3800/8866
+  Written block 3900/8866
+  Written block 4000/8866
+  Written block 4100/8866
+  Written block 4200/8866
+  Written block 4300/8866
+  Written block 4400/8866
+  Written block 4500/8866
+  Written block 4600/8866
+  Written block 4700/8866
+  Written block 4800/8866
+  Written block 4900/8866
+  Written block 5000/8866
+  Written block 5100/8866
+  Written block 5200/8866
+  Written block 5300/8866
+  Written block 5400/8866
+  Written block 5500/8866
+  Written block 5600/8866
+  Written block 5700/8866
+  Written block 5800/8866
+  Written block 5900/8866
+  Written block 6000/8866
+  Written block 6100/8866
+  Written block 6200/8866
+  Written block 6300/8866
+  Written block 6400/8866
+  Written block 6500/8866
+  Written block 6600/8866
+  Written block 6700/8866
+  Written block 6800/8866
+  Written block 6900/8866
+  Written block 7000/8866
+  Written block 7100/8866
+  Written block 7200/8866
+  Written block 7300/8866
+  Written block 7400/8866
+  Written block 7500/8866
+  Written block 7600/8866
+  Written block 7700/8866
+  Written block 7800/8866
+  Written block 7900/8866
+  Written block 8000/8866
+  Written block 8100/8866
+  Written block 8200/8866
+  Written block 8300/8866
+  Written block 8400/8866
+  Written block 8500/8866
+  Written block 8600/8866
+  Written block 8700/8866
+  Written block 8800/8866
+  Written block 8866/8866
+
+=== Block Writing Statistics ===
+  Total blocks: 8866
+  Neighbor data: 104976504 -> 60252415 bytes (57.3961% of original, 42.6039% savings)
+  Total file size: 581046272 bytes (554 MB)
+  Metadata saved to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin.meta
+Task 1.3 complete.
+=== Task 1.4: Generate Route Table ===
+Reading blocks from poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Block size: 65536 bytes, Num blocks: 8866
+  Total nodes in blocks: 1000000
+  Max node ID: 999999
+  All 1000000 nodes mapped to blocks.
+
+=== Route Table Statistics ===
+  Entries: 1000000
+  Blocks: 8866
+  Nodes per block: min=107, max=118
+
+Saving route table to poc/hierarchical-vamana/output/sift1m_route_64k.bin...
+  File size: 4000016 bytes (3906.27 KB)
+Task 1.4 complete.
+--- MEASURE beam=32 R0=32 ---
+=== hv_beam32_r0_32 | 512MB | 16T | N=1000 | R=15 | seed=42 ===
+RSS after init: 171 MB
+QPS:           6210.4
+Recall@10:     97.02%
+Hit%:          0.00
+RSS:           367 MB
+Round 1 QPS:   1371.5
+Ramp-up:       632.9%
+CSV_AGG,15,15000,2.415290,6210.4,97.02,7942,10051.2
+--- log: results/sustained/hv_beam32_r0_32_512mb_16t_n1000_r15.log
+--- copied evidence: poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam32_r032.log (rc=134) ---
+
+############################################################
+### R2 SWEEP beam=64 R0=32 (α=1.2, TAG=hv_beam64_r0_32)
+############################################################
+--- BUILD beam=64 R0=32 ---
+=== hierarchical-vamana builder ===
+M_base=16 R0=32 Rup=16 beam=64 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.411287s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.0108825s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.0350022s)
+  layer 3: 3026 edges, avg 12.6083
+Building layer 2 over 3799 nodes (R=16)... done (0.127176s)
+  layer 2: 58641 edges, avg 15.4359
+Building layer 1 over 62778 nodes (R=16)... done (3.28797s)
+  layer 1: 993945 edges, avg 15.8327
+Building layer 0 over 1000000 nodes (R=32)... done (135.933s)
+  layer 0: 29638786 edges, avg 29.6388
+Saving graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin...
+  Saved graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Done.
+--- REORDER + BLOCKS beam=64 R0=32 ---
+=== Task 1.2: BFS Global Reorder ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Running BFS from entry point 18691...
+  BFS visited: 999959/1000000 nodes
+  Isolated nodes (appended at end): 41
+
+=== BFS Reorder Statistics ===
+  Total nodes: 1000000
+  Average neighbor distance (BFS): 154073
+  Expected average distance (random): 333333
+  Distance improvement: 53.7782%
+  Total edges (level 0): 29638786
+
+Saving BFS order to poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  File size: 8000016 bytes
+Task 1.2 complete.
+=== Vec-Only Block Generator ===
+  Block size: 65536 (64KB)
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+  Nodes per block: max 126
+  Per-node: 516 bytes (id+vec)
+  Total blocks: 7937
+  Avg nodes/block: 125.992
+  Avg fill rate: 99.2248%
+  Total data: 496 MB
+  vs old format (vec+adj): same block count but adjacency not stored
+
+Writing to poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin...
+  Block 1000/7937
+  Block 2000/7937
+  Block 3000/7937
+  Block 4000/7937
+  Block 5000/7937
+  Block 6000/7937
+  Block 7000/7937
+  Block 7937/7937
+
+Writing route table to poc/hierarchical-vamana/output/sift1m_vecblocks_64k_route.bin...
+
+=== Vec-Only Blocks Complete ===
+  Blocks: 7937 × 65536B = 496 MB
+  Route: 3 MB
+  Adjacency: in CSR memory (not in blocks!)
+=== Task 1.3: Write Blocks (delta+varint compressed) ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Loading BFS order from poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  Block size: 65536 bytes (64KB)
+  Neighbor data: 118555144 -> 65080682 bytes (54.8949% of original)
+  Total blocks: 8940
+  Avg nodes per block: 111.857
+  Avg fill rate: 99.5568%
+  Min nodes/block: 95, Max nodes/block: 118
+
+Writing blocks to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Written block 100/8940
+  Written block 200/8940
+  Written block 300/8940
+  Written block 400/8940
+  Written block 500/8940
+  Written block 600/8940
+  Written block 700/8940
+  Written block 800/8940
+  Written block 900/8940
+  Written block 1000/8940
+  Written block 1100/8940
+  Written block 1200/8940
+  Written block 1300/8940
+  Written block 1400/8940
+  Written block 1500/8940
+  Written block 1600/8940
+  Written block 1700/8940
+  Written block 1800/8940
+  Written block 1900/8940
+  Written block 2000/8940
+  Written block 2100/8940
+  Written block 2200/8940
+  Written block 2300/8940
+  Written block 2400/8940
+  Written block 2500/8940
+  Written block 2600/8940
+  Written block 2700/8940
+  Written block 2800/8940
+  Written block 2900/8940
+  Written block 3000/8940
+  Written block 3100/8940
+  Written block 3200/8940
+  Written block 3300/8940
+  Written block 3400/8940
+  Written block 3500/8940
+  Written block 3600/8940
+  Written block 3700/8940
+  Written block 3800/8940
+  Written block 3900/8940
+  Written block 4000/8940
+  Written block 4100/8940
+  Written block 4200/8940
+  Written block 4300/8940
+  Written block 4400/8940
+  Written block 4500/8940
+  Written block 4600/8940
+  Written block 4700/8940
+  Written block 4800/8940
+  Written block 4900/8940
+  Written block 5000/8940
+  Written block 5100/8940
+  Written block 5200/8940
+  Written block 5300/8940
+  Written block 5400/8940
+  Written block 5500/8940
+  Written block 5600/8940
+  Written block 5700/8940
+  Written block 5800/8940
+  Written block 5900/8940
+  Written block 6000/8940
+  Written block 6100/8940
+  Written block 6200/8940
+  Written block 6300/8940
+  Written block 6400/8940
+  Written block 6500/8940
+  Written block 6600/8940
+  Written block 6700/8940
+  Written block 6800/8940
+  Written block 6900/8940
+  Written block 7000/8940
+  Written block 7100/8940
+  Written block 7200/8940
+  Written block 7300/8940
+  Written block 7400/8940
+  Written block 7500/8940
+  Written block 7600/8940
+  Written block 7700/8940
+  Written block 7800/8940
+  Written block 7900/8940
+  Written block 8000/8940
+  Written block 8100/8940
+  Written block 8200/8940
+  Written block 8300/8940
+  Written block 8400/8940
+  Written block 8500/8940
+  Written block 8600/8940
+  Written block 8700/8940
+  Written block 8800/8940
+  Written block 8900/8940
+  Written block 8940/8940
+
+=== Block Writing Statistics ===
+  Total blocks: 8940
+  Neighbor data: 118555144 -> 65080682 bytes (54.8949% of original, 45.1051% savings)
+  Total file size: 585895936 bytes (558 MB)
+  Metadata saved to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin.meta
+Task 1.3 complete.
+=== Task 1.4: Generate Route Table ===
+Reading blocks from poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Block size: 65536 bytes, Num blocks: 8940
+  Total nodes in blocks: 1000000
+  Max node ID: 999999
+  All 1000000 nodes mapped to blocks.
+
+=== Route Table Statistics ===
+  Entries: 1000000
+  Blocks: 8940
+  Nodes per block: min=95, max=118
+
+Saving route table to poc/hierarchical-vamana/output/sift1m_route_64k.bin...
+  File size: 4000016 bytes (3906.27 KB)
+Task 1.4 complete.
+--- MEASURE beam=64 R0=32 ---
+=== hv_beam64_r0_32 | 512MB | 16T | N=1000 | R=15 | seed=42 ===
+RSS after init: 175 MB
+QPS:           6159.1
+Recall@10:     98.00%
+Hit%:          0.00
+RSS:           371 MB
+Round 1 QPS:   1383.4
+Ramp-up:       593.9%
+CSV_AGG,15,15000,2.435418,6159.1,98.00,7942,9599.4
+--- log: results/sustained/hv_beam64_r0_32_512mb_16t_n1000_r15.log
+--- copied evidence: poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r032.log (rc=134) ---
+
+############################################################
+### R2 SWEEP beam=128 R0=32 (α=1.2, TAG=hv_beam128_r0_32)
+############################################################
+--- BUILD beam=128 R0=32 ---
+=== hierarchical-vamana builder ===
+M_base=16 R0=32 Rup=16 beam=128 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.408722s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.0108922s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.0424967s)
+  layer 3: 3226 edges, avg 13.4417
+Building layer 2 over 3799 nodes (R=16)... done (0.185973s)
+  layer 2: 59706 edges, avg 15.7162
+Building layer 1 over 62778 nodes (R=16)... done (5.61357s)
+  layer 1: 1001043 edges, avg 15.9458
+Building layer 0 over 1000000 nodes (R=32)... done (248.834s)
+  layer 0: 31048095 edges, avg 31.0481
+Saving graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin...
+  Saved graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Done.
+--- REORDER + BLOCKS beam=128 R0=32 ---
+=== Task 1.2: BFS Global Reorder ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Running BFS from entry point 18691...
+  BFS visited: 999985/1000000 nodes
+  Isolated nodes (appended at end): 15
+
+=== BFS Reorder Statistics ===
+  Total nodes: 1000000
+  Average neighbor distance (BFS): 140456
+  Expected average distance (random): 333333
+  Distance improvement: 57.8631%
+  Total edges (level 0): 31048095
+
+Saving BFS order to poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  File size: 8000016 bytes
+Task 1.2 complete.
+=== Vec-Only Block Generator ===
+  Block size: 65536 (64KB)
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+  Nodes per block: max 126
+  Per-node: 516 bytes (id+vec)
+  Total blocks: 7937
+  Avg nodes/block: 125.992
+  Avg fill rate: 99.2248%
+  Total data: 496 MB
+  vs old format (vec+adj): same block count but adjacency not stored
+
+Writing to poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin...
+  Block 1000/7937
+  Block 2000/7937
+  Block 3000/7937
+  Block 4000/7937
+  Block 5000/7937
+  Block 6000/7937
+  Block 7000/7937
+  Block 7937/7937
+
+Writing route table to poc/hierarchical-vamana/output/sift1m_vecblocks_64k_route.bin...
+
+=== Vec-Only Blocks Complete ===
+  Blocks: 7937 × 65536B = 496 MB
+  Route: 3 MB
+  Adjacency: in CSR memory (not in blocks!)
+=== Task 1.3: Write Blocks (delta+varint compressed) ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Loading BFS order from poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  Block size: 65536 bytes (64KB)
+  Neighbor data: 124192380 -> 66490310 bytes (53.5382% of original)
+  Total blocks: 8961
+  Avg nodes per block: 111.595
+  Avg fill rate: 99.5636%
+  Min nodes/block: 88, Max nodes/block: 118
+
+Writing blocks to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Written block 100/8961
+  Written block 200/8961
+  Written block 300/8961
+  Written block 400/8961
+  Written block 500/8961
+  Written block 600/8961
+  Written block 700/8961
+  Written block 800/8961
+  Written block 900/8961
+  Written block 1000/8961
+  Written block 1100/8961
+  Written block 1200/8961
+  Written block 1300/8961
+  Written block 1400/8961
+  Written block 1500/8961
+  Written block 1600/8961
+  Written block 1700/8961
+  Written block 1800/8961
+  Written block 1900/8961
+  Written block 2000/8961
+  Written block 2100/8961
+  Written block 2200/8961
+  Written block 2300/8961
+  Written block 2400/8961
+  Written block 2500/8961
+  Written block 2600/8961
+  Written block 2700/8961
+  Written block 2800/8961
+  Written block 2900/8961
+  Written block 3000/8961
+  Written block 3100/8961
+  Written block 3200/8961
+  Written block 3300/8961
+  Written block 3400/8961
+  Written block 3500/8961
+  Written block 3600/8961
+  Written block 3700/8961
+  Written block 3800/8961
+  Written block 3900/8961
+  Written block 4000/8961
+  Written block 4100/8961
+  Written block 4200/8961
+  Written block 4300/8961
+  Written block 4400/8961
+  Written block 4500/8961
+  Written block 4600/8961
+  Written block 4700/8961
+  Written block 4800/8961
+  Written block 4900/8961
+  Written block 5000/8961
+  Written block 5100/8961
+  Written block 5200/8961
+  Written block 5300/8961
+  Written block 5400/8961
+  Written block 5500/8961
+  Written block 5600/8961
+  Written block 5700/8961
+  Written block 5800/8961
+  Written block 5900/8961
+  Written block 6000/8961
+  Written block 6100/8961
+  Written block 6200/8961
+  Written block 6300/8961
+  Written block 6400/8961
+  Written block 6500/8961
+  Written block 6600/8961
+  Written block 6700/8961
+  Written block 6800/8961
+  Written block 6900/8961
+  Written block 7000/8961
+  Written block 7100/8961
+  Written block 7200/8961
+  Written block 7300/8961
+  Written block 7400/8961
+  Written block 7500/8961
+  Written block 7600/8961
+  Written block 7700/8961
+  Written block 7800/8961
+  Written block 7900/8961
+  Written block 8000/8961
+  Written block 8100/8961
+  Written block 8200/8961
+  Written block 8300/8961
+  Written block 8400/8961
+  Written block 8500/8961
+  Written block 8600/8961
+  Written block 8700/8961
+  Written block 8800/8961
+  Written block 8900/8961
+  Written block 8961/8961
+
+=== Block Writing Statistics ===
+  Total blocks: 8961
+  Neighbor data: 124192380 -> 66490310 bytes (53.5382% of original, 46.4618% savings)
+  Total file size: 587272192 bytes (560 MB)
+  Metadata saved to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin.meta
+Task 1.3 complete.
+=== Task 1.4: Generate Route Table ===
+Reading blocks from poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Block size: 65536 bytes, Num blocks: 8961
+  Total nodes in blocks: 1000000
+  Max node ID: 999999
+  All 1000000 nodes mapped to blocks.
+
+=== Route Table Statistics ===
+  Entries: 1000000
+  Blocks: 8961
+  Nodes per block: min=88, max=118
+
+Saving route table to poc/hierarchical-vamana/output/sift1m_route_64k.bin...
+  File size: 4000016 bytes (3906.27 KB)
+Task 1.4 complete.
+--- MEASURE beam=128 R0=32 ---
+=== hv_beam128_r0_32 | 512MB | 16T | N=1000 | R=15 | seed=42 ===
+RSS after init: 177 MB
+QPS:           6130.1
+Recall@10:     97.86%
+Hit%:          0.00
+RSS:           372 MB
+Round 1 QPS:   1388.5
+Ramp-up:       590.3%
+CSV_AGG,15,15000,2.446942,6130.1,97.86,7942,9584.3
+--- log: results/sustained/hv_beam128_r0_32_512mb_16t_n1000_r15.log
+--- copied evidence: poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam128_r032.log (rc=134) ---
+
+############################################################
+### R2 SWEEP beam=64 R0=24 (α=1.2, TAG=hv_beam64_r0_24)
+############################################################
+--- BUILD beam=64 R0=24 ---
+=== hierarchical-vamana builder ===
+M_base=16 R0=24 Rup=16 beam=64 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.420559s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.011051s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.0326364s)
+  layer 3: 3026 edges, avg 12.6083
+Building layer 2 over 3799 nodes (R=16)... done (0.118288s)
+  layer 2: 58641 edges, avg 15.4359
+Building layer 1 over 62778 nodes (R=16)... done (3.46642s)
+  layer 1: 993945 edges, avg 15.8327
+Building layer 0 over 1000000 nodes (R=24)... done (107.405s)
+  layer 0: 23250673 edges, avg 23.2507
+Saving graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin...
+  Saved graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Done.
+--- REORDER + BLOCKS beam=64 R0=24 ---
+=== Task 1.2: BFS Global Reorder ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Running BFS from entry point 18691...
+  BFS visited: 999685/1000000 nodes
+  Isolated nodes (appended at end): 315
+
+=== BFS Reorder Statistics ===
+  Total nodes: 1000000
+  Average neighbor distance (BFS): 150129
+  Expected average distance (random): 333333
+  Distance improvement: 54.9612%
+  Total edges (level 0): 23250673
+
+Saving BFS order to poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  File size: 8000016 bytes
+Task 1.2 complete.
+=== Vec-Only Block Generator ===
+  Block size: 65536 (64KB)
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+  Nodes per block: max 126
+  Per-node: 516 bytes (id+vec)
+  Total blocks: 7937
+  Avg nodes/block: 125.992
+  Avg fill rate: 99.2248%
+  Total data: 496 MB
+  vs old format (vec+adj): same block count but adjacency not stored
+
+Writing to poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin...
+  Block 1000/7937
+  Block 2000/7937
+  Block 3000/7937
+  Block 4000/7937
+  Block 5000/7937
+  Block 6000/7937
+  Block 7000/7937
+  Block 7937/7937
+
+Writing route table to poc/hierarchical-vamana/output/sift1m_vecblocks_64k_route.bin...
+
+=== Vec-Only Blocks Complete ===
+  Blocks: 7937 × 65536B = 496 MB
+  Route: 3 MB
+  Adjacency: in CSR memory (not in blocks!)
+=== Task 1.3: Write Blocks (delta+varint compressed) ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Loading BFS order from poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  Block size: 65536 bytes (64KB)
+  Neighbor data: 93002692 -> 52052994 bytes (55.9693% of original)
+  Total blocks: 8739
+  Avg nodes per block: 114.43
+  Avg fill rate: 99.5711%
+  Min nodes/block: 36, Max nodes/block: 120
+
+Writing blocks to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Written block 100/8739
+  Written block 200/8739
+  Written block 300/8739
+  Written block 400/8739
+  Written block 500/8739
+  Written block 600/8739
+  Written block 700/8739
+  Written block 800/8739
+  Written block 900/8739
+  Written block 1000/8739
+  Written block 1100/8739
+  Written block 1200/8739
+  Written block 1300/8739
+  Written block 1400/8739
+  Written block 1500/8739
+  Written block 1600/8739
+  Written block 1700/8739
+  Written block 1800/8739
+  Written block 1900/8739
+  Written block 2000/8739
+  Written block 2100/8739
+  Written block 2200/8739
+  Written block 2300/8739
+  Written block 2400/8739
+  Written block 2500/8739
+  Written block 2600/8739
+  Written block 2700/8739
+  Written block 2800/8739
+  Written block 2900/8739
+  Written block 3000/8739
+  Written block 3100/8739
+  Written block 3200/8739
+  Written block 3300/8739
+  Written block 3400/8739
+  Written block 3500/8739
+  Written block 3600/8739
+  Written block 3700/8739
+  Written block 3800/8739
+  Written block 3900/8739
+  Written block 4000/8739
+  Written block 4100/8739
+  Written block 4200/8739
+  Written block 4300/8739
+  Written block 4400/8739
+  Written block 4500/8739
+  Written block 4600/8739
+  Written block 4700/8739
+  Written block 4800/8739
+  Written block 4900/8739
+  Written block 5000/8739
+  Written block 5100/8739
+  Written block 5200/8739
+  Written block 5300/8739
+  Written block 5400/8739
+  Written block 5500/8739
+  Written block 5600/8739
+  Written block 5700/8739
+  Written block 5800/8739
+  Written block 5900/8739
+  Written block 6000/8739
+  Written block 6100/8739
+  Written block 6200/8739
+  Written block 6300/8739
+  Written block 6400/8739
+  Written block 6500/8739
+  Written block 6600/8739
+  Written block 6700/8739
+  Written block 6800/8739
+  Written block 6900/8739
+  Written block 7000/8739
+  Written block 7100/8739
+  Written block 7200/8739
+  Written block 7300/8739
+  Written block 7400/8739
+  Written block 7500/8739
+  Written block 7600/8739
+  Written block 7700/8739
+  Written block 7800/8739
+  Written block 7900/8739
+  Written block 8000/8739
+  Written block 8100/8739
+  Written block 8200/8739
+  Written block 8300/8739
+  Written block 8400/8739
+  Written block 8500/8739
+  Written block 8600/8739
+  Written block 8700/8739
+  Written block 8739/8739
+
+=== Block Writing Statistics ===
+  Total blocks: 8739
+  Neighbor data: 93002692 -> 52052994 bytes (55.9693% of original, 44.0307% savings)
+  Total file size: 572723200 bytes (546 MB)
+  Metadata saved to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin.meta
+Task 1.3 complete.
+=== Task 1.4: Generate Route Table ===
+Reading blocks from poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Block size: 65536 bytes, Num blocks: 8739
+  Total nodes in blocks: 1000000
+  Max node ID: 999999
+  All 1000000 nodes mapped to blocks.
+
+=== Route Table Statistics ===
+  Entries: 1000000
+  Blocks: 8739
+  Nodes per block: min=36, max=120
+
+Saving route table to poc/hierarchical-vamana/output/sift1m_route_64k.bin...
+  File size: 4000016 bytes (3906.27 KB)
+Task 1.4 complete.
+--- MEASURE beam=64 R0=24 ---
+=== hv_beam64_r0_24 | 512MB | 16T | N=1000 | R=15 | seed=42 ===
+RSS after init: 163 MB
+QPS:           6367.0
+Recall@10:     95.87%
+Hit%:          0.00
+RSS:           358 MB
+Round 1 QPS:   1383.2
+Ramp-up:       659.7%
+CSV_AGG,15,15000,2.355897,6367.0,95.87,7942,10507.5
+--- log: results/sustained/hv_beam64_r0_24_512mb_16t_n1000_r15.log
+--- copied evidence: poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r024.log (rc=134) ---
+
+############################################################
+### R2 SWEEP beam=64 R0=40 (α=1.2, TAG=hv_beam64_r0_40)
+############################################################
+--- BUILD beam=64 R0=40 ---
+=== hierarchical-vamana builder ===
+M_base=16 R0=40 Rup=16 beam=64 alpha=1.2 alpha2=0 rounds=3 seed=42
+Read 1000000 vectors, dim=128 (0.412163s)
+Levels assigned: max_level=4 entry_point=18691
+  Level distribution: 0:937222 1:58979 2:3559 3:226 4:14
+Building layer 4 over 14 nodes (R=16)... done (0.0108168s)
+  layer 4: 56 edges, avg 4
+Building layer 3 over 240 nodes (R=16)... done (0.0326376s)
+  layer 3: 3026 edges, avg 12.6083
+Building layer 2 over 3799 nodes (R=16)... done (0.128358s)
+  layer 2: 58641 edges, avg 15.4359
+Building layer 1 over 62778 nodes (R=16)... done (3.29496s)
+  layer 1: 993945 edges, avg 15.8327
+Building layer 0 over 1000000 nodes (R=40)... done (161.909s)
+  layer 0: 34640174 edges, avg 34.6402
+Saving graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin...
+  Saved graph structure to poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Done.
+--- REORDER + BLOCKS beam=64 R0=40 ---
+=== Task 1.2: BFS Global Reorder ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Running BFS from entry point 18691...
+  BFS visited: 999994/1000000 nodes
+  Isolated nodes (appended at end): 6
+
+=== BFS Reorder Statistics ===
+  Total nodes: 1000000
+  Average neighbor distance (BFS): 158179
+  Expected average distance (random): 333333
+  Distance improvement: 52.5463%
+  Total edges (level 0): 34640174
+
+Saving BFS order to poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  File size: 8000016 bytes
+Task 1.2 complete.
+=== Vec-Only Block Generator ===
+  Block size: 65536 (64KB)
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+  Nodes per block: max 126
+  Per-node: 516 bytes (id+vec)
+  Total blocks: 7937
+  Avg nodes/block: 125.992
+  Avg fill rate: 99.2248%
+  Total data: 496 MB
+  vs old format (vec+adj): same block count but adjacency not stored
+
+Writing to poc/hierarchical-vamana/output/sift1m_vecblocks_64k.bin...
+  Block 1000/7937
+  Block 2000/7937
+  Block 3000/7937
+  Block 4000/7937
+  Block 5000/7937
+  Block 6000/7937
+  Block 7000/7937
+  Block 7937/7937
+
+Writing route table to poc/hierarchical-vamana/output/sift1m_vecblocks_64k_route.bin...
+
+=== Vec-Only Blocks Complete ===
+  Blocks: 7937 × 65536B = 496 MB
+  Route: 3 MB
+  Adjacency: in CSR memory (not in blocks!)
+=== Task 1.3: Write Blocks (delta+varint compressed) ===
+  Loaded graph structure from poc/hierarchical-vamana/output/sift1m_graph.bin (1000000 nodes)
+Loading BFS order from poc/hierarchical-vamana/output/sift1m_bfs.bin...
+  Block size: 65536 bytes (64KB)
+  Neighbor data: 138560696 -> 75321787 bytes (54.3601% of original)
+  Total blocks: 9099
+  Avg nodes per block: 109.902
+  Avg fill rate: 99.5352%
+  Min nodes/block: 10, Max nodes/block: 116
+
+Writing blocks to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Written block 100/9099
+  Written block 200/9099
+  Written block 300/9099
+  Written block 400/9099
+  Written block 500/9099
+  Written block 600/9099
+  Written block 700/9099
+  Written block 800/9099
+  Written block 900/9099
+  Written block 1000/9099
+  Written block 1100/9099
+  Written block 1200/9099
+  Written block 1300/9099
+  Written block 1400/9099
+  Written block 1500/9099
+  Written block 1600/9099
+  Written block 1700/9099
+  Written block 1800/9099
+  Written block 1900/9099
+  Written block 2000/9099
+  Written block 2100/9099
+  Written block 2200/9099
+  Written block 2300/9099
+  Written block 2400/9099
+  Written block 2500/9099
+  Written block 2600/9099
+  Written block 2700/9099
+  Written block 2800/9099
+  Written block 2900/9099
+  Written block 3000/9099
+  Written block 3100/9099
+  Written block 3200/9099
+  Written block 3300/9099
+  Written block 3400/9099
+  Written block 3500/9099
+  Written block 3600/9099
+  Written block 3700/9099
+  Written block 3800/9099
+  Written block 3900/9099
+  Written block 4000/9099
+  Written block 4100/9099
+  Written block 4200/9099
+  Written block 4300/9099
+  Written block 4400/9099
+  Written block 4500/9099
+  Written block 4600/9099
+  Written block 4700/9099
+  Written block 4800/9099
+  Written block 4900/9099
+  Written block 5000/9099
+  Written block 5100/9099
+  Written block 5200/9099
+  Written block 5300/9099
+  Written block 5400/9099
+  Written block 5500/9099
+  Written block 5600/9099
+  Written block 5700/9099
+  Written block 5800/9099
+  Written block 5900/9099
+  Written block 6000/9099
+  Written block 6100/9099
+  Written block 6200/9099
+  Written block 6300/9099
+  Written block 6400/9099
+  Written block 6500/9099
+  Written block 6600/9099
+  Written block 6700/9099
+  Written block 6800/9099
+  Written block 6900/9099
+  Written block 7000/9099
+  Written block 7100/9099
+  Written block 7200/9099
+  Written block 7300/9099
+  Written block 7400/9099
+  Written block 7500/9099
+  Written block 7600/9099
+  Written block 7700/9099
+  Written block 7800/9099
+  Written block 7900/9099
+  Written block 8000/9099
+  Written block 8100/9099
+  Written block 8200/9099
+  Written block 8300/9099
+  Written block 8400/9099
+  Written block 8500/9099
+  Written block 8600/9099
+  Written block 8700/9099
+  Written block 8800/9099
+  Written block 8900/9099
+  Written block 9000/9099
+  Written block 9099/9099
+
+=== Block Writing Statistics ===
+  Total blocks: 9099
+  Neighbor data: 138560696 -> 75321787 bytes (54.3601% of original, 45.6399% savings)
+  Total file size: 596316160 bytes (568 MB)
+  Metadata saved to poc/hierarchical-vamana/output/sift1m_blocks_64k.bin.meta
+Task 1.3 complete.
+=== Task 1.4: Generate Route Table ===
+Reading blocks from poc/hierarchical-vamana/output/sift1m_blocks_64k.bin...
+  Block size: 65536 bytes, Num blocks: 9099
+  Total nodes in blocks: 1000000
+  Max node ID: 999999
+  All 1000000 nodes mapped to blocks.
+
+=== Route Table Statistics ===
+  Entries: 1000000
+  Blocks: 9099
+  Nodes per block: min=10, max=116
+
+Saving route table to poc/hierarchical-vamana/output/sift1m_route_64k.bin...
+  File size: 4000016 bytes (3906.27 KB)
+Task 1.4 complete.
+--- MEASURE beam=64 R0=40 ---
+=== hv_beam64_r0_40 | 512MB | 16T | N=1000 | R=15 | seed=42 ===
+RSS after init: 185 MB
+QPS:           6047.8
+Recall@10:     98.95%
+Hit%:          0.00
+RSS:           381 MB
+Round 1 QPS:   1430.9
+Ramp-up:       525.8%
+CSV_AGG,15,15000,2.480255,6047.8,98.95,7942,8953.9
+--- log: results/sustained/hv_beam64_r0_40_512mb_16t_n1000_r15.log
+--- copied evidence: poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r040.log (rc=134) ---
+
+=== R2 SWEEP DONE ===
+-rw-rw-r-- 1 huawei huawei  900 Aug 25 15:41 poc/hierarchical-vamana/ndf/evidence/build-r2-beam128_r032.log
+-rw-rw-r-- 1 huawei huawei  898 Aug 25 15:34 poc/hierarchical-vamana/ndf/evidence/build-r2-beam32_r032.log
+-rw-rw-r-- 1 huawei huawei  897 Aug 25 15:43 poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r024.log
+-rw-rw-r-- 1 huawei huawei  898 Aug 25 15:37 poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r032.log
+-rw-rw-r-- 1 huawei huawei  898 Aug 25 15:46 poc/hierarchical-vamana/ndf/evidence/build-r2-beam64_r040.log
+-rw-rw-r-- 1 huawei huawei 4406 Aug 25 15:41 poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam128_r032.log
+-rw-rw-r-- 1 huawei huawei 4406 Aug 25 15:34 poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam32_r032.log
+-rw-rw-r-- 1 huawei huawei 4408 Aug 25 15:43 poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r024.log
+-rw-rw-r-- 1 huawei huawei 4404 Aug 25 15:37 poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r032.log
+-rw-rw-r-- 1 huawei huawei 4405 Aug 25 15:46 poc/hierarchical-vamana/ndf/evidence/run_poc_measure-512mb-16t-r2-beam64_r040.log

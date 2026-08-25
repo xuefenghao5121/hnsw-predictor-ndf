@@ -1,0 +1,104 @@
+{
+  "schema": "ndf-agent-completion/v1",
+  "result": "success",
+  "role": "control",
+  "provider": "openclaw",
+  "topic": "project-genesis",
+  "task": "product_proposal",
+  "track": "bootstrap",
+  "hop": "genesis_design",
+  "episode_id": "",
+  "attempt_id": "",
+  "action_id": "",
+  "catalog_action_id": "",
+  "base_sha": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "repo_head": "d0ae5dd4bdd44af73498f98ea1ac0b86cee0f755",
+  "manifest_sha": "bd32f0c345c164bf38ebe84b0e6e7753960b9a7292506803e1e03b1ef13a68a0",
+  "context_plan_sha": "3f1c60729d3daa2abd64c9523d327876c9ac7e6785c65df6653917e188dddacd",
+  "changed_files": [
+    "spec/00-charter/charter.md",
+    "spec/10-architecture/architecture.md",
+    "spec/20-behavior/behavior.md",
+    "spec/30-interfaces/interfaces.md",
+    "spec/40-constraints/constraints.md",
+    "spec/50-verification/verification.md",
+    "spec/50-verification/configs/cfg-sla-ef100.md",
+    "spec/50-verification/baselines/bl-trunk-d0ae5dd.md",
+    "spec/decisions/dec-project-genesis.md",
+    "spec/open/project-genesis/FOUNDATION.md",
+    "spec/open/project-genesis/evidence/make-test.md",
+    "spec/open/project-genesis/evidence/baseline-sift1m-512mb-16t.md",
+    "spec/INDEX.md"
+  ],
+  "changed_file_shas": {
+    "spec/00-charter/charter.md": "45d83e6fc12770135cd47e96c725a124bfdf0d9e6de4206ad44dcf3bd8171ea4",
+    "spec/10-architecture/architecture.md": "6e86938e6b04f65ea8cabc1fd676a557b1fd5d8c759254eb1176d79a1ba47832",
+    "spec/20-behavior/behavior.md": "af4457b915877f0bea3df2b9c85a2741a825d91d0bb4b422b599341abeafa3f3",
+    "spec/30-interfaces/interfaces.md": "0e9b3f1c51ccfaac7bcd4dd824321c58ad1a74ad89946ebe6b95265c17dea018",
+    "spec/40-constraints/constraints.md": "860d2d0f4096cca03ddf5f336a0c0c0cdc22bfc2f04ccfbaf064ed56d8a85587",
+    "spec/50-verification/verification.md": "c1b8cc12d6c45884d00310f618e31562801ac83dc8d9b3b69db2211c5e656861",
+    "spec/50-verification/configs/cfg-sla-ef100.md": "8fda81af194547920702981f338851629f5d9e0446647e8e93e3c7a8fc9db55d",
+    "spec/50-verification/baselines/bl-trunk-d0ae5dd.md": "2415628f375d50abce62e15b932763420e5db9ac47bba8df0324a31030439314",
+    "spec/decisions/dec-project-genesis.md": "7cbb203a46199c9765f39f97334447eee97e3f5ca0bf1ed8a79651061a485b64",
+    "spec/open/project-genesis/FOUNDATION.md": "30b82393475fa9157aad97da75335bde577b7b3f38309acdc9339e93eb32dd3d",
+    "spec/open/project-genesis/evidence/make-test.md": "0d9b62e6ccf8297c780afaeb40f62c7874e836f5e9ae983e4dfaec687614741f",
+    "spec/open/project-genesis/evidence/baseline-sift1m-512mb-16t.md": "1a452c723980971ef3262826bb455f8410c281f9652fca5e1b33befc4db4ddd2",
+    "spec/INDEX.md": "5c3c012e5394a6ab6650b9e253abcc53be7595322b7940961beeaff6cde8edca"
+  },
+  "evidence_paths": [
+    "spec/open/project-genesis/evidence/make-test.md",
+    "spec/open/project-genesis/evidence/baseline-sift1m-512mb-16t.md",
+    "results/sustained/ver043_512mb_16t_n1000_r15.log"
+  ],
+  "evidence_bundle_sha": "bd821608b227e2a3977b95bab60e877708540c5140b15f42fdb4731f2fa10452",
+  "reproduce_commands": [
+    "make test",
+    "CGROUP_MB=512 THREADS=16 bash scripts/run_sustained.sh --config cfg-sla-ef100",
+    "python3 spec/meta/tools/ndf_index.py index",
+    "python3 spec/meta/tools/ndf_index.py validate",
+    "python3 spec/meta/tools/ndf_graphcheck.py",
+    "python3 spec/meta/tools/ndf_poc_isolation.py check --workspace"
+  ],
+  "git_commit": "",
+  "post_check_receipts": [
+    {
+      "command": "python3 spec/meta/tools/ndf_graphcheck.py",
+      "evidence_paths": [
+        "tmp/ndf-graphcheck.md"
+      ],
+      "output_sha": "20052272bb10543583bdb3d5c660f216552ffc7bb83ef5f3b660f473df9abe4d",
+      "result": "passed",
+      "verifier": {
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_graphcheck.py"
+        ],
+        "exit_code": 0,
+        "output_schema": "ndf-tool-report/v1",
+        "path": "/home/huawei/hnsw-predictor-pageann/spec/meta/tools/ndf_graphcheck.py",
+        "version_sha": "89bd3794b927ee6035e05383997b5db258f1a27db070605758a8c0950d6eaedc"
+      }
+    },
+    {
+      "command": "python3 spec/meta/tools/ndf_poc_isolation.py check --workspace",
+      "evidence_paths": [
+        "tmp/ndf-poc-isolation.md"
+      ],
+      "output_sha": "571ebb294e9c71c243c705b9b3077c9d3695821dfd678dd05c1dee3faac315d0",
+      "result": "passed",
+      "verifier": {
+        "argv": [
+          "python3",
+          "spec/meta/tools/ndf_poc_isolation.py",
+          "check",
+          "--workspace"
+        ],
+        "exit_code": 0,
+        "output_schema": "ndf-tool-report/v1",
+        "path": "/home/huawei/hnsw-predictor-pageann/spec/meta/tools/ndf_poc_isolation.py",
+        "version_sha": "43398071d8b0c41f6ce2d6cf22107137213b2954b7bd3602b323950fb96d6374"
+      }
+    }
+  ],
+  "summary": "continue_baseline: make test PASS + SIFT1M sustained reproduced (512MB/16T, agg 4330.9 QPS / recall 96.00%); non-SLA skeleton (CHR/ARCH/BEH/API/non-SLA CON/VER) -> stable; CON-SLA-001 -> stable; baseline bl-trunk-d0ae5dd + cfg-sla-ef100 written."
+}
