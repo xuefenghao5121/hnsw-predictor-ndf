@@ -18,6 +18,8 @@ poc/**/build/
 poc/**/build-bin/
 poc/**/*.o
 .worktrees/
+poc/
+spec/
 
 # AI / local harness state (SoT lives in tracked spec/ + ndf.workflow.yaml)
 .claude/
@@ -36,6 +38,7 @@ packages/
 *.swp
 .DS_Store
 __pycache__/
+ndf.*
 
 # hnswlib 外部依赖 (如需精简可改为 submodule)
 # hnswlib/
