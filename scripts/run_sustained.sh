@@ -98,6 +98,15 @@ if [[ -n "$CONFIG_ID" ]]; then
     [[ -n "$EASY_GAP" ]] && CONFIG_EXTRA="$CONFIG_EXTRA ADAPTIVE_EASY_GAP=$EASY_GAP"
   fi
 
+  # 解析 LEARNED_EF / GBDT_MARGIN（GBDT 学习式候选数，[[BEH-010]]）-> 生成 EXTRA
+  # 金标运行点（[[DEC-004]] amend）：LEARNED_EF=1 + GBDT_MARGIN=1.3。
+  LEARNED_EF_CFG=$(grep '| LEARNED_EF |' "$CONFIG_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}')
+  GBDT_MARGIN_CFG=$(grep '| GBDT_MARGIN |' "$CONFIG_FILE" | head -1 | awk -F'|' '{gsub(/ /,"",$3); print $3}')
+  if [[ -n "$LEARNED_EF_CFG" ]]; then
+    CONFIG_EXTRA="${CONFIG_EXTRA:+$CONFIG_EXTRA }export LEARNED_EF=$LEARNED_EF_CFG"
+    [[ -n "$GBDT_MARGIN_CFG" ]] && CONFIG_EXTRA="$CONFIG_EXTRA GBDT_MARGIN=$GBDT_MARGIN_CFG"
+  fi
+
   # 解析 cluster_k / cluster_input (可选; 用于自动重生成 cluster-sorted vecblocks)
   CONFIG_CLUSTER_K=$(grep '^> *cluster_k:' "$CONFIG_FILE" | head -1 | sed 's/.*cluster_k: *//;s/ *$//')
   CONFIG_CLUSTER_INPUT=$(grep '^> *cluster_input:' "$CONFIG_FILE" | head -1 | sed 's/.*cluster_input: *//;s/ *$//')
