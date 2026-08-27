@@ -73,7 +73,7 @@ if [[ -n "$CONFIG_ID" ]]; then
   # 解析 data_path (去除尾部斜杠)
   CONFIG_DATA_PREFIX=$(grep '^> *data_path:' "$CONFIG_FILE" | head -1 | sed 's/.*data_path: *//;s/ *$//;s|/$||')
 
-  # 解析 vecblocks_path (可选; 覆盖默认 ${DATA_PREFIX}_vecblocks_64k.bin)
+  # 解析 vecblocks_path (可选; 覆盖默认 ${DATA_PREFIX}_vecblocks_${BLKSUF}.bin)
   CONFIG_VECBLOCKS_PATH=$(grep '^> *vecblocks_path:' "$CONFIG_FILE" | head -1 | sed 's/.*vecblocks_path: *//;s/ *$//')
 
   # 解析 REFINE_EF
@@ -136,12 +136,18 @@ fi
 
 BIN="${BIN:-build/benchmark_sustained}"
 
+# block size (bytes); winner default 256KB ([[DEC-004]]). Env-overridable so the
+# constraint-aware tuner can sweep the block ladder without forking the pipeline.
+BS="${BS:-262144}"
+BSK=$(( BS / 1024 ))
+BLKSUF="${BSK}k"
+
 if [[ $DRY_RUN -eq 1 ]]; then
   echo "=== DRY RUN ==="
   echo "CONFIG_ID:    ${CONFIG_ID:-<none>}"
   echo "BIN:          $BIN"
   echo "DATA_PREFIX:  $DATA_PREFIX"
-  echo "VEC_BLOCKS:   ${CONFIG_VECBLOCKS_PATH:-${DATA_PREFIX}_vecblocks_64k.bin}"
+  echo "VEC_BLOCKS:   ${CONFIG_VECBLOCKS_PATH:-${DATA_PREFIX}_vecblocks_${BLKSUF}.bin}"
   echo "EF:           $EF"
   echo "CGROUP_MB:    $CGROUP_MB"
   echo "THREADS:      $THREADS"
@@ -215,19 +221,19 @@ cg_drop_caches                      # CON-SLA-014 step 1
 cg_add_proc \$\$                     # CON-SLA-014 step 2
 cd $REPO
 export CACHE_MB=64 TWO_STAGE=1 FINE_RERANK=1 FINE_BUFFERED=1 FINE_PREAD=1
-export VEC_BLOCKS_PATH=${VEC_BLOCKS_PATH:-${DATA_PREFIX}_vecblocks_64k.bin}
+export VEC_BLOCKS_PATH=${VEC_BLOCKS_PATH:-${DATA_PREFIX}_vecblocks_${BLKSUF}.bin}
 # Apply config vecblocks_path override (e.g. cluster-sorted, BEH-037)
 if [[ -n "${CONFIG_VECBLOCKS_PATH:-}" ]]; then
   export VEC_BLOCKS_PATH="${CONFIG_VECBLOCKS_PATH}"
 fi
-export PQ_CODES_PATH=output/pqco_sift1m_M32_correct.bin
+export PQ_CODES_PATH=${PQ_CODES_PATH:-output/pqco_sift1m_M32_correct.bin}
 export REFINE_EF=$EF EVICT_PAGE_CACHE=0 NUM_THREADS=$THREADS
 export FLAT_VEC_MB=$FVC PAGE_MERGE_BG=1 L4_WILLNEED=1 WILLNEED_BG=1 VL_POOL_THREADS=14
 ${EXTRA:-}
 # CON-SLA-019: --warmup omitted => 0 => no warmup over measured queries.
 $BIN \
   ${DATA_PREFIX}_graph.bin ${DATA_PREFIX}_bfs.bin \
-  ${DATA_PREFIX}_blocks_64k.bin ${DATA_PREFIX}_route_64k.bin \
+  ${DATA_PREFIX}_blocks_${BLKSUF}.bin ${DATA_PREFIX}_route_${BLKSUF}.bin \
   data/sift_base.fvecs $POOL $GT \
   10 $EF --rounds $ROUNDS --per-round $PER_ROUND --seed $SEED --verbose
 # CON-SLA-014 steps 4-5: cgroup accounting evidence

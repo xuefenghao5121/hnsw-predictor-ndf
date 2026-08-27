@@ -22,8 +22,8 @@
 #
 # 产出 (output/ 下):
 #   <前缀>_index.bin  <前缀>_graph.bin  <前缀>_bfs.bin
-#   <前缀>_blocks_64k.bin  <前缀>_route_64k.bin
-#   <前缀>_vecblocks_64k.bin  <前缀>_vecblocks_64k_route.bin
+#   <前缀>_blocks_<BS>k.bin  <前缀>_route_<BS>k.bin
+#   <前缀>_vecblocks_<BS>k.bin  <前缀>_vecblocks_<BS>k_route.bin
 #   pqco_<前缀>_M<M>.bin
 #   (若给了 query 或 HDF5 含 /test) data 同目录下 <前缀>_gtK.bin
 
@@ -36,7 +36,9 @@ M=${3:?"缺 M (SIFT=32, Deep=8)"}
 QUERY=${4:-}
 K=${5:-10}
 
-BS=65536   # 64KB block
+BS="${BS:-262144}"   # block size (bytes); winner default 256KB ([[DEC-004]])
+BSK=$(( BS / 1024 ))
+BLKSUF="${BSK}k"
 O=output
 mkdir -p "$O" data
 
@@ -84,12 +86,12 @@ echo "[3/7] bfs_reorder ..."
 
 echo "[4/7] write_blocks_veconly ..."
 ./build/write_blocks_veconly "$O/${PREFIX}_graph.bin" "$O/${PREFIX}_bfs.bin" \
-    "$O/${PREFIX}_vecblocks_64k.bin" $BS
+    "$O/${PREFIX}_vecblocks_${BLKSUF}.bin" $BS
 
 echo "[5/7] write_blocks + gen_route ..."
 ./build/write_blocks "$O/${PREFIX}_graph.bin" "$O/${PREFIX}_bfs.bin" \
-    "$O/${PREFIX}_blocks_64k.bin" $BS
-./build/gen_route "$O/${PREFIX}_blocks_64k.bin" "$O/${PREFIX}_route_64k.bin"
+    "$O/${PREFIX}_blocks_${BLKSUF}.bin" $BS
+./build/gen_route "$O/${PREFIX}_blocks_${BLKSUF}.bin" "$O/${PREFIX}_route_${BLKSUF}.bin"
 
 echo "[6/7] train_pq (M=$M) ..."
 python3 scripts/train_pq.py "$BASE" "$O/pqco_${PREFIX}_M${M}.bin" "$M"

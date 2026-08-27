@@ -398,6 +398,26 @@ Cache-warmed 口径在计时前将全部 200q 跑一遍预热 page cache，
 
 ---
 
+## 约束感知调优
+
+DiskHNSW 附带一个**离线**约束感知调优器（[[BEH-028]] / [[ARCH-009]]）：用「结构感知搜索 +
+廉价可行性剪枝 + 实测校验」在远少于 grid / Optuna 的完整 rebuild 次数内，找到满足 recall ≥95%
+且优于锁定默认 QPS 的配置。它不进查询热路径。
+
+```bash
+# 用户主入口：P0–P4 嵌套遍历（复用 Trunk build_pipeline.sh + run_sustained.sh）
+python3 tools/constraint-aware-tuner/scripts/traverse.py
+
+# 廉价剪枝自检（无 build / 无测量）
+python3 tools/constraint-aware-tuner/scripts/traverse.py --self-test
+```
+
+> 原理、六条耦合、P0–P4、`CAT_BUDGET_REBUILDS` / `CAT_GBDT_PROBES`、与 grid/Optuna 的差别、
+> 配置记录（[[VER-004]]）见 [docs/constraint-aware-tuner.md](docs/constraint-aware-tuner.md)。
+> 调优器产出的 POC evidence 数字**不是** stable must SLA（[[CON-POC-001]]）。
+
+---
+
 ## 未来方向
 
 | 阶段 | 目标 | 状态 |
