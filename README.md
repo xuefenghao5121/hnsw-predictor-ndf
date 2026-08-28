@@ -418,6 +418,31 @@ python3 tools/constraint-aware-tuner/scripts/traverse.py --self-test
 
 ---
 
+## 组合调优器（RP + Optuna）
+
+在约束感知调优器之上，DiskHNSW 另附一个**离线**组合调优器（[[BEH-029]] / [[ARCH-010]]）：
+组合「搜索先于重建 + RP-Tuning 后置 RobustPrune(α₂) + Optuna TPE 剩余重建轴 + per-artifact
+GBDT 重训」，把 α/密度轴从每 α 一次重建便宜成 0-rebuild 图重写，并对剩余轴做有界贝叶斯搜索。
+它不进查询热路径。
+
+```bash
+# 廉价剪枝 / 图重写自检（无 build / 无测量）
+make -C tools/rp-optuna-tuner/harness
+tools/rp-optuna-tuner/harness-bin/tune_main --self-test
+python3 tools/rp-optuna-tuner/optuna/optuna_driver.py --self-test
+python3 tools/rp-optuna-tuner/harness/calibrate_s0.py --self-check
+
+# 搜索先于重建（0 rebuild）→ 密基图（1 rebuild）→ 可选 RP α₂ 阶梯（0 rebuild）→ Optuna 剩余轴
+bash tools/rp-optuna-tuner/scripts/build_rptbase.sh
+python3 tools/rp-optuna-tuner/harness/run_s3_optuna.py
+```
+
+> 原理、推荐流水线、`RPT_*` / `GBDT_MARGIN` 旋钮、S2/S3 结论、安装与失败模式见
+> [docs/rp-optuna-tuner.md](docs/rp-optuna-tuner.md)。调优器产出的 POC evidence 数字**不是**
+> stable must SLA（[[CON-POC-001]]）。
+
+---
+
 ## 未来方向
 
 | 阶段 | 目标 | 状态 |

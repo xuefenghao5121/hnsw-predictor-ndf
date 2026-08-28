@@ -8,8 +8,8 @@
 //
 // 语义核见 spec/models/hierarchical-vamana-build.md（[[BEH-027]] / [[ARCH-007]]）。
 //
-// 锁定运行默认值（constraint-aware-tuning winner，[[DEC-004]]）：
-//   HV_M=16 HV_R0=40 HV_RUP=16 HV_BEAM=48 HV_ALPHA=1.07 HV_ALPHA2=0
+// 锁定运行默认值（rp-optuna-tuner S3 winner，[[DEC-005]] amends [[DEC-004]]）：
+//   HV_M=16 HV_R0=40 HV_RUP=16 HV_BEAM=64 HV_ALPHA=1.2 HV_ALPHA2=0
 //   HV_ROUNDS=3 HV_SEED=42
 //
 // 用法:
@@ -330,8 +330,8 @@ int main(int argc, char** argv) {
     int M_base  = env_int("HV_M", 16);
     int R0      = env_int("HV_R0", 40);
     int Rup     = env_int("HV_RUP", 16);
-    int beam    = env_int("HV_BEAM", 48);
-    float alpha = env_float("HV_ALPHA", 1.07f);
+    int beam    = env_int("HV_BEAM", 64);
+    float alpha = env_float("HV_ALPHA", 1.2f);
     float alpha2 = env_float("HV_ALPHA2", 0.0f);
     int rounds  = env_int("HV_ROUNDS", 3);
     uint32_t seed = (uint32_t)env_int("HV_SEED", 42);

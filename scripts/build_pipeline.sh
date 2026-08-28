@@ -32,7 +32,7 @@ cd "$(dirname "$0")/.."
 
 BASE=${1:?"缺 base.fvecs 或 base.hdf5"}
 PREFIX=${2:?"缺前缀 (如 sift1m)"}
-M=${3:?"缺 M (SIFT=32, Deep=8)"}
+M=${3:?"缺 M (SIFT=64, Deep=8)"}
 QUERY=${4:-}
 K=${5:-10}
 

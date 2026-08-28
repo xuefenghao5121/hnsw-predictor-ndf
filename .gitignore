@@ -40,6 +40,10 @@ packages/
 __pycache__/
 ndf.*
 
+# rp-optuna-tuner runtime artifacts (compiled binaries + mutable active-model symlink)
+tools/rp-optuna-tuner/harness-bin/
+tools/rp-optuna-tuner/harness/gbdt_model_active.h
+
 # hnswlib 外部依赖 (如需精简可改为 submodule)
 # hnswlib/
 results/
